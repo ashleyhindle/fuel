@@ -85,29 +85,9 @@ class ConfigService
             }
         }
 
-        // Validate agents section if present
-        if (isset($config['agents'])) {
-            if (! is_array($config['agents'])) {
-                throw new RuntimeException('Config "agents" key must be an array');
-            }
-
-            foreach ($config['agents'] as $agentName => $agentConfig) {
-                if (! is_string($agentName)) {
-                    throw new RuntimeException('Agent name must be a string');
-                }
-
-                if (! is_array($agentConfig)) {
-                    throw new RuntimeException("Agent config for '{$agentName}' must be an array");
-                }
-
-                if (! isset($agentConfig['max_concurrent'])) {
-                    throw new RuntimeException("Agent '{$agentName}' must have 'max_concurrent' key");
-                }
-
-                if (! is_int($agentConfig['max_concurrent']) || $agentConfig['max_concurrent'] < 1) {
-                    throw new RuntimeException("Agent '{$agentName}' max_concurrent must be a positive integer");
-                }
-            }
+        // Validate agents section if present (lenient - invalid entries are skipped by getters)
+        if (isset($config['agents']) && ! is_array($config['agents'])) {
+            throw new RuntimeException('Config "agents" key must be an array');
         }
     }
 
@@ -208,6 +188,58 @@ class ConfigService
     }
 
     /**
+     * Get max_concurrent limit for a specific agent.
+     * Returns default of 2 if agent is not configured.
+     */
+    public function getAgentLimit(string $agentName): int
+    {
+        $config = $this->loadConfig();
+
+        if (! isset($config['agents']) || ! is_array($config['agents'])) {
+            return 2; // Default if agents section doesn't exist
+        }
+
+        if (! isset($config['agents'][$agentName])) {
+            return 2; // Default if agent not configured
+        }
+
+        $agentConfig = $config['agents'][$agentName];
+        if (! is_array($agentConfig) || ! isset($agentConfig['max_concurrent'])) {
+            return 2; // Default if max_concurrent not set
+        }
+
+        return $agentConfig['max_concurrent'];
+    }
+
+    /**
+     * Get all agent -> limit mappings.
+     * Returns array with agent name as key and max_concurrent as value.
+     *
+     * @return array<string, int>
+     */
+    public function getAgentLimits(): array
+    {
+        $config = $this->loadConfig();
+
+        if (! isset($config['agents']) || ! is_array($config['agents'])) {
+            return []; // Return empty array if agents section doesn't exist
+        }
+
+        $limits = [];
+        foreach ($config['agents'] as $agentName => $agentConfig) {
+            if (! is_string($agentName) || ! is_array($agentConfig)) {
+                continue; // Skip invalid entries
+            }
+
+            if (isset($agentConfig['max_concurrent']) && is_int($agentConfig['max_concurrent'])) {
+                $limits[$agentName] = $agentConfig['max_concurrent'];
+            }
+        }
+
+        return $limits;
+    }
+
+    /**
      * Create default config file if it doesn't exist.
      */
     public function createDefaultConfig(): void
@@ -221,36 +253,64 @@ class ConfigService
             mkdir($dir, 0755, true);
         }
 
-        $defaultConfig = [
-            'complexity' => [
-                'trivial' => [
-                    'agent' => 'cursor-agent',
-                    'model' => 'composer-1',
-                ],
-                'simple' => [
-                    'agent' => 'cursor-agent',
-                    'model' => 'composer-1',
-                ],
-                'moderate' => [
-                    'agent' => 'claude',
-                    'model' => 'sonnet',
-                ],
-                'complex' => [
-                    'agent' => 'claude',
-                    'model' => 'opus',
-                ],
-            ],
-            'agents' => [
-                'cursor-agent' => [
-                    'max_concurrent' => 2,
-                ],
-                'claude' => [
-                    'max_concurrent' => 2,
-                ],
-            ],
-        ];
+        // Safe tools for Claude: file ops, search, fuel, git (no destructive commands)
+        $allowedTools = implode(',', [
+            'Read', 'Edit', 'Write', 'Grep', 'Glob',
+            'Bash(./fuel:*)', 'Bash(fuel:*)',
+            'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(git status:*)',
+            'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(git show:*)',
+            'Bash(ls:*)',
+            'Bash(./vendor/bin/pest:*)', 'Bash(./vendor/bin/pint:*)',
+        ]);
 
-        $yaml = Yaml::dump($defaultConfig, 4);
+        // Use template string to include comments showing autonomous mode flags
+        $yaml = <<<YAML
+# Fuel Configuration
+# Routes tasks to different agents based on complexity
+
+complexity:
+  trivial:
+    agent: cursor-agent
+    model: composer-1
+    # Uncomment for autonomous mode (no permission prompts):
+    # args:
+    #   - "--force"
+
+  simple:
+    agent: cursor-agent
+    model: composer-1
+    # Uncomment for autonomous mode (no permission prompts):
+    # args:
+    #   - "--force"
+
+  moderate:
+    agent: claude
+    model: sonnet
+    args:
+      - "--allowedTools"
+      - "{$allowedTools}"
+    # Or for full autonomous mode (no permission prompts):
+    # args:
+    #   - "--dangerously-skip-permissions"
+
+  complex:
+    agent: claude
+    model: opus
+    args:
+      - "--allowedTools"
+      - "{$allowedTools}"
+    # Or for full autonomous mode (no permission prompts):
+    # args:
+    #   - "--dangerously-skip-permissions"
+
+# Agent concurrency limits
+agents:
+  cursor-agent:
+    max_concurrent: 2
+  claude:
+    max_concurrent: 2
+YAML;
+
         file_put_contents($this->configPath, $yaml);
     }
 }

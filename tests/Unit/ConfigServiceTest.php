@@ -443,82 +443,125 @@ it('throws exception when agents is not an array', function () {
         ->toThrow(RuntimeException::class, '"agents" key must be an array');
 });
 
-it('throws exception when agent config is not an array', function () {
+it('returns default limit of 2 when agent is not configured', function () {
     $config = [
         'complexity' => [
             'simple' => ['agent' => 'claude'],
-        ],
-        'agents' => [
-            'claude' => 'not-an-array',
         ],
     ];
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
-        ->toThrow(RuntimeException::class, "Agent config for 'claude' must be an array");
+    $limit = $this->configService->getAgentLimit('unknown-agent');
+
+    expect($limit)->toBe(2);
 });
 
-it('throws exception when agent config is missing max_concurrent', function () {
+it('returns default limit of 2 when agents section does not exist', function () {
     $config = [
         'complexity' => [
             'simple' => ['agent' => 'claude'],
-        ],
-        'agents' => [
-            'claude' => [],
         ],
     ];
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
-        ->toThrow(RuntimeException::class, "Agent 'claude' must have 'max_concurrent' key");
+    $limit = $this->configService->getAgentLimit('claude');
+
+    expect($limit)->toBe(2);
 });
 
-it('throws exception when max_concurrent is not a positive integer', function () {
+it('returns configured limit for agent', function () {
     $config = [
         'complexity' => [
             'simple' => ['agent' => 'claude'],
         ],
         'agents' => [
-            'claude' => ['max_concurrent' => 0],
+            'claude' => ['max_concurrent' => 5],
+            'cursor-agent' => ['max_concurrent' => 3],
         ],
     ];
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
-        ->toThrow(RuntimeException::class, "Agent 'claude' max_concurrent must be a positive integer");
+    expect($this->configService->getAgentLimit('claude'))->toBe(5);
+    expect($this->configService->getAgentLimit('cursor-agent'))->toBe(3);
 });
 
-it('throws exception when max_concurrent is negative', function () {
+it('returns default limit when agent config is missing max_concurrent', function () {
     $config = [
         'complexity' => [
             'simple' => ['agent' => 'claude'],
         ],
         'agents' => [
-            'claude' => ['max_concurrent' => -1],
+            'claude' => [], // Missing max_concurrent
         ],
     ];
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
-        ->toThrow(RuntimeException::class, "Agent 'claude' max_concurrent must be a positive integer");
+    $limit = $this->configService->getAgentLimit('claude');
+
+    expect($limit)->toBe(2);
 });
 
-it('throws exception when max_concurrent is a string', function () {
+it('returns all agent limits as array', function () {
     $config = [
         'complexity' => [
             'simple' => ['agent' => 'claude'],
         ],
         'agents' => [
-            'claude' => ['max_concurrent' => 'two'],
+            'claude' => ['max_concurrent' => 5],
+            'cursor-agent' => ['max_concurrent' => 3],
+            'custom-agent' => ['max_concurrent' => 1],
         ],
     ];
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
-        ->toThrow(RuntimeException::class, "Agent 'claude' max_concurrent must be a positive integer");
+    $limits = $this->configService->getAgentLimits();
+
+    expect($limits)->toBe([
+        'claude' => 5,
+        'cursor-agent' => 3,
+        'custom-agent' => 1,
+    ]);
+});
+
+it('returns empty array when agents section does not exist', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $limits = $this->configService->getAgentLimits();
+
+    expect($limits)->toBe([]);
+});
+
+it('filters out invalid agent entries in getAgentLimits', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => [
+            'claude' => ['max_concurrent' => 5],
+            'invalid-agent' => 'not-an-array', // Invalid entry
+            'missing-limit' => [], // Missing max_concurrent
+            'cursor-agent' => ['max_concurrent' => 3],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $limits = $this->configService->getAgentLimits();
+
+    // Should only include valid entries with max_concurrent
+    expect($limits)->toBe([
+        'claude' => 5,
+        'cursor-agent' => 3,
+    ]);
 });
