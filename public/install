@@ -66,54 +66,33 @@ fi
 # Make binary executable
 chmod +x "$INSTALL_DIR/$BINARY_NAME"
 
-# Detect shell and add to PATH
-SHELL_RC=""
-if [ -n "$ZSH_VERSION" ]; then
-    SHELL_RC="$HOME/.zshrc"
-elif [ -n "$BASH_VERSION" ]; then
-    SHELL_RC="$HOME/.bashrc"
-else
-    # Try to detect from $SHELL
-    case "$SHELL" in
-        */zsh)
-            SHELL_RC="$HOME/.zshrc"
-            ;;
-        */bash)
-            SHELL_RC="$HOME/.bashrc"
-            ;;
-        *)
-            echo -e "${YELLOW}Warning: Could not detect shell. Please manually add $INSTALL_DIR to your PATH.${NC}"
-            SHELL_RC=""
-            ;;
-    esac
-fi
+# Add to PATH in all common shell rc files that exist
+PATH_LINE="export PATH=\"\$PATH:$INSTALL_DIR\""
+ADDED_TO=""
 
-# Add to PATH if shell RC file exists or can be created
-if [ -n "$SHELL_RC" ]; then
-    PATH_LINE="export PATH=\"\$PATH:$INSTALL_DIR\""
-    
-    if [ -f "$SHELL_RC" ]; then
-        # Check if already in PATH
-        if ! grep -q "$INSTALL_DIR" "$SHELL_RC" 2>/dev/null; then
-            echo "" >> "$SHELL_RC"
-            echo "# Fuel CLI" >> "$SHELL_RC"
-            echo "$PATH_LINE" >> "$SHELL_RC"
-            echo -e "${GREEN}Added Fuel to PATH in $SHELL_RC${NC}"
-        else
-            echo -e "${YELLOW}Fuel is already in PATH in $SHELL_RC${NC}"
+for RC_FILE in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$RC_FILE" ]; then
+        if ! grep -q "$INSTALL_DIR" "$RC_FILE" 2>/dev/null; then
+            echo "" >> "$RC_FILE"
+            echo "# Fuel CLI" >> "$RC_FILE"
+            echo "$PATH_LINE" >> "$RC_FILE"
+            ADDED_TO="$ADDED_TO $RC_FILE"
         fi
-    else
-        # Create shell RC file if it doesn't exist
-        echo "$PATH_LINE" > "$SHELL_RC"
-        echo -e "${GREEN}Created $SHELL_RC and added Fuel to PATH${NC}"
     fi
+done
+
+if [ -n "$ADDED_TO" ]; then
+    echo -e "${GREEN}Added Fuel to PATH in:$ADDED_TO${NC}"
+else
+    echo -e "${YELLOW}Fuel already in PATH or no shell rc files found.${NC}"
+    echo -e "${YELLOW}You may need to manually add $INSTALL_DIR to your PATH.${NC}"
 fi
 
 echo ""
 echo -e "${GREEN}✓ Fuel installed successfully!${NC}"
 echo ""
 echo "Next steps:"
-echo "  1. Restart your terminal or run: source $SHELL_RC"
+echo "  1. Restart your terminal (or source your shell rc file)"
 echo "  2. Navigate to your project: cd your-project"
 echo "  3. Initialize Fuel: fuel init"
 echo ""
