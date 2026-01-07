@@ -191,64 +191,121 @@ PROMPT;
                 $this->setTerminalTitle("Fuel: {$taskId} - {$shortTitle}");
                 $this->refreshDisplay($taskService, $statusLines);
 
-                // Spawn agent with inherited environment (so it can find `fuel` in PATH)
-                $process = new Process(
-                    $agentCommandArray,
-                    $cwd,
-                    null,  // inherit environment variables
-                    null,  // no stdin
-                    null   // no timeout
-                );
-                $process->setTimeout(null);    // Explicitly disable timeout (agents can run for hours)
-                $process->setIdleTimeout(null); // Disable idle timeout too
+                // Retry logic for network failures
+                $maxRetries = 3;
+                $retryCount = 0;
+                $exitCode = null;
+                $output = '';
+                $shouldRetry = false;
 
-                $startTime = time();
-                $process->start();
-
-                // Store the process PID in the task
-                $taskService->update($taskId, [
-                    'consume_pid' => $process->getPid(),
-                ]);
-
-                // Wait for process with signal handling
-                while ($process->isRunning()) {
-                    if (function_exists('pcntl_signal_dispatch')) {
-                        pcntl_signal_dispatch();
+                do {
+                    if ($retryCount > 0) {
+                        $statusLines[] = $this->formatStatus('🔄', "Retry attempt {$retryCount}/{$maxRetries} for {$taskId} (network error detected)", 'yellow');
+                        $this->refreshDisplay($taskService, $statusLines);
+                        sleep(5); // 5 second delay before retry
                     }
 
-                    if ($exiting) {
-                        $process->stop(10);
+                    // Spawn agent with inherited environment (so it can find `fuel` in PATH)
+                    $process = new Process(
+                        $agentCommandArray,
+                        $cwd,
+                        null,  // inherit environment variables
+                        null,  // no stdin
+                        null   // no timeout
+                    );
+                    $process->setTimeout(null);    // Explicitly disable timeout (agents can run for hours)
+                    $process->setIdleTimeout(null); // Disable idle timeout too
+
+                    $startTime = time();
+                    $process->start();
+
+                    // Store the process PID in the task
+                    $taskService->update($taskId, [
+                        'consume_pid' => $process->getPid(),
+                    ]);
+
+                    // Wait for process with signal handling
+                    while ($process->isRunning()) {
+                        if (function_exists('pcntl_signal_dispatch')) {
+                            pcntl_signal_dispatch();
+                        }
+
+                        if ($exiting) {
+                            $process->stop(10);
+                            break;
+                        }
+
+                        // Refresh display periodically while agent works
+                        $elapsed = $this->formatDuration(time() - $startTime);
+                        $this->setTerminalTitle("Fuel: {$taskId} ({$elapsed})");
+                        $this->refreshDisplay($taskService, $statusLines, $taskId, $startTime);
+                        usleep(500000); // 500ms
+                    }
+
+                    $exitCode = $process->getExitCode();
+                    $duration = time() - $startTime;
+                    $durationStr = $this->formatDuration($duration);
+
+                    // Capture and store agent output for debugging
+                    $output = $process->getOutput().$process->getErrorOutput();
+                    // Truncate to last 10KB to avoid bloating tasks.jsonl
+                    if (strlen($output) > 10240) {
+                        $output = '... [truncated] ...'.substr($output, -10240);
+                    }
+
+                    $taskService->update($taskId, [
+                        'consumed_exit_code' => $exitCode,
+                        'consumed_output' => $output,
+                        'consume_pid' => null, // Clear PID on completion
+                    ]);
+
+                    // Check if we should retry: exit code 1 and network error in output
+                    $shouldRetry = false;
+                    if ($exitCode === 1 && $retryCount < $maxRetries) {
+                        $networkErrorPatterns = [
+                            'ConnectError',
+                            'ConnectionError',
+                            'NetworkError',
+                            'ECONNREFUSED',
+                            'ETIMEDOUT',
+                            'ENOTFOUND',
+                            'Connection refused',
+                            'Connection timed out',
+                            'Network is unreachable',
+                            'Name or service not known',
+                        ];
+
+                        foreach ($networkErrorPatterns as $pattern) {
+                            if (stripos($output, $pattern) !== false) {
+                                $shouldRetry = true;
+                                $retryCount++;
+                                // Reopen task so it can be retried
+                                $taskService->reopen($taskId);
+                                // Mark as consumed again for retry
+                                $task = $taskService->start($taskId);
+                                $taskService->update($taskId, [
+                                    'consumed' => true,
+                                    'consumed_at' => date('c'),
+                                ]);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (! $shouldRetry) {
+                        // No retry needed - break out of loop
                         break;
                     }
-
-                    // Refresh display periodically while agent works
-                    $elapsed = $this->formatDuration(time() - $startTime);
-                    $this->setTerminalTitle("Fuel: {$taskId} ({$elapsed})");
-                    $this->refreshDisplay($taskService, $statusLines, $taskId, $startTime);
-                    usleep(500000); // 500ms
-                }
-
-                $exitCode = $process->getExitCode();
-                $duration = time() - $startTime;
-                $durationStr = $this->formatDuration($duration);
-
-                // Capture and store agent output for debugging
-                $output = $process->getOutput().$process->getErrorOutput();
-                // Truncate to last 10KB to avoid bloating tasks.jsonl
-                if (strlen($output) > 10240) {
-                    $output = '... [truncated] ...'.substr($output, -10240);
-                }
-
-                $taskService->update($taskId, [
-                    'consumed_exit_code' => $exitCode,
-                    'consumed_output' => $output,
-                    'consume_pid' => null, // Clear PID on completion
-                ]);
+                } while ($shouldRetry && $retryCount <= $maxRetries);
 
                 if ($exitCode === 0) {
                     $statusLines[] = $this->formatStatus('✓', "{$taskId} completed ({$durationStr})", 'green');
                 } else {
-                    $statusLines[] = $this->formatStatus('✗', "{$taskId} failed (exit {$exitCode}, {$durationStr})", 'red');
+                    if ($retryCount > 0) {
+                        $statusLines[] = $this->formatStatus('✗', "{$taskId} failed after {$retryCount} retries (exit {$exitCode}, {$durationStr})", 'red');
+                    } else {
+                        $statusLines[] = $this->formatStatus('✗', "{$taskId} failed (exit {$exitCode}, {$durationStr})", 'red');
+                    }
                 }
 
                 // Keep only last 5 status lines
