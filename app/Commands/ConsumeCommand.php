@@ -89,8 +89,20 @@ class ConsumeCommand extends Command
                     continue;
                 }
 
-                // Pick first ready task and claim it
-                $task = $readyTasks->first();
+                // Score and sort tasks by priority, complexity, and size
+                $scoredTasks = $readyTasks->map(function (array $task) {
+                    return [
+                        'task' => $task,
+                        'score' => $this->calculateTaskScore($task),
+                    ];
+                })->sortBy([
+                    ['score', 'asc'], // Lower score = higher priority
+                    ['task.priority', 'asc'],
+                    ['task.created_at', 'asc'],
+                ])->values();
+
+                // Pick highest priority task (lowest score)
+                $task = $scoredTasks->first()['task'];
                 $taskId = $task['id'];
                 $taskTitle = $task['title'];
                 $shortTitle = mb_strlen($taskTitle) > 40 ? mb_substr($taskTitle, 0, 37).'...' : $taskTitle;
@@ -287,6 +299,48 @@ PROMPT;
     {
         // OSC 0 sets both window title and icon name
         $this->getOutput()->write("\033]0;{$title}\007");
+    }
+
+    /**
+     * Calculate a score for task selection based on priority, complexity, and size.
+     * Lower score = higher priority (should be selected first).
+     *
+     * Scoring weights:
+     * - Priority: 0-4 (0 = critical, 4 = backlog) - weight: 100
+     * - Complexity: trivial=0, simple=1, moderate=2, complex=3 - weight: 10
+     * - Size: xs=0, s=1, m=2, l=3, xl=4 - weight: 1
+     *
+     * @param  array<string, mixed>  $task
+     */
+    private function calculateTaskScore(array $task): int
+    {
+        // Priority score (0-4, lower is better)
+        $priority = $task['priority'] ?? 2;
+        $priorityScore = $priority * 100;
+
+        // Complexity score (trivial=0, simple=1, moderate=2, complex=3)
+        $complexityMap = [
+            'trivial' => 0,
+            'simple' => 1,
+            'moderate' => 2,
+            'complex' => 3,
+        ];
+        $complexity = $task['complexity'] ?? 'simple';
+        $complexityScore = $complexityMap[$complexity] ?? 1;
+        $complexityScore *= 10;
+
+        // Size score (xs=0, s=1, m=2, l=3, xl=4)
+        $sizeMap = [
+            'xs' => 0,
+            's' => 1,
+            'm' => 2,
+            'l' => 3,
+            'xl' => 4,
+        ];
+        $size = $task['size'] ?? 'm';
+        $sizeScore = $sizeMap[$size] ?? 2;
+
+        return $priorityScore + $complexityScore + $sizeScore;
     }
 
     /**
