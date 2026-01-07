@@ -49,7 +49,9 @@ jobs:
           key: phpacker-php-8.4
 
       - name: Build binaries with PHPacker
-        run: ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 all
+        run: |
+          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 mac
+          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 linux
 
       - name: Rename binaries to expected format
         run: |
@@ -61,7 +63,6 @@ jobs:
           mv mac/mac-x64 ../fuel-darwin-x64
           mv linux/linux-arm ../fuel-linux-arm64
           mv linux/linux-x64 ../fuel-linux-x64
-          mv windows/windows-x64.exe ../fuel-windows-x64.exe
 
           cd ..
           rm -rf build
@@ -78,6 +79,5 @@ jobs:
             builds/fuel-darwin-x64
             builds/fuel-linux-arm64
             builds/fuel-linux-x64
-            builds/fuel-windows-x64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
