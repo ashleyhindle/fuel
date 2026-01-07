@@ -32,8 +32,13 @@ trait RendersBoardColumns
     private function visibleLength(string $line): int
     {
         $stripped = preg_replace('/<[^>]+>/', '', $line);
+        $text = $stripped ?? $line;
 
-        return mb_strlen($stripped ?? $line);
+        // Count emoji characters that display as 2 columns wide
+        // Common emojis used in the board: ⚡ 👤 ❌ 🪫
+        $emojiCount = preg_match_all('/[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]/u', $text);
+
+        return mb_strlen($text) + $emojiCount;
     }
 
     private function truncate(string $value, int $length): string
