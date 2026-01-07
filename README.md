@@ -35,6 +35,42 @@ fuel consume
 
 This displays a live Kanban board and spawns agents for each ready task based on the complexity routing in `.fuel/config.yaml`.
 
+### Agent Permissions
+
+By default, agents prompt for permission before editing files or running commands. This blocks `fuel consume` from running autonomously since it spawns agents in headless mode.
+
+**Option 1: Autonomous mode (unattended)**
+
+Enable auto-approve flags in `.fuel/config.yaml`:
+
+```yaml
+moderate:
+  agent: claude
+  model: sonnet
+  args:
+    - "--dangerously-skip-permissions"
+
+simple:
+  agent: cursor-agent
+  model: composer-1
+  args:
+    - "--force"
+```
+
+> [!CAUTION]
+> Autonomous mode allows agents to modify files and run commands without approval. Use in trusted environments only.
+
+**Option 2: Interactive mode (supervised)**
+
+Run your agent interactively and let it work through tasks:
+
+```bash
+claude
+# Then say: "Work through all the remaining fuel"
+```
+
+When prompted for permissions, select "Always allow" to build up a trusted toolset. Once configured, `fuel consume` will work smoothly since permissions persist across sessions.
+
 ## Why Fuel?
 
 AI agents forget. Context windows compact. Sessions end. **Fuel persists.**
@@ -107,18 +143,24 @@ complexity:
   trivial:
     agent: cursor-agent
     model: composer-1
+    # args:
+    #   - "--force"
 
   simple:
     agent: cursor-agent
     model: composer-1
+    # args:
+    #   - "--force"
 
   moderate:
     agent: claude
-    model: sonnet-4.5
+    model: sonnet
+    # args:
+    #   - "--dangerously-skip-permissions"
 
   complex:
     agent: claude
-    model: opus-4.5
+    model: opus
     # args:
     #   - "--dangerously-skip-permissions"
 ```
