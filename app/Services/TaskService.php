@@ -329,6 +329,44 @@ class TaskService
             $task['updated_at'] = now()->toIso8601String();
             // Remove reason if it exists (since task is being reopened)
             unset($task['reason']);
+            // Clear consumed fields so task can be retried cleanly
+            unset($task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
+
+            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
+            $this->writeTasks($tasks);
+
+            return $task;
+        });
+    }
+
+    /**
+     * Retry a stuck task (consumed=true with non-zero exit code) by moving it back to open status.
+     *
+     * @return array<string, mixed>
+     */
+    public function retry(string $id): array
+    {
+        return $this->withExclusiveLock(function () use ($id): array {
+            $tasks = $this->readTasks();
+            $task = $this->findInCollection($tasks, $id);
+
+            if ($task === null) {
+                throw new RuntimeException("Task '{$id}' not found");
+            }
+
+            $consumed = $task['consumed'] ?? false;
+            $exitCode = $task['consumed_exit_code'] ?? null;
+
+            if ($consumed !== true || $exitCode === null || $exitCode === 0) {
+                throw new RuntimeException("Task '{$id}' is not a stuck task. Only tasks with consumed=true and consumed_exit_code != 0 can be retried.");
+            }
+
+            $task['status'] = 'open';
+            $task['updated_at'] = now()->toIso8601String();
+            // Remove reason if it exists (since task is being retried)
+            unset($task['reason']);
+            // Clear consumed fields so task can be retried cleanly
+            unset($task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
 
             $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
             $this->writeTasks($tasks);

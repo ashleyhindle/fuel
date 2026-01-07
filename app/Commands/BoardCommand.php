@@ -326,8 +326,21 @@ class BoardCommand extends Command
                 $labels = $task['labels'] ?? [];
                 $needsHumanIcon = is_array($labels) && in_array('needs-human', $labels, true) ? '👤' : '';
                 
-                // Build icon string (both icons if present)
-                $icons = array_filter([$consumeIcon, $needsHumanIcon]);
+                // Show icon for stuck tasks (consumed=true && consumed_exit_code != 0)
+                $exitCode = $task['consumed_exit_code'] ?? null;
+                $stuckIcon = (! empty($task['consumed']) && $exitCode !== null && $exitCode !== 0) ? '❌' : '';
+                
+                // Show icon for tasks that are in_progress but PID is not running
+                $pidStuckIcon = '';
+                if ($task['status'] === 'in_progress' && isset($task['consume_pid']) && $task['consume_pid'] !== null) {
+                    $pid = (int) $task['consume_pid'];
+                    if (! $this->isPidRunning($pid)) {
+                        $pidStuckIcon = '🪫'; // Low battery emoji for stuck/dead process
+                    }
+                }
+                
+                // Build icon string (all icons if present)
+                $icons = array_filter([$consumeIcon, $needsHumanIcon, $stuckIcon, $pidStuckIcon]);
                 $iconString = implode(' ', $icons);
                 $iconWidth = $iconString !== '' ? mb_strlen($iconString) + 1 : 0; // emoji(s) + space
                 $truncatedTitle = $this->truncate($taskTitle, $width - 7 - $iconWidth);
@@ -468,5 +481,40 @@ class BoardCommand extends Command
         }
 
         return $truncated;
+    }
+
+    /**
+     * Check if a process with the given PID is running.
+     *
+     * @param  int  $pid
+     * @return bool
+     */
+    private function isPidRunning(int $pid): bool
+    {
+        // Use posix_kill with signal 0 to check if process exists
+        // Returns true if process exists, false otherwise
+        if (function_exists('posix_kill')) {
+            return @posix_kill($pid, 0);
+        }
+
+        // Fallback: check /proc on Linux
+        if (PHP_OS_FAMILY === 'Linux' && is_dir('/proc')) {
+            return is_dir("/proc/{$pid}");
+        }
+
+        // Fallback: use ps command on Unix-like systems
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $output = @shell_exec("ps -p {$pid} -o pid= 2>/dev/null");
+            return ! empty(trim($output ?? ''));
+        }
+
+        // Windows fallback: use tasklist
+        if (PHP_OS_FAMILY === 'Windows') {
+            $output = @shell_exec("tasklist /FI \"PID eq {$pid}\" 2>NUL");
+            return str_contains($output ?? '', (string) $pid);
+        }
+
+        // If we can't check, assume it's running (conservative approach)
+        return true;
     }
 }
