@@ -5,3 +5,4 @@
 .phpunit.result.cache
 .fuel/*.lock
 agent-resources/laravel-zero-docs
+/builds

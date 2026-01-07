@@ -1,0 +1,11 @@
+name = "addfuel-dev"
+compatibility_date = "2024-01-01"
+
+# Cloudflare Pages configuration
+pages_build_output_dir = "public"
+
+# Custom domains must be configured in Cloudflare Dashboard
+# Go to Pages > addfuel-dev > Custom domains
+
+# Deploy with: ./deploy.sh
+# Or use: npm run deploy

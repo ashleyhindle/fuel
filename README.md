@@ -6,7 +6,7 @@ Lightweight task management for AI agents. Git-native, merge-friendly, zero conf
 
 ```bash
 # Install
-curl -L fuel.dev/install | sh
+curl -L addfuel.dev/install | sh
 
 # Initialize in your project
 cd your-project
@@ -78,6 +78,20 @@ Single file: `.fuel/tasks.jsonl` - one JSON object per line, sorted by ID.
 ```
 
 Commit it. Branch it. Merge it. Git handles the rest.
+
+## Deployment
+
+Deploy the public site to Cloudflare Pages:
+
+```bash
+./deploy.sh
+```
+
+The script will:
+- Verify authentication (prompts login if needed)
+- Deploy `public/` directory to Cloudflare Pages using `npx wrangler`
+
+After deployment, configure the custom domain `addfuel.dev` in the Cloudflare Dashboard.
 
 ## License
 
