@@ -22,6 +22,7 @@ class AddCommand extends Command
         {--priority= : Task priority (0-4)}
         {--labels= : Comma-separated list of labels}
         {--size= : Task size (xs|s|m|l|xl)}
+        {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}';
 
     protected $description = 'Add a new task';
@@ -63,6 +64,13 @@ class AddCommand extends Command
         // Add size
         if ($size = $this->option('size')) {
             $data['size'] = $size;
+        }
+
+        // Add complexity (default to simple if not specified)
+        if ($complexity = $this->option('complexity')) {
+            $data['complexity'] = $complexity;
+        } else {
+            $data['complexity'] = 'simple';
         }
 
         // Add blocked-by dependencies (comma-separated task IDs)

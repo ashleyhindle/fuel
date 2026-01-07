@@ -186,6 +186,7 @@ describe('add command', function () {
             '--priority' => '3',
             '--labels' => 'ui,backend',
             '--size' => 'l',
+            '--complexity' => 'moderate',
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -198,6 +199,7 @@ describe('add command', function () {
         expect($task['priority'])->toBe(3);
         expect($task['labels'])->toBe(['ui', 'backend']);
         expect($task['size'])->toBe('l');
+        expect($task['complexity'])->toBe('moderate');
     });
 
     it('creates task with --size flag', function () {
@@ -220,6 +222,41 @@ describe('add command', function () {
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid task size')
+            ->assertExitCode(1);
+    });
+
+    it('creates task with --complexity flag', function () {
+        Artisan::call('add', [
+            'title' => 'Complex task',
+            '--complexity' => 'complex',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['complexity'])->toBe('complex');
+    });
+
+    it('defaults complexity to simple when not specified', function () {
+        Artisan::call('add', [
+            'title' => 'Task without complexity',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['complexity'])->toBe('simple');
+    });
+
+    it('validates --complexity flag enum', function () {
+        $this->artisan('add', [
+            'title' => 'Invalid complexity',
+            '--complexity' => 'invalid-complexity',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Invalid task complexity')
             ->assertExitCode(1);
     });
 
