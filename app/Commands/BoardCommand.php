@@ -318,6 +318,7 @@ class BoardCommand extends Command
                 $id = (string) $task['id'];
                 $taskTitle = (string) $task['title'];
                 $shortId = substr($id, 2, 6); // Skip 'f-' prefix
+                $complexityChar = $this->getComplexityChar($task);
 
                 // Show icon for tasks being consumed by fuel consume
                 $consumeIcon = ! empty($task['consumed']) ? '⚡' : '';
@@ -342,13 +343,15 @@ class BoardCommand extends Command
                 // Build icon string (all icons if present)
                 $icons = array_filter([$consumeIcon, $needsHumanIcon, $stuckIcon, $pidStuckIcon]);
                 $iconString = implode(' ', $icons);
-                $iconWidth = $iconString !== '' ? mb_strlen($iconString) + 1 : 0; // emoji(s) + space
-                $truncatedTitle = $this->truncate($taskTitle, $width - 7 - $iconWidth);
+                // Each emoji displays as 2 chars wide + 1 space after = 3 per icon
+                $iconWidth = count($icons) * 3;
+                // Account for complexity char (2 chars: middle dot + char)
+                $truncatedTitle = $this->truncate($taskTitle, $width - 11 - $iconWidth);
 
                 if ($iconString !== '') {
-                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$iconString} {$truncatedTitle}", $width);
+                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}·{$complexityChar}]</> {$iconString} {$truncatedTitle}", $width);
                 } else {
-                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$truncatedTitle}", $width);
+                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}·{$complexityChar}]</> {$truncatedTitle}", $width);
                 }
             }
         }
@@ -515,5 +518,23 @@ class BoardCommand extends Command
 
         // If we can't check, assume it's running (conservative approach)
         return true;
+    }
+
+    /**
+     * Get a single character representing task complexity.
+     *
+     * @param  array<string, mixed>  $task
+     */
+    private function getComplexityChar(array $task): string
+    {
+        $complexity = $task['complexity'] ?? 'simple';
+
+        return match ($complexity) {
+            'trivial' => 't',
+            'simple' => 's',
+            'moderate' => 'm',
+            'complex' => 'c',
+            default => 's',
+        };
     }
 }

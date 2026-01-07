@@ -100,12 +100,14 @@ class TreeCommand extends Command
             $blocks = $item['blocks'];
 
             $priority = $task['priority'] ?? 2;
+            $complexity = $this->getComplexityChar($task);
             $displayStatus = $this->getDisplayStatus($task);
             $statusColor = $this->hasNeedsHumanLabel($task) ? 'magenta' : 'gray';
 
             $this->line(sprintf(
-                '<fg=cyan>[P%d]</> %s %s <fg=%s>(%s)</>',
+                '<fg=cyan>[P%d·%s]</> %s %s <fg=%s>(%s)</>',
                 $priority,
+                $complexity,
                 $task['id'],
                 $task['title'],
                 $statusColor,
@@ -119,11 +121,13 @@ class TreeCommand extends Command
                 $prefix = $isLast ? '  └─ ' : '  ├─ ';
 
                 $blockedPriority = $blocked['priority'] ?? 2;
+                $blockedComplexity = $this->getComplexityChar($blocked);
 
                 $this->line(sprintf(
-                    '%s<fg=yellow>[P%d]</> %s %s <fg=gray>(blocked by this)</>',
+                    '%s<fg=yellow>[P%d·%s]</> %s %s <fg=gray>(blocked by this)</>',
                     $prefix,
                     $blockedPriority,
+                    $blockedComplexity,
                     $blocked['id'],
                     $blocked['title']
                 ));
@@ -165,5 +169,23 @@ class TreeCommand extends Command
         $labels = $task['labels'] ?? [];
 
         return in_array('needs-human', $labels, true);
+    }
+
+    /**
+     * Get a single character representing task complexity.
+     *
+     * @param  array<string, mixed>  $task
+     */
+    private function getComplexityChar(array $task): string
+    {
+        $complexity = $task['complexity'] ?? 'simple';
+
+        return match ($complexity) {
+            'trivial' => 't',
+            'simple' => 's',
+            'moderate' => 'm',
+            'complex' => 'c',
+            default => 's',
+        };
     }
 }
