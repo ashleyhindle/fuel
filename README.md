@@ -22,6 +22,15 @@ That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions 
 
 If you need to udpate CLAUDE.md run `fuel guidelines` and copy/paste.
 
+## Fun start
+This only works if you have `cursor-agent` setup on your CLI.
+
+Run fuel consume, then use claude opus-4.5 to make plans and add fuel, then watch `fuel consume` work through it all.
+
+```shell
+fuel consume
+```
+
 ## Why Fuel?
 
 AI agents forget. Context windows compact. Sessions end. **Fuel persists.**
