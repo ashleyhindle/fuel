@@ -437,6 +437,27 @@ it('returns task with no blockers in ready()', function () {
     expect($ready->first()['id'])->toBe($task['id']);
 });
 
+it('excludes tasks with needs-human label from ready()', function () {
+    $this->taskService->initialize();
+    $normalTask = $this->taskService->create(['title' => 'Normal task']);
+    $needsHumanTask = $this->taskService->create([
+        'title' => 'Needs human task',
+        'labels' => ['needs-human'],
+    ]);
+    $multiLabelTask = $this->taskService->create([
+        'title' => 'Task with multiple labels',
+        'labels' => ['bug', 'needs-human', 'urgent'],
+    ]);
+
+    $ready = $this->taskService->ready();
+
+    // Only the normal task should be ready
+    expect($ready)->toHaveCount(1);
+    expect($ready->first()['id'])->toBe($normalTask['id']);
+    expect($ready->pluck('id'))->not->toContain($needsHumanTask['id']);
+    expect($ready->pluck('id'))->not->toContain($multiLabelTask['id']);
+});
+
 // =============================================================================
 // blocked() Method Tests
 // =============================================================================
@@ -531,4 +552,32 @@ it('returns empty collection when no blockers', function () {
     $blockers = $this->taskService->getBlockers($task['id']);
 
     expect($blockers)->toBeEmpty();
+});
+
+// =============================================================================
+// Update Method Tests
+// =============================================================================
+
+it('preserves arbitrary fields when updating a task', function () {
+    $this->taskService->initialize();
+    $task = $this->taskService->create(['title' => 'Test task']);
+
+    // Update with arbitrary fields (like consume command does)
+    $updated = $this->taskService->update($task['id'], [
+        'consumed' => true,
+        'consumed_at' => '2026-01-07T13:51:11+00:00',
+        'consumed_exit_code' => 1,
+        'consumed_output' => 'Some agent output here',
+    ]);
+
+    expect($updated['consumed'])->toBeTrue();
+    expect($updated['consumed_at'])->toBe('2026-01-07T13:51:11+00:00');
+    expect($updated['consumed_exit_code'])->toBe(1);
+    expect($updated['consumed_output'])->toBe('Some agent output here');
+
+    // Verify it's persisted
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['consumed'])->toBeTrue();
+    expect($reloaded['consumed_exit_code'])->toBe(1);
+    expect($reloaded['consumed_output'])->toBe('Some agent output here');
 });
