@@ -70,28 +70,28 @@ This pattern works well for independent tasks like:
 
 When multiple tasks will share an interface (method signatures, JSON output, schema), use the **contract-first pattern**:
 
-1. **Create a contract task** that:
-   - Implements the shared foundation (e.g., schema, service methods)
-   - Documents the interface contract in CLAUDE.md or similar
+1. **Create a contract task** with a description that:
+   - Specifies the exact schema, method signatures, or JSON output format
+   - Implements the shared foundation
    - Runs FIRST before dependent work
 
-2. **Create dependent tasks** that:
+2. **Create dependent tasks** with descriptions that:
+   - Reference the contract task: "Use the schema from fuel-xxxx"
    - Are blocked by the contract task (`--blocked-by=<contract-task-id>`)
-   - Implement their feature using the documented contract
    - Won't start until the contract exists
 
 **Example:**
 ```bash
-# Task 1: Define the contract (runs first)
-fuel:add "Add user schema + document API contract in CLAUDE.md"
+# Task 1: Define AND implement the contract
+fuel:add "Add user schema to UserService. Fields: name (string), email (string), role (enum: admin|user). Method: create(array \$data): array returns user object with id, name, email, role, created_at"
 
-# Tasks 2-4: Depend on the contract (run in parallel AFTER task 1)
-fuel:add "Add create user endpoint" --blocked-by=fuel-xxxx
-fuel:add "Add update user endpoint" --blocked-by=fuel-xxxx
-fuel:add "Add delete user endpoint" --blocked-by=fuel-xxxx
+# Tasks 2-4: Reference the contract, blocked until it exists
+fuel:add "Add create user endpoint - use schema from fuel-xxxx" --blocked-by=fuel-xxxx
+fuel:add "Add update user endpoint - use schema from fuel-xxxx" --blocked-by=fuel-xxxx
+fuel:add "Add list users endpoint - use schema from fuel-xxxx" --blocked-by=fuel-xxxx
 ```
 
-**Why this matters:** Without a contract, parallel agents may implement incompatible interfaces. Tests written by one agent won't match the implementation by another. The contract-first pattern ensures everyone agrees on the interface before building on it.
+**Why this matters:** The contract is IN the task description. When an agent picks up a dependent task, they read fuel-xxxx's description to see the exact interface they must use. No separate documentation needed - the task system IS the documentation.
 
 ### Common Mistakes to Avoid
 
