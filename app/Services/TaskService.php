@@ -20,7 +20,7 @@ class TaskService
 
     private string $storagePath;
 
-    private string $prefix = 'fuel';
+    private string $prefix = 'f';
 
     private int $lockRetries = 10;
 
@@ -57,6 +57,7 @@ class TaskService
         }
 
         // Try partial match (prefix matching)
+        // Support both old 'fuel-' prefix and new 'f-' prefix for backward compatibility
         $matches = $tasks->filter(function (array $task) use ($id): bool {
             $taskId = $task['id'];
             if (! is_string($taskId)) {
@@ -64,7 +65,8 @@ class TaskService
             }
 
             return str_starts_with($taskId, $id) ||
-                   str_starts_with($taskId, $this->prefix.'-'.$id);
+                   str_starts_with($taskId, $this->prefix.'-'.$id) ||
+                   str_starts_with($taskId, 'fuel-'.$id);
         });
 
         if ($matches->count() === 1) {
@@ -894,6 +896,7 @@ class TaskService
         }
 
         // Try partial match (prefix matching)
+        // Support both old 'fuel-' prefix and new 'f-' prefix for backward compatibility
         $matches = $tasks->filter(function (array $task) use ($id): bool {
             $taskId = $task['id'];
             if (! is_string($taskId)) {
@@ -901,7 +904,8 @@ class TaskService
             }
 
             return str_starts_with($taskId, $id) ||
-                   str_starts_with($taskId, $this->prefix.'-'.$id);
+                   str_starts_with($taskId, $this->prefix.'-'.$id) ||
+                   str_starts_with($taskId, 'fuel-'.$id);
         });
 
         if ($matches->count() === 1) {

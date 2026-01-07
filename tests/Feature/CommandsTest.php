@@ -45,7 +45,7 @@ afterEach(function () {
 describe('add command', function () {
     it('creates a task via CLI', function () {
         $this->artisan('add', ['title' => 'My test task', '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Created task: fuel-')
+            ->expectsOutputToContain('Created task: f-')
             ->assertExitCode(0);
 
         expect(file_exists($this->storagePath))->toBeTrue();
@@ -57,7 +57,7 @@ describe('add command', function () {
 
         expect($output)->toContain('"status": "open"');
         expect($output)->toContain('"title": "JSON task"');
-        expect($output)->toContain('"id": "fuel-');
+        expect($output)->toContain('"id": "f-');
     });
 
     it('creates task in custom cwd', function () {
@@ -326,7 +326,7 @@ describe('add command', function () {
         ]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Created task: fuel-');
+        expect($output)->toContain('Created task: f-');
         expect($output)->toContain('Blocked by:');
         expect($output)->toContain($blocker['id']);
     });
@@ -360,7 +360,7 @@ describe('add command', function () {
     it('supports partial IDs in --blocked-by flag', function () {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
-        $partialId = substr($blocker['id'], 5, 3); // Just hash part
+        $partialId = substr($blocker['id'], 2, 3); // Just hash part
 
         Artisan::call('add', [
             'title' => 'Blocked task',
@@ -573,7 +573,7 @@ describe('start command', function () {
     it('supports partial ID matching', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
+        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('start', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Started task:')
@@ -635,7 +635,7 @@ describe('done command', function () {
     it('supports partial ID matching', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
+        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('done', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Completed task:')
@@ -883,8 +883,8 @@ describe('done command', function () {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
-        $partialId1 = substr($task1['id'], 5, 3);
-        $partialId2 = substr($task2['id'], 5, 3);
+        $partialId1 = substr($task1['id'], 2, 3);
+        $partialId2 = substr($task2['id'], 2, 3);
 
         $this->artisan('done', [
             'ids' => [$partialId1, $partialId2],
@@ -919,7 +919,7 @@ describe('reopen command', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
         $this->taskService->done($task['id']);
-        $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
+        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('reopen', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Reopened task:')
@@ -1097,8 +1097,8 @@ describe('reopen command', function () {
         $task2 = $this->taskService->create(['title' => 'Task 2']);
         $this->taskService->done($task1['id']);
         $this->taskService->done($task2['id']);
-        $partialId1 = substr($task1['id'], 5, 3);
-        $partialId2 = substr($task2['id'], 5, 3);
+        $partialId1 = substr($task1['id'], 2, 3);
+        $partialId2 = substr($task2['id'], 2, 3);
 
         $this->artisan('reopen', [
             'ids' => [$partialId1, $partialId2],
@@ -1150,7 +1150,7 @@ describe('retry command', function () {
             'consumed_exit_code' => 1,
         ]);
 
-        $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
+        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('retry', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Retried task:')
@@ -1391,8 +1391,8 @@ describe('dep:add command', function () {
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Use partial IDs (just the hash part)
-        $blockerPartial = substr($blocker['id'], 5, 3);
-        $blockedPartial = substr($blocked['id'], 5, 3);
+        $blockerPartial = substr($blocker['id'], 2, 3);
+        $blockedPartial = substr($blocked['id'], 2, 3);
 
         $this->artisan('dep:add', [
             'from' => $blockedPartial,
@@ -1492,8 +1492,8 @@ describe('dep:remove command', function () {
         $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
         // Use partial IDs (just the hash part)
-        $blockerPartial = substr($blocker['id'], 5, 3);
-        $blockedPartial = substr($blocked['id'], 5, 3);
+        $blockerPartial = substr($blocker['id'], 2, 3);
+        $blockedPartial = substr($blocked['id'], 2, 3);
 
         $this->artisan('dep:remove', [
             'from' => $blockedPartial,
@@ -1880,7 +1880,7 @@ describe('show command', function () {
     it('supports partial ID matching', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr($task['id'], 5, 3);
+        $partialId = substr($task['id'], 2, 3);
 
         $this->artisan('show', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Task: '.$task['id'])
@@ -2300,7 +2300,7 @@ describe('update command', function () {
     it('supports partial ID matching', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
-        $partialId = substr($task['id'], 5, 3);
+        $partialId = substr($task['id'], 2, 3);
 
         Artisan::call('update', [
             'id' => $partialId,
@@ -2345,8 +2345,8 @@ describe('q command', function () {
         Artisan::call('q', ['title' => 'Quick task', '--cwd' => $this->tempDir]);
         $output = trim(Artisan::output());
 
-        expect($output)->toStartWith('fuel-');
-        expect(strlen($output))->toBe(11); // fuel- + 6 chars
+        expect($output)->toStartWith('f-');
+        expect(strlen($output))->toBe(8); // f- + 6 chars
 
         // Verify task was actually created
         $task = $this->taskService->find($output);
@@ -3037,7 +3037,7 @@ describe('init command', function () {
         expect(file_exists($this->storagePath))->toBeTrue();
         $content = file_get_contents($this->storagePath);
         expect($content)->toContain('README');
-        expect($content)->toContain('fuel-');
+        expect($content)->toContain('f-');
     });
 
     it('creates AGENTS.md with fuel guidelines', function () {

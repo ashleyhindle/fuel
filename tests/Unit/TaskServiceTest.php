@@ -41,8 +41,8 @@ it('creates a task with hash-based ID', function () {
 
     $task = $this->taskService->create(['title' => 'Test task']);
 
-    expect($task['id'])->toStartWith('fuel-');
-    expect(strlen($task['id']))->toBe(11); // fuel- + 6 chars
+    expect($task['id'])->toStartWith('f-');
+    expect(strlen($task['id']))->toBe(8); // f- + 6 chars
     expect($task['title'])->toBe('Test task');
     expect($task['status'])->toBe('open');
     expect($task['created_at'])->not->toBeNull();
@@ -180,8 +180,8 @@ it('finds task by partial ID', function () {
     $this->taskService->initialize();
     $created = $this->taskService->create(['title' => 'Test task']);
 
-    // Extract just the hash part (after 'fuel-')
-    $hashPart = substr($created['id'], 5, 2); // Just first 2 chars of hash
+    // Extract just the hash part (after 'f-')
+    $hashPart = substr($created['id'], 2, 2); // Just first 2 chars of hash
 
     $found = $this->taskService->find($hashPart);
 
@@ -194,8 +194,8 @@ it('throws exception for ambiguous partial ID', function () {
     $this->taskService->create(['title' => 'Task 1']);
     $this->taskService->create(['title' => 'Task 2']);
 
-    // Try to find with just 'fuel' prefix - should be ambiguous
-    $this->taskService->find('fuel');
+    // Try to find with just 'f' prefix - should be ambiguous
+    $this->taskService->find('f');
 })->throws(RuntimeException::class, 'Ambiguous task ID');
 
 it('returns null for non-existent task', function () {
