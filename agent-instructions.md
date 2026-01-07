@@ -157,8 +157,16 @@ Primary agent coordinates - subagents do NOT pick tasks:
 2. Primary claims each task with `./fuel start <id>`
 3. Primary spawns subagents with explicit task ID assignments
 4. Subagents complete work and run `./fuel done <id>`
-5. Primary checks `./fuel ready` for newly unblocked work
+5. **Primary reviews subagent work** - verify tests added, check implementation, run tests
+6. If issues found: create fix task referencing the original (e.g., `./fuel add "Fix X from fuel-xxxx"`)
+7. Primary checks `./fuel ready` for newly unblocked work
 
 **Subagent instructions must include:** task ID, task information, instruction to run `./fuel done <id>` after landing the plane.
+
+**Review checklist for primary:**
+- Did subagent add tests?
+- Do all tests pass?
+- Does the implementation match the task requirements?
+- Any obvious bugs or issues in the code?
 
 Avoid parallel work on tasks touching same files - use dependencies instead.
