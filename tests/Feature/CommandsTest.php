@@ -2289,6 +2289,29 @@ describe('q command', function () {
         $this->artisan('q', ['title' => 'Quick task', '--cwd' => $this->tempDir])
             ->assertExitCode(0);
     });
+
+    it('handles RuntimeException from TaskService::create()', function () {
+        // Create a mock TaskService that throws RuntimeException
+        $mockTaskService = \Mockery::mock(TaskService::class);
+        $mockTaskService->shouldReceive('setStoragePath')
+            ->once()
+            ->andReturnSelf();
+        $mockTaskService->shouldReceive('initialize')->once();
+        $mockTaskService->shouldReceive('create')
+            ->once()
+            ->andThrow(new \RuntimeException('Failed to create task'));
+
+        // Bind the mock to the service container
+        $this->app->singleton(TaskService::class, function () use ($mockTaskService) {
+            return $mockTaskService;
+        });
+
+        $exitCode = Artisan::call('q', ['title' => 'Test task', '--cwd' => $this->tempDir]);
+        $output = trim(Artisan::output());
+
+        expect($output)->toContain('Failed to create task');
+        expect($exitCode)->toBe(\Illuminate\Console\Command::FAILURE);
+    });
 });
 
 // =============================================================================
