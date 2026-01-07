@@ -28,8 +28,11 @@ class BoardCommand extends Command
 
     private int $blockedWidth;
 
+    private TaskService $taskService;
+
     public function handle(TaskService $taskService): int
     {
+        $this->taskService = $taskService;
         $this->configureCwd($taskService);
 
         // Live mode by default, unless --once is passed or --json is used
@@ -327,21 +330,12 @@ class BoardCommand extends Command
                 $labels = $task['labels'] ?? [];
                 $needsHumanIcon = is_array($labels) && in_array('needs-human', $labels, true) ? '👤' : '';
 
-                // Show icon for stuck tasks (consumed=true && consumed_exit_code != 0)
-                $exitCode = $task['consumed_exit_code'] ?? null;
-                $stuckIcon = (! empty($task['consumed']) && $exitCode !== null && $exitCode !== 0) ? '❌' : '';
-
-                // Show icon for tasks that are in_progress but PID is not running
-                $pidStuckIcon = '';
-                if ($task['status'] === 'in_progress' && isset($task['consume_pid']) && $task['consume_pid'] !== null) {
-                    $pid = (int) $task['consume_pid'];
-                    if (! $this->isPidRunning($pid)) {
-                        $pidStuckIcon = '🪫'; // Low battery emoji for stuck/dead process
-                    }
-                }
+                // Show icon for failed tasks
+                $isPidDead = fn (int $pid): bool => ! $this->isPidRunning($pid);
+                $failedIcon = $this->taskService->isFailed($task, $isPidDead) ? '🪫' : '';
 
                 // Build icon string (all icons if present)
-                $icons = array_filter([$consumeIcon, $needsHumanIcon, $stuckIcon, $pidStuckIcon]);
+                $icons = array_filter([$consumeIcon, $needsHumanIcon, $failedIcon]);
                 $iconString = implode(' ', $icons);
                 // Each emoji displays as 2 chars wide + 1 space after = 3 per icon
                 $iconWidth = count($icons) * 3;

@@ -128,6 +128,66 @@ class RunService
     }
 
     /**
+     * Clean up orphaned runs (runs that started but never completed due to consume crash).
+     * Marks incomplete runs as failed with a special exit code and message.
+     *
+     * @param  callable  $isPidDead  Callback (int $pid): bool to check if a PID is dead
+     * @return int  Number of orphaned runs cleaned up
+     */
+    public function cleanupOrphanedRuns(callable $isPidDead): int
+    {
+        $cleanupCount = 0;
+        $dir = $this->storageBasePath;
+
+        if (! is_dir($dir)) {
+            return 0;
+        }
+
+        // Iterate through all run files
+        $files = glob($dir.'/*.jsonl');
+        if ($files === false) {
+            return 0;
+        }
+
+        foreach ($files as $file) {
+            $taskId = basename($file, '.jsonl');
+
+            // Skip lock files
+            if (str_ends_with($taskId, '.lock')) {
+                continue;
+            }
+
+            // Check this task's runs
+            $this->withExclusiveLock($taskId, function () use ($taskId, $isPidDead, &$cleanupCount): void {
+                $runs = $this->readRuns($taskId);
+                $modified = false;
+
+                foreach ($runs as $index => $run) {
+                    // Skip runs that are already completed
+                    if (isset($run['ended_at']) && $run['ended_at'] !== null) {
+                        continue;
+                    }
+
+                    // This is an incomplete run - mark it as orphaned
+                    $run['ended_at'] = date('c');
+                    $run['exit_code'] = -1;
+                    $run['output'] = '[Run orphaned - consume process died before completion]';
+
+                    $runs[$index] = $run;
+                    $modified = true;
+                    $cleanupCount++;
+                }
+
+                if ($modified) {
+                    $this->writeRuns($taskId, $runs);
+                }
+            });
+        }
+
+        return $cleanupCount;
+    }
+
+    /**
      * Get the storage path for a task's runs file.
      */
     private function getRunsPath(string $taskId): string

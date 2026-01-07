@@ -43,9 +43,16 @@ class ConsumeCommand extends Command
             $configService->setConfigPath($cwd.'/.fuel/config.yaml');
         }
 
+        // Clean up orphaned runs from previous consume crashes
+        $cleanupCount = $runService->cleanupOrphanedRuns(fn (int $pid): bool => ! $this->isProcessRunning($pid));
+        if ($cleanupCount > 0) {
+            // Log cleanup (will be visible briefly before entering alternate screen)
+            $this->info("Cleaned up {$cleanupCount} orphaned run(s) from previous session");
+            sleep(1); // Give user a moment to see the message
+        }
+
         $interval = max(1, (int) $this->option('interval'));
         $agentOverride = $this->option('agent');
-        $prompt = $this->option('prompt');
         $dryrun = $this->option('dryrun');
 
         $this->getOutput()->write("\033[?1049h");
@@ -312,7 +319,9 @@ PROMPT;
 
         $statusLines[] = $this->formatStatus('🚀', "Spawning {$agentName} for {$taskId}: {$shortTitle}", 'yellow');
 
-        // Spawn agent with inherited environment
+        $startTime = time();
+
+        // Spawn agent using Symfony Process for reliable management
         $process = new Process(
             $agentCommandArray,
             $cwd,
@@ -322,12 +331,16 @@ PROMPT;
         );
         $process->setTimeout(null);
         $process->setIdleTimeout(null);
-
-        $startTime = time();
         $process->start();
 
-        // Track the process for concurrency management
         $pid = $process->getPid();
+        if ($pid === null || $pid <= 0) {
+            $this->error("Failed to spawn agent for {$taskId}");
+
+            return false;
+        }
+
+        // Track the process
         $this->activeProcesses[$pid] = $process;
         $this->agentCounts[$agentName] = ($this->agentCounts[$agentName] ?? 0) + 1;
         $this->processMetadata[$pid] = [
@@ -342,6 +355,16 @@ PROMPT;
         ]);
 
         return true;
+    }
+
+    /**
+     * Check if a process is still running by PID.
+     * Used for detecting orphaned processes from previous consume runs.
+     */
+    private function isProcessRunning(int $pid): bool
+    {
+        // posix_kill with signal 0 checks if process exists
+        return posix_kill($pid, 0);
     }
 
     /**
@@ -500,8 +523,8 @@ PROMPT;
             if (! $process->isRunning()) {
                 unset($this->activeProcesses[$pid]);
 
-                // Decrement count for this agent
-                $agentForProcess = $this->getAgentNameForProcess($process);
+                // Decrement count for this agent (get from metadata)
+                $agentForProcess = $this->processMetadata[$pid]['agent_name'] ?? 'unknown';
                 if (isset($this->agentCounts[$agentForProcess]) && $this->agentCounts[$agentForProcess] > 0) {
                     $this->agentCounts[$agentForProcess]--;
                 }
@@ -513,18 +536,6 @@ PROMPT;
         $limit = $configService->getAgentLimit($agentName);
 
         return $currentCount < $limit;
-    }
-
-    /**
-     * Extract agent name from process command.
-     */
-    private function getAgentNameForProcess(Process $process): string
-    {
-        $commandLine = $process->getCommandLine();
-        // Extract first token (agent name) from command
-        $parts = explode(' ', $commandLine);
-
-        return basename($parts[0] ?? 'unknown');
     }
 
     /**
@@ -546,7 +557,7 @@ PROMPT;
         // Show active processes
         if (! empty($activeProcesses)) {
             $processLines = [];
-            foreach ($activeProcesses as $pid => $process) {
+            foreach (array_keys($activeProcesses) as $pid) {
                 if (isset($this->processMetadata[$pid])) {
                     $metadata = $this->processMetadata[$pid];
                     $taskId = $metadata['task_id'];
@@ -560,6 +571,19 @@ PROMPT;
             if (! empty($processLines)) {
                 $this->line('<fg=yellow>Active: '.implode(' | ', $processLines).'</>');
             }
+        }
+
+        // Show failed/stuck tasks
+        $isPidDead = fn (int $pid): bool => ! $this->isProcessRunning($pid);
+        $excludePids = array_keys($activeProcesses);
+        $failedTasks = $taskService->failed($isPidDead, $excludePids);
+        if ($failedTasks->isNotEmpty()) {
+            $failedLines = [];
+            foreach ($failedTasks as $task) {
+                $shortId = substr($task['id'], 2, 6);
+                $failedLines[] = "🪫 {$shortId}";
+            }
+            $this->line('<fg=red>Failed: '.implode(' | ', $failedLines).' (fuel retry)</>');
         }
 
         // Show status history
