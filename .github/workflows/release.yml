@@ -43,7 +43,7 @@ jobs:
         run: php fuel app:build fuel.phar --build-version=${{ github.event.release.tag_name }}
 
       - name: Build binaries with PHPacker
-        run: ./vendor/bin/phpacker build --src=./builds/fuel.phar --php=8.4 all
+        run: ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 all
 
       - name: Rename binaries to expected format
         run: |
