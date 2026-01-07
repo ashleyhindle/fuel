@@ -107,23 +107,26 @@ You have been assigned ONE specific task. Work ONLY on this task.
 
 == INSTRUCTIONS ==
 1. Complete the task described above
-2. When finished, run: fuel done {$taskId}
-3. Do NOT pick up other tasks - only work on {$taskId}
+2. Do NOT pick up other tasks - only work on {$taskId}
 
 == NEEDS-HUMAN WORKFLOW ==
 If you become blocked (can't create files, need credentials, need human decisions, etc):
-1. Create a needs-human task with clear details:
-   ./fuel add 'Clear title describing what is needed' \\
-     --labels=needs-human \\
-     --description='Exact steps: WHAT to do and HOW to do it'
-2. Block the current task on the needs-human task:
-   ./fuel dep:add {$taskId} <needs-human-task-id>
-3. Exit immediately (do not continue working on {$taskId})
+1. Create a needs-human task: ./fuel add 'What is needed' --labels=needs-human --description='Exact steps'
+2. Block current task: ./fuel dep:add {$taskId} <needs-human-task-id>
+3. Exit immediately
+
+== MANDATORY CLOSING PROTOCOL ==
+You MUST complete EVERY step before exiting. No exceptions:
+1. ./fuel done {$taskId}
+2. ./fuel add "..." for any incomplete/discovered work
+3. If you changed code: run tests and linter/formatter
+4. git add <files> && git commit -m "feat/fix: description"
+5. ./fuel ready (verify task state)
+
+Skipping steps breaks the workflow. Your work is NOT done until all steps complete.
 
 == CONTEXT ==
 Working directory: {$cwd}
-
-{$prompt}
 PROMPT;
 
                 if ($dryrun) {

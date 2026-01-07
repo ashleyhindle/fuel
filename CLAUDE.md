@@ -24,19 +24,25 @@ This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/t
 ./fuel board                      # Kanban view
 ```
 
-### 🚨 Session Close Protocol - Land The Plane !
+### 🚨 MANDATORY: Session Close Protocol - Land The Plane
 
-Before ending ANY session, complete this checklist:
+**YOU MUST COMPLETE EVERY STEP BELOW BEFORE EXITING. NO EXCEPTIONS.**
+
+This is not optional. Skipping steps breaks the workflow for humans and other agents.
 
 ```
-[ ] ./fuel done <id>              # Close all completed tasks
-[ ] ./fuel add "..."              # File tasks for incomplete work
-[ ] ./fuel ready                  # Verify task state
-[ ] Run tests/linters             # Quality gates (if code changed)
-[ ] git add and commit            # Add and commit logical changes using conventional commits
+[ ] ./fuel done <id>              # Mark your assigned task complete
+[ ] ./fuel add "..."              # File tasks for ANY incomplete/discovered work
+[ ] Run tests                     # Quality gate (if you changed code)
+[ ] Run linter/formatter          # Fix formatting (if you changed code)
+[ ] git add <files>               # Stage your changes
+[ ] git commit -m "feat/fix:..."  # Commit with conventional commit message
+[ ] ./fuel ready                  # Verify task state is correct
 ```
 
-**Work is NOT complete until tasks reflect reality.**
+**Failure to complete these steps means your work is NOT done.**
+
+Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 
 ### Workflow
 
