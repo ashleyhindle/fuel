@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0  # Full history for changelog
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -49,6 +50,8 @@ jobs:
           key: phpacker-php-8.4
 
       - name: Build binaries with PHPacker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 mac
           ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 linux
@@ -70,10 +73,33 @@ jobs:
           # List all binaries for verification
           ls -lh fuel-*
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "Previous tag: $PREV_TAG"
+            COMMITS=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD)
+          else
+            echo "No previous tag, using all commits"
+            COMMITS=$(git log --pretty=format:"- %s")
+          fi
+
+          # Write to file for multi-line output
+          echo "## What's Changed" > changelog.md
+          echo "" >> changelog.md
+          echo "$COMMITS" >> changelog.md
+          echo "" >> changelog.md
+          echo "---" >> changelog.md
+          echo "_Built with PHP 8.4 via PHPacker_" >> changelog.md
+
       - name: Upload binaries to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.release.tag_name }}
+          body_path: changelog.md
           files: |
             builds/fuel-darwin-arm64
             builds/fuel-darwin-x64
