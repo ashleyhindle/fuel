@@ -441,6 +441,39 @@ PROMPT;
             }
         }
 
+        // Check for permission-blocked agents (exit 0 but couldn't complete)
+        $permissionBlockedPatterns = [
+            'commands are being rejected',
+            'terminal commands are being rejected',
+            'please manually complete',
+        ];
+
+        foreach ($permissionBlockedPatterns as $pattern) {
+            if (stripos($output, $pattern) !== false) {
+                // Create a needs-human task for permission configuration
+                $humanTask = $taskService->create([
+                    'title' => "Configure agent permissions for {$agentName}",
+                    'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
+                        "To fix, either:\n".
+                        "1. Run `{$agentName}` interactively and select 'Always allow' for tool permissions\n".
+                        "2. Or add autonomous flags to .fuel/config.yaml:\n".
+                        "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
+                        "   - cursor-agent: args: [\"--force\"]\n\n".
+                        "See README.md 'Agent Permissions' section for details.",
+                    'labels' => ['needs-human'],
+                    'priority' => 1,
+                ]);
+
+                // Block the original task until permissions are configured
+                $taskService->addDependency($taskId, $humanTask['id']);
+                $taskService->reopen($taskId);
+
+                $statusLines[] = $this->formatStatus('🔒', "{$taskId} blocked - {$agentName} needs permissions (created {$humanTask['id']})", 'yellow');
+
+                return;
+            }
+        }
+
         // Handle completion status
         if ($exitCode === 0) {
             // Auto-complete task if agent didn't run `fuel done`
@@ -517,9 +550,11 @@ PROMPT;
                 if (isset($this->processMetadata[$pid])) {
                     $metadata = $this->processMetadata[$pid];
                     $taskId = $metadata['task_id'];
+                    $agentName = $metadata['agent_name'] ?? 'unknown';
                     $startTime = $metadata['start_time'];
                     $duration = $this->formatDuration(time() - $startTime);
-                    $processLines[] = "🔄 {$taskId} ({$duration})";
+                    $shortId = substr($taskId, 2, 6); // Skip 'f-' prefix
+                    $processLines[] = "🔄 {$shortId} [{$agentName}] ({$duration})";
                 }
             }
             if (! empty($processLines)) {
