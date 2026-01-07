@@ -1125,6 +1125,7 @@ describe('retry command', function () {
     it('retries a stuck task', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Stuck task']);
+        $this->taskService->start($task['id']);
 
         // Mark task as consumed with non-zero exit code
         $this->taskService->update($task['id'], [
@@ -1149,6 +1150,7 @@ describe('retry command', function () {
     it('supports partial ID matching', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID stuck task']);
+        $this->taskService->start($task['id']);
 
         $this->taskService->update($task['id'], [
             'consumed' => true,
@@ -1168,6 +1170,7 @@ describe('retry command', function () {
     it('outputs JSON when --json flag is used', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON retry task']);
+        $this->taskService->start($task['id']);
 
         $this->taskService->update($task['id'], [
             'consumed' => true,
@@ -1191,6 +1194,7 @@ describe('retry command', function () {
     it('clears consumed fields when retrying a task', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with consumed fields']);
+        $this->taskService->start($task['id']);
 
         $this->taskService->update($task['id'], [
             'consumed' => true,
@@ -1227,27 +1231,30 @@ describe('retry command', function () {
     it('fails when task is not consumed', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Not consumed task']);
+        $this->taskService->start($task['id']);
 
         $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('is not a stuck task')
+            ->expectsOutputToContain('is not a consumed in_progress task')
             ->assertExitCode(1);
 
         $updated = $this->taskService->find($task['id']);
-        expect($updated['status'])->toBe('open');
+        expect($updated['status'])->toBe('in_progress');
     });
 
-    it('fails when task has zero exit code', function () {
+    it('retries task with zero exit code if still in_progress', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with zero exit code']);
+        $this->taskService->start($task['id']);
 
+        // Agent exited cleanly but task still in_progress = something went wrong
         $this->taskService->update($task['id'], [
             'consumed' => true,
             'consumed_exit_code' => 0,
         ]);
 
         $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('is not a stuck task')
-            ->assertExitCode(1);
+            ->expectsOutputToContain('Retried task:')
+            ->assertExitCode(0);
     });
 
     it('retries multiple stuck tasks', function () {
@@ -1255,6 +1262,10 @@ describe('retry command', function () {
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
         $task3 = $this->taskService->create(['title' => 'Stuck task 3']);
+
+        $this->taskService->start($task1['id']);
+        $this->taskService->start($task2['id']);
+        $this->taskService->start($task3['id']);
 
         $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
         $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 2]);
@@ -1276,6 +1287,9 @@ describe('retry command', function () {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
+
+        $this->taskService->start($task1['id']);
+        $this->taskService->start($task2['id']);
 
         $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
         $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
@@ -1299,6 +1313,9 @@ describe('retry command', function () {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
+
+        $this->taskService->start($task1['id']);
+        $this->taskService->start($task2['id']);
 
         $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
         $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
@@ -1729,7 +1746,7 @@ describe('board command', function () {
         expect($data['done'])->toHaveCount(10);
     });
 
-    it('shows stuck icon for consumed tasks with non-zero exit code', function () {
+    it('shows failed icon for consumed tasks with non-zero exit code', function () {
         $this->taskService->initialize();
         $stuckTask = $this->taskService->create(['title' => 'Stuck task']);
         $this->taskService->update($stuckTask['id'], [
@@ -1741,11 +1758,11 @@ describe('board command', function () {
         $output = Artisan::output();
 
         $shortId = substr($stuckTask['id'], 2, 6);
-        expect($output)->toContain('❌');
+        expect($output)->toContain('🪫');
         expect($output)->toContain("[{$shortId}·s]");
     });
 
-    it('does not show stuck icon for consumed tasks with zero exit code', function () {
+    it('does not show failed icon for consumed tasks with zero exit code', function () {
         $this->taskService->initialize();
         $successTask = $this->taskService->create(['title' => 'Success task']);
         $this->taskService->update($successTask['id'], [
@@ -1758,7 +1775,7 @@ describe('board command', function () {
 
         $shortId = substr($successTask['id'], 2, 6);
         expect($output)->toContain("[{$shortId}·s]");
-        expect($output)->not->toContain('❌');
+        expect($output)->not->toContain('🪫');
     });
 
     it('shows stuck emoji for in_progress tasks with non-running PID', function () {

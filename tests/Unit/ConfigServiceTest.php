@@ -215,6 +215,40 @@ it('creates default config file', function () {
     expect($config['complexity']['complex']['model'])->toBe('opus');
 });
 
+it('creates default config with comments and allowedTools', function () {
+    $this->configService->createDefaultConfig();
+
+    $content = file_get_contents($this->configPath);
+
+    // Verify comments exist showing autonomous mode flags
+    expect($content)->toContain('--allowedTools');
+    expect($content)->toContain('# args:');
+    expect($content)->toContain('--dangerously-skip-permissions');
+    expect($content)->toContain('--force');
+
+    // Verify it's valid YAML
+    $parsed = Yaml::parseFile($this->configPath);
+
+    // Verify complexity levels exist
+    expect($parsed['complexity'])->toHaveKeys(['trivial', 'simple', 'moderate', 'complex']);
+
+    // Verify agents section exists with cursor-agent and claude
+    expect($parsed['agents'])->toHaveKeys(['cursor-agent', 'claude']);
+
+    // Verify moderate/complex have --allowedTools args
+    expect($parsed['complexity']['moderate']['agent'])->toBe('claude');
+    expect($parsed['complexity']['moderate'])->toHaveKey('args');
+    expect($parsed['complexity']['moderate']['args'])->toBeArray();
+    expect($parsed['complexity']['moderate']['args'][0])->toBe('--allowedTools');
+    expect($parsed['complexity']['moderate']['args'][1])->toBeString();
+
+    expect($parsed['complexity']['complex']['agent'])->toBe('claude');
+    expect($parsed['complexity']['complex'])->toHaveKey('args');
+    expect($parsed['complexity']['complex']['args'])->toBeArray();
+    expect($parsed['complexity']['complex']['args'][0])->toBe('--allowedTools');
+    expect($parsed['complexity']['complex']['args'][1])->toBeString();
+});
+
 it('does not overwrite existing config file', function () {
     $customConfig = [
         'complexity' => [
