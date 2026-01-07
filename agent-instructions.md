@@ -50,7 +50,36 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
   --type=bug|feature|task|chore \
   --priority=0-4 \
   --blocked-by=fuel-xxxx,fuel-yyyy \
-  --labels=api,urgent
+  --labels=api,urgent \
+  --complexity=trivial|simple|moderate|complex
+```
+
+### Complexity
+
+**Always set `--complexity` when adding tasks.** This helps agents understand the scope and effort required.
+
+**Complexity levels:**
+- `trivial` - Quick fixes, simple changes (e.g., updating a string, fixing a typo)
+- `simple` - Straightforward work with clear requirements (e.g., adding a new field, simple refactoring)
+- `moderate` - Requires multiple steps or touches several files (e.g., adding a new command, implementing a feature with tests)
+- `complex` - Large scope, architectural changes, or unclear requirements
+
+**Important:** Tasks marked as `complex` should often be broken down into smaller subtasks. If a task feels too large or uncertain, consider:
+1. Creating a parent task for planning/design
+2. Breaking it into smaller, more focused tasks
+3. Using dependencies to sequence the work
+
+**Example:**
+```bash
+# Complex task - should be broken down
+./fuel add "Refactor authentication system" \
+  --complexity=complex \
+  --description="This is too large - break into subtasks"
+
+# Better: Break it down
+./fuel add "Design new auth architecture" --complexity=moderate
+./fuel add "Implement OAuth provider" --complexity=moderate --blocked-by=fuel-xxxx
+./fuel add "Add session management" --complexity=moderate --blocked-by=fuel-xxxx
 ```
 
 ### Dependencies
