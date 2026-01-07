@@ -28,8 +28,6 @@ This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/t
 
 **YOU MUST COMPLETE EVERY STEP BELOW BEFORE EXITING. NO EXCEPTIONS.**
 
-This is not optional. Skipping steps breaks the workflow for humans and other agents.
-
 ```
 [ ] Run tests                     # Quality gate (if you changed code)
 [ ] Run linter/formatter          # Fix formatting (if you changed code)
@@ -50,7 +48,7 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
 2. `./fuel start <id>` - Claim task before starting
 3. Do the work - implement, test, verify
 4. Discover new work as you build? Add it `./fuel add "..." --blocked-by=<id>`
-5. `./fuel done <id> --commit=<hash>` - Complete the task with commit hash from step 4
+5. `./fuel done <id> --commit=<hash>` - Complete the task (hash from your git commit output)
 6. Land the plane
 
 ### Task Options
@@ -67,31 +65,7 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
 
 ### Complexity
 
-**Always set `--complexity` when adding tasks.** This helps agents understand the scope and effort required.
-
-**Complexity levels:**
-- `trivial` - Quick fixes, simple changes (e.g., updating a string, fixing a typo)
-- `simple` - Straightforward work with clear requirements (e.g., adding a new field, simple refactoring)
-- `moderate` - Requires multiple steps or touches several files (e.g., adding a new command, implementing a feature with tests)
-- `complex` - Large scope, architectural changes, or unclear requirements
-
-**Important:** Tasks marked as `complex` should often be broken down into smaller subtasks. If a task feels too large or uncertain, consider:
-1. Creating a parent task for planning/design
-2. Breaking it into smaller, more focused tasks
-3. Using dependencies to sequence the work
-
-**Example:**
-```bash
-# Complex task - should be broken down
-./fuel add "Refactor authentication system" \
-  --complexity=complex \
-  --description="This is too large - break into subtasks"
-
-# Better: Break it down
-./fuel add "Design new auth architecture" --complexity=moderate
-./fuel add "Implement OAuth provider" --complexity=moderate --blocked-by=fuel-xxxx
-./fuel add "Add session management" --complexity=moderate --blocked-by=fuel-xxxx
-```
+**Always set `--complexity` when adding tasks:** `trivial` (typos, string changes) | `simple` (clear requirements, single focus) | `moderate` (multiple steps/files) | `complex` (architectural, break into subtasks)
 
 ### Dependencies
 
@@ -104,61 +78,17 @@ Blocked tasks won't appear in `./fuel ready` until blockers are closed.
 
 ### Needs-Human Workflow
 
-When an agent needs human input (credentials, decisions, access), follow this workflow:
+When blocked on credentials, decisions, verification, or manual steps:
 
-**WHEN to create needs-human tasks:**
-- Before deploying: 'Test X deployment after deploy'
-- When needing credentials/tokens: 'Provide API token for X'
-- When human verification required: 'Verify emails sending correctly'
-- When manual steps needed: 'Create DNS records'
-- When decisions needed: 'Choose between approach A vs B'
-- After completing work that can't be automatically tested
-
-**HOW to write them:**
-- Clear title describing the action needed
-- Description with exact steps: WHAT to test/do and HOW to do it
-- Example: `--description='Visit addfuel.dev, verify index.html loads, run: curl -L addfuel.dev/install | sh'`
-
-**Workflow:**
-1. **Create a needs-human task** describing exactly what's needed:
+1. Create needs-human task with clear description of what's needed:
    ```bash
    ./fuel add 'Provide Cloudflare API token' \
      --labels=needs-human \
      --description='Run npx wrangler login or set CLOUDFLARE_API_TOKEN'
    ```
-
-2. **Block the current task** on the needs-human task:
-   ```bash
-   ./fuel dep:add <current-task-id> <needs-human-task-id>
-   ```
-
-3. **Mark current task as open** (if it was in_progress):
-   ```bash
-   # The task will automatically become open when blocked
-   ```
-
-4. **Human completes the needs-human task** by providing the required input and marking it done:
-   ```bash
-   ./fuel done <needs-human-task-id>
-   ```
-
-5. **Agent work can resume** - the blocked task will appear in `./fuel ready` once the needs-human task is completed.
-
-**Example:**
-```bash
-# Agent needs API credentials
-./fuel add 'Provide Cloudflare API token' \
-  --labels=needs-human \
-  --description='Run npx wrangler login or set CLOUDFLARE_API_TOKEN'
-
-# Block current work on it
-./fuel dep:add fuel-xxxx fuel-yyyy
-
-# Human provides token, marks task done
-./fuel done fuel-yyyy
-
-# Agent can now continue with fuel-xxxx
-```
+2. Block current work: `./fuel dep:add <current-task-id> <needs-human-task-id>`
+3. Human completes and runs `./fuel done <needs-human-task-id>`
+4. Your blocked task reappears in `./fuel ready`
 
 ### Parallel Execution
 
@@ -168,9 +98,17 @@ Primary agent coordinates - subagents do NOT pick tasks:
 2. Primary claims each task with `./fuel start <id>`
 3. Primary spawns subagents with explicit task ID assignments
 4. Subagents complete work and run `./fuel done <id>`
-5. Primary checks `./fuel ready` for newly unblocked work
+5. **Primary reviews subagent work** - verify tests added, check implementation, run tests
+6. If issues found: create fix task referencing the original (e.g., `./fuel add "Fix X from fuel-xxxx"`)
+7. Primary checks `./fuel ready` for newly unblocked work
 
 **Subagent instructions must include:** task ID, task information, instruction to run `./fuel done <id>` after landing the plane.
+
+**Review checklist for primary:**
+- Did subagent add tests?
+- Do all tests pass?
+- Does the implementation match the task requirements?
+- Any obvious bugs or issues in the code?
 
 Avoid parallel work on tasks touching same files - use dependencies instead.
 </fuel>
