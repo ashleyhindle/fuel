@@ -717,6 +717,77 @@ describe('done command', function () {
         expect($updated)->not->toHaveKey('reason');
     });
 
+    it('marks task as done with --commit flag', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task with commit']);
+        $commitHash = 'abc123def456';
+
+        $this->artisan('done', [
+            'ids' => [$task['id']],
+            '--commit' => $commitHash,
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Completed task:')
+            ->expectsOutputToContain("Commit: {$commitHash}")
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('closed');
+        expect($updated['commit_hash'])->toBe($commitHash);
+    });
+
+    it('outputs commit hash in JSON when --commit flag is used with --json', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'JSON task with commit']);
+        $commitHash = 'xyz789abc123';
+
+        Artisan::call('done', [
+            'ids' => [$task['id']],
+            '--commit' => $commitHash,
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result['status'])->toBe('closed');
+        expect($result['commit_hash'])->toBe($commitHash);
+    });
+
+    it('does not add commit_hash field when --commit is not provided', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task without commit']);
+
+        $this->artisan('done', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('closed');
+        expect($updated)->not->toHaveKey('commit_hash');
+    });
+
+    it('can use both --reason and --commit flags together', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task with both flags']);
+        $commitHash = 'def456ghi789';
+
+        $this->artisan('done', [
+            'ids' => [$task['id']],
+            '--reason' => 'Fixed the bug',
+            '--commit' => $commitHash,
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Completed task:')
+            ->expectsOutputToContain('Reason: Fixed the bug')
+            ->expectsOutputToContain("Commit: {$commitHash}")
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('closed');
+        expect($updated['reason'])->toBe('Fixed the bug');
+        expect($updated['commit_hash'])->toBe($commitHash);
+    });
+
     it('marks multiple tasks as done', function () {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);

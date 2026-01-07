@@ -17,7 +17,8 @@ class DoneCommand extends Command
         {ids* : The task ID(s) (supports partial matching, accepts multiple IDs)}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
-        {--reason= : Reason for completion}';
+        {--reason= : Reason for completion}
+        {--commit= : Git commit hash to associate with this completion}';
 
     protected $description = 'Mark one or more tasks as done';
 
@@ -27,12 +28,13 @@ class DoneCommand extends Command
 
         $ids = $this->argument('ids');
         $reason = $this->option('reason');
+        $commit = $this->option('commit');
         $tasks = [];
         $errors = [];
 
         foreach ($ids as $id) {
             try {
-                $task = $taskService->done($id, $reason);
+                $task = $taskService->done($id, $reason, $commit);
                 $tasks[] = $task;
             } catch (RuntimeException $e) {
                 $errors[] = ['id' => $id, 'error' => $e->getMessage()];
@@ -58,6 +60,9 @@ class DoneCommand extends Command
                 $this->line("  Title: {$task['title']}");
                 if (isset($task['reason'])) {
                     $this->line("  Reason: {$task['reason']}");
+                }
+                if (isset($task['commit_hash'])) {
+                    $this->line("  Commit: {$task['commit_hash']}");
                 }
             }
         }

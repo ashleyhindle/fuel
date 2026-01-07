@@ -290,11 +290,12 @@ class TaskService
      * Mark a task as done (closed).
      *
      * @param  string|null  $reason  Optional reason for completion
+     * @param  string|null  $commitHash  Optional git commit hash
      * @return array<string, mixed>
      */
-    public function done(string $id, ?string $reason = null): array
+    public function done(string $id, ?string $reason = null, ?string $commitHash = null): array
     {
-        return $this->withExclusiveLock(function () use ($id, $reason): array {
+        return $this->withExclusiveLock(function () use ($id, $reason, $commitHash): array {
             $tasks = $this->readTasks();
             $task = $this->findInCollection($tasks, $id);
 
@@ -306,6 +307,9 @@ class TaskService
             $task['updated_at'] = now()->toIso8601String();
             if ($reason !== null) {
                 $task['reason'] = $reason;
+            }
+            if ($commitHash !== null) {
+                $task['commit_hash'] = $commitHash;
             }
 
             $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
