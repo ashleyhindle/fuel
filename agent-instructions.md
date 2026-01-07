@@ -13,7 +13,7 @@ This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/t
 ./fuel board                      # Kanban view
 ```
 
-### 🚨 Session Close Protocol
+### 🚨 Session Close Protocol - Land The Plane !
 
 Before ending ANY session, complete this checklist:
 
@@ -22,7 +22,7 @@ Before ending ANY session, complete this checklist:
 [ ] ./fuel add "..."              # File tasks for incomplete work
 [ ] ./fuel ready                  # Verify task state
 [ ] Run tests/linters             # Quality gates (if code changed)
-[ ] git commit                    # Commit changes
+[ ] git add and commit            # Add and commit logical changes using conventional commits
 ```
 
 **Work is NOT complete until tasks reflect reality.**
@@ -34,6 +34,7 @@ Before ending ANY session, complete this checklist:
 3. Do the work - implement, test, verify
 4. Discover new work as you build? Add it `./fuel add "..." --blocked-by=<id>`
 5. `./fuel done <id>` - Complete the task
+6. Land the plane
 
 ### Task Options
 
