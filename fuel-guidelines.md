@@ -66,6 +66,33 @@ This pattern works well for independent tasks like:
 
 **Note**: Avoid parallel work on tasks that touch the same files - let dependencies enforce ordering instead.
 
+### Contract-First Pattern for Shared Interfaces
+
+When multiple tasks will share an interface (method signatures, JSON output, schema), use the **contract-first pattern**:
+
+1. **Create a contract task** that:
+   - Implements the shared foundation (e.g., schema, service methods)
+   - Documents the interface contract in CLAUDE.md or similar
+   - Runs FIRST before dependent work
+
+2. **Create dependent tasks** that:
+   - Are blocked by the contract task (`--blocked-by=<contract-task-id>`)
+   - Implement their feature using the documented contract
+   - Won't start until the contract exists
+
+**Example:**
+```bash
+# Task 1: Define the contract (runs first)
+fuel:add "Add user schema + document API contract in CLAUDE.md"
+
+# Tasks 2-4: Depend on the contract (run in parallel AFTER task 1)
+fuel:add "Add create user endpoint" --blocked-by=fuel-xxxx
+fuel:add "Add update user endpoint" --blocked-by=fuel-xxxx
+fuel:add "Add delete user endpoint" --blocked-by=fuel-xxxx
+```
+
+**Why this matters:** Without a contract, parallel agents may implement incompatible interfaces. Tests written by one agent won't match the implementation by another. The contract-first pattern ensures everyone agrees on the interface before building on it.
+
 ### Common Mistakes to Avoid
 
 - **Finishing work without closing the task** - Always run `fuel:done` when work is complete

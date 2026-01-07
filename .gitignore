@@ -3,5 +3,5 @@
 /.vscode
 /.vagrant
 .phpunit.result.cache
-agent-resources/laravel-zero-docs
 .fuel/*.lock
+agent-resources/laravel-zero-docs
