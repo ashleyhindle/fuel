@@ -44,10 +44,13 @@ class ConfigService
         }
 
         try {
-            $this->config = Yaml::parse($content);
-            if (! is_array($this->config)) {
-                throw new RuntimeException('Invalid config format: expected array, got '.gettype($this->config));
+            $parsed = Yaml::parse($content);
+            if (! is_array($parsed)) {
+                throw new RuntimeException('Invalid config format: expected array, got '.gettype($parsed));
             }
+            $this->config = $parsed;
+        } catch (RuntimeException $e) {
+            throw $e; // Re-throw our own exceptions
         } catch (\Exception $e) {
             throw new RuntimeException("Failed to parse YAML config: {$e->getMessage()}");
         }
