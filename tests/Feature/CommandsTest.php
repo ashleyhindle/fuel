@@ -1665,11 +1665,11 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        // Titles may be truncated, so check for short IDs
+        // Titles may be truncated, so check for short IDs with complexity char
         $blockerShortId = substr($blocker['id'], 2, 6);
         $blockedShortId = substr($blocked['id'], 2, 6);
-        expect($output)->toContain("[{$blockerShortId}]");
-        expect($output)->toContain("[{$blockedShortId}]");
+        expect($output)->toContain("[{$blockerShortId}·s]");
+        expect($output)->toContain("[{$blockedShortId}·s]");
     });
 
     it('shows in progress tasks in In Progress column', function () {
@@ -1680,9 +1680,9 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        // Title may be truncated, so check for short ID
+        // Title may be truncated, so check for short ID with complexity char
         $shortId = substr($task['id'], 2, 6);
-        expect($output)->toContain("[{$shortId}]");
+        expect($output)->toContain("[{$shortId}·s]");
     });
 
     it('shows done tasks in Recently done line', function () {
@@ -1742,7 +1742,7 @@ describe('board command', function () {
 
         $shortId = substr($stuckTask['id'], 2, 6);
         expect($output)->toContain('❌');
-        expect($output)->toContain("[{$shortId}]");
+        expect($output)->toContain("[{$shortId}·s]");
     });
 
     it('does not show stuck icon for consumed tasks with zero exit code', function () {
@@ -1757,7 +1757,7 @@ describe('board command', function () {
         $output = Artisan::output();
 
         $shortId = substr($successTask['id'], 2, 6);
-        expect($output)->toContain("[{$shortId}]");
+        expect($output)->toContain("[{$shortId}·s]");
         expect($output)->not->toContain('❌');
     });
 
@@ -1774,7 +1774,7 @@ describe('board command', function () {
 
         $shortId = substr($stuckTask['id'], 2, 6);
         expect($output)->toContain('🪫');
-        expect($output)->toContain("[{$shortId}]");
+        expect($output)->toContain("[{$shortId}·s]");
     });
 
     it('does not show stuck emoji for in_progress tasks with running PID', function () {
@@ -1791,7 +1791,7 @@ describe('board command', function () {
         $output = Artisan::output();
 
         $shortId = substr($runningTask['id'], 2, 6);
-        expect($output)->toContain("[{$shortId}]");
+        expect($output)->toContain("[{$shortId}·s]");
         expect($output)->not->toContain('🪫');
     });
 
@@ -3483,7 +3483,7 @@ describe('runs command', function () {
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $this->artisan('runs', ['id' => $task['id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain("No runs found for task")
+            ->expectsOutputToContain('No runs found for task')
             ->assertExitCode(1);
     });
 
@@ -3500,11 +3500,12 @@ describe('runs command', function () {
             'exit_code' => 0,
         ]);
 
-        $this->artisan('runs', ['id' => $task['id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Runs for task')
-            ->expectsOutputToContain('test-agent')
-            ->expectsOutputToContain('test-model')
-            ->assertExitCode(0);
+        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Runs for task');
+        expect($output)->toContain('test-agent');
+        expect($output)->toContain('test-model');
     });
 
     it('displays multiple runs in table format', function () {

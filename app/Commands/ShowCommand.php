@@ -125,7 +125,7 @@ class ShowCommand extends Command
                                     $start = new \DateTime($run['started_at']);
                                     $end = new \DateTime($run['ended_at']);
                                     $duration = $end->getTimestamp() - $start->getTimestamp();
-                                    $durationStr = $duration < 60 ? "{$duration}s" : (int)($duration / 60).'m '.($duration % 60).'s';
+                                    $durationStr = $duration < 60 ? "{$duration}s" : (int) ($duration / 60).'m '.($duration % 60).'s';
                                     $this->line("    Duration: {$durationStr}");
                                 } catch (\Exception $e) {
                                     // Ignore date parsing errors

@@ -76,7 +76,7 @@ class RunsCommand extends Command
                 if ($this->option('json')) {
                     $this->outputJson($runsWithDuration);
                 } else {
-                    $this->info("Runs for task {$taskId} (".count($runs)."):");
+                    $this->info("Runs for task {$taskId} (".count($runs).'):');
                     $this->newLine();
 
                     $headers = ['Run ID', 'Agent', 'Model', 'Started At', 'Duration', 'Exit Code'];
@@ -103,10 +103,6 @@ class RunsCommand extends Command
 
     /**
      * Calculate duration between two timestamps.
-     *
-     * @param  string|null  $startedAt
-     * @param  string|null  $endedAt
-     * @return string
      */
     private function calculateDuration(?string $startedAt, ?string $endedAt): string
     {
@@ -147,9 +143,6 @@ class RunsCommand extends Command
 
     /**
      * Format a datetime string for display.
-     *
-     * @param  string  $dateTimeString
-     * @return string
      */
     private function formatDateTime(string $dateTimeString): string
     {
@@ -170,8 +163,6 @@ class RunsCommand extends Command
      * Display detailed run information.
      *
      * @param  array<string, mixed>  $run
-     * @param  bool  $showOutput
-     * @return void
      */
     private function displayRunDetails(array $run, bool $showOutput = false): void
     {
