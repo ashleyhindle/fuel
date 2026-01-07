@@ -4,31 +4,53 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
+use App\Commands\Concerns\RendersBoardColumns;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
 class BoardCommand extends Command
 {
+    use HandlesJsonOutput;
+    use RendersBoardColumns;
+
     protected $signature = 'board
         {--cwd= : Working directory (defaults to current directory)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--once : Show board once and exit (disables live mode)}
+        {--interval=2 : Refresh interval in seconds when watching}';
 
-    protected $description = 'Display tasks in a kanban board layout';
+    protected $description = 'Display tasks in a kanban board layout (live by default)';
 
-    private int $columnWidth;
+    private int $readyWidth;
+
+    private int $inProgressWidth;
+
+    private int $blockedWidth;
 
     public function handle(TaskService $taskService): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
+        $this->configureCwd($taskService);
+
+        // Live mode by default, unless --once is passed or --json is used
+        if (! $this->option('once') && ! $this->option('json')) {
+            return $this->watchMode($taskService);
         }
 
-        $this->columnWidth = $this->calculateColumnWidth();
+        return $this->renderBoard($taskService);
+    }
 
+    private function renderBoard(TaskService $taskService): int
+    {
         $readyTasks = $taskService->ready();
         $readyIds = $readyTasks->pluck('id')->toArray();
 
         $allTasks = $taskService->all();
+
+        $inProgressTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'in_progress')
+            ->sortByDesc('updated_at')
+            ->values();
 
         $blockedTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
@@ -37,110 +59,406 @@ class BoardCommand extends Command
         $doneTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'closed')
             ->sortByDesc('updated_at')
-            ->take(5)
+            ->take(10)
             ->values();
 
         if ($this->option('json')) {
-            $this->line(json_encode([
+            $this->outputJson([
                 'ready' => $readyTasks->values()->toArray(),
+                'in_progress' => $inProgressTasks->toArray(),
                 'blocked' => $blockedTasks->toArray(),
                 'done' => $doneTasks->toArray(),
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            ]);
 
             return self::SUCCESS;
         }
 
-        $readyColumn = $this->buildColumn('Ready', $readyTasks->all());
-        $blockedColumn = $this->buildColumn('Blocked', $blockedTasks->all());
-        $doneColumn = $this->buildColumn('Done', $doneTasks->all());
+        $this->calculateColumnWidths($readyTasks->count(), $inProgressTasks->count(), $blockedTasks->count());
 
-        $maxHeight = max(count($readyColumn), count($blockedColumn), count($doneColumn));
+        $readyColumn = $this->buildColumn('Ready', $readyTasks->all(), $this->readyWidth);
+        $inProgressColumn = $this->buildColumn('In Progress', $inProgressTasks->all(), $this->inProgressWidth);
+        $blockedColumn = $this->buildColumn('Blocked', $blockedTasks->all(), $this->blockedWidth);
 
-        $readyColumn = $this->padColumn($readyColumn, $maxHeight);
-        $blockedColumn = $this->padColumn($blockedColumn, $maxHeight);
-        $doneColumn = $this->padColumn($doneColumn, $maxHeight);
+        $maxHeight = max(count($readyColumn), count($inProgressColumn), count($blockedColumn));
 
-        $rows = array_map(null, $readyColumn, $blockedColumn, $doneColumn);
+        $readyColumn = $this->padColumn($readyColumn, $maxHeight, $this->readyWidth);
+        $inProgressColumn = $this->padColumn($inProgressColumn, $maxHeight, $this->inProgressWidth);
+        $blockedColumn = $this->padColumn($blockedColumn, $maxHeight, $this->blockedWidth);
+
+        $rows = array_map(null, $readyColumn, $inProgressColumn, $blockedColumn);
 
         foreach ($rows as $row) {
             $this->line(implode('  ', $row));
+        }
+
+        // Show recently done tasks as a single line below the board
+        if ($doneTasks->isNotEmpty()) {
+            $this->newLine();
+            $this->renderDoneLine($doneTasks->all());
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function watchMode(TaskService $taskService): int
+    {
+        $storagePath = $taskService->getStoragePath();
+        $interval = max(1, (int) $this->option('interval'));
+
+        // Check if we're in a TTY (interactive terminal)
+        $isTty = stream_isatty(STDOUT);
+
+        if ($isTty) {
+            // Enter alternate buffer
+            $this->getOutput()->write("\033[?1049h");
+            $this->getOutput()->write("\033[H\033[2J");
+        }
+
+        // Set up signal handlers
+        $exiting = false;
+        $shouldRefresh = false;
+
+        if (function_exists('pcntl_signal')) {
+            pcntl_signal(SIGINT, function () use (&$exiting) {
+                $exiting = true;
+            });
+            pcntl_signal(SIGTERM, function () use (&$exiting) {
+                $exiting = true;
+            });
+            // Handle window resize (SIGWINCH)
+            if (defined('SIGWINCH')) {
+                pcntl_signal(SIGWINCH, function () use (&$shouldRefresh) {
+                    $shouldRefresh = true;
+                });
+            }
+        }
+
+        $lastModified = file_exists($storagePath) ? @filemtime($storagePath) : false;
+        $lastRender = 0;
+        $lastContentHash = null;
+
+        try {
+            // Initial render
+            $lastContentHash = $this->getBoardContentHash($taskService);
+            $this->refreshBoard($taskService);
+            $lastRender = time();
+
+            while (true) {
+                // Check if we should exit
+                if ($exiting) {
+                    break;
+                }
+
+                // Handle signals if pcntl is available (check before file check to catch SIGWINCH quickly)
+                if (function_exists('pcntl_signal_dispatch')) {
+                    pcntl_signal_dispatch();
+                }
+
+                // Check for file changes (lightweight - filemtime() only reads inode metadata, not file contents)
+                $currentModified = file_exists($storagePath) ? @filemtime($storagePath) : false;
+                $needsRefresh = false;
+
+                // Refresh if file changed AND content actually changed
+                if ($currentModified !== false && $currentModified !== $lastModified) {
+                    $lastModified = $currentModified;
+                    $currentContentHash = $this->getBoardContentHash($taskService);
+                    if ($currentContentHash !== $lastContentHash) {
+                        $lastContentHash = $currentContentHash;
+                        $needsRefresh = true;
+                    }
+                } elseif (time() - $lastRender >= $interval) {
+                    // Periodic check - verify content changed before refreshing
+                    $currentContentHash = $this->getBoardContentHash($taskService);
+                    if ($currentContentHash !== $lastContentHash) {
+                        $lastContentHash = $currentContentHash;
+                        $needsRefresh = true;
+                    }
+                } elseif ($shouldRefresh) {
+                    // SIGWINCH received - force refresh and reset flag (terminal resize)
+                    $needsRefresh = true;
+                    $shouldRefresh = false;
+                }
+
+                if ($needsRefresh) {
+                    $this->refreshBoard($taskService);
+                    $lastContentHash = $this->getBoardContentHash($taskService);
+                    $lastRender = time();
+                }
+
+                // Sleep briefly to avoid CPU spinning (100ms)
+                usleep(100000);
+            }
+        } catch (\Exception $e) {
+            // Fall through to cleanup
+        } finally {
+            if (stream_isatty(STDOUT)) {
+                $this->exitWatchMode();
+            }
         }
 
         return self::SUCCESS;
     }
 
     /**
+     * Generate a hash representing the current board content.
+     */
+    private function getBoardContentHash(TaskService $taskService): string
+    {
+        $readyTasks = $taskService->ready();
+        $readyIds = $readyTasks->pluck('id')->toArray();
+
+        $allTasks = $taskService->all();
+
+        $inProgressTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'in_progress')
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $blockedTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
+            ->values();
+
+        $doneTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'closed')
+            ->sortByDesc('updated_at')
+            ->take(10)
+            ->values();
+
+        return $this->hashBoardContent([
+            'ready' => $readyTasks->pluck('id')->toArray(),
+            'in_progress' => $inProgressTasks->pluck('id')->toArray(),
+            'blocked' => $blockedTasks->pluck('id')->toArray(),
+            'done' => $doneTasks->pluck('id')->toArray(),
+        ]);
+    }
+
+    private function refreshBoard(TaskService $taskService): void
+    {
+        // Move cursor to home without clearing - overwrites in place to avoid flicker
+        if (stream_isatty(STDOUT)) {
+            $this->getOutput()->write("\033[H");
+        } else {
+            // In non-TTY, just output newlines to separate refreshes
+            $this->newLine();
+            $this->line('<fg=yellow>--- Refresh ---</>');
+            $this->newLine();
+        }
+
+        // Render the board
+        $readyTasks = $taskService->ready();
+        $readyIds = $readyTasks->pluck('id')->toArray();
+
+        $allTasks = $taskService->all();
+
+        $inProgressTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'in_progress')
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $blockedTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
+            ->values();
+
+        $doneTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'closed')
+            ->sortByDesc('updated_at')
+            ->take(10)
+            ->values();
+
+        $this->calculateColumnWidths($readyTasks->count(), $inProgressTasks->count(), $blockedTasks->count());
+
+        $readyColumn = $this->buildColumn('Ready', $readyTasks->all(), $this->readyWidth);
+        $inProgressColumn = $this->buildColumn('In Progress', $inProgressTasks->all(), $this->inProgressWidth);
+        $blockedColumn = $this->buildColumn('Blocked', $blockedTasks->all(), $this->blockedWidth);
+
+        $maxHeight = max(count($readyColumn), count($inProgressColumn), count($blockedColumn));
+
+        $readyColumn = $this->padColumn($readyColumn, $maxHeight, $this->readyWidth);
+        $inProgressColumn = $this->padColumn($inProgressColumn, $maxHeight, $this->inProgressWidth);
+        $blockedColumn = $this->padColumn($blockedColumn, $maxHeight, $this->blockedWidth);
+
+        $rows = array_map(null, $readyColumn, $inProgressColumn, $blockedColumn);
+
+        foreach ($rows as $row) {
+            $this->line(implode('  ', $row));
+        }
+
+        // Show recently done tasks as a single line below the board
+        if ($doneTasks->isNotEmpty()) {
+            $this->newLine();
+            $this->renderDoneLine($doneTasks->all());
+        }
+
+        // Show footer with refresh info
+        $this->newLine();
+        $this->line('<fg=gray>Press Ctrl+C to exit | Watching for changes...</>');
+    }
+
+    private function exitWatchMode(): void
+    {
+        // Exit alternate buffer
+        $this->getOutput()->write("\033[?1049l");
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $tasks
      * @return array<int, string>
      */
-    private function buildColumn(string $title, array $tasks): array
+    private function buildColumn(string $title, array $tasks, int $width): array
     {
         $lines = [];
 
-        $lines[] = $this->padLine("<fg=white;options=bold>{$title}</> (".count($tasks).')');
-        $lines[] = str_repeat('─', $this->columnWidth);
+        $lines[] = $this->padLine("<fg=white;options=bold>{$title}</> (".count($tasks).')', $width);
+        $lines[] = str_repeat('─', $width);
 
         if (empty($tasks)) {
-            $lines[] = $this->padLine('<fg=gray>No tasks</>');
+            $lines[] = $this->padLine('<fg=gray>No tasks</>', $width);
         } else {
             foreach ($tasks as $task) {
                 $id = (string) $task['id'];
                 $taskTitle = (string) $task['title'];
                 $shortId = substr($id, 5, 4); // Skip 'fuel-' prefix
-                $truncatedTitle = $this->truncate($taskTitle, $this->columnWidth - 7);
-                $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$truncatedTitle}");
+
+                // Show icon for tasks being consumed by fuel consume
+                $consumeIcon = ! empty($task['consumed']) ? '⚡' : '';
+                $iconWidth = $consumeIcon !== '' ? 2 : 0; // emoji + space
+                $truncatedTitle = $this->truncate($taskTitle, $width - 7 - $iconWidth);
+
+                if ($consumeIcon !== '') {
+                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$consumeIcon}{$truncatedTitle}", $width);
+                } else {
+                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$truncatedTitle}", $width);
+                }
             }
         }
 
         return $lines;
     }
 
+    private function calculateColumnWidths(int $readyCount, int $inProgressCount, int $blockedCount): void
+    {
+        $terminalWidth = $this->getTerminalWidth();
+
+        // Available width minus spacing between columns (2 spaces × 2 gaps for 3 columns)
+        $availableWidth = $terminalWidth - 4;
+
+        // Minimum width for header (enough for "Ready (0)" or "In Progress (0)")
+        $minWidth = 15;
+
+        // Count how many columns have content
+        $columnsWithContent = 0;
+        if ($readyCount > 0) {
+            $columnsWithContent++;
+        }
+        if ($inProgressCount > 0) {
+            $columnsWithContent++;
+        }
+        if ($blockedCount > 0) {
+            $columnsWithContent++;
+        }
+
+        // If all columns have content or no columns have content, distribute evenly
+        if ($columnsWithContent === 3 || $columnsWithContent === 0) {
+            $widthPerColumn = (int) ($availableWidth / 3);
+            $this->readyWidth = $widthPerColumn;
+            $this->inProgressWidth = $widthPerColumn;
+            $this->blockedWidth = $widthPerColumn;
+
+            return;
+        }
+
+        // Some columns are empty: empty columns get minimum width, others share remaining space
+        $emptyColumns = 3 - $columnsWithContent;
+        $totalMinWidth = $minWidth * $emptyColumns;
+        $remainingWidth = max(0, $availableWidth - $totalMinWidth);
+        $widthPerContentColumn = (int) ($remainingWidth / $columnsWithContent);
+
+        // Distribute width - columns with content get more space
+        $this->readyWidth = $readyCount > 0
+            ? $widthPerContentColumn
+            : $minWidth;
+
+        $this->inProgressWidth = $inProgressCount > 0
+            ? $widthPerContentColumn
+            : $minWidth;
+
+        $this->blockedWidth = $blockedCount > 0
+            ? $widthPerContentColumn
+            : $minWidth;
+    }
+
     /**
-     * @param  array<int, string>  $column
-     * @return array<int, string>
+     * @param  array<int, array<string, mixed>>  $doneTasks
      */
-    private function padColumn(array $column, int $height): array
+    private function renderDoneLine(array $doneTasks): void
     {
-        $emptyLine = str_repeat(' ', $this->columnWidth);
+        $terminalWidth = $this->getTerminalWidth();
+        $prefix = '<fg=gray>Recently done:</> ';
+        $prefixLength = $this->visibleLength($prefix);
 
-        while (count($column) < $height) {
-            $column[] = $emptyLine;
+        // Available width for task items
+        $availableWidth = $terminalWidth - $prefixLength;
+
+        $items = [];
+        $currentLength = 0;
+        $separator = '<fg=gray> | </>';
+
+        foreach ($doneTasks as $task) {
+            $id = (string) $task['id'];
+            $title = (string) $task['title'];
+            $shortId = substr($id, 5, 4); // Skip 'fuel-' prefix
+
+            // Calculate separator length if not first item
+            $separatorLength = count($items) > 0 ? $this->visibleLength($separator) : 0;
+
+            // Build ID part to calculate its visible length
+            $idPart = "<fg=cyan>[{$shortId}]</> ";
+            $idPartLength = $this->visibleLength($idPart);
+
+            // Calculate how much space we have for the title
+            $titleMaxLength = $availableWidth - $currentLength - $separatorLength - $idPartLength;
+
+            if ($titleMaxLength < 5) {
+                // Not enough space for another item, stop
+                break;
+            }
+
+            $truncatedTitle = $this->truncateTitle($title, $titleMaxLength);
+            $item = $idPart.$truncatedTitle;
+            $itemLength = $this->visibleLength($item);
+
+            // Check if this item fits
+            if ($currentLength + $separatorLength + $itemLength > $availableWidth) {
+                break;
+            }
+
+            $items[] = $item;
+            $currentLength += $separatorLength + $itemLength;
         }
 
-        return $column;
-    }
-
-    private function padLine(string $line): string
-    {
-        $visibleLength = $this->visibleLength($line);
-        $padding = max(0, $this->columnWidth - $visibleLength);
-
-        return $line.str_repeat(' ', $padding);
-    }
-
-    private function visibleLength(string $line): int
-    {
-        $stripped = preg_replace('/<[^>]+>/', '', $line);
-
-        return mb_strlen($stripped ?? $line);
-    }
-
-    private function truncate(string $value, int $length): string
-    {
-        if (mb_strlen($value) <= $length) {
-            return $value;
+        if (empty($items)) {
+            return;
         }
 
-        return mb_substr($value, 0, $length - 3).'...';
+        $line = $prefix.implode($separator, $items);
+        $this->line($line);
     }
 
-    private function calculateColumnWidth(): int
+    private function truncateTitle(string $title, int $maxLength): string
     {
-        $columns = getenv('COLUMNS');
-        $terminalWidth = $columns !== false ? (int) $columns : 120;
+        // Truncate to first 3 words for done tasks
+        $words = preg_split('/\s+/', trim($title));
+        if (count($words) <= 3) {
+            $truncated = $title;
+        } else {
+            $truncated = implode(' ', array_slice($words, 0, 3)).'...';
+        }
 
-        $width = (int) (($terminalWidth - 4) / 3);
+        // If the 3-word version is still too long, truncate further
+        if (mb_strlen($truncated) > $maxLength) {
+            return mb_substr($truncated, 0, $maxLength - 3).'...';
+        }
 
-        return max(25, min(60, $width));
+        return $truncated;
     }
 }
