@@ -83,10 +83,43 @@ class TaskService
         return $this->withExclusiveLock(function () use ($data): array {
             $tasks = $this->readTasks();
 
+            // Validate type enum
+            $validTypes = ['bug', 'feature', 'task', 'epic', 'chore'];
+            $type = $data['type'] ?? 'task';
+            if (! in_array($type, $validTypes, true)) {
+                throw new RuntimeException(
+                    "Invalid task type '{$type}'. Must be one of: ".implode(', ', $validTypes)
+                );
+            }
+
+            // Validate priority range
+            $priority = $data['priority'] ?? 2;
+            if (! is_int($priority) || $priority < 0 || $priority > 4) {
+                throw new RuntimeException(
+                    "Invalid priority '{$priority}'. Must be an integer between 0 and 4."
+                );
+            }
+
+            // Validate labels is an array
+            $labels = $data['labels'] ?? [];
+            if (! is_array($labels)) {
+                throw new RuntimeException('Labels must be an array of strings.');
+            }
+            // Ensure all labels are strings
+            foreach ($labels as $label) {
+                if (! is_string($label)) {
+                    throw new RuntimeException('All labels must be strings.');
+                }
+            }
+
             $task = [
                 'id' => $this->generateId($tasks->count()),
                 'title' => $data['title'] ?? throw new RuntimeException('Task title is required'),
                 'status' => 'open',
+                'description' => $data['description'] ?? null,
+                'type' => $type,
+                'priority' => $priority,
+                'labels' => $labels,
                 'dependencies' => $data['dependencies'] ?? [],
                 'created_at' => now()->toIso8601String(),
                 'updated_at' => now()->toIso8601String(),

@@ -49,6 +49,105 @@ it('creates a task with hash-based ID', function () {
     expect($task['updated_at'])->not->toBeNull();
 });
 
+it('creates a task with default schema fields', function () {
+    $this->taskService->initialize();
+
+    $task = $this->taskService->create(['title' => 'Test task']);
+
+    // Verify all schema fields are present
+    expect($task)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'dependencies', 'created_at', 'updated_at']);
+    expect($task['description'])->toBeNull();
+    expect($task['type'])->toBe('task');
+    expect($task['priority'])->toBe(2);
+    expect($task['labels'])->toBe([]);
+    expect($task['dependencies'])->toBe([]);
+});
+
+it('creates a task with custom schema fields', function () {
+    $this->taskService->initialize();
+
+    $task = $this->taskService->create([
+        'title' => 'Bug fix',
+        'description' => 'Fix the critical bug',
+        'type' => 'bug',
+        'priority' => 4,
+        'labels' => ['critical', 'backend'],
+    ]);
+
+    expect($task['title'])->toBe('Bug fix');
+    expect($task['description'])->toBe('Fix the critical bug');
+    expect($task['type'])->toBe('bug');
+    expect($task['priority'])->toBe(4);
+    expect($task['labels'])->toBe(['critical', 'backend']);
+});
+
+it('validates task type enum', function () {
+    $this->taskService->initialize();
+
+    // Valid types
+    $validTypes = ['bug', 'feature', 'task', 'epic', 'chore'];
+    foreach ($validTypes as $type) {
+        $task = $this->taskService->create(['title' => 'Test', 'type' => $type]);
+        expect($task['type'])->toBe($type);
+    }
+
+    // Invalid type
+    $this->taskService->create(['title' => 'Test', 'type' => 'invalid']);
+})->throws(RuntimeException::class, 'Invalid task type');
+
+it('validates priority range', function () {
+    $this->taskService->initialize();
+
+    // Valid priorities
+    for ($priority = 0; $priority <= 4; $priority++) {
+        $task = $this->taskService->create(['title' => 'Test', 'priority' => $priority]);
+        expect($task['priority'])->toBe($priority);
+    }
+
+    // Invalid priorities
+    $this->taskService->create(['title' => 'Test', 'priority' => -1]);
+})->throws(RuntimeException::class, 'Invalid priority');
+
+it('validates priority is integer', function () {
+    $this->taskService->initialize();
+
+    $this->taskService->create(['title' => 'Test', 'priority' => 'high']);
+})->throws(RuntimeException::class, 'Invalid priority');
+
+it('validates labels is an array', function () {
+    $this->taskService->initialize();
+
+    $this->taskService->create(['title' => 'Test', 'labels' => 'not-an-array']);
+})->throws(RuntimeException::class, 'Labels must be an array');
+
+it('validates all labels are strings', function () {
+    $this->taskService->initialize();
+
+    $this->taskService->create(['title' => 'Test', 'labels' => [1, 2, 3]]);
+})->throws(RuntimeException::class, 'All labels must be strings');
+
+it('includes all schema fields in JSON output', function () {
+    $this->taskService->initialize();
+
+    $task = $this->taskService->create([
+        'title' => 'Feature task',
+        'description' => 'Add new feature',
+        'type' => 'feature',
+        'priority' => 3,
+        'labels' => ['frontend', 'ui'],
+    ]);
+
+    $json = json_encode($task);
+    $decoded = json_decode($json, true);
+
+    // Verify all fields are present in JSON
+    expect($decoded)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'dependencies', 'created_at', 'updated_at']);
+    expect($decoded['description'])->toBe('Add new feature');
+    expect($decoded['type'])->toBe('feature');
+    expect($decoded['priority'])->toBe(3);
+    expect($decoded['labels'])->toBe(['frontend', 'ui']);
+});
+
 it('finds task by exact ID', function () {
     $this->taskService->initialize();
     $created = $this->taskService->create(['title' => 'Test task']);
