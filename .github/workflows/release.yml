@@ -42,32 +42,32 @@ jobs:
       - name: Build PHAR
         run: php fuel app:build fuel.phar --build-version=${{ github.event.release.tag_name }}
 
+      - name: Cache PHPacker binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.phpacker
+          key: phpacker-php-8.4
+
       - name: Build binaries with PHPacker
         run: ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 all
 
       - name: Rename binaries to expected format
         run: |
-          cd builds
+          cd builds/build
 
-          # Find and rename binaries
-          # PHPacker outputs: fuel-darwin-arm64, fuel-darwin-x86_64, fuel-linux-arm64, fuel-linux-x86_64, fuel-windows-x86_64.exe
-          # We need: fuel-darwin-arm64, fuel-darwin-x64, fuel-linux-arm64, fuel-linux-x64, fuel-windows-x64.exe
+          # PHPacker outputs: build/{platform}/{platform}-{arch}
+          # We need: fuel-{os}-{arch} with darwin instead of mac
+          mv mac/mac-arm ../fuel-darwin-arm64
+          mv mac/mac-x64 ../fuel-darwin-x64
+          mv linux/linux-arm ../fuel-linux-arm64
+          mv linux/linux-x64 ../fuel-linux-x64
+          mv windows/windows-x64.exe ../fuel-windows-x64.exe
 
-          # Rename x86_64 to x64
-          if [ -f "fuel-darwin-x86_64" ]; then
-            mv "fuel-darwin-x86_64" "fuel-darwin-x64"
-          fi
-
-          if [ -f "fuel-linux-x86_64" ]; then
-            mv "fuel-linux-x86_64" "fuel-linux-x64"
-          fi
-
-          if [ -f "fuel-windows-x86_64.exe" ]; then
-            mv "fuel-windows-x86_64.exe" "fuel-windows-x64.exe"
-          fi
+          cd ..
+          rm -rf build
 
           # List all binaries for verification
-          ls -lh fuel-* || echo "No binaries found"
+          ls -lh fuel-*
 
       - name: Upload binaries to release
         uses: softprops/action-gh-release@v2
