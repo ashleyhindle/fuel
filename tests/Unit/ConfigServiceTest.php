@@ -198,8 +198,11 @@ it('creates default config file', function () {
     $config = Yaml::parseFile($this->configPath);
 
     expect($config)->toHaveKey('complexity');
-    expect($config)->not->toHaveKey('agents'); // No agents section in new format
+    expect($config)->toHaveKey('agents');
     expect($config['complexity'])->toHaveKeys(['trivial', 'simple', 'moderate', 'complex']);
+    expect($config['agents'])->toHaveKeys(['cursor-agent', 'claude']);
+    expect($config['agents']['cursor-agent']['max_concurrent'])->toBe(2);
+    expect($config['agents']['claude']['max_concurrent'])->toBe(2);
 
     // Verify default agents and models
     expect($config['complexity']['trivial']['agent'])->toBe('cursor-agent');
@@ -407,4 +410,115 @@ it('filters out non-string args', function () {
 
     // Only string args should be included
     expect($command)->toBe(['claude', '-p', 'test', '--valid', '--also-valid']);
+});
+
+it('validates agents section when present', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => [
+            'claude' => ['max_concurrent' => 2],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    // Should not throw - valid config
+    $command = $this->configService->getAgentCommand('simple', 'test');
+    expect($command)->toBe(['claude', '-p', 'test']);
+});
+
+it('throws exception when agents is not an array', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => 'not-an-array',
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
+        ->toThrow(RuntimeException::class, '"agents" key must be an array');
+});
+
+it('throws exception when agent config is not an array', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => [
+            'claude' => 'not-an-array',
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
+        ->toThrow(RuntimeException::class, "Agent config for 'claude' must be an array");
+});
+
+it('throws exception when agent config is missing max_concurrent', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => [
+            'claude' => [],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
+        ->toThrow(RuntimeException::class, "Agent 'claude' must have 'max_concurrent' key");
+});
+
+it('throws exception when max_concurrent is not a positive integer', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => [
+            'claude' => ['max_concurrent' => 0],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
+        ->toThrow(RuntimeException::class, "Agent 'claude' max_concurrent must be a positive integer");
+});
+
+it('throws exception when max_concurrent is negative', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => [
+            'claude' => ['max_concurrent' => -1],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
+        ->toThrow(RuntimeException::class, "Agent 'claude' max_concurrent must be a positive integer");
+});
+
+it('throws exception when max_concurrent is a string', function () {
+    $config = [
+        'complexity' => [
+            'simple' => ['agent' => 'claude'],
+        ],
+        'agents' => [
+            'claude' => ['max_concurrent' => 'two'],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect(fn () => $this->configService->getAgentCommand('simple', 'test'))
+        ->toThrow(RuntimeException::class, "Agent 'claude' max_concurrent must be a positive integer");
 });

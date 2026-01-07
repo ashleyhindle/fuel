@@ -84,6 +84,31 @@ class ConfigService
                 throw new RuntimeException("Complexity '{$complexity}' must have 'agent' string");
             }
         }
+
+        // Validate agents section if present
+        if (isset($config['agents'])) {
+            if (! is_array($config['agents'])) {
+                throw new RuntimeException('Config "agents" key must be an array');
+            }
+
+            foreach ($config['agents'] as $agentName => $agentConfig) {
+                if (! is_string($agentName)) {
+                    throw new RuntimeException('Agent name must be a string');
+                }
+
+                if (! is_array($agentConfig)) {
+                    throw new RuntimeException("Agent config for '{$agentName}' must be an array");
+                }
+
+                if (! isset($agentConfig['max_concurrent'])) {
+                    throw new RuntimeException("Agent '{$agentName}' must have 'max_concurrent' key");
+                }
+
+                if (! is_int($agentConfig['max_concurrent']) || $agentConfig['max_concurrent'] < 1) {
+                    throw new RuntimeException("Agent '{$agentName}' max_concurrent must be a positive integer");
+                }
+            }
+        }
     }
 
     /**
@@ -213,6 +238,14 @@ class ConfigService
                 'complex' => [
                     'agent' => 'claude',
                     'model' => 'opus',
+                ],
+            ],
+            'agents' => [
+                'cursor-agent' => [
+                    'max_concurrent' => 2,
+                ],
+                'claude' => [
+                    'max_concurrent' => 2,
                 ],
             ],
         ];

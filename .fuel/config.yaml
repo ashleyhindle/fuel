@@ -20,3 +20,11 @@ complexity:
     model: opus
     # args:
     #   - "--dangerously-skip-permissions"
+
+# Agent concurrency limits
+# Controls how many instances of each agent can run simultaneously
+agents:
+  cursor-agent:
+    max_concurrent: 2
+  claude:
+    max_concurrent: 2
