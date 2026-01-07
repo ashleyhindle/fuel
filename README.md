@@ -1,6 +1,9 @@
+> [!WARNING]
+> This is a work in progress (WiP) and has only been tested by one person. Use at your own risk.
+
 # Fuel
 
-Lightweight task management for AI agents. Git-native, merge-friendly, zero config.
+Lightweight AI agent task orchestrator and management. Git-native, merge-friendly, zero config.
 
 ## Quickstart
 
