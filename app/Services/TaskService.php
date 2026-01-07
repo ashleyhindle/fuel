@@ -10,6 +10,14 @@ use RuntimeException;
 
 class TaskService
 {
+    private const VALID_TYPES = ['bug', 'feature', 'task', 'epic', 'chore'];
+
+    private const VALID_SIZES = ['xs', 's', 'm', 'l', 'xl'];
+
+    private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
+
+    private const VALID_STATUSES = ['open', 'in_progress', 'closed'];
+
     private string $storagePath;
 
     private string $prefix = 'fuel';
@@ -73,6 +81,23 @@ class TaskService
     }
 
     /**
+     * Validate that a value is in a list of valid enum values.
+     *
+     * @param  mixed  $value
+     * @param  array<string>  $validValues
+     *
+     * @throws RuntimeException If value is not in valid values
+     */
+    private function validateEnum($value, array $validValues, string $fieldName): void
+    {
+        if (! in_array($value, $validValues, true)) {
+            throw new RuntimeException(
+                "Invalid {$fieldName} '{$value}'. Must be one of: ".implode(', ', $validValues)
+            );
+        }
+    }
+
+    /**
      * Create a new task.
      *
      * @param  array<string, mixed>  $data
@@ -84,13 +109,8 @@ class TaskService
             $tasks = $this->readTasks();
 
             // Validate type enum
-            $validTypes = ['bug', 'feature', 'task', 'epic', 'chore'];
             $type = $data['type'] ?? 'task';
-            if (! in_array($type, $validTypes, true)) {
-                throw new RuntimeException(
-                    "Invalid task type '{$type}'. Must be one of: ".implode(', ', $validTypes)
-                );
-            }
+            $this->validateEnum($type, self::VALID_TYPES, 'task type');
 
             // Validate priority range
             $priority = $data['priority'] ?? 2;
@@ -113,22 +133,12 @@ class TaskService
             }
 
             // Validate size enum
-            $validSizes = ['xs', 's', 'm', 'l', 'xl'];
             $size = $data['size'] ?? 'm';
-            if (! in_array($size, $validSizes, true)) {
-                throw new RuntimeException(
-                    "Invalid task size '{$size}'. Must be one of: ".implode(', ', $validSizes)
-                );
-            }
+            $this->validateEnum($size, self::VALID_SIZES, 'task size');
 
             // Validate complexity enum
-            $validComplexities = ['trivial', 'simple', 'moderate', 'complex'];
             $complexity = $data['complexity'] ?? 'simple';
-            if (! in_array($complexity, $validComplexities, true)) {
-                throw new RuntimeException(
-                    "Invalid task complexity '{$complexity}'. Must be one of: ".implode(', ', $validComplexities)
-                );
-            }
+            $this->validateEnum($complexity, self::VALID_COMPLEXITIES, 'task complexity');
 
             $task = [
                 'id' => $this->generateId($tasks->count()),
@@ -180,12 +190,7 @@ class TaskService
 
             // Update type if provided (with validation)
             if (isset($data['type'])) {
-                $validTypes = ['bug', 'feature', 'task', 'epic', 'chore'];
-                if (! in_array($data['type'], $validTypes, true)) {
-                    throw new RuntimeException(
-                        "Invalid task type '{$data['type']}'. Must be one of: ".implode(', ', $validTypes)
-                    );
-                }
+                $this->validateEnum($data['type'], self::VALID_TYPES, 'task type');
                 $task['type'] = $data['type'];
             }
 
@@ -202,34 +207,19 @@ class TaskService
 
             // Update status if provided (with validation)
             if (isset($data['status'])) {
-                $validStatuses = ['open', 'in_progress', 'closed'];
-                if (! in_array($data['status'], $validStatuses, true)) {
-                    throw new RuntimeException(
-                        "Invalid status '{$data['status']}'. Must be one of: ".implode(', ', $validStatuses)
-                    );
-                }
+                $this->validateEnum($data['status'], self::VALID_STATUSES, 'status');
                 $task['status'] = $data['status'];
             }
 
             // Update size if provided (with validation)
             if (isset($data['size'])) {
-                $validSizes = ['xs', 's', 'm', 'l', 'xl'];
-                if (! in_array($data['size'], $validSizes, true)) {
-                    throw new RuntimeException(
-                        "Invalid task size '{$data['size']}'. Must be one of: ".implode(', ', $validSizes)
-                    );
-                }
+                $this->validateEnum($data['size'], self::VALID_SIZES, 'task size');
                 $task['size'] = $data['size'];
             }
 
             // Update complexity if provided (with validation)
             if (isset($data['complexity'])) {
-                $validComplexities = ['trivial', 'simple', 'moderate', 'complex'];
-                if (! in_array($data['complexity'], $validComplexities, true)) {
-                    throw new RuntimeException(
-                        "Invalid task complexity '{$data['complexity']}'. Must be one of: ".implode(', ', $validComplexities)
-                    );
-                }
+                $this->validateEnum($data['complexity'], self::VALID_COMPLEXITIES, 'task complexity');
                 $task['complexity'] = $data['complexity'];
             }
 
