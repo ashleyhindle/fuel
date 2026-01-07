@@ -2564,6 +2564,166 @@ describe('completed command', function () {
 });
 
 // =============================================================================
+// human Command Tests
+// =============================================================================
+
+describe('human command', function () {
+    it('shows empty when no tasks with needs-human label', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Regular task']);
+
+        $this->artisan('human', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('No tasks need human attention.')
+            ->assertExitCode(0);
+    });
+
+    it('shows open tasks with needs-human label', function () {
+        $this->taskService->initialize();
+        $humanTask = $this->taskService->create([
+            'title' => 'Needs human task',
+            'labels' => ['needs-human'],
+        ]);
+        $regularTask = $this->taskService->create(['title' => 'Regular task']);
+
+        Artisan::call('human', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Needs human task');
+        expect($output)->toContain($humanTask['id']);
+        expect($output)->not->toContain('Regular task');
+    });
+
+    it('excludes closed tasks with needs-human label', function () {
+        $this->taskService->initialize();
+        $humanTask = $this->taskService->create([
+            'title' => 'Closed human task',
+            'labels' => ['needs-human'],
+        ]);
+        $this->taskService->done($humanTask['id']);
+
+        $this->artisan('human', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('No tasks need human attention.')
+            ->doesntExpectOutputToContain('Closed human task')
+            ->assertExitCode(0);
+    });
+
+    it('excludes in_progress tasks with needs-human label', function () {
+        $this->taskService->initialize();
+        $humanTask = $this->taskService->create([
+            'title' => 'In progress human task',
+            'labels' => ['needs-human'],
+        ]);
+        $this->taskService->start($humanTask['id']);
+
+        $this->artisan('human', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('No tasks need human attention.')
+            ->doesntExpectOutputToContain('In progress human task')
+            ->assertExitCode(0);
+    });
+
+    it('excludes tasks without needs-human label', function () {
+        $this->taskService->initialize();
+        $this->taskService->create([
+            'title' => 'Task with other labels',
+            'labels' => ['bug', 'urgent'],
+        ]);
+        $this->taskService->create(['title' => 'Task with no labels']);
+
+        $this->artisan('human', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('No tasks need human attention.')
+            ->doesntExpectOutputToContain('Task with other labels')
+            ->doesntExpectOutputToContain('Task with no labels')
+            ->assertExitCode(0);
+    });
+
+    it('outputs JSON when --json flag is provided', function () {
+        $this->taskService->initialize();
+        $humanTask = $this->taskService->create([
+            'title' => 'Needs human task',
+            'labels' => ['needs-human'],
+        ]);
+        $regularTask = $this->taskService->create(['title' => 'Regular task']);
+
+        Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toBeArray();
+        expect($data)->toHaveCount(1);
+        expect($data[0]['id'])->toBe($humanTask['id']);
+        expect($data[0]['title'])->toBe('Needs human task');
+        expect($data[0]['status'])->toBe('open');
+        expect($data[0]['labels'])->toContain('needs-human');
+    });
+
+    it('outputs empty array as JSON when no human tasks', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Regular task']);
+
+        Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toBeArray();
+        expect($data)->toBeEmpty();
+    });
+
+    it('displays task description when present', function () {
+        $this->taskService->initialize();
+        $humanTask = $this->taskService->create([
+            'title' => 'Needs human task',
+            'description' => 'This task needs human attention',
+            'labels' => ['needs-human'],
+        ]);
+
+        Artisan::call('human', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Needs human task');
+        expect($output)->toContain('This task needs human attention');
+        expect($output)->toContain($humanTask['id']);
+    });
+
+    it('shows count of human tasks', function () {
+        $this->taskService->initialize();
+        $this->taskService->create([
+            'title' => 'First human task',
+            'labels' => ['needs-human'],
+        ]);
+        $this->taskService->create([
+            'title' => 'Second human task',
+            'labels' => ['needs-human'],
+        ]);
+
+        Artisan::call('human', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Tasks needing human attention (2):');
+    });
+
+    it('sorts tasks by created_at', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create([
+            'title' => 'First task',
+            'labels' => ['needs-human'],
+        ]);
+        sleep(1);
+        $task2 = $this->taskService->create([
+            'title' => 'Second task',
+            'labels' => ['needs-human'],
+        ]);
+
+        Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toHaveCount(2);
+        expect($data[0]['id'])->toBe($task1['id']);
+        expect($data[1]['id'])->toBe($task2['id']);
+    });
+});
+
+// =============================================================================
 // stuck Command Tests
 // =============================================================================
 
