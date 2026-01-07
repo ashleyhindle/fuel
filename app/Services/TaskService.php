@@ -10,7 +10,7 @@ use RuntimeException;
 
 class TaskService
 {
-    private const VALID_TYPES = ['bug', 'feature', 'task', 'epic', 'chore'];
+    private const VALID_TYPES = ['bug', 'feature', 'task', 'epic', 'chore', 'docs'];
 
     private const VALID_SIZES = ['xs', 's', 'm', 'l', 'xl'];
 

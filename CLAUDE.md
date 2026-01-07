@@ -24,6 +24,10 @@ fuel show <id>                  # View task details
 fuel board                      # Kanban view
 ```
 
+### TodoWrite vs Fuel
+
+Use **TodoWrite** for single-session step tracking. Use **fuel** for work that outlives the session (multi-session, dependencies, discovered work for future). When unsure, prefer fuel. It is better to over-persist than lose context.
+
 ### 🚨 MANDATORY: Session Close Protocol - Land The Plane
 
 **YOU MUST COMPLETE EVERY STEP BELOW BEFORE EXITING. NO EXCEPTIONS.**
@@ -56,7 +60,7 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
 ```bash
 fuel add "Title" \
   --description="Details here" \
-  --type=bug|feature|task|chore \
+  --type=bug|feature|task|epic|chore|docs \
   --priority=0-4 \
   --blocked-by=fuel-xxxx,fuel-yyyy \
   --labels=api,urgent \
@@ -203,7 +207,7 @@ All commands that return task data use this structure:
   "title": "Task title",
   "status": "open",  // Can be: "open", "in_progress", or "closed"
   "description": "Long description (optional)",
-  "type": "task",  // Can be: "bug", "feature", "task", "epic", "chore"
+  "type": "task",  // Can be: "bug", "feature", "task", "epic", "chore", "docs"
   "priority": 2,  // Integer 0-4 (0=critical, 4=backlog)
   "labels": ["api", "urgent"],  // Array of label strings
   "size": "m",  // Can be: "xs", "s", "m", "l", "xl"
