@@ -20,12 +20,12 @@ This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/t
 This is not optional. Skipping steps breaks the workflow for humans and other agents.
 
 ```
-[ ] ./fuel done <id> --commit=$(git rev-parse HEAD)  # Mark your assigned task complete with commit hash
-[ ] ./fuel add "..."              # File tasks for ANY incomplete/discovered work
 [ ] Run tests                     # Quality gate (if you changed code)
 [ ] Run linter/formatter          # Fix formatting (if you changed code)
 [ ] git add <files>               # Stage your changes
-[ ] git commit -m "feat/fix:..."  # Commit with conventional commit message
+[ ] git commit -m "feat/fix:..."  # Commit - note the hash from output [main abc1234]
+[ ] ./fuel done <id> --commit=<hash>  # Mark complete with commit hash from above
+[ ] ./fuel add "..."              # File tasks for ANY incomplete/discovered work
 [ ] ./fuel ready                  # Verify task state is correct
 ```
 
@@ -39,7 +39,7 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
 2. `./fuel start <id>` - Claim task before starting
 3. Do the work - implement, test, verify
 4. Discover new work as you build? Add it `./fuel add "..." --blocked-by=<id>`
-5. `./fuel done <id> --commit=$(git rev-parse HEAD)` - Complete the task (with commit hash)
+5. `./fuel done <id> --commit=<hash>` - Complete the task (hash from your git commit output)
 6. Land the plane
 
 ### Task Options
