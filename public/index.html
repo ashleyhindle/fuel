@@ -3,148 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fuel - Lightweight task management for AI agents</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 12px;
-            padding: 60px 40px;
-            max-width: 600px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-        
-        h1 {
-            font-size: 3.5em;
-            font-weight: 700;
-            color: #667eea;
-            margin-bottom: 16px;
-            letter-spacing: -1px;
-        }
-        
-        .tagline {
-            font-size: 1.3em;
-            color: #666;
-            margin-bottom: 40px;
-            font-weight: 300;
-        }
-        
-        .install-section {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 24px;
-            margin: 40px 0;
-            border: 2px solid #e9ecef;
-        }
-        
-        .install-label {
-            font-size: 0.9em;
-            color: #666;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-        }
-        
-        .install-command {
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 1.1em;
-            background: #2d3748;
-            color: #68d391;
-            padding: 16px 20px;
-            border-radius: 6px;
-            display: inline-block;
-            word-break: break-all;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        
-        .install-command:hover {
-            opacity: 0.9;
-        }
-        
-        .github-link {
-            display: inline-block;
-            margin-top: 30px;
-            color: #667eea;
-            text-decoration: none;
-            font-size: 1.1em;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-        
-        .github-link:hover {
-            color: #764ba2;
-            text-decoration: underline;
-        }
-        
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 2.5em;
-            }
-            
-            .tagline {
-                font-size: 1.1em;
-            }
-            
-            .container {
-                padding: 40px 24px;
-            }
-            
-            .install-command {
-                font-size: 0.9em;
-                padding: 12px 16px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Fuel</h1>
-        <p class="tagline">Lightweight task management for AI agents</p>
-        
-        <div class="install-section">
-            <div class="install-label">Install</div>
-            <div class="install-command" onclick="navigator.clipboard.writeText(this.textContent.trim())" title="Click to copy">
-                curl -L https://addfuel.dev/install | sh
-            </div>
-        </div>
-        
-        <a href="https://github.com/ashleyhindle/fuel" class="github-link" target="_blank" rel="noopener noreferrer">
-            View on GitHub →
-        </a>
-    </div>
-    
+    <title>fuel - Lightweight task management for AI agents</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script>
-        // Copy to clipboard functionality
-        document.querySelector('.install-command').addEventListener('click', function() {
-            const command = this.textContent.trim();
-            navigator.clipboard.writeText(command).then(() => {
-                const original = this.textContent;
-                this.textContent = 'Copied!';
-                setTimeout(() => {
-                    this.textContent = original;
-                }, 2000);
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        fuel: {
+                            50: '#fef9ec',
+                            100: '#fcf0c9',
+                            200: '#f9de8e',
+                            300: '#f5c54d',
+                            400: '#f2ae24',
+                            500: '#ec920c',
+                            600: '#d06c07',
+                            700: '#ad4b0a',
+                            800: '#8d3a0e',
+                            900: '#74300f',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-stone-950 text-stone-100 flex items-center justify-center p-6">
+    <div class="max-w-2xl w-full">
+        <div class="text-center mb-12">
+            <h1 class="text-6xl sm:text-7xl font-bold tracking-tight text-fuel-400 mb-4">fuel</h1>
+            <p class="text-xl sm:text-2xl text-stone-400 font-light">Lightweight task management for AI agents</p>
+        </div>
+
+        <div class="bg-stone-900 border border-stone-800 rounded-xl p-6 mb-8" x-data="{ copied: false }">
+            <div class="flex items-center justify-between gap-4">
+                <code class="flex-1 text-fuel-300 font-mono text-sm sm:text-base select-all break-all">curl -L https://addfuel.dev/install | sh</code>
+                <button
+                    @click="
+                        navigator.clipboard.writeText('curl -L https://addfuel.dev/install | sh');
+                        copied = true;
+                        setTimeout(() => copied = false, 2000);
+                    "
+                    class="flex-shrink-0 p-2.5 rounded-lg transition-all duration-200 cursor-pointer"
+                    :class="copied
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : 'bg-stone-800 text-stone-400 hover:bg-stone-700 hover:text-stone-200'"
+                    :title="copied ? 'Copied!' : 'Copy to clipboard'"
+                >
+                    <template x-if="!copied">
+                        <i data-lucide="clipboard" class="w-5 h-5"></i>
+                    </template>
+                    <template x-if="copied">
+                        <i data-lucide="check" class="w-5 h-5"></i>
+                    </template>
+                </button>
+            </div>
+            <p
+                class="text-xs mt-3 transition-all duration-200"
+                :class="copied ? 'text-emerald-400' : 'text-stone-500'"
+                x-text="copied ? 'Copied to clipboard!' : 'Click the icon to copy'"
+            ></p>
+        </div>
+
+        <div class="text-center">
+            <a
+                href="https://github.com/ashleyhindle/fuel"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-2 text-stone-400 hover:text-fuel-400 transition-colors duration-200 group"
+            >
+                <i data-lucide="github" class="w-5 h-5"></i>
+                <span>View on GitHub</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"></i>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
+
+        document.addEventListener('alpine:initialized', () => {
+            // Re-create icons when Alpine updates the DOM
+            const observer = new MutationObserver(() => {
+                lucide.createIcons();
             });
+            observer.observe(document.body, { childList: true, subtree: true });
         });
     </script>
 </body>
