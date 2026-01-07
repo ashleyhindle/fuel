@@ -39,9 +39,12 @@ class ConsumeCommand extends Command
         $dryrun = $this->option('dryrun');
 
         $this->getOutput()->write("\033[?1049h");
+        $this->getOutput()->write("\033[?25l"); // Hide cursor
         $this->getOutput()->write("\033[H\033[2J");
 
         $exiting = false;
+        $paused = true;
+        $originalTty = null;
 
         if (function_exists('pcntl_signal')) {
             pcntl_signal(SIGINT, function () use (&$exiting) {
@@ -52,6 +55,14 @@ class ConsumeCommand extends Command
             });
         }
 
+        // Set up terminal for non-blocking keyboard input (pause toggle)
+        $canDetectKeys = stream_isatty(STDIN);
+        if ($canDetectKeys) {
+            $originalTty = shell_exec('stty -g');
+            shell_exec('stty -icanon -echo');
+            stream_set_blocking(STDIN, false);
+        }
+
         $statusLines = [];
 
         try {
@@ -60,7 +71,24 @@ class ConsumeCommand extends Command
                     pcntl_signal_dispatch();
                 }
 
-                $this->refreshDisplay($taskService, $statusLines);
+                // Check for pause toggle (Shift+Tab)
+                if ($canDetectKeys && $this->checkForPauseToggle()) {
+                    $paused = ! $paused;
+                    $statusLines[] = $paused
+                        ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
+                        : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                }
+
+                // When paused, just refresh display and wait
+                if ($paused) {
+                    $this->setTerminalTitle('Fuel: PAUSED');
+                    $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
+                    usleep(200000); // 200ms
+
+                    continue;
+                }
+
+                $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
 
                 $readyTasks = $taskService->ready();
 
@@ -71,12 +99,20 @@ class ConsumeCommand extends Command
                         $statusLines[] = $waitingMsg;
                     }
                     $this->setTerminalTitle('Fuel: Waiting for tasks...');
-                    $this->refreshDisplay($taskService, $statusLines);
+                    $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
 
                     // Poll while waiting
                     for ($i = 0; $i < $interval * 10 && ! $exiting; $i++) {
                         if (function_exists('pcntl_signal_dispatch')) {
                             pcntl_signal_dispatch();
+                        }
+                        // Check for pause toggle while waiting
+                        if ($canDetectKeys && $this->checkForPauseToggle()) {
+                            $paused = ! $paused;
+                            $statusLines[] = $paused
+                                ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
+                                : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                            $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
                         }
                         usleep(100000); // 100ms
                     }
@@ -169,7 +205,7 @@ PROMPT;
                     // Dryrun: show what would happen without claiming or spawning
                     $statusLines[] = $this->formatStatus('👁', "[DRYRUN] Would spawn agent for {$taskId}: {$shortTitle}", 'cyan');
                     $this->setTerminalTitle("Fuel: [DRYRUN] {$taskId}");
-                    $this->refreshDisplay($taskService, $statusLines);
+                    $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
                     $this->newLine();
                     $this->line('<fg=cyan>== PROMPT THAT WOULD BE SENT ==</>');
                     $this->line($fullPrompt);
@@ -190,7 +226,7 @@ PROMPT;
                 $agentName = $agentCommandArray[0];
                 $statusLines[] = $this->formatStatus('🚀', "Spawning {$agentName} for {$taskId}: {$shortTitle}", 'yellow');
                 $this->setTerminalTitle("Fuel: {$taskId} - {$shortTitle}");
-                $this->refreshDisplay($taskService, $statusLines);
+                $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
 
                 // Retry logic for network failures
                 $maxRetries = 3;
@@ -202,7 +238,7 @@ PROMPT;
                 do {
                     if ($retryCount > 0) {
                         $statusLines[] = $this->formatStatus('🔄', "Retry attempt {$retryCount}/{$maxRetries} for {$taskId} (network error detected)", 'yellow');
-                        $this->refreshDisplay($taskService, $statusLines);
+                        $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
                         sleep(5); // 5 second delay before retry
                     }
 
@@ -236,10 +272,18 @@ PROMPT;
                             break;
                         }
 
+                        // Check for pause toggle while agent runs
+                        if ($canDetectKeys && $this->checkForPauseToggle()) {
+                            $paused = ! $paused;
+                            $statusLines[] = $paused
+                                ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
+                                : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                        }
+
                         // Refresh display periodically while agent works
                         $elapsed = $this->formatDuration(time() - $startTime);
                         $this->setTerminalTitle("Fuel: {$taskId} ({$elapsed})");
-                        $this->refreshDisplay($taskService, $statusLines, $taskId, $startTime);
+                        $this->refreshDisplay($taskService, $statusLines, $taskId, $startTime, $paused);
                         usleep(500000); // 500ms
                     }
 
@@ -314,12 +358,18 @@ PROMPT;
                     $statusLines = array_slice($statusLines, -5);
                 }
 
-                $this->refreshDisplay($taskService, $statusLines);
+                $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
 
                 // Brief pause before next task
                 sleep(1);
             }
         } finally {
+            // Restore terminal state
+            if ($originalTty !== null) {
+                shell_exec('stty '.trim($originalTty));
+                stream_set_blocking(STDIN, true);
+            }
+            $this->getOutput()->write("\033[?25h"); // Show cursor
             $this->getOutput()->write("\033[?1049l");
             $this->setTerminalTitle('');  // Reset terminal title
         }
@@ -330,7 +380,7 @@ PROMPT;
     /**
      * @param  array<string>  $statusLines
      */
-    private function refreshDisplay(TaskService $taskService, array $statusLines, ?string $activeTaskId = null, ?int $startTime = null): void
+    private function refreshDisplay(TaskService $taskService, array $statusLines, ?string $activeTaskId = null, ?int $startTime = null, bool $paused = false): void
     {
         // Begin synchronized output (terminal buffers until end marker)
         $this->getOutput()->write("\033[?2026h");
@@ -354,7 +404,11 @@ PROMPT;
         }
 
         $this->newLine();
-        $this->line('<fg=gray>Press Ctrl+C to exit</>');
+        if ($paused) {
+            $this->line('<fg=yellow>PAUSED</> - <fg=gray>Shift+Tab to resume | Ctrl+C to exit</>');
+        } else {
+            $this->line('<fg=gray>Shift+Tab to pause | Ctrl+C to exit</>');
+        }
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
@@ -375,6 +429,47 @@ PROMPT;
         $secs = $seconds % 60;
 
         return "{$minutes}m {$secs}s";
+    }
+
+    /**
+     * Check for Shift+Tab keypress to toggle pause state.
+     * Uses non-blocking read with stream_select().
+     */
+    private function checkForPauseToggle(): bool
+    {
+        $read = [STDIN];
+        $write = null;
+        $except = null;
+
+        // Non-blocking check (0 timeout)
+        if (stream_select($read, $write, $except, 0, 0) > 0) {
+            $char = fgetc(STDIN);
+
+            // Shift+Tab sends escape sequence: ESC [ Z (\x1b[Z)
+            if ($char === "\x1b") {
+                // Read the rest of the escape sequence
+                $seq = '';
+                while (($next = fgetc(STDIN)) !== false) {
+                    $seq .= $next;
+                    // Escape sequences typically end after 1-2 chars
+                    if (strlen($seq) >= 2) {
+                        break;
+                    }
+                }
+
+                // Check if it's Shift+Tab ([Z)
+                if ($seq === '[Z') {
+                    // Drain any remaining buffered input to avoid multiple toggles
+                    while (fgetc(STDIN) !== false) {
+                        // drain
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function setTerminalTitle(string $title): void

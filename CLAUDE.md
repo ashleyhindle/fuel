@@ -60,7 +60,7 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
 ```bash
 fuel add "Title" \
   --description="Details here" \
-  --type=bug|feature|task|epic|chore|docs \
+  --type=bug|feature|task|chore \
   --priority=0-4 \
   --blocked-by=fuel-xxxx,fuel-yyyy \
   --labels=api,urgent \
