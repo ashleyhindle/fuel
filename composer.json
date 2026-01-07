@@ -22,8 +22,9 @@
     "require-dev": {
         "laravel/pint": "^1.25.1",
         "mockery/mockery": "^1.6.12",
-        "phpacker/phpacker": "*",
-        "pestphp/pest": "^3.8.4|^4.1.2"
+        "pestphp/pest": "^3.8.4|^4.1.2",
+        "pestphp/pest-plugin-type-coverage": "^4.0",
+        "phpacker/phpacker": "*"
     },
     "autoload": {
         "psr-4": {
@@ -36,6 +37,11 @@
         "psr-4": {
             "Tests\\": "tests/"
         }
+    },
+    "scripts": {
+        "test": "pest",
+        "test:coverage": "XDEBUG_MODE=coverage pest --coverage --min=60",
+        "test:type-coverage": "pest --type-coverage --min=99"
     },
     "config": {
         "preferred-install": "dist",
