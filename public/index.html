@@ -40,13 +40,14 @@
                 <code class="text-fuel-300 font-mono text-sm sm:text-base">curl -fsSL https://addfuel.dev/install | sh</code>
                 <button
                     id="copyBtn"
-                    class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-200 cursor-pointer bg-stone-800 text-stone-400 hover:bg-stone-700 hover:text-stone-200"
+                    class="relative flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-200 cursor-pointer bg-stone-800 text-stone-400 hover:bg-stone-700 hover:text-stone-200"
                     title="Copy to clipboard"
                 >
-                    <svg id="copyIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg id="copyIcon" class="transition-opacity duration-300" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
                         <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
                     </svg>
+                    <span id="fuelEmoji" class="absolute transition-opacity duration-300 opacity-0 pointer-events-none" style="font-size: 20px;">⛽</span>
                     <svg id="checkIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"/>
                     </svg>
@@ -73,27 +74,52 @@
     </div>
 
     <script>
-        document.getElementById('copyBtn').addEventListener('click', function() {
-            const btn = this;
-            const copyIcon = document.getElementById('copyIcon');
-            const checkIcon = document.getElementById('checkIcon');
+        const copyBtn = document.getElementById('copyBtn');
+        const copyIcon = document.getElementById('copyIcon');
+        const checkIcon = document.getElementById('checkIcon');
+        const fuelEmoji = document.getElementById('fuelEmoji');
+        let isClicked = false;
+
+        // Handle hover effect - only when not clicked
+        copyBtn.addEventListener('mouseenter', function() {
+            if (!isClicked) {
+                copyIcon.style.opacity = '0';
+                fuelEmoji.style.opacity = '1';
+            }
+        });
+
+        copyBtn.addEventListener('mouseleave', function() {
+            if (!isClicked) {
+                copyIcon.style.opacity = '1';
+                fuelEmoji.style.opacity = '0';
+            }
+        });
+
+        // Handle click
+        copyBtn.addEventListener('click', function() {
+            isClicked = true;
+            
+            // Hide clipboard icon and fuel emoji, show checkmark
+            copyIcon.classList.add('hidden');
+            fuelEmoji.style.opacity = '0';
+            checkIcon.classList.remove('hidden');
 
             navigator.clipboard.writeText('curl -fsSL https://addfuel.dev/install | sh');
 
-            // Swap icons
-            copyIcon.classList.add('hidden');
-            checkIcon.classList.remove('hidden');
-
             // Update button style
-            btn.classList.remove('bg-stone-800', 'text-stone-400', 'hover:bg-stone-700', 'hover:text-stone-200');
-            btn.classList.add('bg-emerald-500/20', 'text-emerald-400');
+            copyBtn.classList.remove('bg-stone-800', 'text-stone-400', 'hover:bg-stone-700', 'hover:text-stone-200');
+            copyBtn.classList.add('bg-emerald-500/20', 'text-emerald-400');
 
             // Revert after 2 seconds
             setTimeout(() => {
+                isClicked = false;
                 copyIcon.classList.remove('hidden');
                 checkIcon.classList.add('hidden');
-                btn.classList.remove('bg-emerald-500/20', 'text-emerald-400');
-                btn.classList.add('bg-stone-800', 'text-stone-400', 'hover:bg-stone-700', 'hover:text-stone-200');
+                copyBtn.classList.remove('bg-emerald-500/20', 'text-emerald-400');
+                copyBtn.classList.add('bg-stone-800', 'text-stone-400', 'hover:bg-stone-700', 'hover:text-stone-200');
+                
+                // Reset opacity for clipboard icon
+                copyIcon.style.opacity = '1';
             }, 2000);
         });
     </script>
