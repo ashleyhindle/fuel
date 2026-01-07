@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\ConfigService;
+use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Process\Process;
@@ -23,7 +24,13 @@ class ConsumeCommand extends Command
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
-    public function handle(TaskService $taskService, ConfigService $configService): int
+    /** @var array<int, Process> Active agent processes indexed by PID */
+    private array $activeProcesses = [];
+
+    /** @var array<string, int> Count of active processes per agent name */
+    private array $agentCounts = [];
+
+    public function handle(TaskService $taskService, ConfigService $configService, RunService $runService): int
     {
         $this->configureCwd($taskService);
         $taskService->initialize();
@@ -189,9 +196,22 @@ PROMPT;
                     }
                 }
 
+                // Extract agent name for capacity check
+                $agentCommand = $agentCommandArray[0];
+                $agentName = basename($agentCommand);
+
+                // Check if we can spawn another instance of this agent
+                if (! $dryrun && ! $this->canSpawnAgent($agentName, $configService)) {
+                    $limit = $configService->getAgentLimit($agentName);
+                    $statusLines[] = $this->formatStatus('⏸', "Agent {$agentName} at capacity ({$limit}), waiting...", 'yellow');
+                    $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
+                    sleep(2);
+
+                    continue;
+                }
+
                 // Validate agent command exists in PATH (skip in dryrun)
                 if (! $dryrun) {
-                    $agentCommand = $agentCommandArray[0];
                     $agentPath = trim(shell_exec("which {$agentCommand} 2>/dev/null") ?? '');
                     if (empty($agentPath)) {
                         $this->error("Agent command not found: {$agentCommand}");
@@ -220,10 +240,15 @@ PROMPT;
                 $task = $taskService->start($taskId);
                 $task = $taskService->update($taskId, [
                     'consumed' => true,
-                    'consumed_at' => date('c'),
                 ]);
 
+                // Create run entry with started_at
                 $agentName = $agentCommandArray[0];
+                $runService->logRun($taskId, [
+                    'agent' => $agentName,
+                    'started_at' => date('c'),
+                ]);
+
                 $statusLines[] = $this->formatStatus('🚀', "Spawning {$agentName} for {$taskId}: {$shortTitle}", 'yellow');
                 $this->setTerminalTitle("Fuel: {$taskId} - {$shortTitle}");
                 $this->refreshDisplay($taskService, $statusLines, null, null, $paused);
@@ -256,9 +281,14 @@ PROMPT;
                     $startTime = time();
                     $process->start();
 
+                    // Track the process for concurrency management
+                    $pid = $process->getPid();
+                    $this->activeProcesses[$pid] = $process;
+                    $this->agentCounts[$agentName] = ($this->agentCounts[$agentName] ?? 0) + 1;
+
                     // Store the process PID in the task
                     $taskService->update($taskId, [
-                        'consume_pid' => $process->getPid(),
+                        'consume_pid' => $pid,
                     ]);
 
                     // Wait for process with signal handling
@@ -291,18 +321,27 @@ PROMPT;
                     $duration = time() - $startTime;
                     $durationStr = $this->formatDuration($duration);
 
-                    // Capture and store agent output for debugging
+                    // Capture agent output
                     $output = $process->getOutput().$process->getErrorOutput();
-                    // Truncate to last 10KB to avoid bloating tasks.jsonl
-                    if (strlen($output) > 10240) {
-                        $output = '... [truncated] ...'.substr($output, -10240);
-                    }
+
+                    // Update run entry with completion data
+                    $runService->updateLatestRun($taskId, [
+                        'ended_at' => date('c'),
+                        'exit_code' => $exitCode,
+                        'output' => $output,
+                    ]);
 
                     $taskService->update($taskId, [
-                        'consumed_exit_code' => $exitCode,
-                        'consumed_output' => $output,
                         'consume_pid' => null, // Clear PID on completion
                     ]);
+
+                    // Clean up process tracking
+                    if (isset($this->activeProcesses[$pid])) {
+                        unset($this->activeProcesses[$pid]);
+                        if (isset($this->agentCounts[$agentName]) && $this->agentCounts[$agentName] > 0) {
+                            $this->agentCounts[$agentName]--;
+                        }
+                    }
 
                     // Check if we should retry: exit code 1 and network error in output
                     $shouldRetry = false;
@@ -330,7 +369,12 @@ PROMPT;
                                 $task = $taskService->start($taskId);
                                 $taskService->update($taskId, [
                                     'consumed' => true,
-                                    'consumed_at' => date('c'),
+                                ]);
+
+                                // Create new run entry for retry
+                                $runService->logRun($taskId, [
+                                    'agent' => $agentName,
+                                    'started_at' => date('c'),
                                 ]);
                                 break;
                             }
@@ -344,7 +388,14 @@ PROMPT;
                 } while ($shouldRetry && $retryCount <= $maxRetries);
 
                 if ($exitCode === 0) {
-                    $statusLines[] = $this->formatStatus('✓', "{$taskId} completed ({$durationStr})", 'green');
+                    // Auto-complete task if agent didn't run `fuel done`
+                    $task = $taskService->find($taskId);
+                    if ($task && $task['status'] === 'in_progress') {
+                        $taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
+                        $statusLines[] = $this->formatStatus('✓', "{$taskId} auto-completed ({$durationStr})", 'green');
+                    } else {
+                        $statusLines[] = $this->formatStatus('✓', "{$taskId} completed ({$durationStr})", 'green');
+                    }
                 } else {
                     if ($retryCount > 0) {
                         $statusLines[] = $this->formatStatus('✗', "{$taskId} failed after {$retryCount} retries (exit {$exitCode}, {$durationStr})", 'red');
@@ -375,6 +426,44 @@ PROMPT;
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Check if we can spawn another agent instance.
+     * Cleans up completed processes and checks against configured limit.
+     */
+    private function canSpawnAgent(string $agentName, ConfigService $configService): bool
+    {
+        // Clean up completed processes
+        foreach ($this->activeProcesses as $pid => $process) {
+            if (! $process->isRunning()) {
+                unset($this->activeProcesses[$pid]);
+
+                // Decrement count for this agent
+                $agentForProcess = $this->getAgentNameForProcess($process);
+                if (isset($this->agentCounts[$agentForProcess]) && $this->agentCounts[$agentForProcess] > 0) {
+                    $this->agentCounts[$agentForProcess]--;
+                }
+            }
+        }
+
+        // Check current count vs limit
+        $currentCount = $this->agentCounts[$agentName] ?? 0;
+        $limit = $configService->getAgentLimit($agentName);
+
+        return $currentCount < $limit;
+    }
+
+    /**
+     * Extract agent name from process command.
+     */
+    private function getAgentNameForProcess(Process $process): string
+    {
+        $commandLine = $process->getCommandLine();
+        // Extract first token (agent name) from command
+        $parts = explode(' ', $commandLine);
+
+        return basename($parts[0] ?? 'unknown');
     }
 
     /**
