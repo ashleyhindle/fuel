@@ -1,0 +1,22 @@
+# Fuel Agent Configuration
+# Routes tasks to different agents based on complexity
+# All agents use: -p for prompt, --model for model
+
+complexity:
+  trivial:
+    agent: cursor-agent
+    model: composer-1
+
+  simple:
+    agent: cursor-agent
+    model: composer-1
+
+  moderate:
+    agent: claude
+    model: sonnet-4.5
+
+  complex:
+    agent: claude
+    model: opus-4.5
+    # args:
+    #   - "--dangerously-skip-permissions"
