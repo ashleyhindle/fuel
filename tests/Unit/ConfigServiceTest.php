@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\ConfigService;
-use RuntimeException;
 use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function () {
