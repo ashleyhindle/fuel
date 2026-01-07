@@ -34,14 +34,16 @@ class InitCommand extends Command
         Artisan::call('guidelines', ['--add' => true, '--cwd' => $cwd]);
         $this->line(Artisan::output());
 
-        // Add starter task
-        $task = $taskService->create([
-            'title' => 'Update README to mention this project uses Fuel for task management',
-            'type' => 'task',
-            'priority' => 2,
-        ]);
+        // Add starter task only if tasks.jsonl is empty
+        if ($taskService->all()->isEmpty()) {
+            $task = $taskService->create([
+                'title' => 'Update README to mention this project uses Fuel for task management',
+                'type' => 'task',
+                'priority' => 2,
+            ]);
 
-        $this->info("Created starter task: {$task['id']}");
+            $this->info("Created starter task: {$task['id']}");
+        }
         $this->newLine();
         $this->line('Run your favourite agent and ask it to "Consume the fuel"');
 

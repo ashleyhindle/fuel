@@ -3047,6 +3047,22 @@ describe('init command', function () {
         expect($content)->toContain('f-');
     });
 
+    it('does not create duplicate starter tasks when run multiple times', function () {
+        // First init
+        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        $firstContent = file_get_contents($this->storagePath);
+        $firstTaskCount = substr_count($firstContent, 'README');
+
+        // Second init
+        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        $secondContent = file_get_contents($this->storagePath);
+        $secondTaskCount = substr_count($secondContent, 'README');
+
+        // Should have same number of starter tasks
+        expect($secondTaskCount)->toBe($firstTaskCount);
+        expect($firstTaskCount)->toBe(1);
+    });
+
     it('creates AGENTS.md with fuel guidelines', function () {
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
 
