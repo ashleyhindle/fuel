@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
 class UpdateCommand extends Command
 {
+    use HandlesJsonOutput;
+
     protected $signature = 'update
         {id : The task ID (supports partial matching)}
         {--cwd= : Working directory (defaults to current directory)}
@@ -27,9 +30,7 @@ class UpdateCommand extends Command
 
     public function handle(TaskService $taskService): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
-        }
+        $this->configureCwd($taskService);
 
         $updateData = [];
 
@@ -48,13 +49,7 @@ class UpdateCommand extends Command
 
         if ($priority = $this->option('priority')) {
             if (! is_numeric($priority)) {
-                if ($this->option('json')) {
-                    $this->line(json_encode(['error' => "Invalid priority '{$priority}'. Must be an integer between 0 and 4."], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-                } else {
-                    $this->error("Invalid priority '{$priority}'. Must be an integer between 0 and 4.");
-                }
-
-                return self::FAILURE;
+                return $this->outputError("Invalid priority '{$priority}'. Must be an integer between 0 and 4.");
             }
             $updateData['priority'] = (int) $priority;
         }
@@ -76,20 +71,14 @@ class UpdateCommand extends Command
         }
 
         if (empty($updateData)) {
-            if ($this->option('json')) {
-                $this->line(json_encode(['error' => 'No update fields provided. Use --title, --description, --type, --priority, --status, --add-labels, or --remove-labels.'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-            } else {
-                $this->error('No update fields provided. Use --title, --description, --type, --priority, --status, --add-labels, or --remove-labels.');
-            }
-
-            return self::FAILURE;
+            return $this->outputError('No update fields provided. Use --title, --description, --type, --priority, --status, --add-labels, or --remove-labels.');
         }
 
         try {
             $task = $taskService->update($this->argument('id'), $updateData);
 
             if ($this->option('json')) {
-                $this->line(json_encode($task, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                $this->outputJson($task);
             } else {
                 $this->info("Updated task: {$task['id']}");
                 $this->line("  Title: {$task['title']}");
@@ -97,13 +86,7 @@ class UpdateCommand extends Command
 
             return self::SUCCESS;
         } catch (RuntimeException $e) {
-            if ($this->option('json')) {
-                $this->line(json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-            } else {
-                $this->error($e->getMessage());
-            }
-
-            return self::FAILURE;
+            return $this->outputError($e->getMessage());
         }
     }
 }

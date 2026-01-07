@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
 class DoneCommand extends Command
 {
+    use HandlesJsonOutput;
+
     protected $signature = 'done
         {ids* : The task ID(s) (supports partial matching, accepts multiple IDs)}
         {--cwd= : Working directory (defaults to current directory)}
@@ -20,9 +23,7 @@ class DoneCommand extends Command
 
     public function handle(TaskService $taskService): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
-        }
+        $this->configureCwd($taskService);
 
         $ids = $this->argument('ids');
         $reason = $this->option('reason');
@@ -40,22 +41,16 @@ class DoneCommand extends Command
 
         if (empty($tasks) && ! empty($errors)) {
             // All failed
-            if ($this->option('json')) {
-                $this->line(json_encode(['error' => $errors[0]['error']], JSON_PRETTY_PRINT));
-            } else {
-                $this->error($errors[0]['error']);
-            }
-
-            return self::FAILURE;
+            return $this->outputError($errors[0]['error']);
         }
 
         if ($this->option('json')) {
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
-                $this->line(json_encode($tasks[0], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                $this->outputJson($tasks[0]);
             } else {
                 // Multiple tasks - return array
-                $this->line(json_encode($tasks, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                $this->outputJson($tasks);
             }
         } else {
             foreach ($tasks as $task) {
@@ -70,11 +65,7 @@ class DoneCommand extends Command
         // If there were any errors, return failure even if some succeeded
         if (! empty($errors)) {
             foreach ($errors as $error) {
-                if ($this->option('json')) {
-                    $this->line(json_encode(['error' => "Task '{$error['id']}': {$error['error']}"], JSON_PRETTY_PRINT));
-                } else {
-                    $this->error("Task '{$error['id']}': {$error['error']}");
-                }
+                $this->outputError("Task '{$error['id']}': {$error['error']}");
             }
 
             return self::FAILURE;

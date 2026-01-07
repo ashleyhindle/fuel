@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
 class ReadyCommand extends Command
 {
+    use HandlesJsonOutput;
+
     protected $signature = 'ready
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
@@ -18,9 +21,7 @@ class ReadyCommand extends Command
 
     public function handle(TaskService $taskService): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
-        }
+        $this->configureCwd($taskService);
 
         $tasks = $taskService->ready();
 
@@ -30,7 +31,7 @@ class ReadyCommand extends Command
         }
 
         if ($this->option('json')) {
-            $this->line(json_encode($tasks->values()->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->outputJson($tasks->values()->toArray());
         } else {
             if ($tasks->isEmpty()) {
                 $this->info('No open tasks.');

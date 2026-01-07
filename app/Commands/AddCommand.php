@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
 class AddCommand extends Command
 {
+    use HandlesJsonOutput;
+
     protected $signature = 'add
         {title : The task title}
         {--cwd= : Working directory (defaults to current directory)}
@@ -25,9 +28,7 @@ class AddCommand extends Command
 
     public function handle(TaskService $taskService): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
-        }
+        $this->configureCwd($taskService);
 
         $taskService->initialize();
 
@@ -49,9 +50,7 @@ class AddCommand extends Command
         if ($priority = $this->option('priority')) {
             // Validate priority is numeric before casting
             if (! is_numeric($priority)) {
-                $this->error("Invalid priority '{$priority}'. Must be an integer between 0 and 4.");
-
-                return self::FAILURE;
+                return $this->outputError("Invalid priority '{$priority}'. Must be an integer between 0 and 4.");
             }
             $data['priority'] = (int) $priority;
         }
@@ -68,34 +67,26 @@ class AddCommand extends Command
 
         // Add blocked-by dependencies (comma-separated task IDs)
         if ($blockedBy = $this->option('blocked-by')) {
-            $blockedByIds = array_map('trim', explode(',', $blockedBy));
-            $data['dependencies'] = array_map(
-                fn (string $id): array => ['depends_on' => $id, 'type' => 'blocks'],
-                $blockedByIds
-            );
+            $data['blocked_by'] = array_map('trim', explode(',', $blockedBy));
         }
 
         try {
             $task = $taskService->create($data);
         } catch (RuntimeException $e) {
-            if ($this->option('json')) {
-                $this->line(json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-            } else {
-                $this->error($e->getMessage());
-            }
-
-            return self::FAILURE;
+            return $this->outputError($e->getMessage());
         }
 
         if ($this->option('json')) {
-            $this->line(json_encode($task, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->outputJson($task);
         } else {
             $this->info("Created task: {$task['id']}");
             $this->line("  Title: {$task['title']}");
 
-            if (! empty($task['dependencies'])) {
-                $depIds = collect($task['dependencies'])->pluck('depends_on')->implode(', ');
-                $this->line("  Blocked by: {$depIds}");
+            if (! empty($task['blocked_by'])) {
+                $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
+                if ($blockerIds !== '') {
+                    $this->line("  Blocked by: {$blockerIds}");
+                }
             }
         }
 

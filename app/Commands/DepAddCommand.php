@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
 class DepAddCommand extends Command
 {
+    use HandlesJsonOutput;
+
     protected $signature = 'dep:add
-        {from : Task ID that depends on something (supports partial matching)}
-        {to : Task ID it depends on (supports partial matching)}
-        {--type=blocks : Dependency type (default: blocks)}
+        {from : Task ID that is blocked (supports partial matching)}
+        {to : Task ID it is blocked by (supports partial matching)}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
@@ -21,36 +23,26 @@ class DepAddCommand extends Command
 
     public function handle(TaskService $taskService): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
-        }
+        $this->configureCwd($taskService);
 
         try {
             $task = $taskService->addDependency(
                 $this->argument('from'),
-                $this->argument('to'),
-                $this->option('type')
+                $this->argument('to')
             );
 
             if ($this->option('json')) {
-                $this->line(json_encode($task, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                $this->outputJson($task);
             } else {
                 $fromId = $task['id'];
                 $toId = $this->resolveToTaskId($taskService, $this->argument('to'));
-                $type = $this->option('type');
 
-                $this->info("Added dependency: {$fromId} depends on {$toId} ({$type})");
+                $this->info("Added dependency: {$fromId} blocked by {$toId}");
             }
 
             return self::SUCCESS;
         } catch (RuntimeException $e) {
-            if ($this->option('json')) {
-                $this->line(json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT));
-            } else {
-                $this->error($e->getMessage());
-            }
-
-            return self::FAILURE;
+            return $this->outputError($e->getMessage());
         }
     }
 

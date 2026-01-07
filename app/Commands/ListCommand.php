@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
 class ListCommand extends Command
 {
+    use HandlesJsonOutput;
+
     protected $signature = 'list
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
@@ -22,9 +25,7 @@ class ListCommand extends Command
 
     public function handle(TaskService $taskService): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
-        }
+        $this->configureCwd($taskService);
 
         $tasks = $taskService->all();
 
@@ -46,6 +47,7 @@ class ListCommand extends Command
             $filterLabels = array_map('trim', explode(',', $labels));
             $tasks = $tasks->filter(function (array $t) use ($filterLabels): bool {
                 $taskLabels = $t['labels'] ?? [];
+
                 // Task must have at least one of the filter labels
                 return ! empty(array_intersect($filterLabels, $taskLabels));
             });
@@ -59,7 +61,7 @@ class ListCommand extends Command
         $tasks = $tasks->sortBy('created_at')->values();
 
         if ($this->option('json')) {
-            $this->line(json_encode($tasks->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->outputJson($tasks->toArray());
         } else {
             if ($tasks->isEmpty()) {
                 $this->info('No tasks found.');
