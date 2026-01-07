@@ -70,7 +70,7 @@ class CompletedCommand extends Command
     {
         try {
             $date = new \DateTime($dateString);
-            $now = new \DateTime();
+            $now = new \DateTime;
             $diff = $now->diff($date);
 
             // If less than 1 minute ago
@@ -81,18 +81,21 @@ class CompletedCommand extends Command
             // If less than 1 hour ago
             if ($diff->days === 0 && $diff->h === 0) {
                 $minutes = $diff->i;
+
                 return "{$minutes}m ago";
             }
 
             // If less than 24 hours ago
             if ($diff->days === 0) {
                 $hours = $diff->h;
+
                 return "{$hours}h ago";
             }
 
             // If less than 7 days ago
             if ($diff->days < 7) {
                 $days = $diff->days;
+
                 return "{$days}d ago";
             }
 

@@ -2,16 +2,15 @@
 
 /**
  * One-time migration script to convert old dependency schema to new schema.
- * 
+ *
  * Old schema: {dependencies: [{depends_on: "fuel-xxx", type: "blocks"}]}
  * New schema: {blocked_by: ["fuel-xxx"]}
- * 
+ *
  * Usage: php migrate-dependencies.php
  */
-
 $file = '.fuel/tasks.jsonl';
 
-if (!file_exists($file)) {
+if (! file_exists($file)) {
     echo "Error: {$file} not found\n";
     exit(1);
 }
@@ -33,7 +32,8 @@ foreach ($lines as $line) {
 
     $task = json_decode($line, true);
     if ($task === null || json_last_error() !== JSON_ERROR_NONE) {
-        echo "Warning: Failed to parse line: " . substr($line, 0, 50) . "...\n";
+        echo 'Warning: Failed to parse line: '.substr($line, 0, 50)."...\n";
+
         continue;
     }
 
@@ -52,7 +52,7 @@ foreach ($lines as $line) {
         $needsMigration = true;
     } else {
         // Ensure blocked_by exists even if no dependencies
-        if (!isset($task['blocked_by'])) {
+        if (! isset($task['blocked_by'])) {
             $task['blocked_by'] = [];
         }
     }
@@ -65,12 +65,12 @@ foreach ($lines as $line) {
 }
 
 // Sort by ID for merge-friendly git diffs (same as TaskService)
-usort($tasks, fn($a, $b) => ($a['id'] ?? '') <=> ($b['id'] ?? ''));
+usort($tasks, fn ($a, $b) => ($a['id'] ?? '') <=> ($b['id'] ?? ''));
 
 // Write back with atomic write (temp file + rename, same as TaskService)
-$tempPath = $file . '.tmp';
+$tempPath = $file.'.tmp';
 $content = implode("\n", array_map(
-    fn($task) => json_encode($task, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    fn ($task) => json_encode($task, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     $tasks
 ));
 
@@ -82,4 +82,4 @@ file_put_contents($tempPath, $content);
 rename($tempPath, $file);
 
 echo "Migration complete: converted {$migratedCount} tasks from old dependency schema to blocked_by\n";
-echo "Total tasks processed: " . count($tasks) . "\n";
+echo 'Total tasks processed: '.count($tasks)."\n";

@@ -860,7 +860,7 @@ describe('reopen command', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with consumed fields']);
         $this->taskService->done($task['id']);
-        
+
         // Manually add consumed fields (simulating a consumed task)
         $this->taskService->update($task['id'], [
             'consumed' => true,
@@ -1012,7 +1012,7 @@ describe('retry command', function () {
     it('retries a stuck task', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Stuck task']);
-        
+
         // Mark task as consumed with non-zero exit code
         $this->taskService->update($task['id'], [
             'consumed' => true,
@@ -1036,12 +1036,12 @@ describe('retry command', function () {
     it('supports partial ID matching', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID stuck task']);
-        
+
         $this->taskService->update($task['id'], [
             'consumed' => true,
             'consumed_exit_code' => 1,
         ]);
-        
+
         $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
 
         $this->artisan('retry', ['ids' => [$partialId], '--cwd' => $this->tempDir])
@@ -1055,7 +1055,7 @@ describe('retry command', function () {
     it('outputs JSON when --json flag is used', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON retry task']);
-        
+
         $this->taskService->update($task['id'], [
             'consumed' => true,
             'consumed_exit_code' => 1,
@@ -1078,7 +1078,7 @@ describe('retry command', function () {
     it('clears consumed fields when retrying a task', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with consumed fields']);
-        
+
         $this->taskService->update($task['id'], [
             'consumed' => true,
             'consumed_at' => '2026-01-07T10:00:00+00:00',
@@ -1126,7 +1126,7 @@ describe('retry command', function () {
     it('fails when task has zero exit code', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with zero exit code']);
-        
+
         $this->taskService->update($task['id'], [
             'consumed' => true,
             'consumed_exit_code' => 0,
@@ -1142,7 +1142,7 @@ describe('retry command', function () {
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
         $task3 = $this->taskService->create(['title' => 'Stuck task 3']);
-        
+
         $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
         $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 2]);
         $this->taskService->update($task3['id'], ['consumed' => true, 'consumed_exit_code' => 3]);
@@ -1163,7 +1163,7 @@ describe('retry command', function () {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
-        
+
         $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
         $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
 
@@ -1186,7 +1186,7 @@ describe('retry command', function () {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
-        
+
         $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
         $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
 

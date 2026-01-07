@@ -321,15 +321,15 @@ class BoardCommand extends Command
 
                 // Show icon for tasks being consumed by fuel consume
                 $consumeIcon = ! empty($task['consumed']) ? '⚡' : '';
-                
+
                 // Show icon for tasks with needs-human label
                 $labels = $task['labels'] ?? [];
                 $needsHumanIcon = is_array($labels) && in_array('needs-human', $labels, true) ? '👤' : '';
-                
+
                 // Show icon for stuck tasks (consumed=true && consumed_exit_code != 0)
                 $exitCode = $task['consumed_exit_code'] ?? null;
                 $stuckIcon = (! empty($task['consumed']) && $exitCode !== null && $exitCode !== 0) ? '❌' : '';
-                
+
                 // Show icon for tasks that are in_progress but PID is not running
                 $pidStuckIcon = '';
                 if ($task['status'] === 'in_progress' && isset($task['consume_pid']) && $task['consume_pid'] !== null) {
@@ -338,7 +338,7 @@ class BoardCommand extends Command
                         $pidStuckIcon = '🪫'; // Low battery emoji for stuck/dead process
                     }
                 }
-                
+
                 // Build icon string (all icons if present)
                 $icons = array_filter([$consumeIcon, $needsHumanIcon, $stuckIcon, $pidStuckIcon]);
                 $iconString = implode(' ', $icons);
@@ -485,9 +485,6 @@ class BoardCommand extends Command
 
     /**
      * Check if a process with the given PID is running.
-     *
-     * @param  int  $pid
-     * @return bool
      */
     private function isPidRunning(int $pid): bool
     {
@@ -505,12 +502,14 @@ class BoardCommand extends Command
         // Fallback: use ps command on Unix-like systems
         if (PHP_OS_FAMILY !== 'Windows') {
             $output = @shell_exec("ps -p {$pid} -o pid= 2>/dev/null");
+
             return ! empty(trim($output ?? ''));
         }
 
         // Windows fallback: use tasklist
         if (PHP_OS_FAMILY === 'Windows') {
             $output = @shell_exec("tasklist /FI \"PID eq {$pid}\" 2>NUL");
+
             return str_contains($output ?? '', (string) $pid);
         }
 

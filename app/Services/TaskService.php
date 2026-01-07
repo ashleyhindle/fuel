@@ -416,6 +416,7 @@ class TaskService
                 if (! is_array($labels)) {
                     return true; // If labels is not an array, include the task
                 }
+
                 return ! in_array('needs-human', $labels, true);
             })
             ->sortBy([
