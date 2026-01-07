@@ -201,11 +201,15 @@ it('creates default config file', function () {
     expect($config)->not->toHaveKey('agents'); // No agents section in new format
     expect($config['complexity'])->toHaveKeys(['trivial', 'simple', 'moderate', 'complex']);
 
-    // Verify default models
-    expect($config['complexity']['trivial']['model'])->toBe('claude-sonnet-4-20250514');
-    expect($config['complexity']['simple']['model'])->toBe('claude-sonnet-4-20250514');
-    expect($config['complexity']['moderate']['model'])->toBe('claude-sonnet-4-20250514');
-    expect($config['complexity']['complex']['model'])->toBe('claude-opus-4-20250514');
+    // Verify default agents and models
+    expect($config['complexity']['trivial']['agent'])->toBe('cursor-agent');
+    expect($config['complexity']['trivial']['model'])->toBe('composer-1');
+    expect($config['complexity']['simple']['agent'])->toBe('cursor-agent');
+    expect($config['complexity']['simple']['model'])->toBe('composer-1');
+    expect($config['complexity']['moderate']['agent'])->toBe('claude');
+    expect($config['complexity']['moderate']['model'])->toBe('sonnet-4.5');
+    expect($config['complexity']['complex']['agent'])->toBe('claude');
+    expect($config['complexity']['complex']['model'])->toBe('opus-4.5');
 });
 
 it('does not overwrite existing config file', function () {

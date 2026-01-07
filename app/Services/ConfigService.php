@@ -199,20 +199,20 @@ class ConfigService
         $defaultConfig = [
             'complexity' => [
                 'trivial' => [
-                    'agent' => 'claude',
-                    'model' => 'claude-sonnet-4-20250514',
+                    'agent' => 'cursor-agent',
+                    'model' => 'composer-1',
                 ],
                 'simple' => [
-                    'agent' => 'claude',
-                    'model' => 'claude-sonnet-4-20250514',
+                    'agent' => 'cursor-agent',
+                    'model' => 'composer-1',
                 ],
                 'moderate' => [
                     'agent' => 'claude',
-                    'model' => 'claude-sonnet-4-20250514',
+                    'model' => 'sonnet-4.5',
                 ],
                 'complex' => [
                     'agent' => 'claude',
-                    'model' => 'claude-opus-4-20250514',
+                    'model' => 'opus-4.5',
                 ],
             ],
         ];

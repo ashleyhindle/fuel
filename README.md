@@ -94,6 +94,38 @@ Single file: `.fuel/tasks.jsonl` - one JSON object per line, sorted by ID.
 
 Commit it. Branch it. Merge it. Git handles the rest.
 
+## Configuration
+
+Fuel uses `.fuel/config.yaml` to route tasks to different agents based on complexity.
+
+```yaml
+complexity:
+  trivial:
+    agent: cursor-agent
+    model: composer-1
+
+  simple:
+    agent: cursor-agent
+    model: composer-1
+
+  moderate:
+    agent: claude
+    model: sonnet-4.5
+
+  complex:
+    agent: claude
+    model: opus-4.5
+    # args:
+    #   - "--dangerously-skip-permissions"
+```
+
+Each complexity level maps to:
+- `agent` - The CLI command to spawn (e.g., `claude`, `cursor-agent`, `opencode`)
+- `model` - Model name passed via `--model` flag
+- `args` - Optional extra arguments (e.g., `["--mcp-server", "github"]`)
+
+All agents use `-p` for prompts and `--model` for model selection.
+
 ## Deployment
 
 Deploy the public site to Cloudflare Pages:
