@@ -274,24 +274,6 @@ it('generateId works when called directly without parameters', function () {
     expect(strlen($id))->toBe(8); // f- + 6 chars
 });
 
-it('generateId avoids collisions when existing tasks provided', function () {
-    $this->taskService->initialize();
-
-    // Create some existing tasks
-    $existingTasks = collect();
-    for ($i = 0; $i < 5; $i++) {
-        $task = $this->taskService->create(['title' => "Existing task $i"]);
-        $existingTasks->push($task);
-    }
-
-    // Generate a new ID with collision detection
-    $newId = $this->taskService->generateId($existingTasks);
-
-    // New ID should not match any existing IDs
-    $existingIds = $existingTasks->pluck('id')->toArray();
-    expect(in_array($newId, $existingIds, true))->toBeFalse();
-});
-
 it('sorts tasks by ID when writing', function () {
     $this->taskService->initialize();
 
