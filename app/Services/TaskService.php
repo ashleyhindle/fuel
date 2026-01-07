@@ -254,7 +254,10 @@ class TaskService
                 }
             }
 
-            $task['updated_at'] = now()->toIso8601String();
+            // Update updated_at only if not explicitly provided (allows setting custom dates for testing/archiving)
+            if (! isset($data['updated_at'])) {
+                $task['updated_at'] = now()->toIso8601String();
+            }
 
             $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
             $this->writeTasks($tasks);
@@ -658,6 +661,162 @@ class TaskService
         $this->storagePath = $path;
 
         return $this;
+    }
+
+    /**
+     * Get the archive storage path.
+     */
+    public function getArchivePath(): string
+    {
+        return dirname($this->storagePath).'/archive.jsonl';
+    }
+
+    /**
+     * Archive closed tasks older than N days (or all closed tasks if $all is true).
+     *
+     * @param  int  $days  Age threshold in days (ignored if $all is true)
+     * @param  bool  $all  Archive all closed tasks regardless of age
+     * @return array<string, mixed> Returns array with 'archived' count and 'archived_tasks' array
+     */
+    public function archiveTasks(int $days = 30, bool $all = false): array
+    {
+        return $this->withExclusiveLock(function () use ($days, $all): array {
+            $tasks = $this->readTasks();
+            $archivePath = $this->getArchivePath();
+
+            // Determine cutoff date if not archiving all
+            $cutoffDate = null;
+            if (! $all) {
+                $cutoffDate = now()->subDays($days);
+            }
+
+            // Find tasks to archive (closed tasks that meet age criteria)
+            $tasksToArchive = $tasks->filter(function (array $task) use ($cutoffDate, $all): bool {
+                if (($task['status'] ?? '') !== 'closed') {
+                    return false;
+                }
+
+                if ($all) {
+                    return true;
+                }
+
+                // Check if task is older than cutoff date
+                $updatedAt = $task['updated_at'] ?? null;
+                if ($updatedAt === null) {
+                    return false; // Can't determine age, skip
+                }
+
+                try {
+                    $taskDate = \Carbon\Carbon::parse($updatedAt);
+
+                    return $taskDate->lt($cutoffDate);
+                } catch (\Exception $e) {
+                    return false; // Invalid date, skip
+                }
+            });
+
+            if ($tasksToArchive->isEmpty()) {
+                return ['archived' => 0, 'archived_tasks' => []];
+            }
+
+            // Read existing archive
+            $archivedTasks = $this->readArchive();
+
+            // Add tasks to archive (merge with existing)
+            $archivedTaskIds = $archivedTasks->pluck('id')->toArray();
+            foreach ($tasksToArchive as $task) {
+                // Only add if not already in archive (avoid duplicates)
+                if (! in_array($task['id'], $archivedTaskIds, true)) {
+                    $archivedTasks->push($task);
+                }
+            }
+
+            // Write updated archive
+            $this->writeArchive($archivedTasks);
+
+            // Remove archived tasks from main tasks file
+            $archivedIds = $tasksToArchive->pluck('id')->toArray();
+            $remainingTasks = $tasks->filter(function (array $task) use ($archivedIds): bool {
+                return ! in_array($task['id'], $archivedIds, true);
+            });
+
+            $this->writeTasks($remainingTasks);
+
+            return [
+                'archived' => $tasksToArchive->count(),
+                'archived_tasks' => $tasksToArchive->values()->toArray(),
+            ];
+        });
+    }
+
+    /**
+     * Read tasks from archive file.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function readArchive(): Collection
+    {
+        $archivePath = $this->getArchivePath();
+
+        if (! file_exists($archivePath)) {
+            return collect();
+        }
+
+        $content = file_get_contents($archivePath);
+        if ($content === false || trim($content) === '') {
+            return collect();
+        }
+
+        $tasks = collect();
+        $lines = explode("\n", trim($content));
+
+        foreach ($lines as $lineNumber => $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+
+            $task = json_decode($line, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new RuntimeException(
+                    'Failed to parse archive.jsonl on line '.($lineNumber + 1).': '.json_last_error_msg()
+                );
+            }
+
+            $tasks->push($task);
+        }
+
+        return $tasks;
+    }
+
+    /**
+     * Write tasks to archive file.
+     *
+     * @param  Collection<int, array<string, mixed>>  $tasks
+     */
+    private function writeArchive(Collection $tasks): void
+    {
+        $archivePath = $this->getArchivePath();
+        $dir = dirname($archivePath);
+
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        // Sort by ID for merge-friendly git diffs
+        $sorted = $tasks->sortBy('id')->values();
+
+        $content = $sorted
+            ->map(fn (array $task): string => (string) json_encode($task, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE))
+            ->implode("\n");
+
+        if ($content !== '') {
+            $content .= "\n";
+        }
+
+        // Atomic write: temp file + rename
+        $tempPath = $archivePath.'.tmp';
+        file_put_contents($tempPath, $content);
+        rename($tempPath, $archivePath);
     }
 
     /**

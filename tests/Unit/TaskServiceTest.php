@@ -12,6 +12,7 @@ beforeEach(function () {
 afterEach(function () {
     // Clean up temp files
     $fuelDir = dirname($this->storagePath);
+    $archivePath = $fuelDir.'/archive.jsonl';
     if (file_exists($this->storagePath)) {
         unlink($this->storagePath);
     }
@@ -20,6 +21,12 @@ afterEach(function () {
     }
     if (file_exists($this->storagePath.'.tmp')) {
         unlink($this->storagePath.'.tmp');
+    }
+    if (file_exists($archivePath)) {
+        unlink($archivePath);
+    }
+    if (file_exists($archivePath.'.tmp')) {
+        unlink($archivePath.'.tmp');
     }
     if (is_dir($fuelDir)) {
         rmdir($fuelDir);
@@ -647,4 +654,140 @@ it('preserves arbitrary fields when updating a task', function () {
     expect($reloaded['consumed'])->toBeTrue();
     expect($reloaded['consumed_exit_code'])->toBe(1);
     expect($reloaded['consumed_output'])->toBe('Some agent output here');
+});
+
+// =============================================================================
+// Archive Method Tests
+// =============================================================================
+
+it('archives closed tasks older than specified days', function () {
+    $this->taskService->initialize();
+
+    // Create a closed task from 35 days ago
+    $oldTask = $this->taskService->create(['title' => 'Old closed task']);
+    $this->taskService->done($oldTask['id']);
+    // Manually update updated_at to be 35 days ago
+    $oldDate = now()->subDays(35)->toIso8601String();
+    $this->taskService->update($oldTask['id'], ['updated_at' => $oldDate]);
+
+    // Create a closed task from 20 days ago (should not be archived)
+    $recentTask = $this->taskService->create(['title' => 'Recent closed task']);
+    $this->taskService->done($recentTask['id']);
+    $recentDate = now()->subDays(20)->toIso8601String();
+    $this->taskService->update($recentTask['id'], ['updated_at' => $recentDate]);
+
+    // Create an open task (should not be archived)
+    $openTask = $this->taskService->create(['title' => 'Open task']);
+
+    // Archive tasks older than 30 days
+    $result = $this->taskService->archiveTasks(30, false);
+
+    expect($result['archived'])->toBe(1);
+    expect($result['archived_tasks'][0]['id'])->toBe($oldTask['id']);
+
+    // Verify old task is removed from main file
+    expect($this->taskService->find($oldTask['id']))->toBeNull();
+
+    // Verify recent task is still in main file
+    expect($this->taskService->find($recentTask['id']))->not->toBeNull();
+
+    // Verify open task is still in main file
+    expect($this->taskService->find($openTask['id']))->not->toBeNull();
+
+    // Verify archive file exists and contains the old task
+    $archivePath = dirname($this->storagePath).'/archive.jsonl';
+    expect(file_exists($archivePath))->toBeTrue();
+    $archiveContent = file_get_contents($archivePath);
+    expect($archiveContent)->toContain($oldTask['id']);
+    expect($archiveContent)->not->toContain($recentTask['id']);
+});
+
+it('archives all closed tasks when --all flag is used', function () {
+    $this->taskService->initialize();
+
+    // Create closed tasks with different ages
+    $task1 = $this->taskService->create(['title' => 'Closed task 1']);
+    $this->taskService->done($task1['id']);
+    $this->taskService->update($task1['id'], ['updated_at' => now()->subDays(5)->toIso8601String()]);
+
+    $task2 = $this->taskService->create(['title' => 'Closed task 2']);
+    $this->taskService->done($task2['id']);
+    $this->taskService->update($task2['id'], ['updated_at' => now()->subDays(1)->toIso8601String()]);
+
+    // Create an open task (should not be archived)
+    $openTask = $this->taskService->create(['title' => 'Open task']);
+
+    // Archive all closed tasks
+    $result = $this->taskService->archiveTasks(30, true);
+
+    expect($result['archived'])->toBe(2);
+    expect($result['archived_tasks'])->toHaveCount(2);
+
+    // Verify closed tasks are removed from main file
+    expect($this->taskService->find($task1['id']))->toBeNull();
+    expect($this->taskService->find($task2['id']))->toBeNull();
+
+    // Verify open task is still in main file
+    expect($this->taskService->find($openTask['id']))->not->toBeNull();
+});
+
+it('returns empty result when no tasks to archive', function () {
+    $this->taskService->initialize();
+
+    // Create only open tasks
+    $this->taskService->create(['title' => 'Open task 1']);
+    $this->taskService->create(['title' => 'Open task 2']);
+
+    $result = $this->taskService->archiveTasks(30, false);
+
+    expect($result['archived'])->toBe(0);
+    expect($result['archived_tasks'])->toBe([]);
+});
+
+it('does not archive tasks that are not closed', function () {
+    $this->taskService->initialize();
+
+    // Create tasks in different states
+    $openTask = $this->taskService->create(['title' => 'Open task']);
+    $inProgressTask = $this->taskService->create(['title' => 'In progress task']);
+    $this->taskService->start($inProgressTask['id']);
+
+    // Create a closed task
+    $closedTask = $this->taskService->create(['title' => 'Closed task']);
+    $this->taskService->done($closedTask['id']);
+    $this->taskService->update($closedTask['id'], ['updated_at' => now()->subDays(35)->toIso8601String()]);
+
+    // Archive all closed tasks
+    $result = $this->taskService->archiveTasks(30, true);
+
+    expect($result['archived'])->toBe(1);
+    expect($result['archived_tasks'][0]['id'])->toBe($closedTask['id']);
+
+    // Verify non-closed tasks remain
+    expect($this->taskService->find($openTask['id']))->not->toBeNull();
+    expect($this->taskService->find($inProgressTask['id']))->not->toBeNull();
+});
+
+it('appends to existing archive file without duplicates', function () {
+    $this->taskService->initialize();
+
+    // Create and archive first task
+    $task1 = $this->taskService->create(['title' => 'Task 1']);
+    $this->taskService->done($task1['id']);
+    $this->taskService->update($task1['id'], ['updated_at' => now()->subDays(35)->toIso8601String()]);
+    $this->taskService->archiveTasks(30, false);
+
+    // Create and archive second task
+    $task2 = $this->taskService->create(['title' => 'Task 2']);
+    $this->taskService->done($task2['id']);
+    $this->taskService->update($task2['id'], ['updated_at' => now()->subDays(35)->toIso8601String()]);
+    $result = $this->taskService->archiveTasks(30, false);
+
+    expect($result['archived'])->toBe(1);
+
+    // Verify both tasks are in archive
+    $archivePath = dirname($this->storagePath).'/archive.jsonl';
+    $archiveContent = file_get_contents($archivePath);
+    expect($archiveContent)->toContain($task1['id']);
+    expect($archiveContent)->toContain($task2['id']);
 });
