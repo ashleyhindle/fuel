@@ -10,77 +10,74 @@ The design spec is in `FUEL-PLAN.md`. Reference implementation exists in `agent-
 
 ## Fuel Task Management
 
-Tasks are stored in `.fuel/tasks.jsonl` in the current working directory.
+This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/tasks.jsonl`.
 
 ### Quick Reference
 
 ```bash
+./fuel ready                      # Show tasks ready to work on
 ./fuel add "Task title"           # Add a new task
-./fuel ready                      # Show all open tasks
-./fuel done <id>                  # Mark task as complete (supports partial ID)
-./fuel done <id1> <id2> <id3>     # Mark multiple tasks as complete
+./fuel start <id>                 # Claim a task (in_progress)
+./fuel done <id>                  # Mark task complete
+./fuel show <id>                  # View task details
+./fuel board                      # Kanban view
 ```
 
-### Starting a Session
+### 🚨 Session Close Protocol
 
-Always begin by checking for available work:
+Before ending ANY session, complete this checklist:
+
+```
+[ ] ./fuel done <id>              # Close all completed tasks
+[ ] ./fuel add "..."              # File tasks for incomplete work
+[ ] ./fuel ready                  # Verify task state
+[ ] Run tests/linters             # Quality gates (if code changed)
+[ ] git commit                    # Commit changes
+```
+
+**Work is NOT complete until tasks reflect reality.**
+
+### Workflow
+
+1. `./fuel ready` - Find available work (prefer P0 > P1 > P2)
+2. `./fuel start <id>` - Claim task before starting
+3. Do the work - implement, test, verify
+4. Discover new work? `./fuel add "..." --blocked-by=<id>`
+5. `./fuel done <id>` - Complete the task
+
+### Task Options
 
 ```bash
-./fuel ready --json
+./fuel add "Title" \
+  --description="Details here" \
+  --type=bug|feature|task|chore \
+  --priority=0-4 \
+  --blocked-by=fuel-xxxx,fuel-yyyy \
+  --labels=api,urgent
 ```
 
-Pick a task and work on it. When done, mark it complete:
+### Dependencies
 
 ```bash
-./fuel done fuel-a7f3            # Full ID
-./fuel done a7f3                 # Partial ID works
-./fuel done a7                   # Even shorter
-./fuel done fuel-a fuel-b fuel-c # Multiple tasks at once
+./fuel add "Design API"
+./fuel add "Implement API" --blocked-by=fuel-xxxx
 ```
 
-### JSON Output
-
-All commands support `--json` for programmatic use:
-
-```bash
-./fuel add "Task" --json         # Returns task object
-./fuel ready --json              # Returns array of open tasks
-./fuel done <id> --json          # Returns completed task (single) or array (multiple)
-```
-
-### Working Directory
-
-All commands support `--cwd` to specify where `.fuel/tasks.jsonl` lives:
-
-```bash
-./fuel add "Task" --cwd /path/to/project
-./fuel ready --cwd /path/to/project
-```
-
-### Session Completion
-
-Before ending a work session:
-1. Mark completed tasks done: `./fuel done <id>`
-2. Add tasks for remaining work: `./fuel add "Follow-up work"`
-3. Verify task state: `./fuel ready`
+Blocked tasks won't appear in `./fuel ready` until blockers are closed.
 
 ### Parallel Execution
 
-The **primary agent** coordinates parallel work - subagents do NOT pick tasks themselves:
+Primary agent coordinates - subagents do NOT pick tasks:
 
-1. **Primary agent reviews** - Run `./fuel ready --json` and identify parallelizable tasks
-2. **Primary agent assigns** - Spawn subagents with explicit task assignments:
-   - Each subagent receives ONE specific task ID
-   - Subagents work ONLY on their assigned task
-3. **Subagents execute** - Complete the task and run `./fuel done <id>`
-4. **Primary agent continues** - Check `./fuel ready` for newly unblocked tasks
+1. Primary runs `./fuel ready --json`, identifies parallel work
+2. Primary claims each task with `./fuel start <id>`
+3. Primary spawns subagents with explicit task ID assignments
+4. Subagents complete work and run `./fuel done <id>`
+5. Primary checks `./fuel ready` for newly unblocked work
 
-**When spawning a subagent, include:**
-- The specific task ID and title
-- Instruction to read CLAUDE.md for project context
-- Instruction to run `./fuel done <id>` upon completion
+**Subagent instructions must include:** task ID, path to fuel binary, instruction to run `./fuel done <id>`.
 
-**Avoid parallel work on tasks that touch the same files** - use dependencies to enforce ordering.
+Avoid parallel work on tasks touching same files - use dependencies instead.
 
 ## Development Commands
 
@@ -106,7 +103,7 @@ The **primary agent** coordinates parallel work - subagents do NOT pick tasks th
 **Laravel Zero CLI application** - A micro-framework for console apps built on Laravel components.
 
 ### Directory Structure
-- `app/Commands/` - CLI commands (AddCommand, ReadyCommand, DoneCommand)
+- `app/Commands/` - CLI commands (AddCommand, ReadyCommand, StartCommand, DoneCommand)
 - `app/Services/` - Core services (TaskService)
 - `app/Providers/` - Service providers
 - `tests/` - Pest tests (Feature and Unit suites)
@@ -123,7 +120,7 @@ Core service handling JSONL storage with:
 ### Data Storage
 Single file: `.fuel/tasks.jsonl` - one JSON object per line, sorted by ID.
 
-Task fields: `id`, `title`, `status` (open/closed), `dependencies`, `created_at`, `updated_at`.
+Task fields: `id`, `title`, `status` (open/in_progress/closed), `blocked_by` (array of task IDs), `created_at`, `updated_at`.
 
 ## Interface Contracts
 
@@ -158,9 +155,9 @@ All commands that return task data use this structure:
 {
   "id": "fuel-a7f3",
   "title": "Task title",
-  "status": "open",
-  "dependencies": [
-    {"depends_on": "fuel-xxxx", "type": "blocks"}
+  "status": "open",  // Can be: "open", "in_progress", or "closed"
+  "blocked_by": [
+    "fuel-xxxx"
   ],
   "created_at": "2026-01-07T10:00:00+00:00",
   "updated_at": "2026-01-07T10:00:00+00:00"
@@ -173,6 +170,7 @@ All commands that return task data use this structure:
 |---------|-----------------|
 | `add` | Returns created task object |
 | `ready` | Returns array of task objects |
+| `start` | Returns task object with in_progress status |
 | `done` | Returns completed task object (single ID) or array of task objects (multiple IDs) |
 | `dep:add` | Returns updated task object (with new dependency) |
 | `dep:remove` | Returns updated task object (dependency removed) |
@@ -184,12 +182,13 @@ Error responses: `{"error": "Error message here"}`
 ```php
 // CRUD
 create(array $data): array              // Returns task
-find(string $id): ?array                // Partial ID matching
-markDone(string $id): array             // Returns updated task
-ready(): Collection                     // Open tasks with no open blockers
+find(string $id): ?array                 // Partial ID matching
+start(string $id): array                 // Returns task with in_progress status
+done(string $id, ?string $reason): array // Returns updated task
+ready(): Collection                      // Open tasks with no open blockers (excludes in_progress)
 
 // Dependencies
-addDependency(string $taskId, string $dependsOnId, string $type = 'blocks'): array
+addDependency(string $taskId, string $dependsOnId, string $type = 'blocks'): array  // $type parameter kept for backward compatibility but ignored (always 'blocks')
 removeDependency(string $taskId, string $dependsOnId): array
 getBlockers(string $taskId): Collection
 ```
@@ -208,20 +207,3 @@ expect($output)->toContain('expected');
 $this->artisan('command', ['--json' => true])
     ->expectsOutputToContain('expected');  // May fail unexpectedly
 ```
-
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until hand off succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Clean up** - Clear stashes, prune remote branches
-5. **Verify** - All changes added and committed 
-6. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until fuel is updated and hand off succeeds
