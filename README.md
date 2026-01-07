@@ -6,7 +6,7 @@ Lightweight task management for AI agents. Git-native, merge-friendly, zero conf
 
 ```bash
 # Install
-curl -L addfuel.dev/install | sh
+curl -fsSL https://addfuel.dev/install | sh
 
 # Initialize in your project
 cd your-project
