@@ -1,0 +1,12 @@
+.idea
+.DS_Store
+mentions.php
+src/Console/AssistCommand.php
+/node_modules
+/public/app.js.LICENSE.txt
+/vendor
+composer.lock
+/phpunit.xml
+.phpunit.result.cache
+all.md
+.beads/
