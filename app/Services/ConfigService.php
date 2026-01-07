@@ -208,11 +208,11 @@ class ConfigService
                 ],
                 'moderate' => [
                     'agent' => 'claude',
-                    'model' => 'sonnet-4.5',
+                    'model' => 'sonnet',
                 ],
                 'complex' => [
                     'agent' => 'claude',
-                    'model' => 'opus-4.5',
+                    'model' => 'opus',
                 ],
             ],
         ];
