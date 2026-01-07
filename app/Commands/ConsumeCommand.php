@@ -187,7 +187,8 @@ PROMPT;
                     'consumed_at' => date('c'),
                 ]);
 
-                $statusLines[] = $this->formatStatus('🚀', "Spawning agent for {$taskId}: {$shortTitle}", 'yellow');
+                $agentName = $agentCommandArray[0];
+                $statusLines[] = $this->formatStatus('🚀', "Spawning {$agentName} for {$taskId}: {$shortTitle}", 'yellow');
                 $this->setTerminalTitle("Fuel: {$taskId} - {$shortTitle}");
                 $this->refreshDisplay($taskService, $statusLines);
 
