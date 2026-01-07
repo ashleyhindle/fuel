@@ -24,7 +24,9 @@ If you need to udpate CLAUDE.md run `fuel guidelines` and copy/paste.
 
 ## Orchestration
 
-Fuel can automatically spawn AI agents to work through your task queue. Configure which agents handle different complexity levels, then let Fuel orchestrate.
+Fuel can automatically spawn AI agents to work through your task queue. It works with any CLI coding agent that accepts `-p` for prompts and `--model` for model selection. Defaults to `claude` and `cursor-agent`.
+
+Configure which agents handle different complexity levels, then let Fuel orchestrate.
 
 ```bash
 # Watch agents consume tasks automatically
