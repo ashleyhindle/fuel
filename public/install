@@ -45,8 +45,6 @@ BINARY_NAME="fuel"
 BINARY_URL="https://github.com/ashleyhindle/fuel/releases/latest/download/fuel-${OS_NAME}-${ARCH_NAME}"
 
 printf "${GREEN}Installing Fuel...${NC}\n"
-echo "OS: $OS_NAME, Architecture: $ARCH_NAME"
-echo ""
 
 # Create install directory
 mkdir -p "$INSTALL_DIR"
@@ -86,8 +84,6 @@ export PATH="$PATH:$INSTALL_DIR"
 
 if [ -n "$ADDED_TO" ]; then
     printf "${GREEN}Added Fuel to PATH in:%s${NC}\n" "$ADDED_TO"
-else
-    printf "${YELLOW}PATH already configured in shell rc files.${NC}\n"
 fi
 
 echo ""
