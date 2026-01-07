@@ -1,9 +1,0 @@
-{
-    "mcpServers": {
-        "existing-server": {
-            "command": "existing-cmd",
-            "args": ["arg1", "arg2"],
-        }, // Trailing comma here
-    },
-    "inputs": []
-}

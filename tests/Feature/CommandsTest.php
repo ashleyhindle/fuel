@@ -2100,6 +2100,124 @@ describe('status command', function () {
 });
 
 // =============================================================================
+// completed Command Tests
+// =============================================================================
+
+describe('completed command', function () {
+    it('shows no completed tasks when empty', function () {
+        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+
+        expect(Artisan::output())->toContain('No completed tasks found');
+    });
+
+    it('shows completed tasks in reverse chronological order', function () {
+        // Create and close some tasks
+        $task1 = $this->taskService->create(['title' => 'First task']);
+        $task2 = $this->taskService->create(['title' => 'Second task']);
+        $task3 = $this->taskService->create(['title' => 'Third task']);
+
+        // Close them in order
+        $this->taskService->done($task1['id']);
+        sleep(1); // Ensure different timestamps
+        $this->taskService->done($task2['id']);
+        sleep(1);
+        $this->taskService->done($task3['id']);
+
+        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        // Should show most recent first
+        expect($output)->toContain('Third task');
+        expect($output)->toContain('Second task');
+        expect($output)->toContain('First task');
+    });
+
+    it('excludes open and in_progress tasks', function () {
+        $open = $this->taskService->create(['title' => 'Open task']);
+        $inProgress = $this->taskService->create(['title' => 'In progress task']);
+        $closed = $this->taskService->create(['title' => 'Closed task']);
+
+        $this->taskService->start($inProgress['id']);
+        $this->taskService->done($closed['id']);
+
+        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Closed task');
+        expect($output)->not->toContain('Open task');
+        expect($output)->not->toContain('In progress task');
+    });
+
+    it('respects --limit option', function () {
+        // Create and close 5 tasks
+        $taskIds = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $task = $this->taskService->create(['title' => "Task {$i}"]);
+            $taskIds[] = $task['id'];
+            $this->taskService->done($task['id']);
+            usleep(200000); // Delay for different timestamps
+        }
+
+        Artisan::call('completed', ['--cwd' => $this->tempDir, '--limit' => 3, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toBeArray();
+        expect($data)->toHaveCount(3);
+        // Verify limit works - should only return 3 tasks
+        $titles = array_column($data, 'title');
+        expect($titles)->toHaveCount(3);
+        // Most recent tasks should be included (Task 5 should be in results)
+        expect($titles)->toContain('Task 5');
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $task = $this->taskService->create(['title' => 'Completed task']);
+        $this->taskService->done($task['id']);
+
+        Artisan::call('completed', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toBeArray();
+        expect($data)->toHaveCount(1);
+        expect($data[0]['id'])->toBe($task['id']);
+        expect($data[0]['status'])->toBe('closed');
+    });
+
+    it('outputs empty array as JSON when no completed tasks', function () {
+        Artisan::call('completed', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toBeArray();
+        expect($data)->toBeEmpty();
+    });
+
+    it('displays task details in table format', function () {
+        $task = $this->taskService->create([
+            'title' => 'Test completed task',
+            'type' => 'feature',
+            'priority' => 1,
+        ]);
+        $this->taskService->done($task['id']);
+
+        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('ID');
+        expect($output)->toContain('Title');
+        expect($output)->toContain('Completed');
+        expect($output)->toContain('Type');
+        expect($output)->toContain('Priority');
+        expect($output)->toContain($task['id']);
+        expect($output)->toContain('Test completed task');
+        expect($output)->toContain('feature');
+        expect($output)->toContain('1');
+    });
+});
+
+// =============================================================================
 // init Command Tests
 // =============================================================================
 
