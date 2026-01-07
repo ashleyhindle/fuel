@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\ConfigService;
+use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\ServiceProvider;
 
@@ -27,6 +28,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ConfigService::class, function () {
             return new ConfigService(getcwd().'/.fuel/config.yaml');
+        });
+
+        $this->app->singleton(RunService::class, function () {
+            return new RunService(getcwd().'/.fuel/runs');
         });
     }
 }
