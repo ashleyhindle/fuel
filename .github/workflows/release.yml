@@ -1,9 +1,8 @@
 name: Release Build
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
 
 jobs:
   build:
@@ -14,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -39,7 +40,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Build PHAR
-        run: php fuel app:build fuel.phar --build-version=${GITHUB_REF#refs/tags/}
+        run: php fuel app:build fuel.phar --build-version=${{ github.event.release.tag_name }}
 
       - name: Build binaries with PHPacker
         run: ./vendor/bin/phpacker build --src=./builds/fuel.phar --php=8.4 all
@@ -68,13 +69,10 @@ jobs:
           # List all binaries for verification
           ls -lh fuel-* || echo "No binaries found"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
+          tag_name: ${{ github.event.release.tag_name }}
           files: |
             builds/fuel-darwin-arm64
             builds/fuel-darwin-x64
