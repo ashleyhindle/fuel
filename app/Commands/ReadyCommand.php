@@ -11,7 +11,8 @@ class ReadyCommand extends Command
 {
     protected $signature = 'ready
         {--cwd= : Working directory (defaults to current directory)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--size= : Filter by size (xs|s|m|l|xl)}';
 
     protected $description = 'Show all open (non-done) tasks';
 
@@ -22,6 +23,11 @@ class ReadyCommand extends Command
         }
 
         $tasks = $taskService->ready();
+
+        // Apply size filter if provided
+        if ($size = $this->option('size')) {
+            $tasks = $tasks->filter(fn (array $t): bool => ($t['size'] ?? 'm') === $size);
+        }
 
         if ($this->option('json')) {
             $this->line(json_encode($tasks->values()->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));

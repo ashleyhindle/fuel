@@ -112,6 +112,15 @@ class TaskService
                 }
             }
 
+            // Validate size enum
+            $validSizes = ['xs', 's', 'm', 'l', 'xl'];
+            $size = $data['size'] ?? 'm';
+            if (! in_array($size, $validSizes, true)) {
+                throw new RuntimeException(
+                    "Invalid task size '{$size}'. Must be one of: ".implode(', ', $validSizes)
+                );
+            }
+
             $task = [
                 'id' => $this->generateId($tasks->count()),
                 'title' => $data['title'] ?? throw new RuntimeException('Task title is required'),
@@ -120,6 +129,7 @@ class TaskService
                 'type' => $type,
                 'priority' => $priority,
                 'labels' => $labels,
+                'size' => $size,
                 'dependencies' => $data['dependencies'] ?? [],
                 'created_at' => now()->toIso8601String(),
                 'updated_at' => now()->toIso8601String(),
@@ -133,13 +143,115 @@ class TaskService
     }
 
     /**
-     * Mark a task as done (closed).
+     * Update a task with new data.
      *
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    public function done(string $id): array
+    public function update(string $id, array $data): array
     {
-        return $this->withExclusiveLock(function () use ($id): array {
+        return $this->withExclusiveLock(function () use ($id, $data): array {
+            $tasks = $this->readTasks();
+            $task = $this->findInCollection($tasks, $id);
+
+            if ($task === null) {
+                throw new RuntimeException("Task '{$id}' not found");
+            }
+
+            // Update title if provided
+            if (isset($data['title'])) {
+                $task['title'] = $data['title'];
+            }
+
+            // Update description if provided
+            if (array_key_exists('description', $data)) {
+                $task['description'] = $data['description'];
+            }
+
+            // Update type if provided (with validation)
+            if (isset($data['type'])) {
+                $validTypes = ['bug', 'feature', 'task', 'epic', 'chore'];
+                if (! in_array($data['type'], $validTypes, true)) {
+                    throw new RuntimeException(
+                        "Invalid task type '{$data['type']}'. Must be one of: ".implode(', ', $validTypes)
+                    );
+                }
+                $task['type'] = $data['type'];
+            }
+
+            // Update priority if provided (with validation)
+            if (isset($data['priority'])) {
+                $priority = $data['priority'];
+                if (! is_int($priority) || $priority < 0 || $priority > 4) {
+                    throw new RuntimeException(
+                        "Invalid priority '{$priority}'. Must be an integer between 0 and 4."
+                    );
+                }
+                $task['priority'] = $priority;
+            }
+
+            // Update status if provided (with validation)
+            if (isset($data['status'])) {
+                $validStatuses = ['open', 'in_progress', 'closed'];
+                if (! in_array($data['status'], $validStatuses, true)) {
+                    throw new RuntimeException(
+                        "Invalid status '{$data['status']}'. Must be one of: ".implode(', ', $validStatuses)
+                    );
+                }
+                $task['status'] = $data['status'];
+            }
+
+            // Update size if provided (with validation)
+            if (isset($data['size'])) {
+                $validSizes = ['xs', 's', 'm', 'l', 'xl'];
+                if (! in_array($data['size'], $validSizes, true)) {
+                    throw new RuntimeException(
+                        "Invalid task size '{$data['size']}'. Must be one of: ".implode(', ', $validSizes)
+                    );
+                }
+                $task['size'] = $data['size'];
+            }
+
+            // Handle labels updates
+            if (isset($data['add_labels']) || isset($data['remove_labels'])) {
+                $labels = $task['labels'] ?? [];
+                $labels = is_array($labels) ? $labels : [];
+
+                // Add labels
+                if (isset($data['add_labels']) && is_array($data['add_labels'])) {
+                    foreach ($data['add_labels'] as $label) {
+                        if (is_string($label) && ! in_array($label, $labels, true)) {
+                            $labels[] = $label;
+                        }
+                    }
+                }
+
+                // Remove labels
+                if (isset($data['remove_labels']) && is_array($data['remove_labels'])) {
+                    $labels = array_values(array_filter($labels, fn (string $label): bool => ! in_array($label, $data['remove_labels'], true)));
+                }
+
+                $task['labels'] = $labels;
+            }
+
+            $task['updated_at'] = now()->toIso8601String();
+
+            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
+            $this->writeTasks($tasks);
+
+            return $task;
+        });
+    }
+
+    /**
+     * Mark a task as done (closed).
+     *
+     * @param  string|null  $reason  Optional reason for completion
+     * @return array<string, mixed>
+     */
+    public function done(string $id, ?string $reason = null): array
+    {
+        return $this->withExclusiveLock(function () use ($id, $reason): array {
             $tasks = $this->readTasks();
             $task = $this->findInCollection($tasks, $id);
 
@@ -149,6 +261,9 @@ class TaskService
 
             $task['status'] = 'closed';
             $task['updated_at'] = now()->toIso8601String();
+            if ($reason !== null) {
+                $task['reason'] = $reason;
+            }
 
             $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
             $this->writeTasks($tasks);
@@ -191,7 +306,7 @@ class TaskService
             }
         }
 
-        // Return open tasks that are not blocked
+        // Return open tasks that are not blocked (exclude in_progress tasks)
         return $tasks
             ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
             ->filter(fn (array $t): bool => ! in_array($t['id'], $blockedIds, true))

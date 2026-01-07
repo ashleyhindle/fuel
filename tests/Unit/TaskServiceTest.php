@@ -55,11 +55,12 @@ it('creates a task with default schema fields', function () {
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Verify all schema fields are present
-    expect($task)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'dependencies', 'created_at', 'updated_at']);
+    expect($task)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'dependencies', 'created_at', 'updated_at']);
     expect($task['description'])->toBeNull();
     expect($task['type'])->toBe('task');
     expect($task['priority'])->toBe(2);
     expect($task['labels'])->toBe([]);
+    expect($task['size'])->toBe('m');
     expect($task['dependencies'])->toBe([]);
 });
 
@@ -72,6 +73,7 @@ it('creates a task with custom schema fields', function () {
         'type' => 'bug',
         'priority' => 4,
         'labels' => ['critical', 'backend'],
+        'size' => 'xl',
     ]);
 
     expect($task['title'])->toBe('Bug fix');
@@ -79,6 +81,7 @@ it('creates a task with custom schema fields', function () {
     expect($task['type'])->toBe('bug');
     expect($task['priority'])->toBe(4);
     expect($task['labels'])->toBe(['critical', 'backend']);
+    expect($task['size'])->toBe('xl');
 });
 
 it('validates task type enum', function () {
@@ -126,6 +129,20 @@ it('validates all labels are strings', function () {
     $this->taskService->create(['title' => 'Test', 'labels' => [1, 2, 3]]);
 })->throws(RuntimeException::class, 'All labels must be strings');
 
+it('validates task size enum', function () {
+    $this->taskService->initialize();
+
+    // Valid sizes
+    $validSizes = ['xs', 's', 'm', 'l', 'xl'];
+    foreach ($validSizes as $size) {
+        $task = $this->taskService->create(['title' => 'Test', 'size' => $size]);
+        expect($task['size'])->toBe($size);
+    }
+
+    // Invalid size
+    $this->taskService->create(['title' => 'Test', 'size' => 'invalid']);
+})->throws(RuntimeException::class, 'Invalid task size');
+
 it('includes all schema fields in JSON output', function () {
     $this->taskService->initialize();
 
@@ -141,7 +158,7 @@ it('includes all schema fields in JSON output', function () {
     $decoded = json_decode($json, true);
 
     // Verify all fields are present in JSON
-    expect($decoded)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'dependencies', 'created_at', 'updated_at']);
+    expect($decoded)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'dependencies', 'created_at', 'updated_at']);
     expect($decoded['description'])->toBe('Add new feature');
     expect($decoded['type'])->toBe('feature');
     expect($decoded['priority'])->toBe(3);

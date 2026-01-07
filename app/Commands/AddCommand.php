@@ -18,6 +18,7 @@ class AddCommand extends Command
         {--type= : Task type (bug|feature|task|epic|chore)}
         {--priority= : Task priority (0-4)}
         {--labels= : Comma-separated list of labels}
+        {--size= : Task size (xs|s|m|l|xl)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}';
 
     protected $description = 'Add a new task';
@@ -58,6 +59,11 @@ class AddCommand extends Command
         // Add labels (comma-separated)
         if ($labels = $this->option('labels')) {
             $data['labels'] = array_map('trim', explode(',', $labels));
+        }
+
+        // Add size
+        if ($size = $this->option('size')) {
+            $data['size'] = $size;
         }
 
         // Add blocked-by dependencies (comma-separated task IDs)

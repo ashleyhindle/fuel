@@ -18,6 +18,7 @@ Tasks are stored in `.fuel/tasks.jsonl` in the current working directory.
 ./fuel add "Task title"           # Add a new task
 ./fuel ready                      # Show all open tasks
 ./fuel done <id>                  # Mark task as complete (supports partial ID)
+./fuel done <id1> <id2> <id3>     # Mark multiple tasks as complete
 ```
 
 ### Starting a Session
@@ -34,6 +35,7 @@ Pick a task and work on it. When done, mark it complete:
 ./fuel done fuel-a7f3            # Full ID
 ./fuel done a7f3                 # Partial ID works
 ./fuel done a7                   # Even shorter
+./fuel done fuel-a fuel-b fuel-c # Multiple tasks at once
 ```
 
 ### JSON Output
@@ -43,7 +45,7 @@ All commands support `--json` for programmatic use:
 ```bash
 ./fuel add "Task" --json         # Returns task object
 ./fuel ready --json              # Returns array of open tasks
-./fuel done <id> --json          # Returns completed task
+./fuel done <id> --json          # Returns completed task (single) or array (multiple)
 ```
 
 ### Working Directory
@@ -171,7 +173,7 @@ All commands that return task data use this structure:
 |---------|-----------------|
 | `add` | Returns created task object |
 | `ready` | Returns array of task objects |
-| `done` | Returns completed task object |
+| `done` | Returns completed task object (single ID) or array of task objects (multiple IDs) |
 | `dep:add` | Returns updated task object (with new dependency) |
 | `dep:remove` | Returns updated task object (dependency removed) |
 
