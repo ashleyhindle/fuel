@@ -581,6 +581,26 @@ it('returns empty collection when no blockers', function () {
 // Update Method Tests
 // =============================================================================
 
+it('preserves complexity when updating task without providing complexity', function () {
+    $this->taskService->initialize();
+    $task = $this->taskService->create([
+        'title' => 'Test task',
+        'complexity' => 'moderate',
+    ]);
+
+    // Update without providing complexity
+    $updated = $this->taskService->update($task['id'], [
+        'title' => 'Updated title',
+    ]);
+
+    expect($updated['complexity'])->toBe('moderate');
+    expect($updated['title'])->toBe('Updated title');
+
+    // Verify it's persisted
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['complexity'])->toBe('moderate');
+});
+
 it('preserves arbitrary fields when updating a task', function () {
     $this->taskService->initialize();
     $task = $this->taskService->create(['title' => 'Test task']);
