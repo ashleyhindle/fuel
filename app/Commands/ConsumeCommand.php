@@ -43,12 +43,8 @@ class ConsumeCommand extends Command
             }
         }
 
-        $isTty = stream_isatty(STDOUT);
-
-        if ($isTty) {
-            $this->getOutput()->write("\033[?1049h");
-            $this->getOutput()->write("\033[H\033[2J");
-        }
+        $this->getOutput()->write("\033[?1049h");
+        $this->getOutput()->write("\033[H\033[2J");
 
         $exiting = false;
 
@@ -74,7 +70,11 @@ class ConsumeCommand extends Command
                 $readyTasks = $taskService->ready();
 
                 if ($readyTasks->isEmpty()) {
-                    $statusLines[] = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
+                    // Only add waiting message if not already the last status
+                    $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
+                    if (empty($statusLines) || end($statusLines) !== $waitingMsg) {
+                        $statusLines[] = $waitingMsg;
+                    }
                     $this->setTerminalTitle('Fuel: Waiting for tasks...');
                     $this->refreshDisplay($taskService, $statusLines);
 
@@ -109,6 +109,16 @@ You have been assigned ONE specific task. Work ONLY on this task.
 1. Complete the task described above
 2. When finished, run: fuel done {$taskId}
 3. Do NOT pick up other tasks - only work on {$taskId}
+
+== NEEDS-HUMAN WORKFLOW ==
+If you become blocked (can't create files, need credentials, need human decisions, etc):
+1. Create a needs-human task with clear details:
+   ./fuel add 'Clear title describing what is needed' \\
+     --labels=needs-human \\
+     --description='Exact steps: WHAT to do and HOW to do it'
+2. Block the current task on the needs-human task:
+   ./fuel dep:add {$taskId} <needs-human-task-id>
+3. Exit immediately (do not continue working on {$taskId})
 
 == CONTEXT ==
 Working directory: {$cwd}
@@ -156,6 +166,11 @@ PROMPT;
                 $startTime = time();
                 $process->start();
 
+                // Store the process PID in the task
+                $taskService->update($taskId, [
+                    'consume_pid' => $process->getPid(),
+                ]);
+
                 // Wait for process with signal handling
                 while ($process->isRunning()) {
                     if (function_exists('pcntl_signal_dispatch')) {
@@ -188,6 +203,7 @@ PROMPT;
                 $taskService->update($taskId, [
                     'consumed_exit_code' => $exitCode,
                     'consumed_output' => $output,
+                    'consume_pid' => null, // Clear PID on completion
                 ]);
 
                 if ($exitCode === 0) {
@@ -207,10 +223,8 @@ PROMPT;
                 sleep(1);
             }
         } finally {
-            if ($isTty) {
-                $this->getOutput()->write("\033[?1049l");
-                $this->setTerminalTitle('');  // Reset terminal title
-            }
+            $this->getOutput()->write("\033[?1049l");
+            $this->setTerminalTitle('');  // Reset terminal title
         }
 
         return self::SUCCESS;
@@ -221,12 +235,12 @@ PROMPT;
      */
     private function refreshDisplay(TaskService $taskService, array $statusLines, ?string $activeTaskId = null, ?int $startTime = null): void
     {
-        if (stream_isatty(STDOUT)) {
-            // Clear screen and move cursor home
-            $this->getOutput()->write("\033[H\033[2J");
-        }
+        // Begin synchronized output (terminal buffers until end marker)
+        $this->getOutput()->write("\033[?2026h");
+        // Move cursor home and clear screen
+        $this->getOutput()->write("\033[H\033[2J");
 
-        // Render board (BoardCommand uses cursor home without clear, so no flicker)
+        // Render board
         $this->call('board', ['--once' => true, '--cwd' => $this->option('cwd')]);
 
         $this->newLine();
@@ -244,6 +258,9 @@ PROMPT;
 
         $this->newLine();
         $this->line('<fg=gray>Press Ctrl+C to exit</>');
+
+        // End synchronized output (terminal flushes buffer to screen at once)
+        $this->getOutput()->write("\033[?2026l");
     }
 
     private function formatStatus(string $icon, string $message, string $color): string
@@ -265,10 +282,8 @@ PROMPT;
 
     private function setTerminalTitle(string $title): void
     {
-        if (stream_isatty(STDOUT)) {
-            // OSC 0 sets both window title and icon name
-            $this->getOutput()->write("\033]0;{$title}\007");
-        }
+        // OSC 0 sets both window title and icon name
+        $this->getOutput()->write("\033]0;{$title}\007");
     }
 
     /**
