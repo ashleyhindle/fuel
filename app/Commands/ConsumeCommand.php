@@ -310,6 +310,13 @@ PROMPT;
      * - Complexity: trivial=0, simple=1, moderate=2, complex=3 - weight: 10
      * - Size: xs=0, s=1, m=2, l=3, xl=4 - weight: 1
      *
+     * Weight ratio explanation (100:10:1):
+     * - Priority always dominates: Max complexity difference (30) < min priority step (100),
+     *   so priority differences cannot be overcome by complexity or size.
+     * - Complexity breaks ties: Max size difference (4) < min complexity step (10),
+     *   so complexity differences break ties when priority is equal.
+     * - Size is final tiebreaker: Only affects ordering when priority and complexity are equal.
+     *
      * @param  array<string, mixed>  $task
      */
     private function calculateTaskScore(array $task): int
