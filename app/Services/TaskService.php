@@ -142,7 +142,7 @@ class TaskService
             $this->validateEnum($complexity, self::VALID_COMPLEXITIES, 'task complexity');
 
             $task = [
-                'id' => $this->generateId($tasks->count()),
+                'id' => $this->generateId($tasks),
                 'title' => $data['title'] ?? throw new RuntimeException('Task title is required'),
                 'status' => 'open',
                 'description' => $data['description'] ?? null,
@@ -591,15 +591,39 @@ class TaskService
     }
 
     /**
-     * Generate a hash-based ID.
+     * Generate a hash-based ID with collision detection.
+     *
+     * @param  Collection<int, array<string, mixed>>|null  $existingTasks  Collection of existing tasks to check against
+     *
+     * @throws RuntimeException If unable to generate unique ID after max attempts
      */
-    public function generateId(int $taskCount = 0): string
+    public function generateId(?Collection $existingTasks = null): string
     {
         $length = 6; // Increased from 4 to 6 chars for better collision resistance
+        $maxAttempts = 100; // Safeguard against infinite loops
 
-        $hash = hash('sha256', uniqid($this->prefix.'-', true).microtime(true));
+        // Extract existing IDs if tasks collection provided
+        $existingIds = [];
+        if ($existingTasks !== null) {
+            $existingIds = $existingTasks->pluck('id')->toArray();
+        }
 
-        return $this->prefix.'-'.substr($hash, 0, $length);
+        $attempts = 0;
+        while ($attempts < $maxAttempts) {
+            $hash = hash('sha256', uniqid($this->prefix.'-', true).microtime(true));
+            $id = $this->prefix.'-'.substr($hash, 0, $length);
+
+            // Check if ID already exists
+            if (! in_array($id, $existingIds, true)) {
+                return $id;
+            }
+
+            $attempts++;
+        }
+
+        throw new RuntimeException(
+            "Failed to generate unique task ID after {$maxAttempts} attempts. This is extremely unlikely."
+        );
     }
 
     /**

@@ -250,6 +250,48 @@ it('generates unique IDs', function () {
     expect(count(array_unique($ids)))->toBe(10);
 });
 
+it('generates unique IDs with collision detection', function () {
+    $this->taskService->initialize();
+
+    // Create many tasks to exercise collision detection
+    $ids = [];
+    for ($i = 0; $i < 100; $i++) {
+        $task = $this->taskService->create(['title' => "Task $i"]);
+        $ids[] = $task['id'];
+    }
+
+    // All IDs should be unique
+    expect(count(array_unique($ids)))->toBe(100);
+});
+
+it('generateId works when called directly without parameters', function () {
+    $this->taskService->initialize();
+
+    // Should work without parameters (backward compatibility)
+    $id = $this->taskService->generateId();
+
+    expect($id)->toStartWith('f-');
+    expect(strlen($id))->toBe(8); // f- + 6 chars
+});
+
+it('generateId avoids collisions when existing tasks provided', function () {
+    $this->taskService->initialize();
+
+    // Create some existing tasks
+    $existingTasks = collect();
+    for ($i = 0; $i < 5; $i++) {
+        $task = $this->taskService->create(['title' => "Existing task $i"]);
+        $existingTasks->push($task);
+    }
+
+    // Generate a new ID with collision detection
+    $newId = $this->taskService->generateId($existingTasks);
+
+    // New ID should not match any existing IDs
+    $existingIds = $existingTasks->pluck('id')->toArray();
+    expect(in_array($newId, $existingIds, true))->toBeFalse();
+});
+
 it('sorts tasks by ID when writing', function () {
     $this->taskService->initialize();
 
