@@ -10,20 +10,9 @@
         "composer.json"
     ],
     "exclude-composer-files": false,
-    "exclude-dev-files": true,
     "compression": "GZ",
     "compactors": [
         "KevinGH\\Box\\Compactor\\Php",
         "KevinGH\\Box\\Compactor\\Json"
-    ],
-    "exclude": [
-        "vendor/phpstan",
-        "vendor/laravel/pint",
-        "vendor/pestphp",
-        "vendor/phpunit",
-        "vendor/mockery",
-        "vendor/phpacker",
-        "vendor/nunomaduro/pokio",
-        "vendor/tomasvotruba"
     ]
 }
