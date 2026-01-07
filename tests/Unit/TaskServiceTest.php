@@ -42,7 +42,7 @@ it('creates a task with hash-based ID', function () {
     $task = $this->taskService->create(['title' => 'Test task']);
 
     expect($task['id'])->toStartWith('fuel-');
-    expect(strlen($task['id']))->toBe(9); // fuel- + 4 chars
+    expect(strlen($task['id']))->toBe(11); // fuel- + 6 chars
     expect($task['title'])->toBe('Test task');
     expect($task['status'])->toBe('open');
     expect($task['created_at'])->not->toBeNull();

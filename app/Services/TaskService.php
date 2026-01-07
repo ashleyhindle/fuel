@@ -593,7 +593,7 @@ class TaskService
      */
     public function generateId(int $taskCount = 0): string
     {
-        $length = 4; // MVP: always 4 chars
+        $length = 6; // Increased from 4 to 6 chars for better collision resistance
 
         $hash = hash('sha256', uniqid($this->prefix.'-', true).microtime(true));
 

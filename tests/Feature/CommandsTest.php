@@ -2346,7 +2346,7 @@ describe('q command', function () {
         $output = trim(Artisan::output());
 
         expect($output)->toStartWith('fuel-');
-        expect(strlen($output))->toBe(9); // fuel- + 4 chars
+        expect(strlen($output))->toBe(11); // fuel- + 6 chars
 
         // Verify task was actually created
         $task = $this->taskService->find($output);
