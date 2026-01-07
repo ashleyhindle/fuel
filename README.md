@@ -15,12 +15,16 @@ curl -fsSL https://addfuel.dev/install | sh
 cd your-project
 fuel init
 
+# Add guidelines to your agent's instructions
+fuel guidelines >> CLAUDE.md   # For Claude Code
+# or: fuel guidelines >> .cursorrules  # For Cursor
+
 # Run your favourite agent and ask it to "Consume the fuel"
 ```
 
 That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions to `AGENTS.md`, and creates your first task.
 
-If you need to udpate CLAUDE.md run `fuel guidelines` and copy/paste.
+**Important:** The `fuel guidelines` step teaches your agent the task workflow. Without it, agents won't know how to use fuel commands properly. Add the output to whichever file your agent reads (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, etc).
 
 ## Orchestration
 
