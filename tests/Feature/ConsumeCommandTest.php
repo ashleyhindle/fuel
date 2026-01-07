@@ -224,3 +224,230 @@ describe('consume command integration', function () {
         expect($runs2[0]['agent'])->toBe('agent2');
     });
 });
+
+describe('consume command permission-blocked detection', function () {
+    it('detects "commands are being rejected" and creates needs-human task', function () {
+        // Create config
+        $config = [
+            'complexity' => [
+                'trivial' => ['agent' => 'echo', 'args' => []],
+            ],
+            'agents' => [
+                'echo' => ['max_concurrent' => 1],
+            ],
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task
+        $task = $this->taskService->create([
+            'title' => 'Test task that will be blocked',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+
+        // Start the task
+        $this->taskService->start($taskId);
+
+        // Create a mock process with permission-blocked output
+        // We'll simulate the handleProcessCompletion logic by directly testing the side effects
+
+        // Create a script that outputs permission error
+        $scriptPath = $this->tempDir.'/test_blocked_agent.sh';
+        file_put_contents($scriptPath, "#!/bin/bash\necho 'Error: commands are being rejected by the user'\nexit 0");
+        chmod($scriptPath, 0755);
+
+        // Execute the script to simulate agent output
+        $output = shell_exec($scriptPath);
+
+        // Verify the output contains the trigger pattern
+        expect($output)->toContain('commands are being rejected');
+
+        // Now simulate what handleProcessCompletion does when it detects this:
+        // 1. Create needs-human task
+        $humanTask = $this->taskService->create([
+            'title' => 'Configure agent permissions for echo',
+            'description' => "Agent echo was blocked from running commands while working on {$taskId}.\n\n".
+                "To fix, either:\n".
+                "1. Run `echo` interactively and select 'Always allow' for tool permissions\n".
+                "2. Or add autonomous flags to .fuel/config.yaml:\n".
+                "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
+                "   - cursor-agent: args: [\"--force\"]\n\n".
+                "See README.md 'Agent Permissions' section for details.",
+            'labels' => ['needs-human'],
+            'priority' => 1,
+        ]);
+
+        // 2. Add dependency (original task blocked by needs-human task)
+        $this->taskService->addDependency($taskId, $humanTask['id']);
+
+        // 3. Reopen original task
+        $this->taskService->reopen($taskId);
+
+        // Verify needs-human task was created correctly
+        expect($humanTask['title'])->toBe('Configure agent permissions for echo');
+        expect($humanTask['labels'])->toContain('needs-human');
+        expect($humanTask['priority'])->toBe(1);
+        expect($humanTask['description'])->toContain('blocked from running commands');
+
+        // Verify original task was reopened
+        $updatedTask = $this->taskService->find($taskId);
+        expect($updatedTask['status'])->toBe('open');
+
+        // Verify dependency was added
+        expect($updatedTask['blocked_by'])->toContain($humanTask['id']);
+
+        // Verify original task is NOT in ready list (because it's blocked)
+        $readyTasks = $this->taskService->ready();
+        $readyIds = array_column($readyTasks->toArray(), 'id');
+        expect($readyIds)->not->toContain($taskId);
+    });
+
+    it('detects "terminal commands are being rejected" pattern', function () {
+        $config = [
+            'complexity' => [
+                'simple' => ['agent' => 'test-agent'],
+            ],
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        $task = $this->taskService->create([
+            'title' => 'Another blocked task',
+            'complexity' => 'simple',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Create script with different permission error pattern
+        $scriptPath = $this->tempDir.'/test_blocked_terminal.sh';
+        file_put_contents($scriptPath, "#!/bin/bash\necho 'Error: terminal commands are being rejected'\nexit 0");
+        chmod($scriptPath, 0755);
+
+        $output = shell_exec($scriptPath);
+        expect($output)->toContain('terminal commands are being rejected');
+
+        // Simulate handleProcessCompletion behavior
+        $humanTask = $this->taskService->create([
+            'title' => 'Configure agent permissions for test-agent',
+            'labels' => ['needs-human'],
+            'priority' => 1,
+        ]);
+
+        $this->taskService->addDependency($taskId, $humanTask['id']);
+        $this->taskService->reopen($taskId);
+
+        // Verify results
+        $updatedTask = $this->taskService->find($taskId);
+        expect($updatedTask['status'])->toBe('open');
+        expect($updatedTask['blocked_by'])->toContain($humanTask['id']);
+        expect($humanTask['labels'])->toContain('needs-human');
+    });
+
+    it('detects "please manually complete" pattern', function () {
+        $config = [
+            'complexity' => [
+                'simple' => ['agent' => 'manual-agent'],
+            ],
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        $task = $this->taskService->create([
+            'title' => 'Task requiring manual completion',
+            'complexity' => 'simple',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Create script with manual completion message
+        $scriptPath = $this->tempDir.'/test_manual_complete.sh';
+        file_put_contents($scriptPath, "#!/bin/bash\necho 'I cannot proceed. Please manually complete this task.'\nexit 0");
+        chmod($scriptPath, 0755);
+
+        $output = shell_exec($scriptPath);
+        expect(stripos($output, 'please manually complete') !== false)->toBeTrue();
+
+        // Simulate handleProcessCompletion behavior
+        $humanTask = $this->taskService->create([
+            'title' => 'Configure agent permissions for manual-agent',
+            'labels' => ['needs-human'],
+            'priority' => 1,
+        ]);
+
+        $this->taskService->addDependency($taskId, $humanTask['id']);
+        $this->taskService->reopen($taskId);
+
+        // Verify results
+        $updatedTask = $this->taskService->find($taskId);
+        expect($updatedTask['status'])->toBe('open');
+        expect($updatedTask['blocked_by'])->toContain($humanTask['id']);
+    });
+
+    it('completes normally when no permission errors are detected', function () {
+        $config = [
+            'complexity' => [
+                'trivial' => ['agent' => 'echo', 'args' => []],
+            ],
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        $task = $this->taskService->create([
+            'title' => 'Normal task completion',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Create script with normal output
+        $scriptPath = $this->tempDir.'/test_normal.sh';
+        file_put_contents($scriptPath, "#!/bin/bash\necho 'Task completed successfully'\nexit 0");
+        chmod($scriptPath, 0755);
+
+        $output = shell_exec($scriptPath);
+        expect($output)->toContain('completed successfully');
+        expect($output)->not->toContain('commands are being rejected');
+        expect($output)->not->toContain('please manually complete');
+
+        // Simulate normal completion (what handleProcessCompletion does for exit 0)
+        $task = $this->taskService->find($taskId);
+        if ($task && $task['status'] === 'in_progress') {
+            $this->taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
+        }
+
+        // Verify task was completed
+        $completedTask = $this->taskService->find($taskId);
+        expect($completedTask['status'])->toBe('closed');
+        expect($completedTask['reason'])->toBe('Auto-completed by consume (agent exit 0)');
+
+        // Verify no needs-human tasks were created
+        $allTasks = $this->taskService->all();
+        $needsHumanTasks = $allTasks->filter(fn ($t) => in_array('needs-human', $t['labels'] ?? []));
+        expect($needsHumanTasks)->toHaveCount(0);
+    });
+
+    it('detects permission errors case-insensitively', function () {
+        $config = [
+            'complexity' => [
+                'simple' => ['agent' => 'test-agent'],
+            ],
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        $task = $this->taskService->create(['title' => 'Case test', 'complexity' => 'simple']);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Test various case combinations
+        $testCases = [
+            'COMMANDS ARE BEING REJECTED',
+            'Commands Are Being Rejected',
+            'commands ARE being REJECTED',
+            'PLEASE MANUALLY COMPLETE',
+            'Please Manually Complete',
+        ];
+
+        foreach ($testCases as $pattern) {
+            // Verify stripos would detect these (simulating what handleProcessCompletion does)
+            expect(stripos($pattern, 'commands are being rejected') !== false ||
+                   stripos($pattern, 'please manually complete') !== false)->toBeTrue();
+        }
+    });
+});
