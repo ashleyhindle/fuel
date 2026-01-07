@@ -254,6 +254,7 @@ All commands that return task data use this structure:
 
 **Display Commands:**
 - `board` - Kanban board view (open/in_progress/closed columns)
+- `tree` - Dependency tree view (pending tasks with blockers indented)
 - `q "title"` - Quick capture (create task, output only ID)
 
 **Workflow Commands:**
@@ -278,6 +279,7 @@ All commands that return task data use this structure:
 | `update` | Returns updated task object |
 | `list` | Returns array of task objects |
 | `blocked` | Returns array of blocked task objects |
+| `tree` | Returns array of `{task, blocks}` objects (blocks = tasks blocked by this task) |
 | `completed` | Returns array of completed task objects |
 | `human` | Returns array of needs-human task objects |
 | `status` | Returns object with status counts |
