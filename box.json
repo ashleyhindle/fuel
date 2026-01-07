@@ -16,12 +16,14 @@
         "KevinGH\\Box\\Compactor\\Php",
         "KevinGH\\Box\\Compactor\\Json"
     ],
-    "blacklist": [
+    "exclude": [
         "vendor/phpstan",
         "vendor/laravel/pint",
         "vendor/pestphp",
         "vendor/phpunit",
         "vendor/mockery",
-        "vendor/phpacker"
+        "vendor/phpacker",
+        "vendor/nunomaduro/pokio",
+        "vendor/tomasvotruba"
     ]
 }
