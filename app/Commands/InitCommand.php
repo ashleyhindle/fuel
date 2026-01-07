@@ -51,6 +51,9 @@ class InitCommand extends Command
             $this->updateConfig($configPath, $agent, $model);
         }
 
+        // Ensure .fuel/runs/ is in .gitignore
+        $this->ensureGitignoreEntry($cwd);
+
         // Inject guidelines into AGENTS.md
         Artisan::call('guidelines', ['--add' => true, '--cwd' => $cwd]);
         $this->line(Artisan::output());
@@ -138,5 +141,36 @@ class InitCommand extends Command
 
         $yaml = Yaml::dump($config, 4);
         file_put_contents($configPath, $yaml);
+    }
+
+    /**
+     * Ensure .fuel/runs/ is in .gitignore.
+     */
+    private function ensureGitignoreEntry(string $cwd): void
+    {
+        $gitignorePath = $cwd.'/.gitignore';
+        $entry = '.fuel/runs/';
+
+        // Check if .gitignore exists
+        if (file_exists($gitignorePath)) {
+            $content = file_get_contents($gitignorePath);
+            if ($content === false) {
+                throw new RuntimeException("Failed to read .gitignore file: {$gitignorePath}");
+            }
+
+            // Check if entry already exists
+            if (str_contains($content, $entry)) {
+                return; // Already present, nothing to do
+            }
+
+            // Append entry to existing .gitignore
+            $content = rtrim($content)."\n".$entry."\n";
+            file_put_contents($gitignorePath, $content);
+            $this->info('Added .fuel/runs/ to .gitignore');
+        } else {
+            // Create new .gitignore with entry
+            file_put_contents($gitignorePath, $entry."\n");
+            $this->info('Created .gitignore with .fuel/runs/');
+        }
     }
 }
