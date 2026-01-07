@@ -130,7 +130,7 @@ class TaskService
                 'priority' => $priority,
                 'labels' => $labels,
                 'size' => $size,
-                'dependencies' => $data['dependencies'] ?? [],
+                'blocked_by' => $data['blocked_by'] ?? [],
                 'created_at' => now()->toIso8601String(),
                 'updated_at' => now()->toIso8601String(),
             ];
@@ -244,6 +244,31 @@ class TaskService
     }
 
     /**
+     * Mark a task as in progress (claim it).
+     *
+     * @return array<string, mixed>
+     */
+    public function start(string $id): array
+    {
+        return $this->withExclusiveLock(function () use ($id): array {
+            $tasks = $this->readTasks();
+            $task = $this->findInCollection($tasks, $id);
+
+            if ($task === null) {
+                throw new RuntimeException("Task '{$id}' not found");
+            }
+
+            $task['status'] = 'in_progress';
+            $task['updated_at'] = now()->toIso8601String();
+
+            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
+            $this->writeTasks($tasks);
+
+            return $task;
+        });
+    }
+
+    /**
      * Mark a task as done (closed).
      *
      * @param  string|null  $reason  Optional reason for completion
@@ -273,9 +298,40 @@ class TaskService
     }
 
     /**
+     * Reopen a closed task (set status back to open).
+     *
+     * @return array<string, mixed>
+     */
+    public function reopen(string $id): array
+    {
+        return $this->withExclusiveLock(function () use ($id): array {
+            $tasks = $this->readTasks();
+            $task = $this->findInCollection($tasks, $id);
+
+            if ($task === null) {
+                throw new RuntimeException("Task '{$id}' not found");
+            }
+
+            if (($task['status'] ?? '') !== 'closed') {
+                throw new RuntimeException("Task '{$id}' is not closed. Only closed tasks can be reopened.");
+            }
+
+            $task['status'] = 'open';
+            $task['updated_at'] = now()->toIso8601String();
+            // Remove reason if it exists (since task is being reopened)
+            unset($task['reason']);
+
+            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
+            $this->writeTasks($tasks);
+
+            return $task;
+        });
+    }
+
+    /**
      * Get tasks that are ready (open with no open blockers).
      *
-     * A task is blocked if it has a dependency where depends_on points to
+     * A task is blocked if it has a blocker ID in blocked_by that points to
      * a task with status != 'closed'.
      *
      * @return Collection<int, array<string, mixed>>
@@ -290,17 +346,14 @@ class TaskService
         // Find all blocked task IDs
         $blockedIds = [];
         foreach ($tasks as $task) {
-            $dependencies = $task['dependencies'] ?? [];
-            foreach ($dependencies as $dep) {
-                if (($dep['type'] ?? '') === 'blocks') {
-                    $blockerId = $dep['depends_on'] ?? null;
-                    if ($blockerId !== null) {
-                        $blocker = $taskMap->get($blockerId);
-                        // Task is blocked if the blocker exists and is not closed
-                        if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
-                            $blockedIds[] = $task['id'];
-                            break; // No need to check other dependencies
-                        }
+            $blockedBy = $task['blocked_by'] ?? [];
+            foreach ($blockedBy as $blockerId) {
+                if (is_string($blockerId)) {
+                    $blocker = $taskMap->get($blockerId);
+                    // Task is blocked if the blocker exists and is not closed
+                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
+                        $blockedIds[] = $task['id'];
+                        break; // No need to check other blockers
                     }
                 }
             }
@@ -310,12 +363,15 @@ class TaskService
         return $tasks
             ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
             ->filter(fn (array $t): bool => ! in_array($t['id'], $blockedIds, true))
-            ->sortBy('created_at')
+            ->sortBy([
+                ['priority', 'asc'],
+                ['created_at', 'asc'],
+            ])
             ->values();
     }
 
     /**
-     * Add a dependency to a task.
+     * Add a dependency to a task (adds blocker to blocked_by array).
      *
      * @return array<string, mixed> The updated task
      *
@@ -323,7 +379,7 @@ class TaskService
      */
     public function addDependency(string $taskId, string $dependsOnId, string $type = 'blocks'): array
     {
-        return $this->withExclusiveLock(function () use ($taskId, $dependsOnId, $type): array {
+        return $this->withExclusiveLock(function () use ($taskId, $dependsOnId): array {
             $tasks = $this->readTasks();
 
             // Find the task to add dependency to
@@ -356,24 +412,24 @@ class TaskService
                 );
             }
 
-            // Initialize dependencies array if not present
-            if (! isset($task['dependencies'])) {
-                $task['dependencies'] = [];
+            // Initialize blocked_by array if not present
+            if (! isset($task['blocked_by'])) {
+                $task['blocked_by'] = [];
+            }
+
+            // Ensure blocked_by is an array
+            if (! is_array($task['blocked_by'])) {
+                $task['blocked_by'] = [];
             }
 
             // Check if dependency already exists
-            foreach ($task['dependencies'] as $dep) {
-                if (($dep['depends_on'] ?? '') === $resolvedDependsOnId) {
-                    // Dependency already exists, just return the task
-                    return $task;
-                }
+            if (in_array($resolvedDependsOnId, $task['blocked_by'], true)) {
+                // Dependency already exists, just return the task
+                return $task;
             }
 
-            // Add the dependency
-            $task['dependencies'][] = [
-                'depends_on' => $resolvedDependsOnId,
-                'type' => $type,
-            ];
+            // Add the blocker ID to blocked_by array
+            $task['blocked_by'][] = $resolvedDependsOnId;
             $task['updated_at'] = now()->toIso8601String();
 
             // Update the task in the collection
@@ -385,7 +441,7 @@ class TaskService
     }
 
     /**
-     * Get tasks that block the given task (open dependencies).
+     * Get tasks that block the given task (open blockers).
      *
      * @return Collection<int, array<string, mixed>>
      *
@@ -403,17 +459,14 @@ class TaskService
         }
 
         $blockers = collect();
-        $dependencies = $task['dependencies'] ?? [];
+        $blockedBy = $task['blocked_by'] ?? [];
 
-        foreach ($dependencies as $dep) {
-            if (($dep['type'] ?? '') === 'blocks') {
-                $blockerId = $dep['depends_on'] ?? null;
-                if ($blockerId !== null) {
-                    $blocker = $taskMap->get($blockerId);
-                    // Only include open blockers (not closed)
-                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
-                        $blockers->push($blocker);
-                    }
+        foreach ($blockedBy as $blockerId) {
+            if (is_string($blockerId)) {
+                $blocker = $taskMap->get($blockerId);
+                // Only include open blockers (not closed)
+                if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
+                    $blockers->push($blocker);
                 }
             }
         }
@@ -646,16 +699,13 @@ class TaskService
 
             $visited[] = $current;
 
-            // Add all dependencies of current task to the queue
+            // Add all blockers of current task to the queue
             $currentTask = $taskMap->get($current);
             if ($currentTask !== null) {
-                $dependencies = $currentTask['dependencies'] ?? [];
-                foreach ($dependencies as $dep) {
-                    if (($dep['type'] ?? '') === 'blocks') {
-                        $depId = $dep['depends_on'] ?? null;
-                        if ($depId !== null && ! in_array($depId, $visited, true)) {
-                            $queue[] = $depId;
-                        }
+                $blockedBy = $currentTask['blocked_by'] ?? [];
+                foreach ($blockedBy as $blockerId) {
+                    if (is_string($blockerId) && ! in_array($blockerId, $visited, true)) {
+                        $queue[] = $blockerId;
                     }
                 }
             }
@@ -684,16 +734,20 @@ class TaskService
                 throw new RuntimeException("Task '{$toId}' not found");
             }
 
-            $dependencies = $fromTask['dependencies'] ?? [];
+            $blockedBy = $fromTask['blocked_by'] ?? [];
+            if (! is_array($blockedBy)) {
+                $blockedBy = [];
+            }
 
-            // Find and remove the dependency
+            // Find and remove the blocker ID
+            $resolvedToId = $toTask['id'];
             $found = false;
-            $newDependencies = [];
-            foreach ($dependencies as $dep) {
-                if ($dep['depends_on'] === $toTask['id']) {
+            $newBlockedBy = [];
+            foreach ($blockedBy as $blockerId) {
+                if ($blockerId === $resolvedToId) {
                     $found = true;
                 } else {
-                    $newDependencies[] = $dep;
+                    $newBlockedBy[] = $blockerId;
                 }
             }
 
@@ -701,7 +755,7 @@ class TaskService
                 throw new RuntimeException('No dependency exists between these tasks');
             }
 
-            $fromTask['dependencies'] = $newDependencies;
+            $fromTask['blocked_by'] = $newBlockedBy;
             $fromTask['updated_at'] = now()->toIso8601String();
 
             $tasks = $tasks->map(fn (array $t): array => $t['id'] === $fromTask['id'] ? $fromTask : $t);

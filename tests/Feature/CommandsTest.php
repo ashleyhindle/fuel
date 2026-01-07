@@ -31,6 +31,11 @@ afterEach(function () {
     if (is_dir($fuelDir)) {
         rmdir($fuelDir);
     }
+    // Clean up AGENTS.md created by init command tests
+    $agentsMdPath = $this->tempDir.'/AGENTS.md';
+    if (file_exists($agentsMdPath)) {
+        unlink($agentsMdPath);
+    }
     if (is_dir($this->tempDir)) {
         rmdir($this->tempDir);
     }
@@ -401,6 +406,184 @@ describe('ready command', function () {
     });
 });
 
+// Available Command Tests
+describe('available command', function () {
+    it('outputs count of ready tasks', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Task 1']);
+        $this->taskService->create(['title' => 'Task 2']);
+
+        Artisan::call('available', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect(trim($output))->toBe('2');
+    });
+
+    it('exits with code 0 when tasks are available', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Task 1']);
+
+        $this->artisan('available', ['--cwd' => $this->tempDir])
+            ->assertExitCode(0);
+    });
+
+    it('exits with code 1 when no tasks are available', function () {
+        $this->taskService->initialize();
+
+        $this->artisan('available', ['--cwd' => $this->tempDir])
+            ->expectsOutput('0')
+            ->assertExitCode(1);
+    });
+
+    it('outputs 0 when no tasks are available', function () {
+        $this->taskService->initialize();
+
+        Artisan::call('available', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect(trim($output))->toBe('0');
+    });
+
+    it('excludes in_progress tasks from count', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Task 1']);
+        $task2 = $this->taskService->create(['title' => 'Task 2']);
+        $this->taskService->start($task1['id']);
+
+        Artisan::call('available', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        // Should only count task2 (task1 is in_progress)
+        expect(trim($output))->toBe('1');
+    });
+
+    it('excludes blocked tasks from count', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker']);
+        $blocked = $this->taskService->create(['title' => 'Blocked']);
+        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+        Artisan::call('available', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        // Should only count blocker (blocked is blocked)
+        expect(trim($output))->toBe('1');
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Task 1']);
+
+        Artisan::call('available', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result['count'])->toBe(1);
+        expect($result['available'])->toBeTrue();
+    });
+
+    it('outputs JSON with available false when no tasks', function () {
+        $this->taskService->initialize();
+
+        Artisan::call('available', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result['count'])->toBe(0);
+        expect($result['available'])->toBeFalse();
+    });
+
+    it('supports --cwd flag', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Task 1']);
+
+        Artisan::call('available', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect(trim($output))->toBe('1');
+    });
+});
+
+// Start Command Tests
+describe('start command', function () {
+    it('sets status to in_progress', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task to start']);
+
+        $this->artisan('start', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Started task:')
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('in_progress');
+    });
+
+    it('excludes task from ready() output', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Task 1']);
+        $task2 = $this->taskService->create(['title' => 'Task 2']);
+
+        // Start task1
+        $this->artisan('start', ['id' => $task1['id'], '--cwd' => $this->tempDir])
+            ->assertExitCode(0);
+
+        // Task1 should not appear in ready output
+        $this->artisan('ready', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Task 2')
+            ->doesntExpectOutputToContain('Task 1')
+            ->assertExitCode(0);
+    });
+
+    it('supports partial ID matching', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Partial ID task']);
+        $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
+
+        $this->artisan('start', ['id' => $partialId, '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Started task:')
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('in_progress');
+    });
+
+    it('returns JSON when --json flag used', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'JSON start task']);
+
+        Artisan::call('start', ['id' => $task['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result['id'])->toBe($task['id']);
+        expect($result['status'])->toBe('in_progress');
+        expect($result['title'])->toBe('JSON start task');
+    });
+
+    it('handles invalid IDs gracefully', function () {
+        $this->taskService->initialize();
+
+        $this->artisan('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('not found')
+            ->assertExitCode(1);
+    });
+
+    it('outputs JSON error for invalid ID with --json flag', function () {
+        $this->taskService->initialize();
+
+        Artisan::call('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result)->toHaveKey('error');
+        expect($result['error'])->toContain('not found');
+    });
+});
+
 // Done Command Tests
 describe('done command', function () {
     it('marks a task as done', function () {
@@ -606,6 +789,107 @@ describe('done command', function () {
 
         expect($this->taskService->find($task1['id'])['status'])->toBe('closed');
         expect($this->taskService->find($task2['id'])['status'])->toBe('closed');
+    });
+});
+
+// =============================================================================
+// reopen Command Tests
+// =============================================================================
+
+describe('reopen command', function () {
+    it('reopens a closed task', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'To reopen']);
+        $this->taskService->done($task['id']);
+
+        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Reopened task:')
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('open');
+    });
+
+    it('supports partial ID matching', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Partial ID task']);
+        $this->taskService->done($task['id']);
+        $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
+
+        $this->artisan('reopen', ['id' => $partialId, '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Reopened task:')
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('open');
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'JSON reopen task']);
+        $this->taskService->done($task['id']);
+
+        Artisan::call('reopen', [
+            'id' => $task['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result['id'])->toBe($task['id']);
+        expect($result['status'])->toBe('open');
+        expect($result['title'])->toBe('JSON reopen task');
+    });
+
+    it('removes reason when reopening a task', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task with reason']);
+        $this->taskService->done($task['id'], 'Fixed the bug');
+
+        $closedTask = $this->taskService->find($task['id']);
+        expect($closedTask['reason'])->toBe('Fixed the bug');
+
+        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->assertExitCode(0);
+
+        $reopenedTask = $this->taskService->find($task['id']);
+        expect($reopenedTask['status'])->toBe('open');
+        expect($reopenedTask)->not->toHaveKey('reason');
+    });
+
+    it('fails when task is not found', function () {
+        $this->taskService->initialize();
+
+        $this->artisan('reopen', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('not found')
+            ->assertExitCode(1);
+    });
+
+    it('fails when task is not closed', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Open task']);
+
+        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('is not closed')
+            ->assertExitCode(1);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('open');
+    });
+
+    it('fails when task is in_progress', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'In progress task']);
+        $this->taskService->start($task['id']);
+
+        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('is not closed')
+            ->assertExitCode(1);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('in_progress');
     });
 });
 
@@ -850,12 +1134,12 @@ describe('board command', function () {
     it('shows empty board when no tasks', function () {
         $this->taskService->initialize();
 
-        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Ready');
+        expect($output)->toContain('In Progress');
         expect($output)->toContain('Blocked');
-        expect($output)->toContain('Done');
         expect($output)->toContain('No tasks');
     });
 
@@ -863,7 +1147,7 @@ describe('board command', function () {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Ready task']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Ready task');
@@ -875,22 +1159,41 @@ describe('board command', function () {
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Blocker task');
-        expect($output)->toContain('Blocked task');
+        // Titles may be truncated, so check for short IDs
+        $blockerShortId = substr($blocker['id'], 5, 4);
+        $blockedShortId = substr($blocked['id'], 5, 4);
+        expect($output)->toContain("[{$blockerShortId}]");
+        expect($output)->toContain("[{$blockedShortId}]");
     });
 
-    it('shows done tasks in Done column', function () {
+    it('shows in progress tasks in In Progress column', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'In progress task']);
+        $this->taskService->start($task['id']);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        $output = Artisan::output();
+
+        // Title may be truncated, so check for short ID
+        $shortId = substr($task['id'], 5, 4);
+        expect($output)->toContain("[{$shortId}]");
+    });
+
+    it('shows done tasks in Recently done line', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task['id']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Completed task');
+        // Done tasks appear in "Recently done:" line below the board
+        $shortId = substr($task['id'], 5, 4);
+        expect($output)->toContain('Recently done');
+        expect($output)->toContain("[{$shortId}]");
     });
 
     it('outputs JSON when --json flag is used', function () {
@@ -901,16 +1204,17 @@ describe('board command', function () {
         $output = Artisan::output();
 
         expect($output)->toContain('"ready":');
+        expect($output)->toContain('"in_progress":');
         expect($output)->toContain('"blocked":');
         expect($output)->toContain('"done":');
         expect($output)->toContain('Test task');
     });
 
-    it('limits done tasks to 5 most recent', function () {
+    it('limits done tasks to 10 most recent', function () {
         $this->taskService->initialize();
 
-        // Create and close 7 tasks
-        for ($i = 1; $i <= 7; $i++) {
+        // Create and close 12 tasks
+        for ($i = 1; $i <= 12; $i++) {
             $task = $this->taskService->create(['title' => "Done task {$i}"]);
             $this->taskService->done($task['id']);
         }
@@ -919,7 +1223,7 @@ describe('board command', function () {
         $output = Artisan::output();
         $data = json_decode($output, true);
 
-        expect($data['done'])->toHaveCount(5);
+        expect($data['done'])->toHaveCount(10);
     });
 });
 
@@ -1463,5 +1767,84 @@ describe('update command', function () {
         expect($updated)->toHaveKey('id');
         expect($updated)->toHaveKey('title');
         expect($updated['title'])->toBe('Updated');
+    });
+});
+
+// =============================================================================
+// q Command Tests (Quick Capture)
+// =============================================================================
+
+describe('q command', function () {
+    it('creates task and outputs only the ID', function () {
+        $this->taskService->initialize();
+
+        Artisan::call('q', ['title' => 'Quick task', '--cwd' => $this->tempDir]);
+        $output = trim(Artisan::output());
+
+        expect($output)->toStartWith('fuel-');
+        expect(strlen($output))->toBe(9); // fuel- + 4 chars
+
+        // Verify task was actually created
+        $task = $this->taskService->find($output);
+        expect($task)->not->toBeNull();
+        expect($task['title'])->toBe('Quick task');
+    });
+
+    it('returns exit code 0 on success', function () {
+        $this->taskService->initialize();
+
+        $this->artisan('q', ['title' => 'Quick task', '--cwd' => $this->tempDir])
+            ->assertExitCode(0);
+    });
+});
+
+// =============================================================================
+// init Command Tests
+// =============================================================================
+
+describe('init command', function () {
+    it('creates .fuel directory', function () {
+        $fuelDir = $this->tempDir.'/.fuel';
+
+        // Ensure it doesn't exist first
+        if (is_dir($fuelDir)) {
+            rmdir($fuelDir);
+        }
+
+        Artisan::call('init', ['--cwd' => $this->tempDir]);
+
+        expect(is_dir($fuelDir))->toBeTrue();
+    });
+
+    it('creates tasks.jsonl file', function () {
+        Artisan::call('init', ['--cwd' => $this->tempDir]);
+
+        expect(file_exists($this->storagePath))->toBeTrue();
+    });
+
+    it('creates a starter task', function () {
+        Artisan::call('init', ['--cwd' => $this->tempDir]);
+
+        // Verify task file was created with content
+        expect(file_exists($this->storagePath))->toBeTrue();
+        $content = file_get_contents($this->storagePath);
+        expect($content)->toContain('README');
+        expect($content)->toContain('fuel-');
+    });
+
+    it('creates AGENTS.md with fuel guidelines', function () {
+        $agentsMdPath = $this->tempDir.'/AGENTS.md';
+
+        // Remove if exists
+        if (file_exists($agentsMdPath)) {
+            unlink($agentsMdPath);
+        }
+
+        Artisan::call('init', ['--cwd' => $this->tempDir]);
+
+        expect(file_exists($agentsMdPath))->toBeTrue();
+        $content = file_get_contents($agentsMdPath);
+        expect($content)->toContain('<fuel>');
+        expect($content)->toContain('</fuel>');
     });
 });
