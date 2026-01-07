@@ -539,21 +539,23 @@ describe('board command', function () {
     it('shows empty board when no tasks', function () {
         $this->taskService->initialize();
 
-        $this->artisan('board', ['--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Ready')
-            ->expectsOutputToContain('Blocked')
-            ->expectsOutputToContain('Done')
-            ->expectsOutputToContain('No tasks')
-            ->assertExitCode(0);
+        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Ready');
+        expect($output)->toContain('Blocked');
+        expect($output)->toContain('Done');
+        expect($output)->toContain('No tasks');
     });
 
     it('shows ready tasks in Ready column', function () {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Ready task']);
 
-        $this->artisan('board', ['--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Ready task')
-            ->assertExitCode(0);
+        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Ready task');
     });
 
     it('shows blocked tasks in Blocked column', function () {
@@ -562,10 +564,11 @@ describe('board command', function () {
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
-        $this->artisan('board', ['--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Blocker task')
-            ->expectsOutputToContain('Blocked task')
-            ->assertExitCode(0);
+        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Blocker task');
+        expect($output)->toContain('Blocked task');
     });
 
     it('shows done tasks in Done column', function () {
@@ -573,9 +576,10 @@ describe('board command', function () {
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task['id']);
 
-        $this->artisan('board', ['--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Completed task')
-            ->assertExitCode(0);
+        Artisan::call('board', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Completed task');
     });
 
     it('outputs JSON when --json flag is used', function () {

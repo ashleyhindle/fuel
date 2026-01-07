@@ -186,7 +186,7 @@ $this->artisan('command', ['--json' => true])
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until hand off succeeds.
 
 **MANDATORY WORKFLOW:**
 
@@ -194,7 +194,7 @@ $this->artisan('command', ['--json' => true])
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
 4. **Clean up** - Clear stashes, prune remote branches
-5. **Verify** - All changes committed AND pushed
+5. **Verify** - All changes added and committed 
 6. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
