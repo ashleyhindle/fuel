@@ -22,14 +22,16 @@ That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions 
 
 If you need to udpate CLAUDE.md run `fuel guidelines` and copy/paste.
 
-## Fun start
-This only works if you have `cursor-agent` setup on your CLI.
+## Orchestration
 
-Run fuel consume, then use claude opus-4.5 to make plans and add fuel, then watch `fuel consume` work through it all.
+Fuel can automatically spawn AI agents to work through your task queue. Configure which agents handle different complexity levels, then let Fuel orchestrate.
 
-```shell
+```bash
+# Watch agents consume tasks automatically
 fuel consume
 ```
+
+This displays a live Kanban board and spawns agents for each ready task based on the complexity routing in `.fuel/config.yaml`.
 
 ## Why Fuel?
 
