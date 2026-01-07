@@ -234,6 +234,14 @@ class TaskService
                 $task['labels'] = $labels;
             }
 
+            // Preserve arbitrary fields not explicitly handled above (e.g., consumed, consumed_at, consumed_exit_code, consumed_output)
+            $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'add_labels', 'remove_labels'];
+            foreach ($data as $key => $value) {
+                if (! in_array($key, $handledFields, true)) {
+                    $task[$key] = $value;
+                }
+            }
+
             $task['updated_at'] = now()->toIso8601String();
 
             $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
@@ -361,9 +369,17 @@ class TaskService
         }
 
         // Return open tasks that are not blocked (exclude in_progress tasks)
+        // Also exclude tasks with 'needs-human' label
         return $tasks
             ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
             ->filter(fn (array $t): bool => ! in_array($t['id'], $blockedIds, true))
+            ->filter(function (array $t): bool {
+                $labels = $t['labels'] ?? [];
+                if (! is_array($labels)) {
+                    return true; // If labels is not an array, include the task
+                }
+                return ! in_array('needs-human', $labels, true);
+            })
             ->sortBy([
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
@@ -422,7 +438,7 @@ class TaskService
      *
      * @throws RuntimeException If task or dependency target doesn't exist, or if adding would create a cycle
      */
-    public function addDependency(string $taskId, string $dependsOnId, string $type = 'blocks'): array
+    public function addDependency(string $taskId, string $dependsOnId): array
     {
         return $this->withExclusiveLock(function () use ($taskId, $dependsOnId): array {
             $tasks = $this->readTasks();

@@ -8,6 +8,7 @@ Fuel is a standalone CLI task management and execution system for AI agents, bui
 
 The design spec is in `FUEL-PLAN.md`. Reference implementation exists in `agent-resources/old-implementation-within-boost/`. Laravel Zero docs are in `agent-resources/laravel-zero-docs/`.
 
+<fuel>
 ## Fuel Task Management
 
 This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/tasks.jsonl`.
@@ -39,10 +40,10 @@ Before ending ANY session, complete this checklist:
 
 ### Workflow
 
-1. `./fuel ready` - Find available work (prefer P0 > P1 > P2)
+1. `./fuel ready` - Find available work if not provided a particular task (prefer P0 > P1 > P2)
 2. `./fuel start <id>` - Claim task before starting
 3. Do the work - implement, test, verify
-4. Discover new work? `./fuel add "..." --blocked-by=<id>`
+4. Discover new work as you build? Add it `./fuel add "..." --blocked-by=<id>`
 5. `./fuel done <id>` - Complete the task
 
 ### Task Options
@@ -65,6 +66,50 @@ Before ending ANY session, complete this checklist:
 
 Blocked tasks won't appear in `./fuel ready` until blockers are closed.
 
+### Needs-Human Workflow
+
+When an agent needs human input (credentials, decisions, access), follow this workflow:
+
+1. **Create a needs-human task** describing exactly what's needed:
+   ```bash
+   ./fuel add 'Provide Cloudflare API token' \
+     --labels=needs-human \
+     --description='Run npx wrangler login or set CLOUDFLARE_API_TOKEN'
+   ```
+
+2. **Block the current task** on the needs-human task:
+   ```bash
+   ./fuel dep:add <current-task-id> <needs-human-task-id>
+   ```
+
+3. **Mark current task as open** (if it was in_progress):
+   ```bash
+   # The task will automatically become open when blocked
+   ```
+
+4. **Human completes the needs-human task** by providing the required input and marking it done:
+   ```bash
+   ./fuel done <needs-human-task-id>
+   ```
+
+5. **Agent work can resume** - the blocked task will appear in `./fuel ready` once the needs-human task is completed.
+
+**Example:**
+```bash
+# Agent needs API credentials
+./fuel add 'Provide Cloudflare API token' \
+  --labels=needs-human \
+  --description='Run npx wrangler login or set CLOUDFLARE_API_TOKEN'
+
+# Block current work on it
+./fuel dep:add fuel-xxxx fuel-yyyy
+
+# Human provides token, marks task done
+./fuel done fuel-yyyy
+
+# Agent can now continue with fuel-xxxx
+```
+
 ### Parallel Execution
 
 Primary agent coordinates - subagents do NOT pick tasks:
@@ -75,9 +120,10 @@ Primary agent coordinates - subagents do NOT pick tasks:
 4. Subagents complete work and run `./fuel done <id>`
 5. Primary checks `./fuel ready` for newly unblocked work
 
-**Subagent instructions must include:** task ID, path to fuel binary, instruction to run `./fuel done <id>`.
+**Subagent instructions must include:** task ID, task information, instruction to run `./fuel done <id>` after landing the plane.
 
 Avoid parallel work on tasks touching same files - use dependencies instead.
+</fuel>
 
 ## Development Commands
 
@@ -188,7 +234,7 @@ done(string $id, ?string $reason): array // Returns updated task
 ready(): Collection                      // Open tasks with no open blockers (excludes in_progress)
 
 // Dependencies
-addDependency(string $taskId, string $dependsOnId, string $type = 'blocks'): array  // $type parameter kept for backward compatibility but ignored (always 'blocks')
+addDependency(string $taskId, string $dependsOnId): array
 removeDependency(string $taskId, string $dependsOnId): array
 getBlockers(string $taskId): Collection
 ```

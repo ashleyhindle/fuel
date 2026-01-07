@@ -55,6 +55,50 @@ Before ending ANY session, complete this checklist:
 
 Blocked tasks won't appear in `./fuel ready` until blockers are closed.
 
+### Needs-Human Workflow
+
+When an agent needs human input (credentials, decisions, access), follow this workflow:
+
+1. **Create a needs-human task** describing exactly what's needed:
+   ```bash
+   ./fuel add 'Provide Cloudflare API token' \
+     --labels=needs-human \
+     --description='Run npx wrangler login or set CLOUDFLARE_API_TOKEN'
+   ```
+
+2. **Block the current task** on the needs-human task:
+   ```bash
+   ./fuel dep:add <current-task-id> <needs-human-task-id>
+   ```
+
+3. **Mark current task as open** (if it was in_progress):
+   ```bash
+   # The task will automatically become open when blocked
+   ```
+
+4. **Human completes the needs-human task** by providing the required input and marking it done:
+   ```bash
+   ./fuel done <needs-human-task-id>
+   ```
+
+5. **Agent work can resume** - the blocked task will appear in `./fuel ready` once the needs-human task is completed.
+
+**Example:**
+```bash
+# Agent needs API credentials
+./fuel add 'Provide Cloudflare API token' \
+  --labels=needs-human \
+  --description='Run npx wrangler login or set CLOUDFLARE_API_TOKEN'
+
+# Block current work on it
+./fuel dep:add fuel-xxxx fuel-yyyy
+
+# Human provides token, marks task done
+./fuel done fuel-yyyy
+
+# Agent can now continue with fuel-xxxx
+```
+
 ### Parallel Execution
 
 Primary agent coordinates - subagents do NOT pick tasks:

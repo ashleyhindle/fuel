@@ -321,11 +321,19 @@ class BoardCommand extends Command
 
                 // Show icon for tasks being consumed by fuel consume
                 $consumeIcon = ! empty($task['consumed']) ? '⚡' : '';
-                $iconWidth = $consumeIcon !== '' ? 2 : 0; // emoji + space
+                
+                // Show icon for tasks with needs-human label
+                $labels = $task['labels'] ?? [];
+                $needsHumanIcon = is_array($labels) && in_array('needs-human', $labels, true) ? '👤' : '';
+                
+                // Build icon string (both icons if present)
+                $icons = array_filter([$consumeIcon, $needsHumanIcon]);
+                $iconString = implode(' ', $icons);
+                $iconWidth = $iconString !== '' ? mb_strlen($iconString) + 1 : 0; // emoji(s) + space
                 $truncatedTitle = $this->truncate($taskTitle, $width - 7 - $iconWidth);
 
-                if ($consumeIcon !== '') {
-                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$consumeIcon}{$truncatedTitle}", $width);
+                if ($iconString !== '') {
+                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$iconString} {$truncatedTitle}", $width);
                 } else {
                     $lines[] = $this->padLine("<fg=cyan>[{$shortId}]</> {$truncatedTitle}", $width);
                 }
