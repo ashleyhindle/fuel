@@ -20,6 +20,7 @@ afterEach(function () {
     // Clean up temp files
     $fuelDir = dirname($this->storagePath);
     $archivePath = $fuelDir.'/archive.jsonl';
+    $configPath = $fuelDir.'/config.yaml';
     if (file_exists($this->storagePath)) {
         unlink($this->storagePath);
     }
@@ -34,6 +35,9 @@ afterEach(function () {
     }
     if (file_exists($archivePath.'.tmp')) {
         unlink($archivePath.'.tmp');
+    }
+    if (file_exists($configPath)) {
+        unlink($configPath);
     }
     if (is_dir($fuelDir)) {
         rmdir($fuelDir);

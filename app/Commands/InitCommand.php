@@ -41,7 +41,7 @@ class InitCommand extends Command
         $configPath = $fuelDir.'/config.yaml';
         $configService->setConfigPath($configPath);
 
-        // Determine agent and model (from flags, prompts, or defaults)
+        // Determine agent and model (from flags or defaults)
         $agent = $this->getAgent();
         $model = $this->getModel($agent);
 
@@ -74,7 +74,7 @@ class InitCommand extends Command
     }
 
     /**
-     * Get agent from flag or interactive prompt.
+     * Get agent from flag or use defaults.
      */
     private function getAgent(): ?string
     {
@@ -90,23 +90,12 @@ class InitCommand extends Command
             return $agentFlag;
         }
 
-        // Check if we have a TTY for interactive prompts
-        if (! $this->input->isInteractive() || ! stream_isatty(STDIN)) {
-            return null;
-        }
-
-        // Interactive prompt for agent choice
-        $agent = $this->choice(
-            'Which agent would you like to use?',
-            self::VALID_AGENTS,
-            0 // Default to cursor-agent
-        );
-
-        return $agent;
+        // No flag provided - use defaults from ConfigService
+        return null;
     }
 
     /**
-     * Get model from flag or interactive prompt.
+     * Get model from flag or use defaults.
      */
     private function getModel(?string $agent): ?string
     {
@@ -116,24 +105,8 @@ class InitCommand extends Command
             return $modelFlag;
         }
 
-        // Only prompt for model if agent supports models (claude or cursor-agent)
-        if ($agent !== 'claude' && $agent !== 'cursor-agent') {
-            return null;
-        }
-
-        // Check if we have a TTY for interactive prompts
-        if (! $this->input->isInteractive() || ! stream_isatty(STDIN)) {
-            return null;
-        }
-
-        // Interactive prompt for model
-        if ($agent === 'cursor-agent') {
-            $model = $this->ask('Which model would you like to use? (e.g., composer-1, sonnet-4)', 'composer-1');
-        } else {
-            $model = $this->ask('Which model would you like to use? (e.g., sonnet-4.5, opus-4.5)', 'sonnet-4.5');
-        }
-
-        return $model ?: null;
+        // No flag provided - use defaults from ConfigService
+        return null;
     }
 
     /**
