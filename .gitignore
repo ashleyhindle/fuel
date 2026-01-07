@@ -7,3 +7,4 @@
 .fuel/*.lock
 agent-resources/laravel-zero-docs
 /builds
+.fuel/runs/
