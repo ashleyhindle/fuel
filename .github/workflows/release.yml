@@ -90,8 +90,6 @@ jobs:
           echo "" >> changelog.md
           echo "$COMMITS" >> changelog.md
           echo "" >> changelog.md
-          echo "---" >> changelog.md
-          echo "_Built with PHP 8.4 via PHPacker_" >> changelog.md
 
       - name: Upload binaries to release
         uses: softprops/action-gh-release@v2
