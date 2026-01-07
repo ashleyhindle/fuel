@@ -236,9 +236,8 @@ describe('add command', function () {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['dependencies'])->toHaveCount(1);
-        expect($task['dependencies'][0]['depends_on'])->toBe($blocker['id']);
-        expect($task['dependencies'][0]['type'])->toBe('blocks');
+        expect($task['blocked_by'])->toHaveCount(1);
+        expect($task['blocked_by'])->toContain($blocker['id']);
     });
 
     it('creates task with --blocked-by flag (multiple blockers)', function () {
@@ -255,10 +254,9 @@ describe('add command', function () {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['dependencies'])->toHaveCount(2);
-        $depIds = collect($task['dependencies'])->pluck('depends_on')->toArray();
-        expect($depIds)->toContain($blocker1['id']);
-        expect($depIds)->toContain($blocker2['id']);
+        expect($task['blocked_by'])->toHaveCount(2);
+        expect($task['blocked_by'])->toContain($blocker1['id']);
+        expect($task['blocked_by'])->toContain($blocker2['id']);
     });
 
     it('creates task with --blocked-by flag (with spaces)', function () {
@@ -275,10 +273,9 @@ describe('add command', function () {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['dependencies'])->toHaveCount(2);
-        $depIds = collect($task['dependencies'])->pluck('depends_on')->toArray();
-        expect($depIds)->toContain($blocker1['id']);
-        expect($depIds)->toContain($blocker2['id']);
+        expect($task['blocked_by'])->toHaveCount(2);
+        expect($task['blocked_by'])->toContain($blocker1['id']);
+        expect($task['blocked_by'])->toContain($blocker2['id']);
     });
 
     it('displays blocked-by info in non-JSON output', function () {
@@ -319,8 +316,8 @@ describe('add command', function () {
         expect($task['type'])->toBe('feature');
         expect($task['priority'])->toBe(2);
         expect($task['labels'])->toBe(['backend']);
-        expect($task['dependencies'])->toHaveCount(1);
-        expect($task['dependencies'][0]['depends_on'])->toBe($blocker['id']);
+        expect($task['blocked_by'])->toHaveCount(1);
+        expect($task['blocked_by'])->toContain($blocker['id']);
     });
 
     it('supports partial IDs in --blocked-by flag', function () {
@@ -337,10 +334,10 @@ describe('add command', function () {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['dependencies'])->toHaveCount(1);
+        expect($task['blocked_by'])->toHaveCount(1);
         // Note: TaskService.create() stores the ID as provided, so partial ID will be stored
         // The dependency resolution happens when checking blockers, not at creation time
-        expect($task['dependencies'][0]['depends_on'])->toBe($partialId);
+        expect($task['blocked_by'])->toContain($partialId);
     });
 });
 
@@ -802,7 +799,7 @@ describe('reopen command', function () {
         $task = $this->taskService->create(['title' => 'To reopen']);
         $this->taskService->done($task['id']);
 
-        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Reopened task:')
             ->assertExitCode(0);
 
@@ -816,7 +813,7 @@ describe('reopen command', function () {
         $this->taskService->done($task['id']);
         $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
 
-        $this->artisan('reopen', ['id' => $partialId, '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Reopened task:')
             ->assertExitCode(0);
 
@@ -830,7 +827,7 @@ describe('reopen command', function () {
         $this->taskService->done($task['id']);
 
         Artisan::call('reopen', [
-            'id' => $task['id'],
+            'ids' => [$task['id']],
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -851,7 +848,7 @@ describe('reopen command', function () {
         $closedTask = $this->taskService->find($task['id']);
         expect($closedTask['reason'])->toBe('Fixed the bug');
 
-        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
             ->assertExitCode(0);
 
         $reopenedTask = $this->taskService->find($task['id']);
@@ -862,34 +859,118 @@ describe('reopen command', function () {
     it('fails when task is not found', function () {
         $this->taskService->initialize();
 
-        $this->artisan('reopen', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
     });
 
-    it('fails when task is not closed', function () {
+    it('fails when task is open', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Open task']);
 
-        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('is not closed')
+        $this->artisan('reopen', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('is not closed or in_progress')
             ->assertExitCode(1);
 
         $updated = $this->taskService->find($task['id']);
         expect($updated['status'])->toBe('open');
     });
 
-    it('fails when task is in_progress', function () {
+    it('reopens an in_progress task', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task['id']);
 
-        $this->artisan('reopen', ['id' => $task['id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('is not closed')
-            ->assertExitCode(1);
+        $this->artisan('reopen', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Reopened task:')
+            ->assertExitCode(0);
 
         $updated = $this->taskService->find($task['id']);
-        expect($updated['status'])->toBe('in_progress');
+        expect($updated['status'])->toBe('open');
+    });
+
+    it('reopens multiple tasks', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Task 1']);
+        $task2 = $this->taskService->create(['title' => 'Task 2']);
+        $task3 = $this->taskService->create(['title' => 'Task 3']);
+        $this->taskService->done($task1['id']);
+        $this->taskService->done($task2['id']);
+        $this->taskService->done($task3['id']);
+
+        $this->artisan('reopen', [
+            'ids' => [$task1['id'], $task2['id'], $task3['id']],
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Reopened task:')
+            ->assertExitCode(0);
+
+        expect($this->taskService->find($task1['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task2['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task3['id'])['status'])->toBe('open');
+    });
+
+    it('outputs multiple tasks as JSON array when multiple IDs provided', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Task 1']);
+        $task2 = $this->taskService->create(['title' => 'Task 2']);
+        $this->taskService->done($task1['id']);
+        $this->taskService->done($task2['id']);
+
+        Artisan::call('reopen', [
+            'ids' => [$task1['id'], $task2['id']],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result)->toHaveCount(2);
+        expect($result[0]['status'])->toBe('open');
+        expect($result[1]['status'])->toBe('open');
+        expect(collect($result)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
+    });
+
+    it('handles partial failures when reopening multiple tasks', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Task 1']);
+        $task2 = $this->taskService->create(['title' => 'Task 2']);
+        $this->taskService->done($task1['id']);
+        $this->taskService->done($task2['id']);
+
+        $this->artisan('reopen', [
+            'ids' => [$task1['id'], 'nonexistent', $task2['id']],
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Reopened task:')
+            ->expectsOutputToContain('not found')
+            ->assertExitCode(1);
+
+        // Task1 should be reopened
+        expect($this->taskService->find($task1['id'])['status'])->toBe('open');
+        // Task2 should be reopened
+        expect($this->taskService->find($task2['id'])['status'])->toBe('open');
+    });
+
+    it('supports partial IDs when reopening multiple tasks', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Task 1']);
+        $task2 = $this->taskService->create(['title' => 'Task 2']);
+        $this->taskService->done($task1['id']);
+        $this->taskService->done($task2['id']);
+        $partialId1 = substr($task1['id'], 5, 3);
+        $partialId2 = substr($task2['id'], 5, 3);
+
+        $this->artisan('reopen', [
+            'ids' => [$partialId1, $partialId2],
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Reopened task:')
+            ->assertExitCode(0);
+
+        expect($this->taskService->find($task1['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task2['id'])['status'])->toBe('open');
     });
 });
 
@@ -911,10 +992,10 @@ describe('dep:add command', function () {
             ->expectsOutputToContain('Added dependency')
             ->assertExitCode(0);
 
-        // Verify dependency was created
+        // Verify blocker was added to blocked_by array
         $updated = $this->taskService->find($blocked['id']);
-        expect($updated['dependencies'])->toHaveCount(1);
-        expect($updated['dependencies'][0]['depends_on'])->toBe($blocker['id']);
+        expect($updated['blocked_by'])->toHaveCount(1);
+        expect($updated['blocked_by'])->toContain($blocker['id']);
     });
 
     it('dep:add outputs JSON when --json flag is used', function () {
@@ -931,7 +1012,7 @@ describe('dep:add command', function () {
 
         $output = Artisan::output();
         expect($output)->toContain($blocked['id']);
-        expect($output)->toContain('depends_on');
+        expect($output)->toContain('blocked_by');
     });
 
     it('dep:add shows error for non-existent task', function () {
@@ -982,9 +1063,9 @@ describe('dep:add command', function () {
             ->expectsOutputToContain('Added dependency')
             ->assertExitCode(0);
 
-        // Verify dependency was created using full ID
+        // Verify blocker was added to blocked_by array using full ID
         $updated = $this->taskService->find($blocked['id']);
-        expect($updated['dependencies'])->toHaveCount(1);
+        expect($updated['blocked_by'])->toHaveCount(1);
     });
 });
 
@@ -1010,9 +1091,9 @@ describe('dep:remove command', function () {
             ->expectsOutputToContain('Removed dependency')
             ->assertExitCode(0);
 
-        // Verify dependency was removed
+        // Verify blocker was removed from blocked_by array
         $updated = $this->taskService->find($blocked['id']);
-        expect($updated['dependencies'] ?? [])->toBeEmpty();
+        expect($updated['blocked_by'] ?? [])->toBeEmpty();
     });
 
     it('dep:remove outputs JSON when --json flag is used', function () {
@@ -1032,7 +1113,7 @@ describe('dep:remove command', function () {
 
         $output = Artisan::output();
         expect($output)->toContain($blocked['id']);
-        expect($output)->toContain('dependencies');
+        expect($output)->toContain('blocked_by');
     });
 
     it('dep:remove shows error for non-existent task', function () {
@@ -1083,9 +1164,9 @@ describe('dep:remove command', function () {
             ->expectsOutputToContain('Removed dependency')
             ->assertExitCode(0);
 
-        // Verify dependency was removed using full ID
+        // Verify blocker was removed from blocked_by array using full ID
         $updated = $this->taskService->find($blocked['id']);
-        expect($updated['dependencies'] ?? [])->toBeEmpty();
+        expect($updated['blocked_by'] ?? [])->toBeEmpty();
     });
 });
 
@@ -1099,7 +1180,7 @@ describe('ready command with dependencies', function () {
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
-        // Add dependency: blocked depends on blocker
+        // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
         $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
         $this->artisan('ready', ['--cwd' => $this->tempDir])
@@ -1113,7 +1194,7 @@ describe('ready command with dependencies', function () {
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
-        // Add dependency: blocked depends on blocker
+        // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
         $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
         // Close the blocker
@@ -1122,6 +1203,84 @@ describe('ready command with dependencies', function () {
         $this->artisan('ready', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Blocked task')
             ->doesntExpectOutputToContain('Blocker task')
+            ->assertExitCode(0);
+    });
+});
+
+// =============================================================================
+// blocked Command Tests
+// =============================================================================
+
+describe('blocked command', function () {
+    it('shows empty when no blocked tasks', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Unblocked task']);
+
+        $this->artisan('blocked', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('No blocked tasks.')
+            ->assertExitCode(0);
+    });
+
+    it('blocked includes tasks with open blockers', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blocked = $this->taskService->create(['title' => 'Blocked task']);
+
+        // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
+        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+        $this->artisan('blocked', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Blocked task')
+            ->doesntExpectOutputToContain('Blocker task')
+            ->assertExitCode(0);
+    });
+
+    it('blocked excludes tasks when blocker is closed', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blocked = $this->taskService->create(['title' => 'Blocked task']);
+
+        // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
+        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+        // Close the blocker
+        $this->taskService->done($blocker['id']);
+
+        $this->artisan('blocked', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('No blocked tasks.')
+            ->doesntExpectOutputToContain('Blocked task')
+            ->assertExitCode(0);
+    });
+
+    it('blocked outputs JSON when --json flag is provided', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blocked = $this->taskService->create(['title' => 'Blocked task']);
+
+        // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
+        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+        Artisan::call('blocked', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        expect($output)->toContain($blocked['id']);
+        expect($output)->toContain('Blocked task');
+        expect($output)->not->toContain('Blocker task');
+    });
+
+    it('blocked filters by size when --size option is provided', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blockedSmall = $this->taskService->create(['title' => 'Small blocked task', 'size' => 's']);
+        $blockedLarge = $this->taskService->create(['title' => 'Large blocked task', 'size' => 'l']);
+
+        // Add dependencies
+        $this->taskService->addDependency($blockedSmall['id'], $blocker['id']);
+        $this->taskService->addDependency($blockedLarge['id'], $blocker['id']);
+
+        $this->artisan('blocked', ['--cwd' => $this->tempDir, '--size' => 's'])
+            ->expectsOutputToContain('Small blocked task')
+            ->doesntExpectOutputToContain('Large blocked task')
             ->assertExitCode(0);
     });
 });
@@ -1253,14 +1412,14 @@ describe('show command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows task with dependencies', function () {
+    it('shows task with blockers in blocked_by array', function () {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker']);
         $task = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($task['id'], $blocker['id']);
 
         $this->artisan('show', ['id' => $task['id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Dependencies: '.$blocker['id'])
+            ->expectsOutputToContain('Blocked by: '.$blocker['id'])
             ->assertExitCode(0);
     });
 
@@ -1456,7 +1615,7 @@ describe('list command', function () {
         $tasks = json_decode($output, true);
 
         expect($tasks)->toHaveCount(1);
-        expect($tasks[0])->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'dependencies', 'created_at', 'updated_at']);
+        expect($tasks[0])->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'blocked_by', 'created_at', 'updated_at']);
         expect($tasks[0]['description'])->toBe('Full description');
         expect($tasks[0]['type'])->toBe('feature');
         expect($tasks[0]['priority'])->toBe(3);
@@ -1795,6 +1954,148 @@ describe('q command', function () {
 
         $this->artisan('q', ['title' => 'Quick task', '--cwd' => $this->tempDir])
             ->assertExitCode(0);
+    });
+});
+
+// =============================================================================
+// status Command Tests
+// =============================================================================
+
+describe('status command', function () {
+    it('shows zero counts when no tasks exist', function () {
+        $this->taskService->initialize();
+
+        $this->artisan('status', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Open')
+            ->expectsOutputToContain('In Progress')
+            ->expectsOutputToContain('Closed')
+            ->expectsOutputToContain('Blocked')
+            ->expectsOutputToContain('Total')
+            ->assertExitCode(0);
+    });
+
+    it('counts tasks by status correctly', function () {
+        $this->taskService->initialize();
+        $open1 = $this->taskService->create(['title' => 'Open task 1']);
+        $open2 = $this->taskService->create(['title' => 'Open task 2']);
+        $inProgress = $this->taskService->create(['title' => 'In progress task']);
+        $closed1 = $this->taskService->create(['title' => 'Closed task 1']);
+        $closed2 = $this->taskService->create(['title' => 'Closed task 2']);
+
+        $this->taskService->start($inProgress['id']);
+        $this->taskService->done($closed1['id']);
+        $this->taskService->done($closed2['id']);
+
+        $this->artisan('status', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Open')
+            ->expectsOutputToContain('In Progress')
+            ->expectsOutputToContain('Closed')
+            ->assertExitCode(0);
+    });
+
+    it('counts blocked tasks correctly', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blocked1 = $this->taskService->create(['title' => 'Blocked task 1']);
+        $blocked2 = $this->taskService->create(['title' => 'Blocked task 2']);
+
+        // Add dependencies
+        $this->taskService->addDependency($blocked1['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked2['id'], $blocker['id']);
+
+        $this->artisan('status', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Blocked')
+            ->assertExitCode(0);
+    });
+
+    it('does not count tasks as blocked when blocker is closed', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blocked = $this->taskService->create(['title' => 'Blocked task']);
+
+        // Add dependency
+        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+        // Close the blocker
+        $this->taskService->done($blocker['id']);
+
+        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result['blocked'])->toBe(0);
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Open task']);
+        $inProgress = $this->taskService->create(['title' => 'In progress task']);
+        $closed = $this->taskService->create(['title' => 'Closed task']);
+
+        $this->taskService->start($inProgress['id']);
+        $this->taskService->done($closed['id']);
+
+        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result)->toHaveKeys(['open', 'in_progress', 'closed', 'blocked', 'total']);
+        expect($result['open'])->toBe(1);
+        expect($result['in_progress'])->toBe(1);
+        expect($result['closed'])->toBe(1);
+        expect($result['blocked'])->toBe(0);
+        expect($result['total'])->toBe(3);
+    });
+
+    it('shows correct total count', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Task 1']);
+        $this->taskService->create(['title' => 'Task 2']);
+        $this->taskService->create(['title' => 'Task 3']);
+
+        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result['total'])->toBe(3);
+        expect($result['open'])->toBe(3);
+    });
+
+    it('handles empty state with JSON output', function () {
+        $this->taskService->initialize();
+
+        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result['open'])->toBe(0);
+        expect($result['in_progress'])->toBe(0);
+        expect($result['closed'])->toBe(0);
+        expect($result['blocked'])->toBe(0);
+        expect($result['total'])->toBe(0);
+    });
+
+    it('counts only open tasks as blocked', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blockedOpen = $this->taskService->create(['title' => 'Blocked open task']);
+        $blockedInProgress = $this->taskService->create(['title' => 'Blocked in progress task']);
+
+        // Add dependencies
+        $this->taskService->addDependency($blockedOpen['id'], $blocker['id']);
+        $this->taskService->addDependency($blockedInProgress['id'], $blocker['id']);
+
+        // Set one to in_progress
+        $this->taskService->start($blockedInProgress['id']);
+
+        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        // Only open tasks should be counted as blocked
+        expect($result['blocked'])->toBe(1);
     });
 });
 

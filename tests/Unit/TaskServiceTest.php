@@ -284,7 +284,7 @@ it('returns empty collection from ready() when no open tasks', function () {
 // Dependency Management Tests
 // =============================================================================
 
-it('creates task with empty dependencies by default', function () {
+it('creates task with empty blocked_by array by default', function () {
     $this->taskService->initialize();
 
     $task = $this->taskService->create(['title' => 'Task with no deps']);
@@ -292,7 +292,7 @@ it('creates task with empty dependencies by default', function () {
     expect($task['blocked_by'] ?? [])->toBeEmpty();
 });
 
-it('adds a blocks dependency between tasks', function () {
+it('adds blocker to blocked_by array', function () {
     $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -399,7 +399,7 @@ it('excludes blocked tasks from ready()', function () {
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
-    // Blocked task depends on blocker (blocker blocks blocked)
+    // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
     $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
     $ready = $this->taskService->ready();
@@ -427,7 +427,7 @@ it('includes tasks when blocker is closed', function () {
     expect($ready->first()['id'])->toBe($blocked['id']);
 });
 
-it('returns task with no dependencies in ready()', function () {
+it('returns task with no blockers in ready()', function () {
     $this->taskService->initialize();
     $task = $this->taskService->create(['title' => 'Independent task']);
 
