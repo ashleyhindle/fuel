@@ -192,6 +192,126 @@ describe('add command', function () {
         expect($task['priority'])->toBe(3);
         expect($task['labels'])->toBe(['ui', 'backend']);
     });
+
+    it('creates task with --blocked-by flag (single blocker)', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+
+        Artisan::call('add', [
+            'title' => 'Blocked task',
+            '--blocked-by' => $blocker['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['dependencies'])->toHaveCount(1);
+        expect($task['dependencies'][0]['depends_on'])->toBe($blocker['id']);
+        expect($task['dependencies'][0]['type'])->toBe('blocks');
+    });
+
+    it('creates task with --blocked-by flag (multiple blockers)', function () {
+        $this->taskService->initialize();
+        $blocker1 = $this->taskService->create(['title' => 'Blocker 1']);
+        $blocker2 = $this->taskService->create(['title' => 'Blocker 2']);
+
+        Artisan::call('add', [
+            'title' => 'Blocked task',
+            '--blocked-by' => $blocker1['id'].','.$blocker2['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['dependencies'])->toHaveCount(2);
+        $depIds = collect($task['dependencies'])->pluck('depends_on')->toArray();
+        expect($depIds)->toContain($blocker1['id']);
+        expect($depIds)->toContain($blocker2['id']);
+    });
+
+    it('creates task with --blocked-by flag (with spaces)', function () {
+        $this->taskService->initialize();
+        $blocker1 = $this->taskService->create(['title' => 'Blocker 1']);
+        $blocker2 = $this->taskService->create(['title' => 'Blocker 2']);
+
+        Artisan::call('add', [
+            'title' => 'Blocked task',
+            '--blocked-by' => $blocker1['id'].', '.$blocker2['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['dependencies'])->toHaveCount(2);
+        $depIds = collect($task['dependencies'])->pluck('depends_on')->toArray();
+        expect($depIds)->toContain($blocker1['id']);
+        expect($depIds)->toContain($blocker2['id']);
+    });
+
+    it('displays blocked-by info in non-JSON output', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+
+        Artisan::call('add', [
+            'title' => 'Blocked task',
+            '--blocked-by' => $blocker['id'],
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Created task: fuel-');
+        expect($output)->toContain('Blocked by:');
+        expect($output)->toContain($blocker['id']);
+    });
+
+    it('creates task with --blocked-by and other flags', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+
+        Artisan::call('add', [
+            'title' => 'Complete blocked task',
+            '--description' => 'Blocked feature',
+            '--type' => 'feature',
+            '--priority' => '2',
+            '--labels' => 'backend',
+            '--blocked-by' => $blocker['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Complete blocked task');
+        expect($task['description'])->toBe('Blocked feature');
+        expect($task['type'])->toBe('feature');
+        expect($task['priority'])->toBe(2);
+        expect($task['labels'])->toBe(['backend']);
+        expect($task['dependencies'])->toHaveCount(1);
+        expect($task['dependencies'][0]['depends_on'])->toBe($blocker['id']);
+    });
+
+    it('supports partial IDs in --blocked-by flag', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $partialId = substr($blocker['id'], 5, 3); // Just hash part
+
+        Artisan::call('add', [
+            'title' => 'Blocked task',
+            '--blocked-by' => $partialId,
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['dependencies'])->toHaveCount(1);
+        // Note: TaskService.create() stores the ID as provided, so partial ID will be stored
+        // The dependency resolution happens when checking blockers, not at creation time
+        expect($task['dependencies'][0]['depends_on'])->toBe($partialId);
+    });
 });
 
 // Ready Command Tests

@@ -17,7 +17,8 @@ class AddCommand extends Command
         {--d|description= : Task description}
         {--type= : Task type (bug|feature|task|epic|chore)}
         {--priority= : Task priority (0-4)}
-        {--labels= : Comma-separated list of labels}';
+        {--labels= : Comma-separated list of labels}
+        {--blocked-by= : Comma-separated task IDs this is blocked by}';
 
     protected $description = 'Add a new task';
 
@@ -59,6 +60,15 @@ class AddCommand extends Command
             $data['labels'] = array_map('trim', explode(',', $labels));
         }
 
+        // Add blocked-by dependencies (comma-separated task IDs)
+        if ($blockedBy = $this->option('blocked-by')) {
+            $blockedByIds = array_map('trim', explode(',', $blockedBy));
+            $data['dependencies'] = array_map(
+                fn (string $id): array => ['depends_on' => $id, 'type' => 'blocks'],
+                $blockedByIds
+            );
+        }
+
         try {
             $task = $taskService->create($data);
         } catch (RuntimeException $e) {
@@ -76,6 +86,11 @@ class AddCommand extends Command
         } else {
             $this->info("Created task: {$task['id']}");
             $this->line("  Title: {$task['title']}");
+
+            if (! empty($task['dependencies'])) {
+                $depIds = collect($task['dependencies'])->pluck('depends_on')->implode(', ');
+                $this->line("  Blocked by: {$depIds}");
+            }
         }
 
         return self::SUCCESS;
