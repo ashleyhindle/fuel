@@ -14,17 +14,36 @@ class RetryCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'retry
-        {ids* : The task ID(s) (supports partial matching, accepts multiple IDs)}
+        {ids?* : The task ID(s) (supports partial matching). If none provided, retries all failed tasks}
+        {--dryrun : Show failed tasks without retrying}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
-    protected $description = 'Retry stuck tasks (consumed=true with non-zero exit code) by moving them back to open status';
+    protected $description = 'Retry failed tasks by moving them back to open status';
 
     public function handle(TaskService $taskService): int
     {
         $this->configureCwd($taskService);
 
-        $ids = $this->argument('ids');
+        $ids = $this->argument('ids') ?: [];
+        $dryrun = $this->option('dryrun');
+
+        // If --dryrun, just show failed tasks
+        if ($dryrun) {
+            return $this->showFailedTasks($taskService);
+        }
+
+        // If no IDs provided, retry all failed tasks
+        if (empty($ids)) {
+            $failedTasks = $taskService->failed();
+            if ($failedTasks->isEmpty()) {
+                $this->info('No failed tasks to retry.');
+
+                return self::SUCCESS;
+            }
+            $ids = $failedTasks->pluck('id')->all();
+        }
+
         $tasks = [];
         $errors = [];
 
@@ -67,5 +86,44 @@ class RetryCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function showFailedTasks(TaskService $taskService): int
+    {
+        $failedTasks = $taskService->failed();
+
+        if ($failedTasks->isEmpty()) {
+            $this->info('No failed tasks.');
+
+            return self::SUCCESS;
+        }
+
+        if ($this->option('json')) {
+            $this->outputJson($failedTasks->values()->all());
+
+            return self::SUCCESS;
+        }
+
+        $this->info('Failed tasks (use fuel retry to retry all):');
+        foreach ($failedTasks as $task) {
+            $reason = $this->getFailureReason($task);
+            $this->line("  {$task['id']}: {$task['title']} <fg=gray>({$reason})</>");
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function getFailureReason(array $task): string
+    {
+        $exitCode = $task['consumed_exit_code'] ?? null;
+        if ($exitCode !== null && $exitCode !== 0) {
+            return "exit code {$exitCode}";
+        }
+
+        if (($task['status'] ?? '') === 'in_progress' && ! empty($task['consumed']) && ($task['consume_pid'] ?? null) === null) {
+            return 'spawn failed / PID lost';
+        }
+
+        return 'unknown';
     }
 }
