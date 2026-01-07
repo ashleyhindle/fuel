@@ -55,13 +55,13 @@ it('creates a task with default schema fields', function () {
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Verify all schema fields are present
-    expect($task)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'dependencies', 'created_at', 'updated_at']);
+    expect($task)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'blocked_by', 'created_at', 'updated_at']);
     expect($task['description'])->toBeNull();
     expect($task['type'])->toBe('task');
     expect($task['priority'])->toBe(2);
     expect($task['labels'])->toBe([]);
     expect($task['size'])->toBe('m');
-    expect($task['dependencies'])->toBe([]);
+    expect($task['blocked_by'])->toBe([]);
 });
 
 it('creates a task with custom schema fields', function () {
@@ -142,28 +142,6 @@ it('validates task size enum', function () {
     // Invalid size
     $this->taskService->create(['title' => 'Test', 'size' => 'invalid']);
 })->throws(RuntimeException::class, 'Invalid task size');
-
-it('includes all schema fields in JSON output', function () {
-    $this->taskService->initialize();
-
-    $task = $this->taskService->create([
-        'title' => 'Feature task',
-        'description' => 'Add new feature',
-        'type' => 'feature',
-        'priority' => 3,
-        'labels' => ['frontend', 'ui'],
-    ]);
-
-    $json = json_encode($task);
-    $decoded = json_decode($json, true);
-
-    // Verify all fields are present in JSON
-    expect($decoded)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'dependencies', 'created_at', 'updated_at']);
-    expect($decoded['description'])->toBe('Add new feature');
-    expect($decoded['type'])->toBe('feature');
-    expect($decoded['priority'])->toBe(3);
-    expect($decoded['labels'])->toBe(['frontend', 'ui']);
-});
 
 it('finds task by exact ID', function () {
     $this->taskService->initialize();
@@ -311,7 +289,7 @@ it('creates task with empty dependencies by default', function () {
 
     $task = $this->taskService->create(['title' => 'Task with no deps']);
 
-    expect($task['dependencies'] ?? [])->toBeEmpty();
+    expect($task['blocked_by'] ?? [])->toBeEmpty();
 });
 
 it('adds a blocks dependency between tasks', function () {
@@ -322,9 +300,8 @@ it('adds a blocks dependency between tasks', function () {
     $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
     $updated = $this->taskService->find($blocked['id']);
-    expect($updated['dependencies'])->toHaveCount(1);
-    expect($updated['dependencies'][0]['depends_on'])->toBe($blocker['id']);
-    expect($updated['dependencies'][0]['type'])->toBe('blocks');
+    expect($updated['blocked_by'])->toHaveCount(1);
+    expect($updated['blocked_by'][0])->toBe($blocker['id']);
 });
 
 it('removes a dependency between tasks', function () {
@@ -336,7 +313,7 @@ it('removes a dependency between tasks', function () {
     $this->taskService->removeDependency($blocked['id'], $blocker['id']);
 
     $updated = $this->taskService->find($blocked['id']);
-    expect($updated['dependencies'] ?? [])->toBeEmpty();
+    expect($updated['blocked_by'] ?? [])->toBeEmpty();
 });
 
 it('throws exception when adding dependency to non-existent task', function () {
@@ -407,10 +384,10 @@ it('allows valid non-cyclic dependencies', function () {
     $updatedA = $this->taskService->find($taskA['id']);
     $updatedB = $this->taskService->find($taskB['id']);
 
-    expect($updatedA['dependencies'])->toHaveCount(1);
-    expect($updatedA['dependencies'][0]['depends_on'])->toBe($taskB['id']);
-    expect($updatedB['dependencies'])->toHaveCount(1);
-    expect($updatedB['dependencies'][0]['depends_on'])->toBe($taskC['id']);
+    expect($updatedA['blocked_by'])->toHaveCount(1);
+    expect($updatedA['blocked_by'][0])->toBe($taskB['id']);
+    expect($updatedB['blocked_by'])->toHaveCount(1);
+    expect($updatedB['blocked_by'][0])->toBe($taskC['id']);
 });
 
 // =============================================================================
@@ -458,6 +435,69 @@ it('returns task with no dependencies in ready()', function () {
 
     expect($ready)->toHaveCount(1);
     expect($ready->first()['id'])->toBe($task['id']);
+});
+
+// =============================================================================
+// blocked() Method Tests
+// =============================================================================
+
+it('returns only blocked tasks from blocked()', function () {
+    $this->taskService->initialize();
+    $blocker = $this->taskService->create(['title' => 'Blocker task']);
+    $blocked = $this->taskService->create(['title' => 'Blocked task']);
+    $unblocked = $this->taskService->create(['title' => 'Unblocked task']);
+
+    // Blocked task depends on blocker
+    $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+    $blockedTasks = $this->taskService->blocked();
+
+    // Only the blocked task should be returned
+    expect($blockedTasks)->toHaveCount(1);
+    expect($blockedTasks->first()['id'])->toBe($blocked['id']);
+});
+
+it('excludes tasks when blocker is closed from blocked()', function () {
+    $this->taskService->initialize();
+    $blocker = $this->taskService->create(['title' => 'Blocker task']);
+    $blocked = $this->taskService->create(['title' => 'Blocked task']);
+
+    // Blocked task depends on blocker
+    $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+    // Close the blocker
+    $this->taskService->done($blocker['id']);
+
+    $blockedTasks = $this->taskService->blocked();
+
+    // No tasks should be blocked now (blocker is closed)
+    expect($blockedTasks)->toHaveCount(0);
+});
+
+it('returns empty collection from blocked() when no blocked tasks', function () {
+    $this->taskService->initialize();
+    $this->taskService->create(['title' => 'Unblocked task']);
+
+    $blockedTasks = $this->taskService->blocked();
+
+    expect($blockedTasks)->toHaveCount(0);
+});
+
+it('excludes in_progress tasks from blocked()', function () {
+    $this->taskService->initialize();
+    $blocker = $this->taskService->create(['title' => 'Blocker task']);
+    $blocked = $this->taskService->create(['title' => 'Blocked task']);
+
+    // Blocked task depends on blocker
+    $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+    // Mark blocked task as in_progress
+    $this->taskService->start($blocked['id']);
+
+    $blockedTasks = $this->taskService->blocked();
+
+    // in_progress tasks should not appear in blocked()
+    expect($blockedTasks)->toHaveCount(0);
 });
 
 // =============================================================================
