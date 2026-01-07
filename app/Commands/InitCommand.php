@@ -116,8 +116,8 @@ class InitCommand extends Command
             return $modelFlag;
         }
 
-        // Only prompt for model if agent supports models (claude)
-        if ($agent !== 'claude') {
+        // Only prompt for model if agent supports models (claude or cursor-agent)
+        if ($agent !== 'claude' && $agent !== 'cursor-agent') {
             return null;
         }
 
@@ -127,7 +127,11 @@ class InitCommand extends Command
         }
 
         // Interactive prompt for model
-        $model = $this->ask('Which model would you like to use? (e.g., sonnet, opus)', 'sonnet');
+        if ($agent === 'cursor-agent') {
+            $model = $this->ask('Which model would you like to use? (e.g., composer-1, sonnet-4)', 'composer-1');
+        } else {
+            $model = $this->ask('Which model would you like to use? (e.g., sonnet-4.5, opus-4.5)', 'sonnet-4.5');
+        }
 
         return $model ?: null;
     }
@@ -164,9 +168,10 @@ class InitCommand extends Command
                 }
 
                 // Update model if provided and agent supports it
-                if ($model !== null && ($agent === 'claude' || $complexityConfig['agent'] === 'claude')) {
+                $currentAgent = $agent ?? $complexityConfig['agent'] ?? null;
+                if ($model !== null && ($currentAgent === 'claude' || $currentAgent === 'cursor-agent')) {
                     $complexityConfig['model'] = $model;
-                } elseif ($model !== null && ($agent !== 'claude' && $complexityConfig['agent'] !== 'claude')) {
+                } elseif ($model !== null && $currentAgent !== 'claude' && $currentAgent !== 'cursor-agent') {
                     // Remove model if agent doesn't support it
                     unset($complexityConfig['model']);
                 }

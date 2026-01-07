@@ -117,7 +117,7 @@ it('builds command array with prompt and model args', function () {
         'complexity' => [
             'moderate' => [
                 'agent' => 'claude',
-                'model' => 'sonnet',
+                'model' => 'sonnet-4.5',
             ],
         ],
     ];
@@ -126,7 +126,7 @@ it('builds command array with prompt and model args', function () {
 
     $command = $this->configService->getAgentCommand('moderate', 'test prompt');
 
-    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet']);
+    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet-4.5']);
 });
 
 it('uses default prompt flag when not specified', function () {
@@ -161,7 +161,7 @@ it('uses default model flag when not specified', function () {
         'complexity' => [
             'moderate' => [
                 'agent' => 'claude',
-                'model' => 'sonnet',
+                'model' => 'sonnet-4.5',
             ],
         ],
     ];
@@ -170,7 +170,7 @@ it('uses default model flag when not specified', function () {
 
     $command = $this->configService->getAgentCommand('moderate', 'test prompt');
 
-    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet']);
+    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet-4.5']);
 });
 
 it('returns agent config for complexity', function () {
@@ -185,7 +185,7 @@ it('returns agent config for complexity', function () {
         'complexity' => [
             'moderate' => [
                 'agent' => 'claude',
-                'model' => 'sonnet',
+                'model' => 'sonnet-4.5',
             ],
         ],
     ];
@@ -199,7 +199,7 @@ it('returns agent config for complexity', function () {
         'command' => 'claude',
         'prompt_flag' => '-p',
         'model_flag' => '--model',
-        'model' => 'sonnet',
+        'model' => 'sonnet-4.5',
     ]);
 });
 
@@ -293,6 +293,13 @@ it('creates default config file', function () {
     expect($config)->toHaveKeys(['agents', 'complexity']);
     expect($config['agents'])->toHaveKeys(['cursor-agent', 'claude', 'opencode']);
     expect($config['complexity'])->toHaveKeys(['trivial', 'simple', 'moderate', 'complex']);
+
+    // Verify default models
+    expect($config['agents']['cursor-agent'])->toHaveKey('model_flag');
+    expect($config['complexity']['trivial']['model'])->toBe('composer-1');
+    expect($config['complexity']['simple']['model'])->toBe('composer-1');
+    expect($config['complexity']['moderate']['model'])->toBe('sonnet-4.5');
+    expect($config['complexity']['complex']['model'])->toBe('opus-4.5');
 });
 
 it('does not overwrite existing config file', function () {
@@ -345,8 +352,8 @@ it('supports all valid agent presets', function () {
         'complexity' => [
             'trivial' => ['agent' => 'cursor-agent'],
             'simple' => ['agent' => 'opencode'],
-            'moderate' => ['agent' => 'claude', 'model' => 'sonnet'],
-            'complex' => ['agent' => 'claude', 'model' => 'opus'],
+            'moderate' => ['agent' => 'claude', 'model' => 'sonnet-4.5'],
+            'complex' => ['agent' => 'claude', 'model' => 'opus-4.5'],
         ],
     ];
 
@@ -354,8 +361,8 @@ it('supports all valid agent presets', function () {
 
     expect($this->configService->getAgentCommand('trivial', 'prompt'))->toBe(['cursor-agent', '-p', 'prompt']);
     expect($this->configService->getAgentCommand('simple', 'prompt'))->toBe(['opencode', '-p', 'prompt']);
-    expect($this->configService->getAgentCommand('moderate', 'prompt'))->toBe(['claude', '-p', 'prompt', '--model', 'sonnet']);
-    expect($this->configService->getAgentCommand('complex', 'prompt'))->toBe(['claude', '-p', 'prompt', '--model', 'opus']);
+    expect($this->configService->getAgentCommand('moderate', 'prompt'))->toBe(['claude', '-p', 'prompt', '--model', 'sonnet-4.5']);
+    expect($this->configService->getAgentCommand('complex', 'prompt'))->toBe(['claude', '-p', 'prompt', '--model', 'opus-4.5']);
 });
 
 it('throws exception when complexity not found in config', function () {
@@ -551,8 +558,8 @@ it('tests getAgentCommand output format for all complexities', function () {
         'complexity' => [
             'trivial' => ['agent' => 'cursor-agent'],
             'simple' => ['agent' => 'cursor-agent'],
-            'moderate' => ['agent' => 'claude', 'model' => 'sonnet'],
-            'complex' => ['agent' => 'claude', 'model' => 'opus'],
+            'moderate' => ['agent' => 'claude', 'model' => 'sonnet-4.5'],
+            'complex' => ['agent' => 'claude', 'model' => 'opus-4.5'],
         ],
     ];
 
@@ -571,11 +578,11 @@ it('tests getAgentCommand output format for all complexities', function () {
 
     $moderate = $this->configService->getAgentCommand('moderate', 'do something');
     expect($moderate)->toBeArray();
-    expect($moderate)->toBe(['claude', '-p', 'do something', '--model', 'sonnet']);
+    expect($moderate)->toBe(['claude', '-p', 'do something', '--model', 'sonnet-4.5']);
     expect($moderate)->toHaveCount(5);
 
     $complex = $this->configService->getAgentCommand('complex', 'do something');
     expect($complex)->toBeArray();
-    expect($complex)->toBe(['claude', '-p', 'do something', '--model', 'opus']);
+    expect($complex)->toBe(['claude', '-p', 'do something', '--model', 'opus-4.5']);
     expect($complex)->toHaveCount(5);
 });

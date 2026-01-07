@@ -241,6 +241,7 @@ class ConfigService
                 'cursor-agent' => [
                     'command' => 'cursor-agent',
                     'prompt_flag' => '-p',
+                    'model_flag' => '--model',
                 ],
                 'claude' => [
                     'command' => 'claude',
@@ -255,17 +256,19 @@ class ConfigService
             'complexity' => [
                 'trivial' => [
                     'agent' => 'cursor-agent',
+                    'model' => 'composer-1',
                 ],
                 'simple' => [
                     'agent' => 'cursor-agent',
+                    'model' => 'composer-1',
                 ],
                 'moderate' => [
                     'agent' => 'claude',
-                    'model' => 'sonnet',
+                    'model' => 'sonnet-4.5',
                 ],
                 'complex' => [
                     'agent' => 'claude',
-                    'model' => 'opus',
+                    'model' => 'opus-4.5',
                 ],
             ],
         ];
