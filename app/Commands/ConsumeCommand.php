@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\ConfigService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Process\Process;
@@ -16,32 +17,26 @@ class ConsumeCommand extends Command
     protected $signature = 'consume
         {--cwd= : Working directory (defaults to current directory)}
         {--interval=5 : Check interval in seconds when idle}
-        {--agent=cursor-agent : Agent command to spawn}
+        {--agent= : Agent command to spawn (overrides config-based routing)}
         {--prompt=Consume one task from fuel, then land the plane : Prompt to send to agent}
         {--dryrun : Show what would happen without claiming tasks or spawning agents}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, ConfigService $configService): int
     {
         $this->configureCwd($taskService);
         $taskService->initialize();
 
+        // Configure ConfigService with cwd path if provided
+        if ($cwd = $this->option('cwd')) {
+            $configService->setConfigPath($cwd.'/.fuel/config.yaml');
+        }
+
         $interval = max(1, (int) $this->option('interval'));
-        $agentCommand = $this->option('agent');
+        $agentOverride = $this->option('agent');
         $prompt = $this->option('prompt');
         $dryrun = $this->option('dryrun');
-
-        // Validate agent command exists in PATH (skip in dryrun)
-        if (! $dryrun) {
-            $agentPath = trim(shell_exec("which {$agentCommand} 2>/dev/null") ?? '');
-            if (empty($agentPath)) {
-                $this->error("Agent command not found: {$agentCommand}");
-                $this->line('Ensure it\'s in your PATH or use --agent=/full/path/to/agent');
-
-                return self::FAILURE;
-            }
-        }
 
         $this->getOutput()->write("\033[?1049h");
         $this->getOutput()->write("\033[H\033[2J");
@@ -141,6 +136,35 @@ Skipping steps breaks the workflow. Your work is NOT done until all steps comple
 Working directory: {$cwd}
 PROMPT;
 
+                // Build agent command array
+                // If --agent override is provided, use it directly (bypasses config routing)
+                // Otherwise, use ConfigService to route based on task complexity
+                if ($agentOverride) {
+                    $agentCommandArray = [$agentOverride, '-p', $fullPrompt];
+                } else {
+                    $taskComplexity = $task['complexity'] ?? 'simple';
+                    try {
+                        $agentCommandArray = $configService->getAgentCommand($taskComplexity, $fullPrompt);
+                    } catch (\RuntimeException $e) {
+                        $this->error("Failed to get agent command: {$e->getMessage()}");
+                        $this->line('Use --agent to override or ensure .fuel/config.yaml exists');
+
+                        return self::FAILURE;
+                    }
+                }
+
+                // Validate agent command exists in PATH (skip in dryrun)
+                if (! $dryrun) {
+                    $agentCommand = $agentCommandArray[0];
+                    $agentPath = trim(shell_exec("which {$agentCommand} 2>/dev/null") ?? '');
+                    if (empty($agentPath)) {
+                        $this->error("Agent command not found: {$agentCommand}");
+                        $this->line('Ensure it\'s in your PATH or use --agent=/full/path/to/agent');
+
+                        return self::FAILURE;
+                    }
+                }
+
                 if ($dryrun) {
                     // Dryrun: show what would happen without claiming or spawning
                     $statusLines[] = $this->formatStatus('👁', "[DRYRUN] Would spawn agent for {$taskId}: {$shortTitle}", 'cyan');
@@ -169,7 +193,7 @@ PROMPT;
 
                 // Spawn agent with inherited environment (so it can find `fuel` in PATH)
                 $process = new Process(
-                    [$agentCommand, '-p', $fullPrompt],
+                    $agentCommandArray,
                     $cwd,
                     null,  // inherit environment variables
                     null,  // no stdin
