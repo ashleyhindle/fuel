@@ -53,22 +53,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./vendor/bin/phpacker build --no-interaction --src=./builds/fuel.phar --dest=./builds --php=8.4 mac
-          ./vendor/bin/phpacker build --no-interaction --src=./builds/fuel.phar --dest=./builds --php=8.4 linux
+          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 mac arm x64
+          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 linux arm x64
 
       - name: Rename binaries to expected format
         run: |
-          cd builds/build
+          cd builds
 
-          # PHPacker outputs: build/{platform}/{platform}-{arch}
+          # PHPacker outputs: {platform}/{platform}-{arch}
           # We need: fuel-{os}-{arch} with darwin instead of mac
-          mv mac/mac-arm ../fuel-darwin-arm64
-          mv mac/mac-x64 ../fuel-darwin-x64
-          mv linux/linux-arm ../fuel-linux-arm64
-          mv linux/linux-x64 ../fuel-linux-x64
-
-          cd ..
-          rm -rf build
+          mv mac/mac-arm fuel-darwin-arm64
+          mv mac/mac-x64 fuel-darwin-x64
+          mv linux/linux-arm fuel-linux-arm64
+          mv linux/linux-x64 fuel-linux-x64
+          rm -rf mac linux
 
           # List all binaries for verification
           ls -lh fuel-*
