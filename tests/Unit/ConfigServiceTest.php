@@ -207,9 +207,9 @@ it('creates default config file', function () {
     expect($config['complexity']['simple']['agent'])->toBe('cursor-agent');
     expect($config['complexity']['simple']['model'])->toBe('composer-1');
     expect($config['complexity']['moderate']['agent'])->toBe('claude');
-    expect($config['complexity']['moderate']['model'])->toBe('sonnet-4.5');
+    expect($config['complexity']['moderate']['model'])->toBe('sonnet');
     expect($config['complexity']['complex']['agent'])->toBe('claude');
-    expect($config['complexity']['complex']['model'])->toBe('opus-4.5');
+    expect($config['complexity']['complex']['model'])->toBe('opus');
 });
 
 it('does not overwrite existing config file', function () {
