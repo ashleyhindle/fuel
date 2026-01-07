@@ -317,7 +317,7 @@ class BoardCommand extends Command
             foreach ($tasks as $task) {
                 $id = (string) $task['id'];
                 $taskTitle = (string) $task['title'];
-                $shortId = substr($id, 5, 4); // Skip 'fuel-' prefix
+                $shortId = substr($id, 2, 6); // Skip 'f-' prefix
 
                 // Show icon for tasks being consumed by fuel consume
                 $consumeIcon = ! empty($task['consumed']) ? '⚡' : '';
@@ -427,7 +427,7 @@ class BoardCommand extends Command
         foreach ($doneTasks as $task) {
             $id = (string) $task['id'];
             $title = (string) $task['title'];
-            $shortId = substr($id, 5, 4); // Skip 'fuel-' prefix
+            $shortId = substr($id, 2, 6); // Skip 'f-' prefix
 
             // Calculate separator length if not first item
             $separatorLength = count($items) > 0 ? $this->visibleLength($separator) : 0;

@@ -1668,8 +1668,8 @@ describe('board command', function () {
         $output = Artisan::output();
 
         // Titles may be truncated, so check for short IDs
-        $blockerShortId = substr($blocker['id'], 5, 4);
-        $blockedShortId = substr($blocked['id'], 5, 4);
+        $blockerShortId = substr($blocker['id'], 2, 6);
+        $blockedShortId = substr($blocked['id'], 2, 6);
         expect($output)->toContain("[{$blockerShortId}]");
         expect($output)->toContain("[{$blockedShortId}]");
     });
@@ -1683,7 +1683,7 @@ describe('board command', function () {
         $output = Artisan::output();
 
         // Title may be truncated, so check for short ID
-        $shortId = substr($task['id'], 5, 4);
+        $shortId = substr($task['id'], 2, 6);
         expect($output)->toContain("[{$shortId}]");
     });
 
@@ -1696,7 +1696,7 @@ describe('board command', function () {
         $output = Artisan::output();
 
         // Done tasks appear in "Recently done:" line below the board
-        $shortId = substr($task['id'], 5, 4);
+        $shortId = substr($task['id'], 2, 6);
         expect($output)->toContain('Recently done');
         expect($output)->toContain("[{$shortId}]");
     });
@@ -1742,7 +1742,7 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($stuckTask['id'], 5, 4);
+        $shortId = substr($stuckTask['id'], 2, 6);
         expect($output)->toContain('❌');
         expect($output)->toContain("[{$shortId}]");
     });
@@ -1758,7 +1758,7 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($successTask['id'], 5, 4);
+        $shortId = substr($successTask['id'], 2, 6);
         expect($output)->toContain("[{$shortId}]");
         expect($output)->not->toContain('❌');
     });
@@ -1774,7 +1774,7 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($stuckTask['id'], 5, 4);
+        $shortId = substr($stuckTask['id'], 2, 6);
         expect($output)->toContain('🪫');
         expect($output)->toContain("[{$shortId}]");
     });
@@ -1792,7 +1792,7 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($runningTask['id'], 5, 4);
+        $shortId = substr($runningTask['id'], 2, 6);
         expect($output)->toContain("[{$shortId}]");
         expect($output)->not->toContain('🪫');
     });
