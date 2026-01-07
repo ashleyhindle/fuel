@@ -31,12 +31,12 @@ This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/t
 This is not optional. Skipping steps breaks the workflow for humans and other agents.
 
 ```
-[ ] ./fuel done <id>              # Mark your assigned task complete
-[ ] ./fuel add "..."              # File tasks for ANY incomplete/discovered work
 [ ] Run tests                     # Quality gate (if you changed code)
 [ ] Run linter/formatter          # Fix formatting (if you changed code)
 [ ] git add <files>               # Stage your changes
-[ ] git commit -m "feat/fix:..."  # Commit with conventional commit message
+[ ] git commit -m "feat/fix:..."  # Commit - note the hash from output [main abc1234]
+[ ] ./fuel done <id> --commit=<hash>  # Mark complete with commit hash from above
+[ ] ./fuel add "..."              # File tasks for ANY incomplete/discovered work
 [ ] ./fuel ready                  # Verify task state is correct
 ```
 
@@ -50,7 +50,7 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
 2. `./fuel start <id>` - Claim task before starting
 3. Do the work - implement, test, verify
 4. Discover new work as you build? Add it `./fuel add "..." --blocked-by=<id>`
-5. `./fuel done <id>` - Complete the task
+5. `./fuel done <id> --commit=<hash>` - Complete the task with commit hash from step 4
 6. Land the plane
 
 ### Task Options
@@ -61,7 +61,36 @@ Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`
   --type=bug|feature|task|chore \
   --priority=0-4 \
   --blocked-by=fuel-xxxx,fuel-yyyy \
-  --labels=api,urgent
+  --labels=api,urgent \
+  --complexity=trivial|simple|moderate|complex
+```
+
+### Complexity
+
+**Always set `--complexity` when adding tasks.** This helps agents understand the scope and effort required.
+
+**Complexity levels:**
+- `trivial` - Quick fixes, simple changes (e.g., updating a string, fixing a typo)
+- `simple` - Straightforward work with clear requirements (e.g., adding a new field, simple refactoring)
+- `moderate` - Requires multiple steps or touches several files (e.g., adding a new command, implementing a feature with tests)
+- `complex` - Large scope, architectural changes, or unclear requirements
+
+**Important:** Tasks marked as `complex` should often be broken down into smaller subtasks. If a task feels too large or uncertain, consider:
+1. Creating a parent task for planning/design
+2. Breaking it into smaller, more focused tasks
+3. Using dependencies to sequence the work
+
+**Example:**
+```bash
+# Complex task - should be broken down
+./fuel add "Refactor authentication system" \
+  --complexity=complex \
+  --description="This is too large - break into subtasks"
+
+# Better: Break it down
+./fuel add "Design new auth architecture" --complexity=moderate
+./fuel add "Implement OAuth provider" --complexity=moderate --blocked-by=fuel-xxxx
+./fuel add "Add session management" --complexity=moderate --blocked-by=fuel-xxxx
 ```
 
 ### Dependencies
