@@ -64,6 +64,134 @@ describe('add command', function () {
         $content = file_get_contents($this->storagePath);
         expect($content)->toContain('Custom path task');
     });
+
+    it('creates task with --description flag', function () {
+        Artisan::call('add', [
+            'title' => 'Task with description',
+            '--description' => 'This is a detailed description',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['description'])->toBe('This is a detailed description');
+    });
+
+    it('creates task with -d flag (description shortcut)', function () {
+        Artisan::call('add', [
+            'title' => 'Task with -d flag',
+            '-d' => 'Short description',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['description'])->toBe('Short description');
+    });
+
+    it('creates task with --type flag', function () {
+        Artisan::call('add', [
+            'title' => 'Bug fix',
+            '--type' => 'bug',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['type'])->toBe('bug');
+    });
+
+    it('validates --type flag enum', function () {
+        $this->artisan('add', [
+            'title' => 'Invalid type',
+            '--type' => 'invalid-type',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Invalid task type')
+            ->assertExitCode(1);
+    });
+
+    it('creates task with --priority flag', function () {
+        Artisan::call('add', [
+            'title' => 'High priority task',
+            '--priority' => '4',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['priority'])->toBe(4);
+    });
+
+    it('validates --priority flag range', function () {
+        $this->artisan('add', [
+            'title' => 'Invalid priority',
+            '--priority' => '5',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Invalid priority')
+            ->assertExitCode(1);
+    });
+
+    it('validates --priority flag is integer', function () {
+        $this->artisan('add', [
+            'title' => 'Invalid priority',
+            '--priority' => 'high',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Invalid priority')
+            ->assertExitCode(1);
+    });
+
+    it('creates task with --labels flag', function () {
+        Artisan::call('add', [
+            'title' => 'Labeled task',
+            '--labels' => 'frontend,backend,urgent',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['labels'])->toBe(['frontend', 'backend', 'urgent']);
+    });
+
+    it('handles --labels flag with spaces', function () {
+        Artisan::call('add', [
+            'title' => 'Labeled task',
+            '--labels' => 'frontend, backend, urgent',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['labels'])->toBe(['frontend', 'backend', 'urgent']);
+    });
+
+    it('creates task with all flags together', function () {
+        Artisan::call('add', [
+            'title' => 'Complete task',
+            '--description' => 'Full featured task',
+            '--type' => 'feature',
+            '--priority' => '3',
+            '--labels' => 'ui,backend',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Complete task');
+        expect($task['description'])->toBe('Full featured task');
+        expect($task['type'])->toBe('feature');
+        expect($task['priority'])->toBe(3);
+        expect($task['labels'])->toBe(['ui', 'backend']);
+    });
 });
 
 // Ready Command Tests
@@ -400,5 +528,82 @@ describe('ready command with dependencies', function () {
             ->expectsOutputToContain('Blocked task')
             ->doesntExpectOutputToContain('Blocker task')
             ->assertExitCode(0);
+    });
+});
+
+// =============================================================================
+// board Command Tests
+// =============================================================================
+
+describe('board command', function () {
+    it('shows empty board when no tasks', function () {
+        $this->taskService->initialize();
+
+        $this->artisan('board', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Ready')
+            ->expectsOutputToContain('Blocked')
+            ->expectsOutputToContain('Done')
+            ->expectsOutputToContain('No tasks')
+            ->assertExitCode(0);
+    });
+
+    it('shows ready tasks in Ready column', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Ready task']);
+
+        $this->artisan('board', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Ready task')
+            ->assertExitCode(0);
+    });
+
+    it('shows blocked tasks in Blocked column', function () {
+        $this->taskService->initialize();
+        $blocker = $this->taskService->create(['title' => 'Blocker task']);
+        $blocked = $this->taskService->create(['title' => 'Blocked task']);
+        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+
+        $this->artisan('board', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Blocker task')
+            ->expectsOutputToContain('Blocked task')
+            ->assertExitCode(0);
+    });
+
+    it('shows done tasks in Done column', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Completed task']);
+        $this->taskService->done($task['id']);
+
+        $this->artisan('board', ['--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Completed task')
+            ->assertExitCode(0);
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $this->taskService->initialize();
+        $this->taskService->create(['title' => 'Test task']);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('"ready":');
+        expect($output)->toContain('"blocked":');
+        expect($output)->toContain('"done":');
+        expect($output)->toContain('Test task');
+    });
+
+    it('limits done tasks to 5 most recent', function () {
+        $this->taskService->initialize();
+
+        // Create and close 7 tasks
+        for ($i = 1; $i <= 7; $i++) {
+            $task = $this->taskService->create(['title' => "Done task {$i}"]);
+            $this->taskService->done($task['id']);
+        }
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        expect($data['done'])->toHaveCount(5);
     });
 });
