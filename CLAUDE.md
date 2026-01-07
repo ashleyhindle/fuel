@@ -62,6 +62,24 @@ Before ending a work session:
 2. Add tasks for remaining work: `./fuel add "Follow-up work"`
 3. Verify task state: `./fuel ready`
 
+### Parallel Execution
+
+The **primary agent** coordinates parallel work - subagents do NOT pick tasks themselves:
+
+1. **Primary agent reviews** - Run `./fuel ready --json` and identify parallelizable tasks
+2. **Primary agent assigns** - Spawn subagents with explicit task assignments:
+   - Each subagent receives ONE specific task ID
+   - Subagents work ONLY on their assigned task
+3. **Subagents execute** - Complete the task and run `./fuel done <id>`
+4. **Primary agent continues** - Check `./fuel ready` for newly unblocked tasks
+
+**When spawning a subagent, include:**
+- The specific task ID and title
+- Instruction to read CLAUDE.md for project context
+- Instruction to run `./fuel done <id>` upon completion
+
+**Avoid parallel work on tasks that touch the same files** - use dependencies to enforce ordering.
+
 ## Development Commands
 
 ```bash

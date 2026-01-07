@@ -52,12 +52,21 @@ Before ending a work session, you MUST complete these steps:
 
 ### Parallel Execution
 
-Tasks from `fuel:ready` have no blockers and can be worked on simultaneously. When multiple tasks are ready:
+Tasks from `fuel:ready` have no blockers and can be worked on simultaneously. The **primary agent** coordinates parallel work:
 
-1. **Spawn agents per task** - Each agent picks one task from `fuel:ready --json`
-2. **Work independently** - Agents complete their task without coordination
-3. **Close when done** - Each agent runs `fuel:done <id>` upon completion
-4. **Check for newly unblocked work** - Closing tasks may unblock others; spawn new agents as needed
+1. **Primary agent reviews tasks** - Run `fuel:ready --json` and identify tasks suitable for parallel work
+2. **Primary agent assigns tasks** - Spawn subagents with explicit task assignments:
+   - Tell each subagent their specific task ID and title
+   - Each subagent works ONLY on their assigned task
+   - Subagents must NOT pick tasks themselves
+3. **Subagents execute and close** - Each subagent completes their task and runs `fuel:done <id>`
+4. **Primary agent checks for unblocked work** - After subagents complete, run `fuel:ready` to find newly unblocked tasks
+
+**Subagent instructions should include:**
+- The specific task ID and title
+- Path to the fuel binary (e.g., `./fuel` or absolute path)
+- Instruction to read CLAUDE.md for project context
+- Instruction to run `fuel:done <id>` upon completion
 
 This pattern works well for independent tasks like:
 - Creating separate model/migration pairs
