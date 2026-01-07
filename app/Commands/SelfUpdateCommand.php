@@ -78,7 +78,12 @@ class SelfUpdateCommand extends Command
         }
 
         // Make executable
-        chmod($tempPath, 0755);
+        if (! chmod($tempPath, 0755)) {
+            @unlink($tempPath); // Clean up temp file on failure
+            $this->error('Failed to set executable permissions on downloaded binary');
+
+            return self::FAILURE;
+        }
 
         // Atomic replace
         if (! rename($tempPath, $targetPath)) {
@@ -167,6 +172,12 @@ class SelfUpdateCommand extends Command
             $response = $client->get($url);
             $data = json_decode($response->getBody()->getContents(), true);
 
+            if ($data === null) {
+                $this->error('GitHub API returned invalid JSON response');
+
+                return null;
+            }
+
             if (! isset($data['tag_name'])) {
                 $this->error('GitHub API response missing tag_name');
 
@@ -212,6 +223,12 @@ class SelfUpdateCommand extends Command
             if ($response->getStatusCode() !== 200) {
                 @unlink($targetPath); // Clean up on failure
                 throw new RuntimeException("HTTP {$response->getStatusCode()} response");
+            }
+
+            // Verify file was actually written (not empty)
+            if (! file_exists($targetPath) || filesize($targetPath) === 0) {
+                @unlink($targetPath); // Clean up on failure
+                throw new RuntimeException('Downloaded file is empty or does not exist');
             }
         } catch (GuzzleException $e) {
             @unlink($targetPath); // Clean up on failure
