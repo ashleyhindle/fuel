@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-fuel-50: #fef9ec;
+  --color-fuel-100: #fcf0c9;
+  --color-fuel-200: #f9de8e;
+  --color-fuel-300: #f5c54d;
+  --color-fuel-400: #f2ae24;
+  --color-fuel-500: #ec920c;
+  --color-fuel-600: #d06c07;
+  --color-fuel-700: #ad4b0a;
+  --color-fuel-800: #8d3a0e;
+  --color-fuel-900: #74300f;
+}

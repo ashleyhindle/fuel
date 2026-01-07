@@ -18,11 +18,7 @@ fi
 
 # Build Tailwind CSS
 echo -e "${YELLOW}Building Tailwind CSS...${NC}"
-if [ ! -d "node_modules" ]; then
-    echo -e "${YELLOW}Installing npm dependencies...${NC}"
-    npm install
-fi
-npm run build:css
+npx @tailwindcss/cli -i ./public/input.css -o ./public/output.css --minify
 
 # Check if user is logged in (basic check - wrangler will error if not)
 echo -e "${YELLOW}Checking authentication...${NC}"
