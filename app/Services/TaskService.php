@@ -298,7 +298,7 @@ class TaskService
     }
 
     /**
-     * Reopen a closed task (set status back to open).
+     * Reopen a closed or in_progress task (set status back to open).
      *
      * @return array<string, mixed>
      */
@@ -312,8 +312,9 @@ class TaskService
                 throw new RuntimeException("Task '{$id}' not found");
             }
 
-            if (($task['status'] ?? '') !== 'closed') {
-                throw new RuntimeException("Task '{$id}' is not closed. Only closed tasks can be reopened.");
+            $status = $task['status'] ?? '';
+            if ($status !== 'closed' && $status !== 'in_progress') {
+                throw new RuntimeException("Task '{$id}' is not closed or in_progress. Only closed or in_progress tasks can be reopened.");
             }
 
             $task['status'] = 'open';
@@ -363,6 +364,50 @@ class TaskService
         return $tasks
             ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
             ->filter(fn (array $t): bool => ! in_array($t['id'], $blockedIds, true))
+            ->sortBy([
+                ['priority', 'asc'],
+                ['created_at', 'asc'],
+            ])
+            ->values();
+    }
+
+    /**
+     * Get tasks that are blocked (open with unresolved dependencies).
+     *
+     * A task is blocked if it has a blocker ID in blocked_by that points to
+     * a task with status != 'closed'.
+     *
+     * This is the inverse of ready() - shows tasks that have open blockers.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function blocked(): Collection
+    {
+        $tasks = $this->all();
+
+        // Build a map of task ID to task for quick lookups
+        $taskMap = $tasks->keyBy('id');
+
+        // Find all blocked task IDs
+        $blockedIds = [];
+        foreach ($tasks as $task) {
+            $blockedBy = $task['blocked_by'] ?? [];
+            foreach ($blockedBy as $blockerId) {
+                if (is_string($blockerId)) {
+                    $blocker = $taskMap->get($blockerId);
+                    // Task is blocked if the blocker exists and is not closed
+                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
+                        $blockedIds[] = $task['id'];
+                        break; // No need to check other blockers
+                    }
+                }
+            }
+        }
+
+        // Return open tasks that ARE blocked (inverse of ready)
+        return $tasks
+            ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
+            ->filter(fn (array $t): bool => in_array($t['id'], $blockedIds, true))
             ->sortBy([
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
@@ -762,6 +807,50 @@ class TaskService
             $this->writeTasks($tasks);
 
             return $fromTask;
+        });
+    }
+
+    /**
+     * Migrate tasks from old dependency schema to new schema.
+     * Converts {dependencies: [{depends_on, type: blocks}]} to {blocked_by: []}.
+     *
+     * @return array{ migrated_count: int, total_tasks: int }
+     */
+    public function migrateDependencies(): array
+    {
+        return $this->withExclusiveLock(function (): array {
+            $tasks = $this->readTasks();
+            $migratedCount = 0;
+
+            $migratedTasks = $tasks->map(function (array $task) use (&$migratedCount): array {
+                // Migrate dependencies to blocked_by
+                if (isset($task['dependencies']) && is_array($task['dependencies'])) {
+                    $blockedBy = [];
+                    foreach ($task['dependencies'] as $dep) {
+                        if (isset($dep['depends_on']) && ($dep['type'] ?? '') === 'blocks') {
+                            $blockedBy[] = $dep['depends_on'];
+                        }
+                    }
+                    $task['blocked_by'] = $blockedBy;
+                    unset($task['dependencies']);
+                    $task['updated_at'] = now()->toIso8601String();
+                    $migratedCount++;
+                } else {
+                    // Ensure blocked_by exists even if no dependencies
+                    if (! isset($task['blocked_by'])) {
+                        $task['blocked_by'] = [];
+                    }
+                }
+
+                return $task;
+            });
+
+            $this->writeTasks($migratedTasks);
+
+            return [
+                'migrated_count' => $migratedCount,
+                'total_tasks' => $tasks->count(),
+            ];
         });
     }
 
