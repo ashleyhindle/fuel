@@ -261,11 +261,11 @@ class ConfigService
                 ],
                 'moderate' => [
                     'agent' => 'claude',
-                    'model' => 'claude-3-sonnet',
+                    'model' => 'sonnet',
                 ],
                 'complex' => [
                     'agent' => 'claude',
-                    'model' => 'claude-3-opus',
+                    'model' => 'opus',
                 ],
             ],
         ];

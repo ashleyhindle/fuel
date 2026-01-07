@@ -127,7 +127,7 @@ class InitCommand extends Command
         }
 
         // Interactive prompt for model
-        $model = $this->ask('Which model would you like to use? (e.g., claude-3-sonnet, claude-3-opus)', 'claude-3-sonnet');
+        $model = $this->ask('Which model would you like to use? (e.g., sonnet, opus)', 'sonnet');
 
         return $model ?: null;
     }
