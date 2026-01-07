@@ -13,8 +13,6 @@ use Symfony\Component\Yaml\Yaml;
 
 class InitCommand extends Command
 {
-    private const VALID_AGENTS = ['cursor-agent', 'claude', 'opencode'];
-
     protected $signature = 'init
         {--cwd= : Working directory (defaults to current directory)}
         {--agent= : Agent to use (cursor-agent|claude|opencode)}
@@ -80,18 +78,8 @@ class InitCommand extends Command
     {
         $agentFlag = $this->option('agent');
 
-        if ($agentFlag !== null) {
-            if (! in_array($agentFlag, self::VALID_AGENTS, true)) {
-                throw new RuntimeException(
-                    "Invalid agent '{$agentFlag}'. Must be one of: ".implode(', ', self::VALID_AGENTS)
-                );
-            }
-
-            return $agentFlag;
-        }
-
-        // No flag provided - use defaults from ConfigService
-        return null;
+        // Accept any agent string - no validation needed
+        return $agentFlag;
     }
 
     /**
@@ -140,13 +128,9 @@ class InitCommand extends Command
                     $complexityConfig['agent'] = $agent;
                 }
 
-                // Update model if provided and agent supports it
-                $currentAgent = $agent ?? $complexityConfig['agent'] ?? null;
-                if ($model !== null && ($currentAgent === 'claude' || $currentAgent === 'cursor-agent')) {
+                // Update model if provided
+                if ($model !== null) {
                     $complexityConfig['model'] = $model;
-                } elseif ($model !== null && $currentAgent !== 'claude' && $currentAgent !== 'cursor-agent') {
-                    // Remove model if agent doesn't support it
-                    unset($complexityConfig['model']);
                 }
             }
             unset($complexityConfig); // Break reference

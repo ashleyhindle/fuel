@@ -41,38 +41,11 @@ it('throws exception when config file is invalid YAML', function () {
         ->toThrow(RuntimeException::class, 'Failed to parse YAML config');
 });
 
-it('validates agent names against presets', function () {
-    $invalidConfig = [
-        'agents' => [
-            'invalid-agent' => [
-                'command' => 'invalid-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
-        'complexity' => [
-            'simple' => [
-                'agent' => 'invalid-agent',
-            ],
-        ],
-    ];
-
-    file_put_contents($this->configPath, Yaml::dump($invalidConfig));
-
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
-        ->toThrow(RuntimeException::class, 'Invalid agent name');
-});
-
 it('validates complexity values', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => [
-                'agent' => 'cursor-agent',
+                'agent' => 'claude',
             ],
         ],
     ];
@@ -85,15 +58,9 @@ it('validates complexity values', function () {
 
 it('builds command array with prompt', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => [
-                'agent' => 'cursor-agent',
+                'agent' => 'claude',
             ],
         ],
     ];
@@ -102,18 +69,11 @@ it('builds command array with prompt', function () {
 
     $command = $this->configService->getAgentCommand('simple', 'test prompt');
 
-    expect($command)->toBe(['cursor-agent', '-p', 'test prompt']);
+    expect($command)->toBe(['claude', '-p', 'test prompt']);
 });
 
-it('builds command array with prompt and model args', function () {
+it('builds command array with prompt and model', function () {
     $config = [
-        'agents' => [
-            'claude' => [
-                'command' => 'claude',
-                'prompt_flag' => '-p',
-                'model_flag' => '--model',
-            ],
-        ],
         'complexity' => [
             'moderate' => [
                 'agent' => 'claude',
@@ -129,59 +89,35 @@ it('builds command array with prompt and model args', function () {
     expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet-4.5']);
 });
 
-it('uses default prompt flag when not specified', function () {
+it('builds command array with args', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-            ],
-        ],
         'complexity' => [
-            'simple' => [
-                'agent' => 'cursor-agent',
-            ],
-        ],
-    ];
-
-    file_put_contents($this->configPath, Yaml::dump($config));
-
-    $command = $this->configService->getAgentCommand('simple', 'test prompt');
-
-    expect($command)->toBe(['cursor-agent', '-p', 'test prompt']);
-});
-
-it('uses default model flag when not specified', function () {
-    $config = [
-        'agents' => [
-            'claude' => [
-                'command' => 'claude',
-                'prompt_flag' => '-p',
-            ],
-        ],
-        'complexity' => [
-            'moderate' => [
+            'complex' => [
                 'agent' => 'claude',
-                'model' => 'sonnet-4.5',
+                'model' => 'opus-4.5',
+                'args' => ['--dangerously-skip-permissions', '--mcp-server', 'github'],
             ],
         ],
     ];
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    $command = $this->configService->getAgentCommand('moderate', 'test prompt');
+    $command = $this->configService->getAgentCommand('complex', 'test prompt');
 
-    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet-4.5']);
+    expect($command)->toBe([
+        'claude',
+        '-p',
+        'test prompt',
+        '--model',
+        'opus-4.5',
+        '--dangerously-skip-permissions',
+        '--mcp-server',
+        'github',
+    ]);
 });
 
 it('returns agent config for complexity', function () {
     $config = [
-        'agents' => [
-            'claude' => [
-                'command' => 'claude',
-                'prompt_flag' => '-p',
-                'model_flag' => '--model',
-            ],
-        ],
         'complexity' => [
             'moderate' => [
                 'agent' => 'claude',
@@ -196,21 +132,35 @@ it('returns agent config for complexity', function () {
 
     expect($agentConfig)->toBe([
         'agent' => 'claude',
-        'command' => 'claude',
-        'prompt_flag' => '-p',
-        'model_flag' => '--model',
         'model' => 'sonnet-4.5',
+        'args' => [],
+    ]);
+});
+
+it('returns agent config with args', function () {
+    $config = [
+        'complexity' => [
+            'complex' => [
+                'agent' => 'claude',
+                'model' => 'opus-4.5',
+                'args' => ['--verbose'],
+            ],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $agentConfig = $this->configService->getAgentConfig('complex');
+
+    expect($agentConfig)->toBe([
+        'agent' => 'claude',
+        'model' => 'opus-4.5',
+        'args' => ['--verbose'],
     ]);
 });
 
 it('returns agent config without model when not specified', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => [
                 'agent' => 'cursor-agent',
@@ -224,57 +174,14 @@ it('returns agent config without model when not specified', function () {
 
     expect($agentConfig)->toBe([
         'agent' => 'cursor-agent',
-        'command' => 'cursor-agent',
-        'prompt_flag' => '-p',
-        'model_flag' => '--model',
         'model' => null,
+        'args' => [],
     ]);
-});
-
-it('validates that referenced agent exists in agents section', function () {
-    $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
-        'complexity' => [
-            'simple' => [
-                'agent' => 'claude', // Referenced but not in agents
-            ],
-        ],
-    ];
-
-    file_put_contents($this->configPath, Yaml::dump($config));
-
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
-        ->toThrow(RuntimeException::class, 'not found in agents section');
-});
-
-it('validates config structure has agents key', function () {
-    $invalidConfig = [
-        'complexity' => [
-            'simple' => [
-                'agent' => 'cursor-agent',
-            ],
-        ],
-    ];
-
-    file_put_contents($this->configPath, Yaml::dump($invalidConfig));
-
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
-        ->toThrow(RuntimeException::class, 'must have "agents" key');
 });
 
 it('validates config structure has complexity key', function () {
     $invalidConfig = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
+        'other' => 'stuff',
     ];
 
     file_put_contents($this->configPath, Yaml::dump($invalidConfig));
@@ -290,29 +197,22 @@ it('creates default config file', function () {
 
     $config = Yaml::parseFile($this->configPath);
 
-    expect($config)->toHaveKeys(['agents', 'complexity']);
-    expect($config['agents'])->toHaveKeys(['cursor-agent', 'claude', 'opencode']);
+    expect($config)->toHaveKey('complexity');
+    expect($config)->not->toHaveKey('agents'); // No agents section in new format
     expect($config['complexity'])->toHaveKeys(['trivial', 'simple', 'moderate', 'complex']);
 
     // Verify default models
-    expect($config['agents']['cursor-agent'])->toHaveKey('model_flag');
-    expect($config['complexity']['trivial']['model'])->toBe('composer-1');
-    expect($config['complexity']['simple']['model'])->toBe('composer-1');
-    expect($config['complexity']['moderate']['model'])->toBe('sonnet-4.5');
-    expect($config['complexity']['complex']['model'])->toBe('opus-4.5');
+    expect($config['complexity']['trivial']['model'])->toBe('claude-sonnet-4-20250514');
+    expect($config['complexity']['simple']['model'])->toBe('claude-sonnet-4-20250514');
+    expect($config['complexity']['moderate']['model'])->toBe('claude-sonnet-4-20250514');
+    expect($config['complexity']['complex']['model'])->toBe('claude-opus-4-20250514');
 });
 
 it('does not overwrite existing config file', function () {
     $customConfig = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'custom-agent',
-                'prompt_flag' => '--prompt',
-            ],
-        ],
         'complexity' => [
             'simple' => [
-                'agent' => 'cursor-agent',
+                'agent' => 'custom-agent',
             ],
         ],
     ];
@@ -322,7 +222,7 @@ it('does not overwrite existing config file', function () {
     $this->configService->createDefaultConfig();
 
     $config = Yaml::parseFile($this->configPath);
-    expect($config['agents']['cursor-agent']['command'])->toBe('custom-agent');
+    expect($config['complexity']['simple']['agent'])->toBe('custom-agent');
 });
 
 it('allows setting custom config path', function () {
@@ -332,23 +232,24 @@ it('allows setting custom config path', function () {
     expect($this->configService->getConfigPath())->toBe($customPath);
 });
 
-it('supports all valid agent presets', function () {
+it('accepts any agent name without validation', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-            'claude' => [
-                'command' => 'claude',
-                'prompt_flag' => '-p',
-                'model_flag' => '--model',
-            ],
-            'opencode' => [
-                'command' => 'opencode',
-                'prompt_flag' => '-p',
+        'complexity' => [
+            'simple' => [
+                'agent' => 'my-custom-agent',
             ],
         ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $command = $this->configService->getAgentCommand('simple', 'test prompt');
+
+    expect($command)->toBe(['my-custom-agent', '-p', 'test prompt']);
+});
+
+it('supports all valid complexities', function () {
+    $config = [
         'complexity' => [
             'trivial' => ['agent' => 'cursor-agent'],
             'simple' => ['agent' => 'opencode'],
@@ -367,12 +268,6 @@ it('supports all valid agent presets', function () {
 
 it('throws exception when complexity not found in config', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => [
                 'agent' => 'cursor-agent',
@@ -386,53 +281,8 @@ it('throws exception when complexity not found in config', function () {
         ->toThrow(RuntimeException::class, 'No configuration found for complexity');
 });
 
-it('throws exception when agent config is missing command key', function () {
-    $invalidConfig = [
-        'agents' => [
-            'cursor-agent' => [
-                'prompt_flag' => '-p',
-                // Missing 'command' key
-            ],
-        ],
-        'complexity' => [
-            'simple' => [
-                'agent' => 'cursor-agent',
-            ],
-        ],
-    ];
-
-    file_put_contents($this->configPath, Yaml::dump($invalidConfig));
-
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
-        ->toThrow(RuntimeException::class, 'must have \'command\' string');
-});
-
-it('throws exception when agent config is not an array', function () {
-    $invalidConfig = [
-        'agents' => [
-            'cursor-agent' => 'not-an-array',
-        ],
-        'complexity' => [
-            'simple' => [
-                'agent' => 'cursor-agent',
-            ],
-        ],
-    ];
-
-    file_put_contents($this->configPath, Yaml::dump($invalidConfig));
-
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
-        ->toThrow(RuntimeException::class, 'must be an array');
-});
-
 it('throws exception when complexity config is missing agent key', function () {
     $invalidConfig = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => [
                 // Missing 'agent' key
@@ -448,12 +298,6 @@ it('throws exception when complexity config is missing agent key', function () {
 
 it('throws exception when complexity config is not an array', function () {
     $invalidConfig = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => 'not-an-array',
         ],
@@ -465,35 +309,8 @@ it('throws exception when complexity config is not an array', function () {
         ->toThrow(RuntimeException::class, 'must be an array');
 });
 
-it('throws exception when complexity references invalid agent name', function () {
-    $invalidConfig = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
-        'complexity' => [
-            'simple' => [
-                'agent' => 'invalid-agent', // Invalid agent name
-            ],
-        ],
-    ];
-
-    file_put_contents($this->configPath, Yaml::dump($invalidConfig));
-
-    expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
-        ->toThrow(RuntimeException::class, 'Invalid agent');
-});
-
 it('caches config after first load', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => [
                 'agent' => 'cursor-agent',
@@ -509,12 +326,6 @@ it('caches config after first load', function () {
 
     // Modify file (should not affect cached config)
     file_put_contents($this->configPath, Yaml::dump([
-        'agents' => [
-            'claude' => [
-                'command' => 'claude',
-                'prompt_flag' => '-p',
-            ],
-        ],
         'complexity' => [
             'simple' => [
                 'agent' => 'claude',
@@ -544,17 +355,6 @@ it('throws exception when YAML parses to non-array', function () {
 
 it('tests getAgentCommand output format for all complexities', function () {
     $config = [
-        'agents' => [
-            'cursor-agent' => [
-                'command' => 'cursor-agent',
-                'prompt_flag' => '-p',
-            ],
-            'claude' => [
-                'command' => 'claude',
-                'prompt_flag' => '-p',
-                'model_flag' => '--model',
-            ],
-        ],
         'complexity' => [
             'trivial' => ['agent' => 'cursor-agent'],
             'simple' => ['agent' => 'cursor-agent'],
@@ -565,7 +365,7 @@ it('tests getAgentCommand output format for all complexities', function () {
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    // Test output format: array of strings [command, prompt_flag, prompt, model_flag?, model?]
+    // Test output format: array of strings [command, -p, prompt, --model?, model?]
     $trivial = $this->configService->getAgentCommand('trivial', 'do something');
     expect($trivial)->toBeArray();
     expect($trivial)->toBe(['cursor-agent', '-p', 'do something']);
@@ -585,4 +385,22 @@ it('tests getAgentCommand output format for all complexities', function () {
     expect($complex)->toBeArray();
     expect($complex)->toBe(['claude', '-p', 'do something', '--model', 'opus-4.5']);
     expect($complex)->toHaveCount(5);
+});
+
+it('filters out non-string args', function () {
+    $config = [
+        'complexity' => [
+            'complex' => [
+                'agent' => 'claude',
+                'args' => ['--valid', 123, '--also-valid', null],
+            ],
+        ],
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $command = $this->configService->getAgentCommand('complex', 'test');
+
+    // Only string args should be included
+    expect($command)->toBe(['claude', '-p', 'test', '--valid', '--also-valid']);
 });

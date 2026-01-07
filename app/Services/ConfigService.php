@@ -9,8 +9,6 @@ use Symfony\Component\Yaml\Yaml;
 
 class ConfigService
 {
-    private const VALID_AGENTS = ['cursor-agent', 'claude', 'opencode'];
-
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
 
     private string $configPath;
@@ -45,15 +43,14 @@ class ConfigService
 
         try {
             $parsed = Yaml::parse($content);
-            if (! is_array($parsed)) {
-                throw new RuntimeException('Invalid config format: expected array, got '.gettype($parsed));
-            }
-            $this->config = $parsed;
-        } catch (RuntimeException $e) {
-            throw $e; // Re-throw our own exceptions
         } catch (\Exception $e) {
             throw new RuntimeException("Failed to parse YAML config: {$e->getMessage()}");
         }
+
+        if (! is_array($parsed)) {
+            throw new RuntimeException('Invalid config format: expected array, got '.gettype($parsed));
+        }
+        $this->config = $parsed;
 
         $this->validateConfig($this->config);
 
@@ -67,29 +64,8 @@ class ConfigService
      */
     private function validateConfig(array $config): void
     {
-        if (! isset($config['agents']) || ! is_array($config['agents'])) {
-            throw new RuntimeException('Config must have "agents" key with array value');
-        }
-
         if (! isset($config['complexity']) || ! is_array($config['complexity'])) {
             throw new RuntimeException('Config must have "complexity" key with array value');
-        }
-
-        // Validate agent names
-        foreach ($config['agents'] as $agentName => $agentConfig) {
-            if (! in_array($agentName, self::VALID_AGENTS, true)) {
-                throw new RuntimeException(
-                    "Invalid agent name '{$agentName}'. Must be one of: ".implode(', ', self::VALID_AGENTS)
-                );
-            }
-
-            if (! is_array($agentConfig)) {
-                throw new RuntimeException("Agent config for '{$agentName}' must be an array");
-            }
-
-            if (! isset($agentConfig['command']) || ! is_string($agentConfig['command'])) {
-                throw new RuntimeException("Agent '{$agentName}' must have 'command' string");
-            }
         }
 
         // Validate complexity mappings
@@ -107,23 +83,13 @@ class ConfigService
             if (! isset($complexityConfig['agent']) || ! is_string($complexityConfig['agent'])) {
                 throw new RuntimeException("Complexity '{$complexity}' must have 'agent' string");
             }
-
-            $agentName = $complexityConfig['agent'];
-            if (! in_array($agentName, self::VALID_AGENTS, true)) {
-                throw new RuntimeException(
-                    "Invalid agent '{$agentName}' for complexity '{$complexity}'. Must be one of: ".implode(', ', self::VALID_AGENTS)
-                );
-            }
-
-            // Validate agent exists in agents section
-            if (! isset($config['agents'][$agentName])) {
-                throw new RuntimeException("Agent '{$agentName}' referenced in complexity '{$complexity}' not found in agents section");
-            }
         }
     }
 
     /**
      * Get agent command array for given complexity and prompt.
+     *
+     * All agents use -p for prompt and --model for model (hardcoded).
      *
      * @return array<int, string>
      */
@@ -138,24 +104,24 @@ class ConfigService
         }
 
         $complexityConfig = $config['complexity'][$complexity];
-        $agentName = $complexityConfig['agent'];
+        $agent = $complexityConfig['agent'];
 
-        if (! isset($config['agents'][$agentName])) {
-            throw new RuntimeException("Agent '{$agentName}' not found in agents configuration");
-        }
-
-        $agentConfig = $config['agents'][$agentName];
-        $command = $agentConfig['command'];
-        $promptFlag = $agentConfig['prompt_flag'] ?? '-p';
-
-        // Build command array
-        $cmd = [$command, $promptFlag, $prompt];
+        // Build command array: [agent, -p, prompt, --model?, model?, ...args?]
+        $cmd = [$agent, '-p', $prompt];
 
         // Add optional model argument if specified
         if (isset($complexityConfig['model']) && is_string($complexityConfig['model'])) {
-            $modelFlag = $agentConfig['model_flag'] ?? '--model';
-            $cmd[] = $modelFlag;
+            $cmd[] = '--model';
             $cmd[] = $complexityConfig['model'];
+        }
+
+        // Add optional extra args if specified
+        if (isset($complexityConfig['args']) && is_array($complexityConfig['args'])) {
+            foreach ($complexityConfig['args'] as $arg) {
+                if (is_string($arg)) {
+                    $cmd[] = $arg;
+                }
+            }
         }
 
         return $cmd;
@@ -177,20 +143,11 @@ class ConfigService
         }
 
         $complexityConfig = $config['complexity'][$complexity];
-        $agentName = $complexityConfig['agent'];
-
-        if (! isset($config['agents'][$agentName])) {
-            throw new RuntimeException("Agent '{$agentName}' not found in agents configuration");
-        }
-
-        $agentConfig = $config['agents'][$agentName];
 
         return [
-            'agent' => $agentName,
-            'command' => $agentConfig['command'],
-            'prompt_flag' => $agentConfig['prompt_flag'] ?? '-p',
-            'model_flag' => $agentConfig['model_flag'] ?? '--model',
+            'agent' => $complexityConfig['agent'],
             'model' => $complexityConfig['model'] ?? null,
+            'args' => $complexityConfig['args'] ?? [],
         ];
     }
 
@@ -240,38 +197,22 @@ class ConfigService
         }
 
         $defaultConfig = [
-            'agents' => [
-                'cursor-agent' => [
-                    'command' => 'cursor-agent',
-                    'prompt_flag' => '-p',
-                    'model_flag' => '--model',
-                ],
-                'claude' => [
-                    'command' => 'claude',
-                    'prompt_flag' => '-p',
-                    'model_flag' => '--model',
-                ],
-                'opencode' => [
-                    'command' => 'opencode',
-                    'prompt_flag' => '-p',
-                ],
-            ],
             'complexity' => [
                 'trivial' => [
-                    'agent' => 'cursor-agent',
-                    'model' => 'composer-1',
+                    'agent' => 'claude',
+                    'model' => 'claude-sonnet-4-20250514',
                 ],
                 'simple' => [
-                    'agent' => 'cursor-agent',
-                    'model' => 'composer-1',
+                    'agent' => 'claude',
+                    'model' => 'claude-sonnet-4-20250514',
                 ],
                 'moderate' => [
                     'agent' => 'claude',
-                    'model' => 'sonnet-4.5',
+                    'model' => 'claude-sonnet-4-20250514',
                 ],
                 'complex' => [
                     'agent' => 'claude',
-                    'model' => 'opus-4.5',
+                    'model' => 'claude-opus-4-20250514',
                 ],
             ],
         ];
