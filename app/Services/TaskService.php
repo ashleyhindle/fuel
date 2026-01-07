@@ -83,12 +83,11 @@ class TaskService
     /**
      * Validate that a value is in a list of valid enum values.
      *
-     * @param  mixed  $value
      * @param  array<string>  $validValues
      *
      * @throws RuntimeException If value is not in valid values
      */
-    private function validateEnum($value, array $validValues, string $fieldName): void
+    private function validateEnum(mixed $value, array $validValues, string $fieldName): void
     {
         if (! in_array($value, $validValues, true)) {
             throw new RuntimeException(
@@ -873,50 +872,6 @@ class TaskService
             $this->writeTasks($tasks);
 
             return $fromTask;
-        });
-    }
-
-    /**
-     * Migrate tasks from old dependency schema to new schema.
-     * Converts {dependencies: [{depends_on, type: blocks}]} to {blocked_by: []}.
-     *
-     * @return array{ migrated_count: int, total_tasks: int }
-     */
-    public function migrateDependencies(): array
-    {
-        return $this->withExclusiveLock(function (): array {
-            $tasks = $this->readTasks();
-            $migratedCount = 0;
-
-            $migratedTasks = $tasks->map(function (array $task) use (&$migratedCount): array {
-                // Migrate dependencies to blocked_by
-                if (isset($task['dependencies']) && is_array($task['dependencies'])) {
-                    $blockedBy = [];
-                    foreach ($task['dependencies'] as $dep) {
-                        if (isset($dep['depends_on']) && ($dep['type'] ?? '') === 'blocks') {
-                            $blockedBy[] = $dep['depends_on'];
-                        }
-                    }
-                    $task['blocked_by'] = $blockedBy;
-                    unset($task['dependencies']);
-                    $task['updated_at'] = now()->toIso8601String();
-                    $migratedCount++;
-                } else {
-                    // Ensure blocked_by exists even if no dependencies
-                    if (! isset($task['blocked_by'])) {
-                        $task['blocked_by'] = [];
-                    }
-                }
-
-                return $task;
-            });
-
-            $this->writeTasks($migratedTasks);
-
-            return [
-                'migrated_count' => $migratedCount,
-                'total_tasks' => $tasks->count(),
-            ];
         });
     }
 
