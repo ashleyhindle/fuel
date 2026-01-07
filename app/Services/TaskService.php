@@ -10,7 +10,7 @@ use RuntimeException;
 
 class TaskService
 {
-    private const VALID_TYPES = ['bug', 'feature', 'task', 'epic', 'chore', 'docs'];
+    private const VALID_TYPES = ['bug', 'feature', 'task', 'epic', 'chore', 'docs', 'test'];
 
     private const VALID_SIZES = ['xs', 's', 'm', 'l', 'xl'];
 
@@ -359,7 +359,11 @@ class TaskService
     }
 
     /**
-     * Retry a stuck task (consumed=true with non-zero exit code) by moving it back to open status.
+     * Retry a failed task by moving it back to open status.
+     *
+     * Accepts tasks that are:
+     * - consumed=true with non-zero exit code (explicit failure)
+     * - in_progress + consumed=true + null consume_pid (spawn failed or PID lost)
      *
      * @return array<string, mixed>
      */
@@ -373,11 +377,12 @@ class TaskService
                 throw new RuntimeException("Task '{$id}' not found");
             }
 
-            $consumed = $task['consumed'] ?? false;
-            $exitCode = $task['consumed_exit_code'] ?? null;
+            $consumed = ! empty($task['consumed']);
+            $status = $task['status'] ?? '';
 
-            if ($consumed !== true || $exitCode === null || $exitCode === 0) {
-                throw new RuntimeException("Task '{$id}' is not a stuck task. Only tasks with consumed=true and consumed_exit_code != 0 can be retried.");
+            // Any consumed in_progress task can be retried (agent started but didn't complete)
+            if (! ($consumed && $status === 'in_progress')) {
+                throw new RuntimeException("Task '{$id}' is not a consumed in_progress task. Use 'reopen' for closed tasks.");
             }
 
             $task['status'] = 'open';
@@ -385,7 +390,7 @@ class TaskService
             // Remove reason if it exists (since task is being retried)
             unset($task['reason']);
             // Clear consumed fields so task can be retried cleanly
-            unset($task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
+            unset($task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output'], $task['consume_pid']);
 
             $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
             $this->writeTasks($tasks);
@@ -486,6 +491,63 @@ class TaskService
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
             ])
+            ->values();
+    }
+
+    /**
+     * Check if a single task is failed/stuck.
+     *
+     * A task is failed if:
+     * 1. consumed=true with non-zero exit code (explicit failure)
+     * 2. in_progress + consumed=true + null consume_pid (spawn failed or PID lost)
+     * 3. in_progress + consume_pid that is dead (if $isPidDead callback provided)
+     *
+     * @param  array<string, mixed>  $task
+     * @param  callable|null  $isPidDead  Optional callback (int $pid): bool to check if a PID is dead
+     * @param  array<int>  $excludePids  PIDs to exclude (e.g., actively tracked by current session)
+     */
+    public function isFailed(array $task, ?callable $isPidDead = null, array $excludePids = []): bool
+    {
+        $consumed = ! empty($task['consumed']);
+        $exitCode = $task['consumed_exit_code'] ?? null;
+        $status = $task['status'] ?? '';
+        $pid = $task['consume_pid'] ?? null;
+
+        // Case 1: Explicit failure (consumed with non-zero exit code)
+        if ($consumed && $exitCode !== null && $exitCode !== 0) {
+            return true;
+        }
+
+        // Case 2: in_progress + consumed + null PID (spawn failed or PID lost)
+        if ($status === 'in_progress' && $consumed && $pid === null) {
+            return true;
+        }
+
+        // Case 3: in_progress + PID that is dead (if callback provided)
+        if ($status === 'in_progress' && $pid !== null && $isPidDead !== null) {
+            $pidInt = (int) $pid;
+            // Skip if this PID is being tracked by the caller
+            if (in_array($pidInt, $excludePids, true)) {
+                return false;
+            }
+
+            return $isPidDead($pidInt);
+        }
+
+        return false;
+    }
+
+    /**
+     * Find failed/stuck tasks that need retry.
+     *
+     * @param  callable|null  $isPidDead  Optional callback (int $pid): bool to check if a PID is dead
+     * @param  array<int>  $excludePids  PIDs to exclude (e.g., actively tracked by current session)
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function failed(?callable $isPidDead = null, array $excludePids = []): Collection
+    {
+        return $this->all()
+            ->filter(fn (array $task): bool => $this->isFailed($task, $isPidDead, $excludePids))
             ->values();
     }
 

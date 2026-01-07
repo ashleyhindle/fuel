@@ -16,7 +16,7 @@ class ListCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--status= : Filter by status (open|closed)}
-        {--type= : Filter by type (bug|feature|task|epic|chore)}
+        {--type= : Filter by type (bug|feature|task|epic|chore|test)}
         {--priority= : Filter by priority (0-4)}
         {--labels= : Filter by labels (comma-separated)}
         {--size= : Filter by size (xs|s|m|l|xl)}';

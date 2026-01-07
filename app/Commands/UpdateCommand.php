@@ -19,7 +19,7 @@ class UpdateCommand extends Command
         {--json : Output as JSON}
         {--title= : Update task title}
         {--description= : Update task description}
-        {--type= : Update task type (bug|feature|task|epic|chore)}
+        {--type= : Update task type (bug|feature|task|epic|chore|test)}
         {--priority= : Update task priority (0-4)}
         {--status= : Update task status (open|closed)}
         {--size= : Update task size (xs|s|m|l|xl)}
