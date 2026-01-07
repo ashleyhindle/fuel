@@ -856,6 +856,36 @@ describe('reopen command', function () {
         expect($reopenedTask)->not->toHaveKey('reason');
     });
 
+    it('clears consumed fields when reopening a task', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task with consumed fields']);
+        $this->taskService->done($task['id']);
+        
+        // Manually add consumed fields (simulating a consumed task)
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => '2026-01-07T10:00:00+00:00',
+            'consumed_exit_code' => 1,
+            'consumed_output' => 'Some error output',
+        ]);
+
+        $closedTask = $this->taskService->find($task['id']);
+        expect($closedTask['consumed'])->toBeTrue();
+        expect($closedTask['consumed_at'])->toBe('2026-01-07T10:00:00+00:00');
+        expect($closedTask['consumed_exit_code'])->toBe(1);
+        expect($closedTask['consumed_output'])->toBe('Some error output');
+
+        $this->artisan('reopen', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->assertExitCode(0);
+
+        $reopenedTask = $this->taskService->find($task['id']);
+        expect($reopenedTask['status'])->toBe('open');
+        expect($reopenedTask)->not->toHaveKey('consumed');
+        expect($reopenedTask)->not->toHaveKey('consumed_at');
+        expect($reopenedTask)->not->toHaveKey('consumed_exit_code');
+        expect($reopenedTask)->not->toHaveKey('consumed_output');
+    });
+
     it('fails when task is not found', function () {
         $this->taskService->initialize();
 
@@ -970,6 +1000,207 @@ describe('reopen command', function () {
             ->assertExitCode(0);
 
         expect($this->taskService->find($task1['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task2['id'])['status'])->toBe('open');
+    });
+});
+
+// =============================================================================
+// retry Command Tests
+// =============================================================================
+
+describe('retry command', function () {
+    it('retries a stuck task', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Stuck task']);
+        
+        // Mark task as consumed with non-zero exit code
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => '2026-01-07T10:00:00+00:00',
+            'consumed_exit_code' => 1,
+            'consumed_output' => 'Some error output',
+        ]);
+
+        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Retried task:')
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('open');
+        expect($updated)->not->toHaveKey('consumed');
+        expect($updated)->not->toHaveKey('consumed_at');
+        expect($updated)->not->toHaveKey('consumed_exit_code');
+        expect($updated)->not->toHaveKey('consumed_output');
+    });
+
+    it('supports partial ID matching', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Partial ID stuck task']);
+        
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_exit_code' => 1,
+        ]);
+        
+        $partialId = substr($task['id'], 5, 3); // Just 3 chars of the hash
+
+        $this->artisan('retry', ['ids' => [$partialId], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Retried task:')
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('open');
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'JSON retry task']);
+        
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_exit_code' => 1,
+        ]);
+
+        Artisan::call('retry', [
+            'ids' => [$task['id']],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result['id'])->toBe($task['id']);
+        expect($result['status'])->toBe('open');
+        expect($result['title'])->toBe('JSON retry task');
+    });
+
+    it('clears consumed fields when retrying a task', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task with consumed fields']);
+        
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => '2026-01-07T10:00:00+00:00',
+            'consumed_exit_code' => 1,
+            'consumed_output' => 'Some error output',
+        ]);
+
+        $stuckTask = $this->taskService->find($task['id']);
+        expect($stuckTask['consumed'])->toBeTrue();
+        expect($stuckTask['consumed_at'])->toBe('2026-01-07T10:00:00+00:00');
+        expect($stuckTask['consumed_exit_code'])->toBe(1);
+        expect($stuckTask['consumed_output'])->toBe('Some error output');
+
+        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->assertExitCode(0);
+
+        $retriedTask = $this->taskService->find($task['id']);
+        expect($retriedTask['status'])->toBe('open');
+        expect($retriedTask)->not->toHaveKey('consumed');
+        expect($retriedTask)->not->toHaveKey('consumed_at');
+        expect($retriedTask)->not->toHaveKey('consumed_exit_code');
+        expect($retriedTask)->not->toHaveKey('consumed_output');
+    });
+
+    it('fails when task is not found', function () {
+        $this->taskService->initialize();
+
+        $this->artisan('retry', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('not found')
+            ->assertExitCode(1);
+    });
+
+    it('fails when task is not consumed', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Not consumed task']);
+
+        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('is not a stuck task')
+            ->assertExitCode(1);
+
+        $updated = $this->taskService->find($task['id']);
+        expect($updated['status'])->toBe('open');
+    });
+
+    it('fails when task has zero exit code', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task with zero exit code']);
+        
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_exit_code' => 0,
+        ]);
+
+        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('is not a stuck task')
+            ->assertExitCode(1);
+    });
+
+    it('retries multiple stuck tasks', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
+        $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
+        $task3 = $this->taskService->create(['title' => 'Stuck task 3']);
+        
+        $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 2]);
+        $this->taskService->update($task3['id'], ['consumed' => true, 'consumed_exit_code' => 3]);
+
+        $this->artisan('retry', [
+            'ids' => [$task1['id'], $task2['id'], $task3['id']],
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Retried task:')
+            ->assertExitCode(0);
+
+        expect($this->taskService->find($task1['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task2['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task3['id'])['status'])->toBe('open');
+    });
+
+    it('outputs multiple tasks as JSON array when multiple IDs provided', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
+        $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
+        
+        $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+
+        Artisan::call('retry', [
+            'ids' => [$task1['id'], $task2['id']],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toBeArray();
+        expect($result)->toHaveCount(2);
+        expect($result[0]['status'])->toBe('open');
+        expect($result[1]['status'])->toBe('open');
+        expect(collect($result)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
+    });
+
+    it('handles partial failures when retrying multiple tasks', function () {
+        $this->taskService->initialize();
+        $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
+        $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
+        
+        $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+
+        $this->artisan('retry', [
+            'ids' => [$task1['id'], 'nonexistent', $task2['id']],
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Retried task:')
+            ->expectsOutputToContain('not found')
+            ->assertExitCode(1);
+
+        // Task1 should be retried
+        expect($this->taskService->find($task1['id'])['status'])->toBe('open');
+        // Task2 should be retried
         expect($this->taskService->find($task2['id'])['status'])->toBe('open');
     });
 });
@@ -1383,6 +1614,72 @@ describe('board command', function () {
         $data = json_decode($output, true);
 
         expect($data['done'])->toHaveCount(10);
+    });
+
+    it('shows stuck icon for consumed tasks with non-zero exit code', function () {
+        $this->taskService->initialize();
+        $stuckTask = $this->taskService->create(['title' => 'Stuck task']);
+        $this->taskService->update($stuckTask['id'], [
+            'consumed' => true,
+            'consumed_exit_code' => 1,
+        ]);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        $output = Artisan::output();
+
+        $shortId = substr($stuckTask['id'], 5, 4);
+        expect($output)->toContain('❌');
+        expect($output)->toContain("[{$shortId}]");
+    });
+
+    it('does not show stuck icon for consumed tasks with zero exit code', function () {
+        $this->taskService->initialize();
+        $successTask = $this->taskService->create(['title' => 'Success task']);
+        $this->taskService->update($successTask['id'], [
+            'consumed' => true,
+            'consumed_exit_code' => 0,
+        ]);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        $output = Artisan::output();
+
+        $shortId = substr($successTask['id'], 5, 4);
+        expect($output)->toContain("[{$shortId}]");
+        expect($output)->not->toContain('❌');
+    });
+
+    it('shows stuck emoji for in_progress tasks with non-running PID', function () {
+        $this->taskService->initialize();
+        $stuckTask = $this->taskService->create(['title' => 'Stuck PID task']);
+        $this->taskService->update($stuckTask['id'], [
+            'status' => 'in_progress',
+            'consume_pid' => 99999, // Non-existent PID
+        ]);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        $output = Artisan::output();
+
+        $shortId = substr($stuckTask['id'], 5, 4);
+        expect($output)->toContain('🪫');
+        expect($output)->toContain("[{$shortId}]");
+    });
+
+    it('does not show stuck emoji for in_progress tasks with running PID', function () {
+        $this->taskService->initialize();
+        $runningTask = $this->taskService->create(['title' => 'Running task']);
+        // Use current process PID which should be running
+        $currentPid = getmypid();
+        $this->taskService->update($runningTask['id'], [
+            'status' => 'in_progress',
+            'consume_pid' => $currentPid,
+        ]);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        $output = Artisan::output();
+
+        $shortId = substr($runningTask['id'], 5, 4);
+        expect($output)->toContain("[{$shortId}]");
+        expect($output)->not->toContain('🪫');
     });
 });
 
@@ -2149,26 +2446,38 @@ describe('completed command', function () {
     });
 
     it('respects --limit option', function () {
-        // Create and close 5 tasks
-        $taskIds = [];
-        for ($i = 1; $i <= 5; $i++) {
-            $task = $this->taskService->create(['title' => "Task {$i}"]);
-            $taskIds[] = $task['id'];
-            $this->taskService->done($task['id']);
-            usleep(200000); // Delay for different timestamps
+        // Use explicit timestamps to ensure reliable ordering
+        $baseTime = \Illuminate\Support\Carbon::parse('2024-01-01 12:00:00');
+        \Illuminate\Support\Carbon::setTestNow($baseTime);
+
+        try {
+            // Create and close 5 tasks with explicit timestamps
+            $taskIds = [];
+            for ($i = 1; $i <= 5; $i++) {
+                // Set time for this task (each task gets a different timestamp)
+                \Illuminate\Support\Carbon::setTestNow($baseTime->copy()->addSeconds($i));
+                $task = $this->taskService->create(['title' => "Task {$i}"]);
+                $taskIds[] = $task['id'];
+                // Increment time slightly for done() call to ensure updated_at differs
+                \Illuminate\Support\Carbon::setTestNow($baseTime->copy()->addSeconds($i)->addMilliseconds(100));
+                $this->taskService->done($task['id']);
+            }
+
+            Artisan::call('completed', ['--cwd' => $this->tempDir, '--limit' => 3, '--json' => true]);
+            $output = Artisan::output();
+
+            $data = json_decode($output, true);
+            expect($data)->toBeArray();
+            expect($data)->toHaveCount(3);
+            // Verify limit works - should only return 3 tasks
+            $titles = array_column($data, 'title');
+            expect($titles)->toHaveCount(3);
+            // Most recent tasks should be included (Task 5 should be in results)
+            expect($titles)->toContain('Task 5');
+        } finally {
+            // Always restore real time
+            \Illuminate\Support\Carbon::setTestNow();
         }
-
-        Artisan::call('completed', ['--cwd' => $this->tempDir, '--limit' => 3, '--json' => true]);
-        $output = Artisan::output();
-
-        $data = json_decode($output, true);
-        expect($data)->toBeArray();
-        expect($data)->toHaveCount(3);
-        // Verify limit works - should only return 3 tasks
-        $titles = array_column($data, 'title');
-        expect($titles)->toHaveCount(3);
-        // Most recent tasks should be included (Task 5 should be in results)
-        expect($titles)->toContain('Task 5');
     });
 
     it('outputs JSON when --json flag is used', function () {
@@ -2214,6 +2523,195 @@ describe('completed command', function () {
         expect($output)->toContain('Test completed task');
         expect($output)->toContain('feature');
         expect($output)->toContain('1');
+    });
+});
+
+// =============================================================================
+// stuck Command Tests
+// =============================================================================
+
+describe('stuck command', function () {
+    it('shows no stuck tasks when empty', function () {
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+
+        expect(Artisan::output())->toContain('No stuck tasks found');
+    });
+
+    it('shows only consumed tasks with non-zero exit codes', function () {
+        $this->taskService->initialize();
+
+        // Create tasks with different consumed states
+        $successTask = $this->taskService->create(['title' => 'Success task']);
+        $this->taskService->update($successTask['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'consumed_exit_code' => 0,
+        ]);
+
+        $failedTask = $this->taskService->create(['title' => 'Failed task']);
+        $this->taskService->update($failedTask['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'consumed_exit_code' => 1,
+            'consumed_output' => 'Error: Something went wrong',
+        ]);
+
+        $notConsumedTask = $this->taskService->create(['title' => 'Not consumed task']);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Failed task');
+        expect($output)->not->toContain('Success task');
+        expect($output)->not->toContain('Not consumed task');
+    });
+
+    it('shows exit code and output for stuck tasks', function () {
+        $this->taskService->initialize();
+
+        $task = $this->taskService->create(['title' => 'Stuck task']);
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'consumed_exit_code' => 42,
+            'consumed_output' => 'Error message here',
+        ]);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Stuck task');
+        expect($output)->toContain('Exit code: 42');
+        expect($output)->toContain('Error message here');
+    });
+
+    it('truncates long output', function () {
+        $this->taskService->initialize();
+
+        $longOutput = str_repeat('x', 600); // 600 characters
+        $task = $this->taskService->create(['title' => 'Task with long output']);
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'consumed_exit_code' => 1,
+            'consumed_output' => $longOutput,
+        ]);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Task with long output');
+        expect($output)->toContain('...');
+        // Should be truncated to ~500 chars
+        expect(strlen($output))->toBeLessThan(700);
+    });
+
+    it('excludes tasks with zero exit code', function () {
+        $this->taskService->initialize();
+
+        $task = $this->taskService->create(['title' => 'Successful task']);
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'consumed_exit_code' => 0,
+        ]);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Successful task');
+        expect($output)->toContain('No stuck tasks found');
+    });
+
+    it('excludes tasks without consumed flag', function () {
+        $this->taskService->initialize();
+
+        $task = $this->taskService->create(['title' => 'Unconsumed task']);
+        $this->taskService->update($task['id'], [
+            'consumed_exit_code' => 1,
+        ]);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Unconsumed task');
+    });
+
+    it('excludes tasks without exit code', function () {
+        $this->taskService->initialize();
+
+        $task = $this->taskService->create(['title' => 'Task without exit code']);
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+        ]);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Task without exit code');
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $this->taskService->initialize();
+
+        $task = $this->taskService->create(['title' => 'Stuck task']);
+        $this->taskService->update($task['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'consumed_exit_code' => 1,
+            'consumed_output' => 'Error output',
+        ]);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toBeArray();
+        expect($data)->toHaveCount(1);
+        expect($data[0]['id'])->toBe($task['id']);
+        expect($data[0]['consumed'])->toBeTrue();
+        expect($data[0]['consumed_exit_code'])->toBe(1);
+        expect($data[0]['consumed_output'])->toBe('Error output');
+    });
+
+    it('outputs empty array as JSON when no stuck tasks', function () {
+        $this->taskService->initialize();
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+
+        $data = json_decode($output, true);
+        expect($data)->toBeArray();
+        expect($data)->toBeEmpty();
+    });
+
+    it('sorts stuck tasks by consumed_at descending', function () {
+        $this->taskService->initialize();
+
+        $task1 = $this->taskService->create(['title' => 'First stuck task']);
+        $this->taskService->update($task1['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c', time() - 100),
+            'consumed_exit_code' => 1,
+        ]);
+
+        sleep(1);
+
+        $task2 = $this->taskService->create(['title' => 'Second stuck task']);
+        $this->taskService->update($task2['id'], [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'consumed_exit_code' => 2,
+        ]);
+
+        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        // Most recent should appear first
+        $pos1 = strpos($output, 'First stuck task');
+        $pos2 = strpos($output, 'Second stuck task');
+        expect($pos2)->toBeLessThan($pos1);
     });
 });
 
