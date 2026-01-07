@@ -17,6 +17,8 @@ fuel init
 
 That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions to `AGENTS.md`, and creates your first task.
 
+If you need to udpate CLAUDE.md run `fuel guidelines` and copy/paste.
+
 ## Why Fuel?
 
 AI agents forget. Context windows compact. Sessions end. **Fuel persists.**
@@ -27,6 +29,7 @@ AI agents forget. Context windows compact. Sessions end. **Fuel persists.**
 - JSONL format merges cleanly in git
 
 ## Commands
+Typically you don't need to run anything, let your AI agent use fuel directly, and run `fuel board` or `fuel consume` to keep an eye on things.
 
 ```bash
 fuel ready                    # Show tasks ready to work on
