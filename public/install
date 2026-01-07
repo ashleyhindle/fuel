@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Colors for output
@@ -17,7 +17,7 @@ case "$OS" in
         OS_NAME="darwin"
         ;;
     *)
-        echo -e "${RED}Error: Unsupported OS: $OS${NC}"
+        printf "${RED}Error: Unsupported OS: %s${NC}\n" "$OS"
         echo "Fuel currently supports Linux and macOS (Darwin)"
         exit 1
         ;;
@@ -27,13 +27,13 @@ esac
 ARCH=$(uname -m)
 case "$ARCH" in
     x86_64)
-        ARCH_NAME="x86_64"
+        ARCH_NAME="x64"
         ;;
     arm64|aarch64)
         ARCH_NAME="arm64"
         ;;
     *)
-        echo -e "${RED}Error: Unsupported architecture: $ARCH${NC}"
+        printf "${RED}Error: Unsupported architecture: %s${NC}\n" "$ARCH"
         echo "Fuel currently supports x86_64 and arm64"
         exit 1
         ;;
@@ -44,22 +44,21 @@ INSTALL_DIR="$HOME/.fuel"
 BINARY_NAME="fuel"
 BINARY_URL="https://github.com/ashleyhindle/fuel/releases/latest/download/fuel-${OS_NAME}-${ARCH_NAME}"
 
-echo -e "${GREEN}Installing Fuel...${NC}"
-echo "OS: $OS_NAME"
-echo "Architecture: $ARCH_NAME"
+printf "${GREEN}Installing Fuel...${NC}\n"
+echo "OS: $OS_NAME, Architecture: $ARCH_NAME"
 echo ""
 
 # Create install directory
 mkdir -p "$INSTALL_DIR"
 
 # Download binary
-echo "Downloading binary from $BINARY_URL..."
+echo "Downloading from GitHub releases..."
 if command -v curl >/dev/null 2>&1; then
-    curl -L -o "$INSTALL_DIR/$BINARY_NAME" "$BINARY_URL"
+    curl -fsSL -o "$INSTALL_DIR/$BINARY_NAME" "$BINARY_URL"
 elif command -v wget >/dev/null 2>&1; then
-    wget -O "$INSTALL_DIR/$BINARY_NAME" "$BINARY_URL"
+    wget -q -O "$INSTALL_DIR/$BINARY_NAME" "$BINARY_URL"
 else
-    echo -e "${RED}Error: Neither curl nor wget found. Please install one of them.${NC}"
+    printf "${RED}Error: Neither curl nor wget found. Please install one of them.${NC}\n"
     exit 1
 fi
 
@@ -82,14 +81,14 @@ for RC_FILE in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
 done
 
 if [ -n "$ADDED_TO" ]; then
-    echo -e "${GREEN}Added Fuel to PATH in:$ADDED_TO${NC}"
+    printf "${GREEN}Added Fuel to PATH in:%s${NC}\n" "$ADDED_TO"
 else
-    echo -e "${YELLOW}Fuel already in PATH or no shell rc files found.${NC}"
-    echo -e "${YELLOW}You may need to manually add $INSTALL_DIR to your PATH.${NC}"
+    printf "${YELLOW}Fuel already in PATH or no shell rc files found.${NC}\n"
+    printf "${YELLOW}You may need to manually add %s to your PATH.${NC}\n" "$INSTALL_DIR"
 fi
 
 echo ""
-echo -e "${GREEN}✓ Fuel installed successfully!${NC}"
+printf "${GREEN}✓ Fuel installed successfully!${NC}\n"
 echo ""
 echo "Next steps:"
 echo "  1. Restart your terminal (or source your shell rc file)"
