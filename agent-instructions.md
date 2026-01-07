@@ -60,6 +60,20 @@ Blocked tasks won't appear in `./fuel ready` until blockers are closed.
 
 When an agent needs human input (credentials, decisions, access), follow this workflow:
 
+**WHEN to create needs-human tasks:**
+- Before deploying: 'Test X deployment after deploy'
+- When needing credentials/tokens: 'Provide API token for X'
+- When human verification required: 'Verify emails sending correctly'
+- When manual steps needed: 'Create DNS records'
+- When decisions needed: 'Choose between approach A vs B'
+- After completing work that can't be automatically tested
+
+**HOW to write them:**
+- Clear title describing the action needed
+- Description with exact steps: WHAT to test/do and HOW to do it
+- Example: `--description='Visit addfuel.dev, verify index.html loads, run: curl -L addfuel.dev/install | sh'`
+
+**Workflow:**
 1. **Create a needs-human task** describing exactly what's needed:
    ```bash
    ./fuel add 'Provide Cloudflare API token' \

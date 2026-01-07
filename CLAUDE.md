@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Fuel is a standalone CLI task management and execution system for AI agents, built with Laravel Zero. It provides task tracking via JSONL files that are git-native and merge-friendly.
 
-The design spec is in `FUEL-PLAN.md`. Reference implementation exists in `agent-resources/old-implementation-within-boost/`. Laravel Zero docs are in `agent-resources/laravel-zero-docs/`.
+The original design spec is archived in `FUEL-PLAN-ORIGINAL.md` (outdated - kept for historical reference). Reference implementation exists in `agent-resources/old-implementation-within-boost/`. Laravel Zero docs are in `agent-resources/laravel-zero-docs/`.
 
 <fuel>
 ## Fuel Task Management
@@ -71,6 +71,20 @@ Blocked tasks won't appear in `./fuel ready` until blockers are closed.
 
 When an agent needs human input (credentials, decisions, access), follow this workflow:
 
+**WHEN to create needs-human tasks:**
+- Before deploying: 'Test X deployment after deploy'
+- When needing credentials/tokens: 'Provide API token for X'
+- When human verification required: 'Verify emails sending correctly'
+- When manual steps needed: 'Create DNS records'
+- When decisions needed: 'Choose between approach A vs B'
+- After completing work that can't be automatically tested
+
+**HOW to write them:**
+- Clear title describing the action needed
+- Description with exact steps: WHAT to test/do and HOW to do it
+- Example: `--description='Visit addfuel.dev, verify index.html loads, run: curl -L addfuel.dev/install | sh'`
+
+**Workflow:**
 1. **Create a needs-human task** describing exactly what's needed:
    ```bash
    ./fuel add 'Provide Cloudflare API token' \
@@ -167,7 +181,7 @@ Core service handling JSONL storage with:
 ### Data Storage
 Single file: `.fuel/tasks.jsonl` - one JSON object per line, sorted by ID.
 
-Task fields: `id`, `title`, `status` (open/in_progress/closed), `blocked_by` (array of task IDs), `created_at`, `updated_at`.
+Task fields: `id`, `title`, `status` (open/in_progress/closed), `description`, `type`, `priority`, `labels`, `size`, `blocked_by` (array of task IDs), `created_at`, `updated_at`, and optionally `reason`, `consumed`, `consumed_at`, `consumed_exit_code`, `consumed_output`.
 
 ## Interface Contracts
 
@@ -203,13 +217,63 @@ All commands that return task data use this structure:
   "id": "fuel-a7f3",
   "title": "Task title",
   "status": "open",  // Can be: "open", "in_progress", or "closed"
+  "description": "Long description (optional)",
+  "type": "task",  // Can be: "bug", "feature", "task", "epic", "chore"
+  "priority": 2,  // Integer 0-4 (0=critical, 4=backlog)
+  "labels": ["api", "urgent"],  // Array of label strings
+  "size": "m",  // Can be: "xs", "s", "m", "l", "xl"
   "blocked_by": [
     "fuel-xxxx"
   ],
   "created_at": "2026-01-07T10:00:00+00:00",
-  "updated_at": "2026-01-07T10:00:00+00:00"
+  "updated_at": "2026-01-07T10:00:00+00:00",
+  "reason": "Completion reason (optional, set when done)",
+  "consumed": true,  // Optional: true if task was consumed by agent
+  "consumed_at": "2026-01-07T10:00:00+00:00",  // Optional: when consumed
+  "consumed_exit_code": 0,  // Optional: exit code from agent execution
+  "consumed_output": "Agent output..."  // Optional: agent output (truncated to 10KB)
 }
 ```
+
+**Required fields:** `id`, `title`, `status`, `created_at`, `updated_at`  
+**Default fields:** `description` (null), `type` ("task"), `priority` (2), `labels` ([]), `size` ("m"), `blocked_by` ([])  
+**Optional fields:** `reason`, `consumed`, `consumed_at`, `consumed_exit_code`, `consumed_output`
+
+### Command List
+
+**Core Commands:**
+- `add` - Create a new task
+- `ready` - Show tasks ready to work on (open, unblocked, not needs-human)
+- `start <id>` - Claim a task (set status to in_progress)
+- `done <id> [id...]` - Mark one or more tasks as complete
+- `show <id>` - View full task details
+- `update <id>` - Update task fields (--title, --description, --type, --priority, --status, --size, --add-labels, --remove-labels)
+- `reopen <id> [id...]` - Reopen closed or in_progress tasks (set status to open)
+
+**Dependency Commands:**
+- `dep:add <task-id> <blocker-id>` - Add dependency (task blocked by blocker)
+- `dep:remove <task-id> <blocker-id>` - Remove dependency
+
+**Query Commands:**
+- `list` - List tasks with filters (--status, --type, --priority, --labels, --size)
+- `blocked` - Show open tasks with unresolved dependencies
+- `completed` - Show recently completed tasks
+- `human` - Show tasks with 'needs-human' label
+- `status` - Show task statistics overview (counts by status)
+- `available` - Echo count of ready tasks, exit 0 if any, 1 if none
+
+**Display Commands:**
+- `board` - Kanban board view (open/in_progress/closed columns)
+- `q "title"` - Quick capture (create task, output only ID)
+
+**Workflow Commands:**
+- `consume` - Auto-spawn agents to work through available tasks (shows board, loops while available)
+- `init` - Initialize fuel in project (creates .fuel/, adds guidelines to AGENTS.md)
+
+**Utility Commands:**
+- `guidelines` - Output fuel task management guidelines (use --add to inject into AGENTS.md)
+- `migrate` - Migrate tasks from old dependency schema to new schema
+- `inspire` - Laravel Zero built-in command
 
 ### Command JSON Output
 
@@ -219,8 +283,18 @@ All commands that return task data use this structure:
 | `ready` | Returns array of task objects |
 | `start` | Returns task object with in_progress status |
 | `done` | Returns completed task object (single ID) or array of task objects (multiple IDs) |
+| `reopen` | Returns reopened task object (single ID) or array of task objects (multiple IDs) |
+| `show` | Returns task object |
+| `update` | Returns updated task object |
+| `list` | Returns array of task objects |
+| `blocked` | Returns array of blocked task objects |
+| `completed` | Returns array of completed task objects |
+| `human` | Returns array of needs-human task objects |
+| `status` | Returns object with status counts |
 | `dep:add` | Returns updated task object (with new dependency) |
 | `dep:remove` | Returns updated task object (dependency removed) |
+| `q` | Outputs only task ID (no JSON, for scripting) |
+| `available` | Outputs count only (no JSON, for scripting) |
 
 Error responses: `{"error": "Error message here"}`
 
@@ -228,16 +302,29 @@ Error responses: `{"error": "Error message here"}`
 
 ```php
 // CRUD
+all(): Collection                        // Load all tasks (with shared lock)
 create(array $data): array              // Returns task
 find(string $id): ?array                 // Partial ID matching
+update(string $id, array $data): array // Returns updated task
 start(string $id): array                 // Returns task with in_progress status
 done(string $id, ?string $reason): array // Returns updated task
-ready(): Collection                      // Open tasks with no open blockers (excludes in_progress)
+reopen(string $id): array               // Returns task with open status
+
+// Queries
+ready(): Collection                     // Open tasks with no open blockers (excludes in_progress, excludes needs-human)
+blocked(): Collection                   // Open tasks with unresolved dependencies
 
 // Dependencies
 addDependency(string $taskId, string $dependsOnId): array
-removeDependency(string $taskId, string $dependsOnId): array
-getBlockers(string $taskId): Collection
+removeDependency(string $fromId, string $toId): array
+getBlockers(string $taskId): Collection  // Returns open blockers for a task
+
+// Utilities
+generateId(int $taskCount = 0): string  // Generate hash-based ID
+initialize(): void                       // Create storage directory and file
+getStoragePath(): string                 // Get storage path
+setStoragePath(string $path): self      // Set custom storage path
+migrateDependencies(): array            // Migrate old dependency schema to blocked_by
 ```
 
 ### Testing Patterns
