@@ -6,20 +6,26 @@ complexity:
   trivial:
     agent: cursor-agent
     model: composer-1
+    args:
+      - "--force"
 
   simple:
     agent: cursor-agent
     model: composer-1
+    args:
+      - "--force"
 
   moderate:
     agent: claude
     model: sonnet
+    args:
+      - "--dangerously-skip-permissions"
 
   complex:
     agent: claude
     model: opus
-    # args:
-    #   - "--dangerously-skip-permissions"
+    args:
+      - "--dangerously-skip-permissions"
 
 # Agent concurrency limits
 # Controls how many instances of each agent can run simultaneously
