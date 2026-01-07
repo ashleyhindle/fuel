@@ -121,6 +121,15 @@ class TaskService
                 );
             }
 
+            // Validate complexity enum
+            $validComplexities = ['trivial', 'simple', 'moderate', 'complex'];
+            $complexity = $data['complexity'] ?? 'simple';
+            if (! in_array($complexity, $validComplexities, true)) {
+                throw new RuntimeException(
+                    "Invalid task complexity '{$complexity}'. Must be one of: ".implode(', ', $validComplexities)
+                );
+            }
+
             $task = [
                 'id' => $this->generateId($tasks->count()),
                 'title' => $data['title'] ?? throw new RuntimeException('Task title is required'),
@@ -130,6 +139,7 @@ class TaskService
                 'priority' => $priority,
                 'labels' => $labels,
                 'size' => $size,
+                'complexity' => $complexity,
                 'blocked_by' => $data['blocked_by'] ?? [],
                 'created_at' => now()->toIso8601String(),
                 'updated_at' => now()->toIso8601String(),
@@ -212,6 +222,17 @@ class TaskService
                 $task['size'] = $data['size'];
             }
 
+            // Update complexity if provided (with validation)
+            if (isset($data['complexity'])) {
+                $validComplexities = ['trivial', 'simple', 'moderate', 'complex'];
+                if (! in_array($data['complexity'], $validComplexities, true)) {
+                    throw new RuntimeException(
+                        "Invalid task complexity '{$data['complexity']}'. Must be one of: ".implode(', ', $validComplexities)
+                    );
+                }
+                $task['complexity'] = $data['complexity'];
+            }
+
             // Handle labels updates
             if (isset($data['add_labels']) || isset($data['remove_labels'])) {
                 $labels = $task['labels'] ?? [];
@@ -235,7 +256,7 @@ class TaskService
             }
 
             // Preserve arbitrary fields not explicitly handled above (e.g., consumed, consumed_at, consumed_exit_code, consumed_output)
-            $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'add_labels', 'remove_labels'];
+            $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'complexity', 'add_labels', 'remove_labels'];
             foreach ($data as $key => $value) {
                 if (! in_array($key, $handledFields, true)) {
                     $task[$key] = $value;

@@ -55,12 +55,13 @@ it('creates a task with default schema fields', function () {
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Verify all schema fields are present
-    expect($task)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'blocked_by', 'created_at', 'updated_at']);
+    expect($task)->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'complexity', 'blocked_by', 'created_at', 'updated_at']);
     expect($task['description'])->toBeNull();
     expect($task['type'])->toBe('task');
     expect($task['priority'])->toBe(2);
     expect($task['labels'])->toBe([]);
     expect($task['size'])->toBe('m');
+    expect($task['complexity'])->toBe('simple');
     expect($task['blocked_by'])->toBe([]);
 });
 
@@ -142,6 +143,28 @@ it('validates task size enum', function () {
     // Invalid size
     $this->taskService->create(['title' => 'Test', 'size' => 'invalid']);
 })->throws(RuntimeException::class, 'Invalid task size');
+
+it('validates task complexity enum', function () {
+    $this->taskService->initialize();
+
+    // Valid complexities
+    $validComplexities = ['trivial', 'simple', 'moderate', 'complex'];
+    foreach ($validComplexities as $complexity) {
+        $task = $this->taskService->create(['title' => 'Test', 'complexity' => $complexity]);
+        expect($task['complexity'])->toBe($complexity);
+    }
+
+    // Invalid complexity
+    $this->taskService->create(['title' => 'Test', 'complexity' => 'invalid']);
+})->throws(RuntimeException::class, 'Invalid task complexity');
+
+it('defaults complexity to simple when not provided', function () {
+    $this->taskService->initialize();
+
+    $task = $this->taskService->create(['title' => 'Test task']);
+
+    expect($task['complexity'])->toBe('simple');
+});
 
 it('finds task by exact ID', function () {
     $this->taskService->initialize();

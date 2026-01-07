@@ -187,7 +187,7 @@ Core service handling JSONL storage with:
 ### Data Storage
 Single file: `.fuel/tasks.jsonl` - one JSON object per line, sorted by ID.
 
-Task fields: `id`, `title`, `status` (open/in_progress/closed), `description`, `type`, `priority`, `labels`, `size`, `blocked_by` (array of task IDs), `created_at`, `updated_at`, and optionally `reason`, `consumed`, `consumed_at`, `consumed_exit_code`, `consumed_output`.
+Task fields: `id`, `title`, `status` (open/in_progress/closed), `description`, `type`, `priority`, `labels`, `size`, `complexity` (trivial/simple/moderate/complex), `blocked_by` (array of task IDs), `created_at`, `updated_at`, and optionally `reason`, `consumed`, `consumed_at`, `consumed_exit_code`, `consumed_output`.
 
 ## Interface Contracts
 
@@ -228,6 +228,7 @@ All commands that return task data use this structure:
   "priority": 2,  // Integer 0-4 (0=critical, 4=backlog)
   "labels": ["api", "urgent"],  // Array of label strings
   "size": "m",  // Can be: "xs", "s", "m", "l", "xl"
+  "complexity": "simple",  // Can be: "trivial", "simple", "moderate", "complex"
   "blocked_by": [
     "fuel-xxxx"
   ],
@@ -242,7 +243,7 @@ All commands that return task data use this structure:
 ```
 
 **Required fields:** `id`, `title`, `status`, `created_at`, `updated_at`  
-**Default fields:** `description` (null), `type` ("task"), `priority` (2), `labels` ([]), `size` ("m"), `blocked_by` ([])  
+**Default fields:** `description` (null), `type` ("task"), `priority` (2), `labels` ([]), `size` ("m"), `complexity` ("simple"), `blocked_by` ([])  
 **Optional fields:** `reason`, `consumed`, `consumed_at`, `consumed_exit_code`, `consumed_output`
 
 ### Command List
