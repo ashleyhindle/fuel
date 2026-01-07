@@ -20,7 +20,7 @@ fuel guidelines --add          # Auto-manages in AGENTS.md (recommended)
 # or: fuel guidelines >> CLAUDE.md      # For Claude Code
 # or: fuel guidelines >> .cursorrules   # For Cursor
 
-# Run your favourite agent and ask it to "Consume the fuel"
+# Run your favourite agent and ask it to "Consume the fuel" or "Add 'xyz' as fuel"
 ```
 
 That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions to `AGENTS.md`, and creates your first task.
