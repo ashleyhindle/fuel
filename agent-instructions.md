@@ -13,6 +13,10 @@ fuel show <id>                  # View task details
 fuel board                      # Kanban view
 ```
 
+### TodoWrite vs Fuel
+
+Use **TodoWrite** for single-session step tracking. Use **fuel** for work that outlives the session (multi-session, dependencies, discovered work for future). When unsure, prefer fuel. It is better to over-persist than lose context.
+
 ### 🚨 MANDATORY: Session Close Protocol - Land The Plane
 
 **YOU MUST COMPLETE EVERY STEP BELOW BEFORE EXITING. NO EXCEPTIONS.**
