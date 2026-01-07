@@ -66,11 +66,9 @@ class AddCommand extends Command
             $data['size'] = $size;
         }
 
-        // Add complexity (default to simple if not specified)
+        // Add complexity
         if ($complexity = $this->option('complexity')) {
             $data['complexity'] = $complexity;
-        } else {
-            $data['complexity'] = 'simple';
         }
 
         // Add blocked-by dependencies (comma-separated task IDs)
