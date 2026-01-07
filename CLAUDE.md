@@ -125,22 +125,28 @@ Task fields: `id`, `title`, `status` (open/closed), `dependencies`, `created_at`
 
 ## Interface Contracts
 
-**IMPORTANT:** When implementing features in parallel (multiple subagents), these contracts ensure consistency.
+**IMPORTANT:** When implementing features in parallel (multiple subagents), contracts ensure consistency.
 
-### Defining Contracts Before Parallel Work
+### Contract-First Pattern with `--description`
 
-When multiple tasks will be worked on in parallel (by subagents or team members), **define the interface contract FIRST**:
+When parallel tasks share an interface, **define the contract in a parent task's description**:
 
-1. **Before spawning agents**, document in this file:
-   - Method signatures for any shared service methods
-   - JSON output format for any new commands
-   - Schema changes (new fields on task objects)
+1. **Create a contract task** with `--description` specifying the exact interface:
+   ```bash
+   ./fuel add "Add UserService" --description="Schema: {id, name, email, role (admin|user), created_at}. Methods: create(array): array, find(string): ?array, update(string, array): array"
+   ```
 
-2. **Each agent reads CLAUDE.md** to understand the contract they must implement to
+2. **Create dependent tasks** that reference the contract:
+   ```bash
+   ./fuel add "Add create user endpoint - use contract from fuel-xxxx" --blocked-by=fuel-xxxx
+   ./fuel add "Add update user endpoint - use contract from fuel-xxxx" --blocked-by=fuel-xxxx
+   ```
 
-3. **Tests should verify the contract**, not implementation details
+3. **Subagents read the parent task** to see the interface they must implement
 
-This prevents the "tests expect different output than implementation produces" problem.
+**Why this works:** The contract lives IN the task description. When an agent picks up a dependent task, they read the parent task's description to see the exact interface. No external docs needed - the task system IS the documentation.
+
+For project-wide contracts (task schema, command output formats), document them in CLAUDE.md below.
 
 ### Task Object Schema
 

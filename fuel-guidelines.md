@@ -77,30 +77,25 @@ This pattern works well for independent tasks like:
 
 ### Contract-First Pattern for Shared Interfaces
 
-When multiple tasks will share an interface (method signatures, JSON output, schema), use the **contract-first pattern**:
+When parallel tasks share an interface (method signatures, JSON output, schema), use **`--description` to define the contract**:
 
-1. **Create a contract task** with a description that:
-   - Specifies the exact schema, method signatures, or JSON output format
-   - Implements the shared foundation
-   - Runs FIRST before dependent work
+1. **Create a contract task** with `--description` specifying the exact interface:
+   ```bash
+   fuel:add "Add UserService" --description="Schema: {id, name, email, role (admin|user), created_at}. Methods: create(array): array, find(string): ?array, update(string, array): array"
+   ```
 
-2. **Create dependent tasks** with descriptions that:
-   - Reference the contract task: "Use the schema from fuel-xxxx"
-   - Are blocked by the contract task (`--blocked-by=<contract-task-id>`)
-   - Won't start until the contract exists
+2. **Create dependent tasks** that reference the contract task:
+   ```bash
+   fuel:add "Add create user endpoint - use contract from fuel-xxxx" --blocked-by=fuel-xxxx
+   fuel:add "Add update user endpoint - use contract from fuel-xxxx" --blocked-by=fuel-xxxx
+   fuel:add "Add list users endpoint - use contract from fuel-xxxx" --blocked-by=fuel-xxxx
+   ```
 
-**Example:**
-```bash
-# Task 1: Define AND implement the contract
-fuel:add "Add user schema to UserService. Fields: name (string), email (string), role (enum: admin|user). Method: create(array \$data): array returns user object with id, name, email, role, created_at"
+3. **Subagents read the parent task** to see the interface they must implement
 
-# Tasks 2-4: Reference the contract, blocked until it exists
-fuel:add "Add create user endpoint - use schema from fuel-xxxx" --blocked-by=fuel-xxxx
-fuel:add "Add update user endpoint - use schema from fuel-xxxx" --blocked-by=fuel-xxxx
-fuel:add "Add list users endpoint - use schema from fuel-xxxx" --blocked-by=fuel-xxxx
-```
+**Why this works:** The contract lives IN the task's `--description`. When an agent picks up a dependent task, they read the parent task to see the exact interface. No separate documentation needed - the task system IS the documentation.
 
-**Why this matters:** The contract is IN the task description. When an agent picks up a dependent task, they read fuel-xxxx's description to see the exact interface they must use. No separate documentation needed - the task system IS the documentation.
+**Tip:** Keep titles short, put details in `--description`. Agents can view full task details with `fuel:show <id>`.
 
 ### Common Mistakes to Avoid
 
