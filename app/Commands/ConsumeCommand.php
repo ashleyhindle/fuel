@@ -30,7 +30,7 @@ class ConsumeCommand extends Command
     /** @var array<string, int> Count of active processes per agent name */
     private array $agentCounts = [];
 
-    /** @var array<int, array{task_id: string, agent_name: string, start_time: int}> Process metadata indexed by PID */
+    /** @var array<int, array{task_id: string, agent_name: string, start_time: int, session_id: ?string, output_buffer: string, session_id_captured: bool}> Process metadata indexed by PID */
     private array $processMetadata = [];
 
     public function handle(TaskService $taskService, ConfigService $configService, RunService $runService): int
@@ -347,6 +347,9 @@ PROMPT;
             'task_id' => $taskId,
             'agent_name' => $agentName,
             'start_time' => $startTime,
+            'session_id' => null,
+            'output_buffer' => '',
+            'session_id_captured' => false,
         ];
 
         // Store the process PID in the task
@@ -376,6 +379,9 @@ PROMPT;
         array &$statusLines
     ): void {
         foreach ($this->activeProcesses as $pid => $process) {
+            // Read incremental output and try to capture session_id
+            $this->captureSessionIdFromOutput($pid, $process, $runService);
+
             if (! $process->isRunning()) {
                 // Process completed - handle it
                 $this->handleProcessCompletion(
@@ -391,6 +397,62 @@ PROMPT;
         // Keep only last 5 status lines
         if (count($statusLines) > 5) {
             $statusLines = array_slice($statusLines, -5);
+        }
+    }
+
+    /**
+     * Capture session_id from Claude's stream-json output.
+     * Parses the init message: {"type":"system","subtype":"init","session_id":"..."}
+     */
+    private function captureSessionIdFromOutput(int $pid, Process $process, RunService $runService): void
+    {
+        if (! isset($this->processMetadata[$pid])) {
+            return;
+        }
+
+        // Already captured session_id for this process
+        if ($this->processMetadata[$pid]['session_id_captured']) {
+            return;
+        }
+
+        // Read incremental output
+        $incrementalOutput = $process->getIncrementalOutput();
+        if (empty($incrementalOutput)) {
+            return;
+        }
+
+        // Append to buffer
+        $this->processMetadata[$pid]['output_buffer'] .= $incrementalOutput;
+
+        // Try to parse each line for the init message with session_id
+        $lines = explode("\n", $this->processMetadata[$pid]['output_buffer']);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+
+            $json = json_decode($line, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                continue;
+            }
+
+            // Look for init message: {"type":"system","subtype":"init","session_id":"..."}
+            if (isset($json['type'], $json['session_id']) &&
+                $json['type'] === 'system' &&
+                ($json['subtype'] ?? '') === 'init') {
+                $sessionId = $json['session_id'];
+                $this->processMetadata[$pid]['session_id'] = $sessionId;
+                $this->processMetadata[$pid]['session_id_captured'] = true;
+
+                // Store session_id in run data immediately
+                $taskId = $this->processMetadata[$pid]['task_id'];
+                $runService->updateLatestRun($taskId, [
+                    'session_id' => $sessionId,
+                ]);
+
+                return;
+            }
         }
     }
 
@@ -412,20 +474,55 @@ PROMPT;
         $taskId = $metadata['task_id'];
         $agentName = $metadata['agent_name'];
         $startTime = $metadata['start_time'];
+        $sessionId = $metadata['session_id'];
 
         $exitCode = $process->getExitCode();
         $duration = time() - $startTime;
         $durationStr = $this->formatDuration($duration);
 
-        // Capture agent output
-        $output = $process->getOutput().$process->getErrorOutput();
+        // Capture agent output (include any buffered output from incremental reads)
+        $bufferedOutput = $metadata['output_buffer'];
+        $finalOutput = $process->getOutput();
+        $output = $bufferedOutput.$finalOutput.$process->getErrorOutput();
+
+        // Parse stream-json output for result message with session_id and cost
+        $costUsd = null;
+        $lines = explode("\n", $output);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+
+            $json = json_decode($line, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                continue;
+            }
+
+            // Look for result message: {"type":"result","session_id":"...","total_cost_usd":...}
+            if (isset($json['type']) && $json['type'] === 'result') {
+                if (isset($json['session_id']) && $sessionId === null) {
+                    $sessionId = $json['session_id'];
+                }
+                if (isset($json['total_cost_usd'])) {
+                    $costUsd = (float) $json['total_cost_usd'];
+                }
+            }
+        }
 
         // Update run entry with completion data
-        $runService->updateLatestRun($taskId, [
+        $runData = [
             'ended_at' => date('c'),
             'exit_code' => $exitCode,
             'output' => $output,
-        ]);
+        ];
+        if ($sessionId !== null) {
+            $runData['session_id'] = $sessionId;
+        }
+        if ($costUsd !== null) {
+            $runData['cost_usd'] = $costUsd;
+        }
+        $runService->updateLatestRun($taskId, $runData);
 
         $taskService->update($taskId, [
             'consume_pid' => null, // Clear PID on completion
@@ -565,7 +662,12 @@ PROMPT;
                     $startTime = $metadata['start_time'];
                     $duration = $this->formatDuration(time() - $startTime);
                     $shortId = substr($taskId, 2, 6); // Skip 'f-' prefix
-                    $processLines[] = "🔄 {$shortId} [{$agentName}] ({$duration})";
+                    $sessionInfo = '';
+                    if (! empty($metadata['session_id'])) {
+                        $shortSession = substr($metadata['session_id'], 0, 8);
+                        $sessionInfo = " 🔗{$shortSession}";
+                    }
+                    $processLines[] = "🔄 {$shortId} [{$agentName}] ({$duration}){$sessionInfo}";
                 }
             }
             if (! empty($processLines)) {
