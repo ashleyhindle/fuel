@@ -11,7 +11,7 @@ use RuntimeException;
 
 class SelfUpdateCommand extends Command
 {
-    protected $signature = 'self-update';
+    protected $signature = 'self-update|upgrade';
 
     protected $description = 'Update Fuel to the latest version from GitHub releases';
 
