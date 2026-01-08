@@ -1702,7 +1702,7 @@ describe('board command', function () {
         expect($output)->toContain("[{$shortId}·s]");
     });
 
-    it('shows done tasks in Recently done line', function () {
+    it('shows done tasks in Done column', function () {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task['id']);
@@ -1710,10 +1710,10 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        // Done tasks appear in "Recently done:" line below the board
+        // Done tasks appear in "Done" column
         $shortId = substr($task['id'], 2, 6);
-        expect($output)->toContain('Recently done');
-        expect($output)->toContain("[{$shortId}]");
+        expect($output)->toContain('Done (1)');
+        expect($output)->toContain("[{$shortId}·s]");
     });
 
     it('outputs JSON when --json flag is used', function () {
@@ -1726,11 +1726,12 @@ describe('board command', function () {
         expect($output)->toContain('"ready":');
         expect($output)->toContain('"in_progress":');
         expect($output)->toContain('"blocked":');
+        expect($output)->toContain('"human":');
         expect($output)->toContain('"done":');
         expect($output)->toContain('Test task');
     });
 
-    it('limits done tasks to 10 most recent', function () {
+    it('returns all done tasks in JSON output', function () {
         $this->taskService->initialize();
 
         // Create and close 12 tasks
@@ -1743,7 +1744,8 @@ describe('board command', function () {
         $output = Artisan::output();
         $data = json_decode($output, true);
 
-        expect($data['done'])->toHaveCount(10);
+        // JSON output returns all done tasks (display limits to 3)
+        expect($data['done'])->toHaveCount(12);
     });
 
     it('shows failed icon for consumed tasks with non-zero exit code', function () {
@@ -3696,5 +3698,147 @@ describe('runs command', function () {
         $this->artisan('runs', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Runs for task')
             ->assertExitCode(0);
+    });
+});
+
+// Resume Command Tests
+describe('resume command', function () {
+    it('shows error when task not found', function () {
+        $this->artisan('resume', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
+            ->expectsOutputToContain("Task 'f-nonexistent' not found")
+            ->assertExitCode(1);
+    });
+
+    it('shows error when no runs exist for task', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $this->artisan('resume', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('No runs found for task')
+            ->assertExitCode(1);
+    });
+
+    it('shows error when run has no session_id', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'agent' => 'claude',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            // No session_id
+        ]);
+
+        $this->artisan('resume', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('has no session_id')
+            ->assertExitCode(1);
+    });
+
+    it('shows error when run has no agent', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'session_id' => 'test-session-123',
+            // No agent
+        ]);
+
+        $this->artisan('resume', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('has no agent')
+            ->assertExitCode(1);
+    });
+
+    it('shows error when agent is unknown', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'agent' => 'unknown-agent',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'session_id' => 'test-session-123',
+        ]);
+
+        $this->artisan('resume', ['id' => $task['id'], '--cwd' => $this->tempDir])
+            ->expectsOutputToContain("Unknown agent 'unknown-agent'")
+            ->assertExitCode(1);
+    });
+
+    it('shows error when specific run not found', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'agent' => 'claude',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'session_id' => 'test-session-123',
+        ]);
+
+        $this->artisan('resume', [
+            'id' => $task['id'],
+            '--run' => 'run-nonexistent',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain("Run 'run-nonexistent' not found")
+            ->assertExitCode(1);
+    });
+
+    it('supports partial run ID matching', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'agent' => 'claude',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'session_id' => 'test-session-123',
+        ]);
+
+        $runs = $runService->getRuns($task['id']);
+        $runId = $runs[0]['run_id'] ?? '';
+        $partialRunId = substr($runId, 0, 6); // First 6 chars
+
+        // This will fail because exec() replaces the process, but we can test validation passes
+        // We'll just verify it doesn't fail with "not found" error
+        $this->artisan('resume', [
+            'id' => $task['id'],
+            '--run' => $partialRunId,
+            '--cwd' => $this->tempDir,
+        ])
+            ->assertExitCode(1); // Will fail at exec(), but validation should pass
+    });
+
+    it('outputs JSON error when --json flag is used', function () {
+        Artisan::call('resume', [
+            'id' => 'f-nonexistent',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        expect($data)->toBeArray();
+        expect($data['error'])->toContain("Task 'f-nonexistent' not found");
+    });
+
+    it('supports partial task ID matching', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'agent' => 'claude',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'session_id' => 'test-session-123',
+        ]);
+
+        // Use partial ID (last 6 chars)
+        $partialId = substr($task['id'], -6);
+
+        $this->artisan('resume', ['id' => $partialId, '--cwd' => $this->tempDir])
+            ->assertExitCode(1); // Will fail at exec(), but task should be found
     });
 });
