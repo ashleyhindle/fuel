@@ -63,33 +63,25 @@ class ConsumeCommand extends Command
         $paused = true;
         $originalTty = null;
 
-        if (function_exists('pcntl_signal')) {
-            pcntl_signal(SIGINT, function () use (&$exiting) {
-                $exiting = true;
-            });
-            pcntl_signal(SIGTERM, function () use (&$exiting) {
-                $exiting = true;
-            });
-        }
+        pcntl_signal(SIGINT, function () use (&$exiting) {
+            $exiting = true;
+        });
+        pcntl_signal(SIGTERM, function () use (&$exiting) {
+            $exiting = true;
+        });
 
-        // Set up terminal for non-blocking keyboard input (pause toggle)
-        $canDetectKeys = stream_isatty(STDIN);
-        if ($canDetectKeys) {
-            $originalTty = shell_exec('stty -g');
-            shell_exec('stty -icanon -echo');
-            stream_set_blocking(STDIN, false);
-        }
+        $originalTty = shell_exec('stty -g');
+        shell_exec('stty -icanon -echo');
+        stream_set_blocking(STDIN, false);
 
         $statusLines = [];
 
         try {
             while (! $exiting) {
-                if (function_exists('pcntl_signal_dispatch')) {
-                    pcntl_signal_dispatch();
-                }
+                pcntl_signal_dispatch();
 
                 // Check for pause toggle (Shift+Tab)
-                if ($canDetectKeys && $this->checkForPauseToggle()) {
+                if ($this->checkForPauseToggle()) {
                     $paused = ! $paused;
                     $statusLines[] = $paused
                         ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
@@ -98,7 +90,7 @@ class ConsumeCommand extends Command
 
                 // When paused, just refresh display and wait
                 if ($paused) {
-                    $this->setTerminalTitle('Fuel: PAUSED');
+                    $this->setTerminalTitle('fuel: PAUSED');
                     $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
                     usleep(200000); // 200ms
 
@@ -158,16 +150,14 @@ class ConsumeCommand extends Command
                     if (empty($statusLines) || end($statusLines) !== $waitingMsg) {
                         $statusLines[] = $waitingMsg;
                     }
-                    $this->setTerminalTitle('Fuel: Waiting for tasks...');
+                    $this->setTerminalTitle('fuel: Waiting for tasks...');
                     $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
 
                     // Poll while waiting
                     for ($i = 0; $i < $interval * 10 && ! $exiting; $i++) {
-                        if (function_exists('pcntl_signal_dispatch')) {
-                            pcntl_signal_dispatch();
-                        }
+                        pcntl_signal_dispatch();
                         // Check for pause toggle while waiting
-                        if ($canDetectKeys && $this->checkForPauseToggle()) {
+                        if ($this->checkForPauseToggle()) {
                             $paused = ! $paused;
                             $statusLines[] = $paused
                                 ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
@@ -186,9 +176,9 @@ class ConsumeCommand extends Command
                 // Update terminal title with active process count
                 if (! empty($this->activeProcesses)) {
                     $count = count($this->activeProcesses);
-                    $this->setTerminalTitle("Fuel: {$count} active");
+                    $this->setTerminalTitle("fuel: {$count} active");
                 } else {
-                    $this->setTerminalTitle('Fuel: Idle');
+                    $this->setTerminalTitle('fuel: Idle');
                 }
 
                 // Sleep between poll cycles
@@ -297,7 +287,7 @@ PROMPT;
         if ($dryrun) {
             // Dryrun: show what would happen without claiming or spawning
             $statusLines[] = $this->formatStatus('👁', "[DRYRUN] Would spawn agent for {$taskId}: {$shortTitle}", 'cyan');
-            $this->setTerminalTitle("Fuel: [DRYRUN] {$taskId}");
+            $this->setTerminalTitle("fuel: [DRYRUN] {$taskId}");
             $this->newLine();
             $this->line('<fg=cyan>== PROMPT THAT WOULD BE SENT ==</>');
             $this->line($fullPrompt);
@@ -497,6 +487,15 @@ PROMPT;
             $json = json_decode($line, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 continue;
+            }
+
+            // Look for init message: {"type":"system","subtype":"init","session_id":"..."}
+            // This handles fast-completing processes where the polling loop missed the init message
+            if (isset($json['type'], $json['session_id']) &&
+                $json['type'] === 'system' &&
+                ($json['subtype'] ?? '') === 'init' &&
+                $sessionId === null) {
+                $sessionId = $json['session_id'];
             }
 
             // Look for result message: {"type":"result","session_id":"...","total_cost_usd":...}
