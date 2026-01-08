@@ -196,6 +196,98 @@ it('finds task by partial ID', function () {
     expect($found['id'])->toBe($created['id']);
 });
 
+it('finds task by partial ID with f- prefix', function () {
+    $this->taskService->initialize();
+    $created = $this->taskService->create(['title' => 'Test task']);
+
+    // Use partial hash with f- prefix
+    $hashPart = substr($created['id'], 2, 3); // First 3 chars of hash
+    $partialId = 'f-'.$hashPart;
+
+    $found = $this->taskService->find($partialId);
+
+    expect($found)->not->toBeNull();
+    expect($found['id'])->toBe($created['id']);
+});
+
+it('finds task by partial ID matching full ID prefix', function () {
+    $this->taskService->initialize();
+    $created = $this->taskService->create(['title' => 'Test task']);
+
+    // Use partial ID that matches the start of the full ID
+    $partialId = substr($created['id'], 0, 5); // First 5 chars: "f-d60"
+
+    $found = $this->taskService->find($partialId);
+
+    expect($found)->not->toBeNull();
+    expect($found['id'])->toBe($created['id']);
+});
+
+it('finds old format task by partial ID with fuel- prefix', function () {
+    $this->taskService->initialize();
+
+    // Manually create a task with old 'fuel-' prefix format
+    $oldFormatId = 'fuel-'.substr(uniqid('', true), 0, 6);
+    $task = [
+        'id' => $oldFormatId,
+        'title' => 'Old format task',
+        'status' => 'open',
+        'description' => null,
+        'type' => 'task',
+        'priority' => 2,
+        'labels' => [],
+        'size' => 'm',
+        'complexity' => 'simple',
+        'blocked_by' => [],
+        'created_at' => now()->toIso8601String(),
+        'updated_at' => now()->toIso8601String(),
+    ];
+
+    // Write task directly to JSONL file
+    file_put_contents($this->storagePath, json_encode($task)."\n", FILE_APPEND);
+
+    // Try to find using partial ID with fuel- prefix
+    $hashPart = substr($oldFormatId, 5, 3); // First 3 chars of hash
+    $partialId = 'fuel-'.$hashPart;
+
+    $found = $this->taskService->find($partialId);
+
+    expect($found)->not->toBeNull();
+    expect($found['id'])->toBe($oldFormatId);
+});
+
+it('finds old format task by partial hash only', function () {
+    $this->taskService->initialize();
+
+    // Manually create a task with old 'fuel-' prefix format
+    $oldFormatId = 'fuel-'.substr(uniqid('', true), 0, 6);
+    $task = [
+        'id' => $oldFormatId,
+        'title' => 'Old format task',
+        'status' => 'open',
+        'description' => null,
+        'type' => 'task',
+        'priority' => 2,
+        'labels' => [],
+        'size' => 'm',
+        'complexity' => 'simple',
+        'blocked_by' => [],
+        'created_at' => now()->toIso8601String(),
+        'updated_at' => now()->toIso8601String(),
+    ];
+
+    // Write task directly to JSONL file
+    file_put_contents($this->storagePath, json_encode($task)."\n", FILE_APPEND);
+
+    // Try to find using just the hash part
+    $hashPart = substr($oldFormatId, 5, 3); // First 3 chars of hash
+
+    $found = $this->taskService->find($hashPart);
+
+    expect($found)->not->toBeNull();
+    expect($found['id'])->toBe($oldFormatId);
+});
+
 it('throws exception for ambiguous partial ID', function () {
     $this->taskService->initialize();
     $this->taskService->create(['title' => 'Task 1']);
