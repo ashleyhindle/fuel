@@ -8,11 +8,11 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
-class ListCommand extends Command
+class TasksCommand extends Command
 {
     use HandlesJsonOutput;
 
-    protected $signature = 'list
+    protected $signature = 'tasks
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--status= : Filter by status (open|closed)}

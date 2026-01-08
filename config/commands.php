@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'default' => App\Commands\ReadyCommand::class,
+    'default' => Symfony\Component\Console\Command\ListCommand::class,
 
     /*
     |--------------------------------------------------------------------------
@@ -77,7 +77,6 @@ return [
     */
 
     'remove' => [
-        Symfony\Component\Console\Command\ListCommand::class,
         NunoMaduro\LaravelConsoleSummary\SummaryCommand::class,
     ],
 
