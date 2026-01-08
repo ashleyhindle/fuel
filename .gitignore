@@ -2,9 +2,8 @@
 /node_modules
 /.idea
 /.vscode
-/.vagrant
 .phpunit.result.cache
 .fuel/*.lock
-agent-resources/laravel-zero-docs
 /builds
 .fuel/runs/
+.phpactor.json
