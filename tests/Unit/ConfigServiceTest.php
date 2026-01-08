@@ -235,18 +235,22 @@ it('creates default config with comments and allowedTools', function () {
     // Verify agents section exists with cursor-agent and claude
     expect($parsed['agents'])->toHaveKeys(['cursor-agent', 'claude']);
 
-    // Verify trivial/simple have --force and stream-json args
+    // Verify trivial/simple (cursor-agent) have --force and --output-format stream-json args
     expect($parsed['complexity']['trivial']['agent'])->toBe('cursor-agent');
     expect($parsed['complexity']['trivial'])->toHaveKey('args');
     expect($parsed['complexity']['trivial']['args'])->toBeArray();
+    // Verify cursor-agent has --force as first arg (uncommented in default)
     expect($parsed['complexity']['trivial']['args'][0])->toBe('--force');
+    // Verify cursor-agent has --output-format stream-json args
     expect($parsed['complexity']['trivial']['args'][1])->toBe('--output-format');
     expect($parsed['complexity']['trivial']['args'][2])->toBe('stream-json');
 
     expect($parsed['complexity']['simple']['agent'])->toBe('cursor-agent');
     expect($parsed['complexity']['simple'])->toHaveKey('args');
     expect($parsed['complexity']['simple']['args'])->toBeArray();
+    // Verify cursor-agent has --force as first arg (uncommented in default)
     expect($parsed['complexity']['simple']['args'][0])->toBe('--force');
+    // Verify cursor-agent has --output-format stream-json args
     expect($parsed['complexity']['simple']['args'][1])->toBe('--output-format');
     expect($parsed['complexity']['simple']['args'][2])->toBe('stream-json');
 
