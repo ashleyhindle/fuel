@@ -1076,6 +1076,28 @@ class TaskService
     }
 
     /**
+     * Delete a task from tasks.jsonl.
+     *
+     * @return array<string, mixed> The deleted task
+     */
+    public function delete(string $id): array
+    {
+        return $this->withExclusiveLock(function () use ($id): array {
+            $tasks = $this->readTasks();
+            $task = $this->findInCollection($tasks, $id);
+
+            if ($task === null) {
+                throw new RuntimeException("Task '{$id}' not found");
+            }
+
+            $tasks = $tasks->filter(fn (array $t): bool => $t['id'] !== $task['id']);
+            $this->writeTasks($tasks);
+
+            return $task;
+        });
+    }
+
+    /**
      * Remove a dependency between tasks.
      *
      * @return array<string, mixed> The updated "from" task
