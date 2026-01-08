@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\BacklogService;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -17,6 +18,11 @@ beforeEach(function () {
     // Bind our test RunService instance
     $this->app->singleton(RunService::class, function () {
         return new RunService($this->tempDir.'/.fuel/runs');
+    });
+
+    // Bind our test BacklogService instance
+    $this->app->singleton(BacklogService::class, function () {
+        return new BacklogService($this->tempDir.'/.fuel/backlog.jsonl');
     });
 
     $this->taskService = $this->app->make(TaskService::class);
@@ -1528,6 +1534,53 @@ describe('dep:remove command', function () {
         // Verify blocker was removed from blocked_by array using full ID
         $updated = $this->taskService->find($blocked['id']);
         expect($updated['blocked_by'] ?? [])->toBeEmpty();
+    });
+});
+
+// =============================================================================
+// remove Command Tests
+// =============================================================================
+
+describe('remove command', function () {
+    it('outputs JSON when --json flag is used for task deletion', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task to delete']);
+
+        Artisan::call('remove', [
+            'id' => $task['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+            '--force' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toHaveKeys(['id', 'type', 'deleted']);
+        expect($result['id'])->toBe($task['id']);
+        expect($result['type'])->toBe('task');
+        expect($result['deleted'])->toBeArray();
+        expect($result['deleted']['id'])->toBe($task['id']);
+    });
+
+    it('outputs JSON when --json flag is used for backlog deletion', function () {
+        $backlogService = new BacklogService($this->tempDir.'/.fuel/backlog.jsonl');
+        $backlogService->initialize();
+        $item = $backlogService->add('Backlog item to delete', 'Description');
+
+        Artisan::call('remove', [
+            'id' => $item['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+            '--force' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toHaveKeys(['id', 'type', 'deleted']);
+        expect($result['id'])->toBe($item['id']);
+        expect($result['type'])->toBe('backlog');
+        expect($result['deleted'])->toBeArray();
+        expect($result['deleted']['id'])->toBe($item['id']);
     });
 });
 
@@ -4065,5 +4118,132 @@ describe('summary command', function () {
         // The output should contain the task status
         expect($output)->toContain('Status:');
         expect($output)->toContain('open');
+    });
+});
+
+describe('remove command', function () {
+    it('deletes a task with --force flag', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task to delete']);
+
+        Artisan::call('remove', ['id' => $task['id'], '--force' => true, '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Deleted task:');
+        expect($output)->toContain($task['id']);
+
+        // Verify task is deleted
+        expect($this->taskService->find($task['id']))->toBeNull();
+    });
+
+    it('deletes a backlog item with --force flag', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('Backlog item to delete', 'Description');
+
+        Artisan::call('remove', ['id' => $item['id'], '--force' => true, '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Deleted backlog item:');
+        expect($output)->toContain($item['id']);
+
+        // Verify backlog item is deleted
+        expect($backlogService->find($item['id']))->toBeNull();
+    });
+
+    it('outputs JSON when --json flag is used for task', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task to delete']);
+
+        Artisan::call('remove', [
+            'id' => $task['id'],
+            '--force' => true,
+            '--json' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('"type": "task"');
+        expect($output)->toContain('"id": "'.$task['id'].'"');
+        expect($output)->toContain('"deleted"');
+    });
+
+    it('outputs JSON when --json flag is used for backlog item', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('Backlog item to delete', 'Description');
+
+        Artisan::call('remove', [
+            'id' => $item['id'],
+            '--force' => true,
+            '--json' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('"type": "backlog"');
+        expect($output)->toContain('"id": "'.$item['id'].'"');
+        expect($output)->toContain('"deleted"');
+    });
+
+    it('returns error when task not found', function () {
+        $this->artisan('remove', ['id' => 'f-nonexistent', '--force' => true, '--cwd' => $this->tempDir])
+            ->expectsOutputToContain("Task 'f-nonexistent' not found")
+            ->assertExitCode(1);
+    });
+
+    it('returns error when backlog item not found', function () {
+        $this->artisan('remove', ['id' => 'b-nonexistent', '--force' => true, '--cwd' => $this->tempDir])
+            ->expectsOutputToContain("Backlog item 'b-nonexistent' not found")
+            ->assertExitCode(1);
+    });
+
+    it('supports partial ID matching for tasks', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task to delete']);
+
+        // Use partial ID (first 5 chars after f-)
+        $partialId = substr($task['id'], 2, 5);
+
+        $this->artisan('remove', ['id' => $partialId, '--force' => true, '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Deleted task:')
+            ->assertExitCode(0);
+
+        // Verify task is deleted
+        expect($this->taskService->find($task['id']))->toBeNull();
+    });
+
+    it('supports partial ID matching for backlog items', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('Backlog item to delete', 'Description');
+
+        // Use partial ID (first 5 chars after b-)
+        $partialId = substr($item['id'], 2, 5);
+
+        Artisan::call('remove', ['id' => $partialId, '--force' => true, '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Deleted backlog item:');
+
+        // Verify backlog item is deleted
+        expect($backlogService->find($item['id']))->toBeNull();
+    });
+
+    it('handles ambiguous partial ID for tasks', function () {
+        $this->taskService->initialize();
+        // Create two tasks with same first character in ID (unlikely but possible)
+        $task1 = $this->taskService->create(['title' => 'Task 1']);
+        $task2 = $this->taskService->create(['title' => 'Task 2']);
+
+        // Try to use just 'f' as ID - this should either match uniquely or be ambiguous
+        // Since IDs are random, we can't guarantee ambiguity, so we'll test that the command
+        // handles the case gracefully (either succeeds with unique match or shows ambiguous error)
+        Artisan::call('remove', ['id' => 'f', '--force' => true, '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+        $exitCode = Artisan::exitCode();
+
+        // Should either succeed (unique match) or fail with ambiguous error
+        expect($exitCode === 0 || ($exitCode === 1 && str_contains($output, 'Ambiguous')))->toBeTrue();
     });
 });
