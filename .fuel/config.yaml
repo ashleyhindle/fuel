@@ -8,12 +8,16 @@ complexity:
     model: composer-1
     args:
       - "--force"
+      - "--output-format"
+      - "stream-json"
 
   simple:
     agent: cursor-agent
     model: composer-1
     args:
       - "--force"
+      - "--output-format"
+      - "stream-json"
 
   moderate:
     agent: claude
