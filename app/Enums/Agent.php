@@ -18,7 +18,7 @@ enum Agent: string
 
         return match ($this) {
             self::Claude => "claude --resume {$escapedSessionId}",
-            self::CursorAgent => "cursor-agent --resume {$escapedSessionId}",
+            self::CursorAgent => "cursor-agent --resume={$sessionId}",
         };
     }
 
@@ -32,7 +32,7 @@ enum Agent: string
 
         return match ($this) {
             self::Claude => "claude --resume {$escapedSessionId} -p {$escapedPrompt}",
-            self::CursorAgent => "cursor-agent --resume {$escapedSessionId} -p {$escapedPrompt}",
+            self::CursorAgent => "cursor-agent --resume={$sessionId} -p {$escapedPrompt}",
         };
     }
 
