@@ -235,6 +235,21 @@ it('creates default config with comments and allowedTools', function () {
     // Verify agents section exists with cursor-agent and claude
     expect($parsed['agents'])->toHaveKeys(['cursor-agent', 'claude']);
 
+    // Verify trivial/simple have --force and stream-json args
+    expect($parsed['complexity']['trivial']['agent'])->toBe('cursor-agent');
+    expect($parsed['complexity']['trivial'])->toHaveKey('args');
+    expect($parsed['complexity']['trivial']['args'])->toBeArray();
+    expect($parsed['complexity']['trivial']['args'][0])->toBe('--force');
+    expect($parsed['complexity']['trivial']['args'][1])->toBe('--output-format');
+    expect($parsed['complexity']['trivial']['args'][2])->toBe('stream-json');
+
+    expect($parsed['complexity']['simple']['agent'])->toBe('cursor-agent');
+    expect($parsed['complexity']['simple'])->toHaveKey('args');
+    expect($parsed['complexity']['simple']['args'])->toBeArray();
+    expect($parsed['complexity']['simple']['args'][0])->toBe('--force');
+    expect($parsed['complexity']['simple']['args'][1])->toBe('--output-format');
+    expect($parsed['complexity']['simple']['args'][2])->toBe('stream-json');
+
     // Verify moderate/complex have stream-json, verbose, and --allowedTools args
     expect($parsed['complexity']['moderate']['agent'])->toBe('claude');
     expect($parsed['complexity']['moderate'])->toHaveKey('args');

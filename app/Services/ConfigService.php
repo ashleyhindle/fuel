@@ -272,16 +272,18 @@ complexity:
   trivial:
     agent: cursor-agent
     model: composer-1
-    # Uncomment for autonomous mode (no permission prompts):
-    # args:
-    #   - "--force"
+    args:
+      - "--force"
+      - "--output-format"
+      - "stream-json"
 
   simple:
     agent: cursor-agent
     model: composer-1
-    # Uncomment for autonomous mode (no permission prompts):
-    # args:
-    #   - "--force"
+    args:
+      - "--force"
+      - "--output-format"
+      - "stream-json"
 
   moderate:
     agent: claude
