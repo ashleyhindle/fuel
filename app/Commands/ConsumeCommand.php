@@ -45,11 +45,6 @@ class ConsumeCommand extends Command
 
         // Clean up orphaned runs from previous consume crashes
         $cleanupCount = $runService->cleanupOrphanedRuns(fn (int $pid): bool => ! $this->isProcessRunning($pid));
-        if ($cleanupCount > 0) {
-            // Log cleanup (will be visible briefly before entering alternate screen)
-            $this->info("Cleaned up {$cleanupCount} orphaned run(s) from previous session");
-            sleep(1); // Give user a moment to see the message
-        }
 
         $interval = max(1, (int) $this->option('interval'));
         $agentOverride = $this->option('agent');
@@ -701,6 +696,8 @@ PROMPT;
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
+        // Clear from cursor to end of screen to remove any leftover content below
+        $this->getOutput()->write("\033[J");
     }
 
     private function formatStatus(string $icon, string $message, string $color): string
