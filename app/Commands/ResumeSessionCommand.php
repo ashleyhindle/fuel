@@ -29,7 +29,6 @@ class ResumeSessionCommand extends Command
         $this->configureCwd($taskService);
 
         try {
-            // Find the task
             $task = $taskService->find($this->argument('id'));
 
             if ($task === null) {
@@ -38,13 +37,11 @@ class ResumeSessionCommand extends Command
 
             $taskId = $task['id'];
 
-            // Get the run (latest or by run-id)
             $run = null;
             if ($this->option('run')) {
                 $runs = $runService->getRuns($taskId);
                 $runId = $this->option('run');
 
-                // Find run by run_id (supports partial matching)
                 $matches = array_filter($runs, function (array $r) use ($runId): bool {
                     $rId = $r['run_id'] ?? '';
 
@@ -72,7 +69,6 @@ class ResumeSessionCommand extends Command
                 return $this->outputError("No runs found for task '{$taskId}'");
             }
 
-            // Validate session_id exists
             $sessionId = $run['session_id'] ?? null;
             if ($sessionId === null || $sessionId === '') {
                 return $this->outputError(
@@ -80,7 +76,6 @@ class ResumeSessionCommand extends Command
                 );
             }
 
-            // Validate agent exists and parse it
             $agentName = $run['agent'] ?? null;
             if ($agentName === null || $agentName === '') {
                 return $this->outputError(
@@ -95,17 +90,13 @@ class ResumeSessionCommand extends Command
                 );
             }
 
-            // Build the command
             $prompt = $this->option('prompt');
             if ($prompt !== null && $prompt !== '') {
-                // Headless mode with prompt
                 $command = $agent->resumeWithPromptCommand($sessionId, $prompt);
             } else {
-                // Interactive mode
                 $command = $agent->resumeCommand($sessionId);
             }
 
-            // Output info before executing (for non-JSON mode)
             if (! $this->option('json')) {
                 $this->info("Resuming session for task {$taskId}, run {$run['run_id']}");
                 $this->line("Agent: {$agent->label()}");
@@ -118,11 +109,8 @@ class ResumeSessionCommand extends Command
                 $this->newLine();
             }
 
-            // Execute the command (replaces current process)
-            // Use passthru() to execute and pass output directly to terminal
             passthru($command, $exitCode);
 
-            // passthru() should not return for interactive commands, but if it does, return the exit code
             return $exitCode;
         } catch (RuntimeException $e) {
             return $this->outputError($e->getMessage());
