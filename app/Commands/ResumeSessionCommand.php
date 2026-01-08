@@ -119,11 +119,11 @@ class ResumeSessionCommand extends Command
             }
 
             // Execute the command (replaces current process)
-            // Use exec() which replaces the current process and doesn't return
-            exec($command);
+            // Use passthru() to execute and pass output directly to terminal
+            passthru($command, $exitCode);
 
-            // If exec() returns, it means the command failed
-            return $this->outputError("Failed to execute command: {$command}");
+            // passthru() should not return for interactive commands, but if it does, return the exit code
+            return $exitCode;
         } catch (RuntimeException $e) {
             return $this->outputError($e->getMessage());
         }
