@@ -63,10 +63,10 @@ class ConsumeCommand extends Command
         $paused = true;
         $originalTty = null;
 
-        pcntl_signal(SIGINT, function () use (&$exiting) {
+        \pcntl_signal(SIGINT, function () use (&$exiting) {
             $exiting = true;
         });
-        pcntl_signal(SIGTERM, function () use (&$exiting) {
+        \pcntl_signal(SIGTERM, function () use (&$exiting) {
             $exiting = true;
         });
 
@@ -78,7 +78,7 @@ class ConsumeCommand extends Command
 
         try {
             while (! $exiting) {
-                pcntl_signal_dispatch();
+                \pcntl_signal_dispatch();
 
                 // Check for pause toggle (Shift+Tab)
                 if ($this->checkForPauseToggle()) {
@@ -155,7 +155,7 @@ class ConsumeCommand extends Command
 
                     // Poll while waiting
                     for ($i = 0; $i < $interval * 10 && ! $exiting; $i++) {
-                        pcntl_signal_dispatch();
+                        \pcntl_signal_dispatch();
                         // Check for pause toggle while waiting
                         if ($this->checkForPauseToggle()) {
                             $paused = ! $paused;
