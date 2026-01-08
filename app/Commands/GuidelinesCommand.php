@@ -166,10 +166,6 @@ If a task isn't ready to work on (needs more planning, blocked externally, wrong
 1. `fuel defer <f-id>` - Moves task to backlog, preserving title and description
 2. Later, promote it back when ready: `fuel promote <b-id> --priority=...`
 
-**Backlog format:**
-
-Backlog items are simplified (title + description only). When promoted, you add task metadata (priority, type, complexity, etc.). This keeps the backlog lightweight for ideas, while tasks have full structure for execution.
-
 ### Needs-Human Workflow
 
 When blocked on credentials, decisions, or manual steps:
