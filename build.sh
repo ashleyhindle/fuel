@@ -5,10 +5,10 @@ set -e
 echo "Building PHAR..."
 php fuel app:build fuel.phar --build-version=$(git describe --tags 2>/dev/null || echo dev)
 
-# Build binaries for mac and linux using PHPacker
+# Build binaries for mac and linux using PHPacker (with pcntl-enabled PHP)
 echo "Building binaries..."
-./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 mac arm x64
-./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 linux arm x64
+./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 --repository="ashleyhindle/fuel-php-bin" mac arm x64
+./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 --repository="ashleyhindle/fuel-php-bin" linux arm x64
 
 # Rename to expected format (mac->darwin, nested->flat)
 echo "Renaming binaries..."
