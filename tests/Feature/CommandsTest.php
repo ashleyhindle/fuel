@@ -387,6 +387,356 @@ describe('add command', function () {
         // The dependency resolution happens when checking blockers, not at creation time
         expect($task['blocked_by'])->toContain($partialId);
     });
+
+    it('adds item to backlog with --someday flag', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+
+        Artisan::call('add', [
+            'title' => 'Future idea',
+            '--someday' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Added to backlog: b-');
+        expect($output)->toContain('Title: Future idea');
+
+        // Verify it's in backlog, not tasks
+        $backlogService->initialize();
+        $all = $backlogService->all();
+        expect($all->count())->toBe(1);
+        expect($all->first()['title'])->toBe('Future idea');
+
+        // Verify it's NOT in tasks
+        $this->taskService->initialize();
+        $tasks = $this->taskService->all();
+        expect($tasks->count())->toBe(0);
+    });
+
+    it('adds item to backlog with --someday and --description flags', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+
+        Artisan::call('add', [
+            'title' => 'Future enhancement',
+            '--description' => 'This is a future idea',
+            '--someday' => true,
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $item = json_decode($output, true);
+
+        expect($item['id'])->toStartWith('b-');
+        expect($item['title'])->toBe('Future enhancement');
+        expect($item['description'])->toBe('This is a future idea');
+        expect($item)->not->toHaveKey('status');
+        expect($item)->not->toHaveKey('priority');
+        expect($item)->not->toHaveKey('type');
+    });
+
+    it('ignores task-specific flags when --someday is used', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+
+        Artisan::call('add', [
+            'title' => 'Backlog item',
+            '--someday' => true,
+            '--priority' => '4',
+            '--type' => 'feature',
+            '--labels' => 'urgent',
+            '--complexity' => 'complex',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $item = json_decode($output, true);
+
+        // Backlog items should only have id, title, description, created_at
+        expect($item['id'])->toStartWith('b-');
+        expect($item['title'])->toBe('Backlog item');
+        expect($item)->not->toHaveKey('priority');
+        expect($item)->not->toHaveKey('type');
+        expect($item)->not->toHaveKey('labels');
+        expect($item)->not->toHaveKey('complexity');
+        expect($item)->not->toHaveKey('status');
+    });
+
+    it('outputs JSON when --json flag is used with --someday', function () {
+        Artisan::call('add', [
+            'title' => 'JSON backlog item',
+            '--someday' => true,
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $item = json_decode($output, true);
+
+        expect($item)->toBeArray();
+        expect($item['id'])->toStartWith('b-');
+        expect($item['title'])->toBe('JSON backlog item');
+    });
+});
+
+// Backlog Command Tests
+describe('backlog command', function () {
+    it('shows no backlog items when empty', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+
+        $this->artisan('backlog')
+            ->expectsOutput('No backlog items.')
+            ->assertExitCode(0);
+    });
+
+    it('lists backlog items', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item1 = $backlogService->add('Item 1');
+        $item2 = $backlogService->add('Item 2', 'Description');
+
+        Artisan::call('backlog');
+        $output = Artisan::output();
+
+        expect($output)->toContain('Backlog items (2):');
+        expect($output)->toContain($item1['id']);
+        expect($output)->toContain('Item 1');
+        expect($output)->toContain($item2['id']);
+        expect($output)->toContain('Item 2');
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item1 = $backlogService->add('Item 1');
+        $item2 = $backlogService->add('Item 2');
+
+        Artisan::call('backlog', ['--json' => true]);
+        $output = Artisan::output();
+        $items = json_decode($output, true);
+
+        expect($items)->toBeArray();
+        expect($items)->toHaveCount(2);
+        expect($items[0]['id'])->toStartWith('b-');
+        expect($items[1]['id'])->toStartWith('b-');
+    });
+});
+
+// Promote Command Tests
+describe('promote command', function () {
+    it('promotes backlog item to task', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('Future feature', 'Description');
+
+        Artisan::call('promote', [
+            'id' => $item['id'],
+            '--priority' => '2',
+            '--type' => 'feature',
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Promoted backlog item');
+        expect($output)->toContain($item['id']);
+        expect($output)->toContain('to task: f-');
+        expect($output)->toContain('Future feature');
+
+        // Verify item removed from backlog
+        expect($backlogService->find($item['id']))->toBeNull();
+
+        // Verify task created
+        $this->taskService->initialize();
+        $tasks = $this->taskService->all();
+        expect($tasks->count())->toBe(1);
+        $task = $tasks->first();
+        expect($task['title'])->toBe('Future feature');
+        expect($task['description'])->toBe('Description');
+        expect($task['priority'])->toBe(2);
+        expect($task['type'])->toBe('feature');
+    });
+
+    it('promotes backlog item with all task options', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('Complete feature', 'Full description');
+
+        Artisan::call('promote', [
+            'id' => $item['id'],
+            '--priority' => '3',
+            '--type' => 'feature',
+            '--complexity' => 'moderate',
+            '--labels' => 'frontend,backend',
+            '--size' => 'l',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Complete feature');
+        expect($task['description'])->toBe('Full description');
+        expect($task['priority'])->toBe(3);
+        expect($task['type'])->toBe('feature');
+        expect($task['complexity'])->toBe('moderate');
+        expect($task['labels'])->toBe(['frontend', 'backend']);
+        expect($task['size'])->toBe('l');
+    });
+
+    it('promotes backlog item with partial ID', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('Feature to promote');
+        $partialId = substr($item['id'], 2, 3);
+
+        Artisan::call('promote', [
+            'id' => $partialId,
+            '--priority' => '1',
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Promoted backlog item');
+        expect($output)->toContain('to task: f-');
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('JSON feature');
+
+        Artisan::call('promote', [
+            'id' => $item['id'],
+            '--priority' => '2',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['id'])->toStartWith('f-');
+        expect($task['title'])->toBe('JSON feature');
+        expect($task['priority'])->toBe(2);
+    });
+
+    it('returns error when backlog item not found', function () {
+        $this->artisan('promote', [
+            'id' => 'b-nonexistent',
+            '--priority' => '1',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain("Backlog item 'b-nonexistent' not found")
+            ->assertExitCode(1);
+    });
+
+    it('returns error when ID is not a backlog item', function () {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task']);
+
+        $this->artisan('promote', [
+            'id' => $task['id'],
+            '--priority' => '1',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('is not a backlog item')
+            ->assertExitCode(1);
+    });
+});
+
+// Defer Command Tests
+describe('defer command', function () {
+    it('defers task to backlog', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $this->taskService->initialize();
+        $task = $this->taskService->create([
+            'title' => 'Task to defer',
+            'description' => 'Task description',
+            'priority' => 2,
+        ]);
+
+        Artisan::call('defer', [
+            'id' => $task['id'],
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Deferred task:');
+        expect($output)->toContain($task['id']);
+        expect($output)->toContain('Task to defer');
+        expect($output)->toContain('Added to backlog: b-');
+
+        // Verify task removed
+        expect($this->taskService->find($task['id']))->toBeNull();
+
+        // Verify added to backlog
+        $backlogService->initialize();
+        $all = $backlogService->all();
+        expect($all->count())->toBe(1);
+        $backlogItem = $all->first();
+        expect($backlogItem['title'])->toBe('Task to defer');
+        expect($backlogItem['description'])->toBe('Task description');
+        // Backlog items don't have priority
+        expect($backlogItem)->not->toHaveKey('priority');
+    });
+
+    it('defers task with partial ID', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task to defer']);
+        $partialId = substr($task['id'], 2, 3);
+
+        Artisan::call('defer', [
+            'id' => $partialId,
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Deferred task:');
+        expect($output)->toContain('Added to backlog: b-');
+
+        // Verify task removed
+        expect($this->taskService->find($task['id']))->toBeNull();
+    });
+
+    it('outputs JSON when --json flag is used', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'JSON task']);
+
+        Artisan::call('defer', [
+            'id' => $task['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result['task_id'])->toBe($task['id']);
+        expect($result['backlog_item']['id'])->toStartWith('b-');
+        expect($result['backlog_item']['title'])->toBe('JSON task');
+    });
+
+    it('returns error when task not found', function () {
+        $this->artisan('defer', [
+            'id' => 'f-nonexistent',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain("Task 'f-nonexistent' not found")
+            ->assertExitCode(1);
+    });
+
+    it('returns error when ID is not a task', function () {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+        $item = $backlogService->add('Backlog item');
+
+        // When deferring a backlog item ID, it first tries to find it as a task
+        // Since it doesn't exist in tasks, it returns "Task not found"
+        $this->artisan('defer', [
+            'id' => $item['id'],
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain("Task '{$item['id']}' not found")
+            ->assertExitCode(1);
+    });
 });
 
 // Ready Command Tests
