@@ -1685,8 +1685,8 @@ describe('board command', function () {
         // Titles may be truncated, so check for short IDs with complexity char
         $blockerShortId = substr($blocker['id'], 2, 6);
         $blockedShortId = substr($blocked['id'], 2, 6);
-        expect($output)->toContain("[{$blockerShortId}·s]");
-        expect($output)->toContain("[{$blockedShortId}·s]");
+        expect($output)->toContain("[{$blockerShortId} ·s]");
+        expect($output)->toContain("[{$blockedShortId} ·s]");
     });
 
     it('shows in progress tasks in In Progress column', function () {
@@ -1699,7 +1699,7 @@ describe('board command', function () {
 
         // Title may be truncated, so check for short ID with complexity char
         $shortId = substr($task['id'], 2, 6);
-        expect($output)->toContain("[{$shortId}·s]");
+        expect($output)->toContain("[{$shortId} ·s]");
     });
 
     it('shows done tasks in Done column', function () {
@@ -1713,7 +1713,7 @@ describe('board command', function () {
         // Done tasks appear in "Done" column
         $shortId = substr($task['id'], 2, 6);
         expect($output)->toContain('Done (1)');
-        expect($output)->toContain("[{$shortId}·s]");
+        expect($output)->toContain("[{$shortId} ·s]");
     });
 
     it('outputs JSON when --json flag is used', function () {
@@ -1761,7 +1761,7 @@ describe('board command', function () {
 
         $shortId = substr($stuckTask['id'], 2, 6);
         expect($output)->toContain('🪫');
-        expect($output)->toContain("[{$shortId}·s]");
+        expect($output)->toContain("[{$shortId} ·s]");
     });
 
     it('does not show failed icon for consumed tasks with zero exit code', function () {
@@ -1776,7 +1776,7 @@ describe('board command', function () {
         $output = Artisan::output();
 
         $shortId = substr($successTask['id'], 2, 6);
-        expect($output)->toContain("[{$shortId}·s]");
+        expect($output)->toContain("[{$shortId} ·s]");
         expect($output)->not->toContain('🪫');
     });
 
@@ -1793,7 +1793,7 @@ describe('board command', function () {
 
         $shortId = substr($stuckTask['id'], 2, 6);
         expect($output)->toContain('🪫');
-        expect($output)->toContain("[{$shortId}·s]");
+        expect($output)->toContain("[{$shortId} ·s]");
     });
 
     it('does not show stuck emoji for in_progress tasks with running PID', function () {
@@ -1810,7 +1810,7 @@ describe('board command', function () {
         $output = Artisan::output();
 
         $shortId = substr($runningTask['id'], 2, 6);
-        expect($output)->toContain("[{$shortId}·s]");
+        expect($output)->toContain("[{$shortId} ·s]");
         expect($output)->not->toContain('🪫');
     });
 
@@ -1829,10 +1829,10 @@ describe('board command', function () {
         $moderateShortId = substr($moderateTask['id'], 2, 6);
         $complexShortId = substr($complexTask['id'], 2, 6);
 
-        expect($output)->toContain("[{$trivialShortId}·t]");
-        expect($output)->toContain("[{$simpleShortId}·s]");
-        expect($output)->toContain("[{$moderateShortId}·m]");
-        expect($output)->toContain("[{$complexShortId}·c]");
+        expect($output)->toContain("[{$trivialShortId} ·t]");
+        expect($output)->toContain("[{$simpleShortId} ·s]");
+        expect($output)->toContain("[{$moderateShortId} ·m]");
+        expect($output)->toContain("[{$complexShortId} ·c]");
     });
 
     it('defaults to simple complexity when complexity is missing', function () {
@@ -1843,7 +1843,7 @@ describe('board command', function () {
         $output = Artisan::output();
 
         $shortId = substr($task['id'], 2, 6);
-        expect($output)->toContain("[{$shortId}·s]");
+        expect($output)->toContain("[{$shortId} ·s]");
     });
 });
 

@@ -392,9 +392,9 @@ class BoardCommand extends Command
                 $titleEnd = $style === 'done' ? '</>' : '';
 
                 if ($iconString !== '') {
-                    $lines[] = $this->padLine("<{$idColor}>[{$shortId}·{$complexityChar}]</> {$iconString} {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
+                    $lines[] = $this->padLine("<{$idColor}>[{$shortId} ·{$complexityChar}]</> {$iconString} {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
                 } else {
-                    $lines[] = $this->padLine("<{$idColor}>[{$shortId}·{$complexityChar}]</> {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
+                    $lines[] = $this->padLine("<{$idColor}>[{$shortId} ·{$complexityChar}]</> {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
                 }
             }
         }
