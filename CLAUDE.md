@@ -18,11 +18,15 @@ This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/t
 ```bash
 fuel ready                      # Show tasks ready to work on
 fuel add "Task title"           # Add a new task
+fuel add "Idea" --someday       # Add to backlog (future work)
 fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
 fuel show <id>                  # View task details
 fuel board --once               # Kanban view
 fuel tree                       # Tree view
+fuel backlog                    # List backlog items
+fuel promote <b-id>             # Promote backlog item to task
+fuel defer <f-id>               # Move task to backlog
 fuel dep:add <id> <blocker>     # Add dependency
 fuel dep:remove <id> <blocker>  # Remove dependency
 ```
@@ -81,6 +85,38 @@ fuel add "Implement API" --blocked-by=f-xxxx
 ```
 
 Blocked tasks won't appear in `fuel ready` until blockers are closed.
+
+### Backlog Management
+
+The backlog (`.fuel/backlog.jsonl`) is for **rough ideas and future work** that isn't ready to implement yet. Tasks are for **work ready to implement now**.
+
+**When to use backlog vs tasks:**
+
+- **Backlog (`fuel add --someday`)**: Rough ideas, future enhancements, "nice to have" features, exploratory concepts, work that needs more thought before implementation
+- **Tasks (`fuel add`)**: Work that's ready to implement now, has clear requirements, can be started immediately
+
+**Backlog commands:**
+
+```bash
+fuel add "Future idea" --someday          # Add to backlog (ignores other options)
+fuel backlog                              # List all backlog items
+fuel promote <b-id>                      # Promote backlog item to task (adds --priority, --type, etc.)
+fuel defer <f-id>                         # Move a task to backlog
+fuel remove <b-id>                        # Delete a backlog item
+```
+
+**Promoting backlog to tasks:**
+
+When a backlog item is ready to work on:
+1. Review the backlog: `fuel backlog`
+2. Promote with task metadata: `fuel promote <b-id> --priority=2 --type=feature --complexity=moderate`
+3. The backlog item is removed and a new task is created with the same title/description
+
+**Deferring tasks:**
+
+If a task isn't ready to work on (needs more planning, blocked externally, wrong priority):
+1. `fuel defer <f-id>` - Moves task to backlog, preserving title and description
+2. Later, promote it back when ready: `fuel promote <b-id> --priority=...`
 
 ### Needs-Human Workflow
 
