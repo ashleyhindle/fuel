@@ -79,8 +79,7 @@ fuel dep:remove <id> <blocker>  # Remove dependency
 
 Use **TodoWrite** for single-session step tracking. Use **fuel** for work that outlives the session (multi-session, dependencies, discovered work for future). When unsure, prefer fuel.
 
-### Session Close Protocol - Land The Plane
-
+### 🚨 MANDATORY: Session Close Protocol - Land The Plane
 **YOU MUST COMPLETE EVERY STEP BELOW BEFORE EXITING. NO EXCEPTIONS.**
 
 ```
@@ -89,8 +88,11 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 [ ] git add <files>               # Stage your changes
 [ ] git commit -m "feat/fix:..."  # Conventional commit - note the hash from output [main abc1234]
 [ ] fuel done <id> --commit=<hash>  # Mark complete with commit hash from above
-[ ] fuel add "..."              # File tasks for ANY incomplete/discovered work
+[ ] fuel add "..."              # File tasks for ANY remaining or discovered work
+
+[ ] Hand off - Provide context for next session
 ```
+
 
 Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 
