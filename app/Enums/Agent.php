@@ -11,6 +11,8 @@ enum Agent: string
 
     /**
      * Get the command to resume a session interactively.
+     * Note: For cursor-agent, sessions created with --output-format require -p flag.
+     * We provide a minimal prompt to satisfy the requirement while avoiding config.yaml args.
      */
     public function resumeCommand(string $sessionId): string
     {
@@ -18,12 +20,15 @@ enum Agent: string
 
         return match ($this) {
             self::Claude => "claude --resume {$escapedSessionId}",
-            self::CursorAgent => "cursor-agent --resume={$sessionId}",
+            // cursor-agent requires -p when session was created with --output-format
+            // We provide a minimal prompt to satisfy the requirement
+            self::CursorAgent => "cursor-agent --resume {$escapedSessionId} -p ".escapeshellarg('continue'),
         };
     }
 
     /**
      * Get the command to resume with a prompt (headless).
+     * Note: For cursor-agent, we use space format (not =) for consistency.
      */
     public function resumeWithPromptCommand(string $sessionId, string $prompt): string
     {
@@ -32,7 +37,7 @@ enum Agent: string
 
         return match ($this) {
             self::Claude => "claude --resume {$escapedSessionId} -p {$escapedPrompt}",
-            self::CursorAgent => "cursor-agent --resume={$sessionId} -p {$escapedPrompt}",
+            self::CursorAgent => "cursor-agent --resume {$escapedSessionId} -p {$escapedPrompt}",
         };
     }
 
