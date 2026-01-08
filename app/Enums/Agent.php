@@ -20,9 +20,7 @@ enum Agent: string
 
         return match ($this) {
             self::Claude => "claude --resume {$escapedSessionId}",
-            // cursor-agent requires -p when session was created with --output-format
-            // We provide a minimal prompt to satisfy the requirement
-            self::CursorAgent => "cursor-agent --resume {$escapedSessionId} -p ".escapeshellarg('continue'),
+            self::CursorAgent => "cursor-agent --resume={$escapedSessionId}",
         };
     }
 
@@ -49,6 +47,30 @@ enum Agent: string
         return match ($this) {
             self::Claude => 'Claude',
             self::CursorAgent => 'Cursor Agent',
+        };
+    }
+
+    /**
+     * Get the binary name for this agent.
+     */
+    public function binary(): string
+    {
+        return match ($this) {
+            self::Claude => 'claude',
+            self::CursorAgent => 'cursor-agent',
+        };
+    }
+
+    /**
+     * Get arguments for resuming a session interactively (for pcntl_exec).
+     *
+     * @return array<string>
+     */
+    public function resumeArgs(string $sessionId): array
+    {
+        return match ($this) {
+            self::Claude => ['--resume', $sessionId],
+            self::CursorAgent => ['--resume='.$sessionId],
         };
     }
 
