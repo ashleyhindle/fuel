@@ -11,7 +11,9 @@ fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
 fuel show <id>                  # View task details
 fuel board --once               # Kanban view
-fuel tree			# Tree view
+fuel tree                       # Tree view
+fuel dep:add <id> <blocker>     # Add dependency
+fuel dep:remove <id> <blocker>  # Remove dependency
 ```
 
 ### TodoWrite vs Fuel
@@ -94,6 +96,10 @@ When blocked on credentials, decisions, verification, or manual steps:
 2. Block current work: `fuel dep:add <current-task-id> <needs-human-task-id>`
 3. Human completes and runs `fuel done <needs-human-task-id>`
 4. Your blocked task reappears in `fuel ready`
+
+### Contracts for Parallel Work
+
+When parallel tasks share an interface, define it in a parent task's `--description`. Dependent tasks reference the parent to see the contract.
 
 ### Parallel Execution
 
