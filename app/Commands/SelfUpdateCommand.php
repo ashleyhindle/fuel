@@ -39,8 +39,6 @@ class SelfUpdateCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info("Detected: OS={$os}, Arch={$arch}");
-
         // Query GitHub API for latest release
         $this->info('Checking for latest version...');
         $version = $this->getLatestVersion();
@@ -48,7 +46,13 @@ class SelfUpdateCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info("Latest version: {$version}");
+        // Skip download if already on latest version
+        $currentVersion = config('app.version');
+        if ($currentVersion === $version) {
+            $this->info("Already on latest version ({$version})");
+
+            return self::SUCCESS;
+        }
 
         // Determine target path
         $homeDir = $this->getHomeDirectory();
@@ -94,7 +98,6 @@ class SelfUpdateCommand extends Command
         }
 
         $this->info("Updated to {$version}");
-        $this->line("Binary installed at: {$targetPath}");
 
         return self::SUCCESS;
     }
