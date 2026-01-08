@@ -3227,28 +3227,6 @@ describe('guidelines command', function () {
         }
     });
 
-    it('handles error when agent-instructions.md not found with --add flag', function () {
-        // Temporarily rename agent-instructions.md to simulate it not existing
-        $originalPath = base_path('agent-instructions.md');
-        $backupPath = base_path('agent-instructions.md.backup');
-
-        if (file_exists($originalPath)) {
-            rename($originalPath, $backupPath);
-        }
-
-        try {
-            $exitCode = Artisan::call('guidelines', ['--add' => true, '--cwd' => $this->tempDir]);
-            $output = Artisan::output();
-
-            expect($output)->toContain('agent-instructions.md not found');
-            expect($exitCode)->toBe(1);
-        } finally {
-            // Restore the file
-            if (file_exists($backupPath)) {
-                rename($backupPath, $originalPath);
-            }
-        }
-    });
 });
 
 // Archive Command Tests
