@@ -79,8 +79,11 @@ class RunsCommand extends Command
                     $this->info("Runs for task {$taskId} (".count($runs).'):');
                     $this->newLine();
 
-                    $headers = ['Run ID', 'Agent', 'Model', 'Started At', 'Duration', 'Exit Code'];
+                    $headers = ['Run ID', 'Agent', 'Model', 'Started At', 'Duration', 'Exit', 'Cost', 'Session'];
                     $rows = array_map(function (array $run) {
+                        $sessionId = $run['session_id'] ?? '';
+                        $shortSession = $sessionId ? substr($sessionId, 0, 8).'...' : '';
+
                         return [
                             $run['run_id'] ?? '',
                             $run['agent'] ?? '',
@@ -88,6 +91,8 @@ class RunsCommand extends Command
                             $this->formatDateTime($run['started_at'] ?? ''),
                             $run['duration'] ?? '',
                             $run['exit_code'] !== null ? (string) $run['exit_code'] : '',
+                            isset($run['cost_usd']) ? '$'.number_format($run['cost_usd'], 2) : '',
+                            $shortSession,
                         ];
                     }, $runsWithDuration);
 
@@ -191,6 +196,16 @@ class RunsCommand extends Command
         if (isset($run['exit_code']) && $run['exit_code'] !== null) {
             $exitColor = $run['exit_code'] === 0 ? 'green' : 'red';
             $this->line("  Exit code: <fg={$exitColor}>{$run['exit_code']}</>");
+        }
+
+        if (isset($run['cost_usd']) && $run['cost_usd'] !== null) {
+            $this->line('  Cost: $'.number_format($run['cost_usd'], 4));
+        }
+
+        if (isset($run['session_id']) && $run['session_id'] !== null) {
+            $this->line("  Session: {$run['session_id']}");
+            $this->newLine();
+            $this->line("  <fg=green>Resume:</> claude --resume {$run['session_id']}");
         }
 
         if ($showOutput && isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
