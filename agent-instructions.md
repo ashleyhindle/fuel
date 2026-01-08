@@ -10,7 +10,8 @@ fuel add "Task title"           # Add a new task
 fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
 fuel show <id>                  # View task details
-fuel board                      # Kanban view
+fuel board --once               # Kanban view
+fuel tree			# Tree view
 ```
 
 ### TodoWrite vs Fuel
@@ -28,7 +29,6 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 [ ] git commit -m "feat/fix:..."  # Commit - note the hash from output [main abc1234]
 [ ] fuel done <id> --commit=<hash>  # Mark complete with commit hash from above
 [ ] fuel add "..."              # File tasks for ANY incomplete/discovered work
-[ ] fuel ready                  # Verify task state is correct
 ```
 
 **Failure to complete these steps means your work is NOT done.**
