@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
 use App\Services\RunService;
@@ -13,6 +14,7 @@ use RuntimeException;
 
 class SummaryCommand extends Command
 {
+    use CalculatesDuration;
     use HandlesJsonOutput;
 
     protected $signature = 'summary
@@ -262,46 +264,6 @@ class SummaryCommand extends Command
         }
 
         return array_values($matches);
-    }
-
-    /**
-     * Calculate duration between two timestamps.
-     */
-    private function calculateDuration(?string $startedAt, ?string $endedAt): string
-    {
-        if ($startedAt === null) {
-            return '';
-        }
-
-        try {
-            $start = new \DateTime($startedAt);
-            $end = $endedAt !== null ? new \DateTime($endedAt) : new \DateTime;
-
-            $diff = $start->diff($end);
-
-            // Format duration
-            $parts = [];
-
-            if ($diff->days > 0) {
-                $parts[] = $diff->days.'d';
-            }
-
-            if ($diff->h > 0) {
-                $parts[] = $diff->h.'h';
-            }
-
-            if ($diff->i > 0) {
-                $parts[] = $diff->i.'m';
-            }
-
-            if ($diff->s > 0 || empty($parts)) {
-                $parts[] = $diff->s.'s';
-            }
-
-            return implode(' ', $parts);
-        } catch (\Exception $e) {
-            return '';
-        }
     }
 
     /**
