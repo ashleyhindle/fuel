@@ -39,14 +39,14 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 [ ] Run tests                     # Quality gate (if you changed code)
 [ ] Run linter/formatter          # Fix formatting (if you changed code)
 [ ] git add <files>               # Stage your changes
-[ ] git commit -m "feat/fix:..."  # Commit - note the hash from output [main abc1234]
+[ ] git commit -m "feat/fix:..."  # Conventional commit - note the hash from output [main abc1234]
 [ ] fuel done <id> --commit=<hash>  # Mark complete with commit hash from above
 [ ] fuel add "..."              # File tasks for ANY incomplete/discovered work
 ```
 
 Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 
-### Workflow
+### Workflow to work on one task
 
 1. `fuel ready` - Find available work (prefer P0 > P1 > P2)
 2. `fuel start <id>` - Claim task before starting
@@ -87,7 +87,8 @@ When blocked on credentials, decisions, or manual steps:
 2. `fuel dep:add <your-task> <needs-human-task>` - Block your work
 3. Human runs `fuel done <needs-human-task>`, your task reappears in `fuel ready`
 
-### Parallel Execution
+### Parallel Execution to consume the fuel
+Do this when asked to consume the fuel
 
 Primary agent coordinates - subagents do NOT pick tasks:
 
