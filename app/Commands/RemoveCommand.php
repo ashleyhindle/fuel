@@ -196,8 +196,6 @@ class RemoveCommand extends Command
 
             // Not found in either service
             return $this->outputError("Task or backlog item '{$id}' not found");
-
-            return self::SUCCESS;
         } catch (RuntimeException $e) {
             return $this->outputError($e->getMessage());
         }
