@@ -14,9 +14,11 @@ enum Agent: string
      */
     public function resumeCommand(string $sessionId): string
     {
+        $escapedSessionId = escapeshellarg($sessionId);
+
         return match ($this) {
-            self::Claude => "claude --resume {$sessionId}",
-            self::CursorAgent => "cursor-agent --resume {$sessionId}",
+            self::Claude => "claude --resume {$escapedSessionId}",
+            self::CursorAgent => "cursor-agent --resume {$escapedSessionId}",
         };
     }
 
@@ -25,9 +27,12 @@ enum Agent: string
      */
     public function resumeWithPromptCommand(string $sessionId, string $prompt): string
     {
+        $escapedSessionId = escapeshellarg($sessionId);
+        $escapedPrompt = escapeshellarg($prompt);
+
         return match ($this) {
-            self::Claude => "claude --resume {$sessionId} -p '{$prompt}'",
-            self::CursorAgent => "cursor-agent --resume {$sessionId} -p '{$prompt}'",
+            self::Claude => "claude --resume {$escapedSessionId} -p {$escapedPrompt}",
+            self::CursorAgent => "cursor-agent --resume {$escapedSessionId} -p {$escapedPrompt}",
         };
     }
 
