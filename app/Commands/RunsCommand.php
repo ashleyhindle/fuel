@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\Agent;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -204,8 +205,12 @@ class RunsCommand extends Command
 
         if (isset($run['session_id']) && $run['session_id'] !== null) {
             $this->line("  Session: {$run['session_id']}");
-            $this->newLine();
-            $this->line("  <fg=green>Resume:</> claude --resume {$run['session_id']}");
+
+            $agent = Agent::fromString($run['agent'] ?? null);
+            if ($agent !== null) {
+                $this->newLine();
+                $this->line("  <fg=green>Resume:</> {$agent->resumeCommand($run['session_id'])}");
+            }
         }
 
         if ($showOutput && isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
