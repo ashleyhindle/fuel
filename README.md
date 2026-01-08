@@ -1,5 +1,6 @@
 > [!WARNING]
 > This is a work in progress (WiP) and has only been tested by one person. Use at your own risk.
+> Windows is not supported.
 
 # Fuel
 
