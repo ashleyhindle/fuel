@@ -20,12 +20,18 @@ complexity:
     model: sonnet
     args:
       - "--dangerously-skip-permissions"
+      - "--output-format"
+      - "stream-json"
+      - "--verbose"
 
   complex:
     agent: claude
     model: opus
     args:
       - "--dangerously-skip-permissions"
+      - "--output-format"
+      - "stream-json"
+      - "--verbose"
 
 # Agent concurrency limits
 # Controls how many instances of each agent can run simultaneously
