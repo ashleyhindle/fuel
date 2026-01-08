@@ -56,8 +56,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 --repository="ashleyhindle/fuel-php-bin" mac arm x64
-          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 --repository="ashleyhindle/fuel-php-bin" linux arm x64
+          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 mac arm x64
+          ./vendor/bin/phpacker build --src=./builds/fuel.phar --dest=./builds --php=8.4 linux arm x64
 
       - name: Rename binaries to expected format
         run: |
