@@ -140,7 +140,7 @@ class RunService
      * Marks incomplete runs as failed with a special exit code and message.
      *
      * @param  callable  $isPidDead  Callback (int $pid): bool to check if a PID is dead
-     * @return int  Number of orphaned runs cleaned up
+     * @return int Number of orphaned runs cleaned up
      */
     public function cleanupOrphanedRuns(callable $isPidDead): int
     {
@@ -166,7 +166,7 @@ class RunService
             }
 
             // Check this task's runs
-            $this->withExclusiveLock($taskId, function () use ($taskId, $isPidDead, &$cleanupCount): void {
+            $this->withExclusiveLock($taskId, function () use ($taskId, &$cleanupCount): void {
                 $runs = $this->readRuns($taskId);
                 $modified = false;
 

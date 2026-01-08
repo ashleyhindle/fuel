@@ -235,18 +235,24 @@ it('creates default config with comments and allowedTools', function () {
     // Verify agents section exists with cursor-agent and claude
     expect($parsed['agents'])->toHaveKeys(['cursor-agent', 'claude']);
 
-    // Verify moderate/complex have --allowedTools args
+    // Verify moderate/complex have stream-json, verbose, and --allowedTools args
     expect($parsed['complexity']['moderate']['agent'])->toBe('claude');
     expect($parsed['complexity']['moderate'])->toHaveKey('args');
     expect($parsed['complexity']['moderate']['args'])->toBeArray();
-    expect($parsed['complexity']['moderate']['args'][0])->toBe('--allowedTools');
-    expect($parsed['complexity']['moderate']['args'][1])->toBeString();
+    expect($parsed['complexity']['moderate']['args'][0])->toBe('--output-format');
+    expect($parsed['complexity']['moderate']['args'][1])->toBe('stream-json');
+    expect($parsed['complexity']['moderate']['args'][2])->toBe('--verbose');
+    expect($parsed['complexity']['moderate']['args'][3])->toBe('--allowedTools');
+    expect($parsed['complexity']['moderate']['args'][4])->toBeString();
 
     expect($parsed['complexity']['complex']['agent'])->toBe('claude');
     expect($parsed['complexity']['complex'])->toHaveKey('args');
     expect($parsed['complexity']['complex']['args'])->toBeArray();
-    expect($parsed['complexity']['complex']['args'][0])->toBe('--allowedTools');
-    expect($parsed['complexity']['complex']['args'][1])->toBeString();
+    expect($parsed['complexity']['complex']['args'][0])->toBe('--output-format');
+    expect($parsed['complexity']['complex']['args'][1])->toBe('stream-json');
+    expect($parsed['complexity']['complex']['args'][2])->toBe('--verbose');
+    expect($parsed['complexity']['complex']['args'][3])->toBe('--allowedTools');
+    expect($parsed['complexity']['complex']['args'][4])->toBeString();
 });
 
 it('does not overwrite existing config file', function () {
