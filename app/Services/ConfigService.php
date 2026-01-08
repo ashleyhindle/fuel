@@ -287,21 +287,33 @@ complexity:
     agent: claude
     model: sonnet
     args:
+      - "--output-format"
+      - "stream-json"
+      - "--verbose"
       - "--allowedTools"
       - "{$allowedTools}"
     # Or for full autonomous mode (no permission prompts):
     # args:
     #   - "--dangerously-skip-permissions"
+    #   - "--output-format"
+    #   - "stream-json"
+    #   - "--verbose"
 
   complex:
     agent: claude
     model: opus
     args:
+      - "--output-format"
+      - "stream-json"
+      - "--verbose"
       - "--allowedTools"
       - "{$allowedTools}"
     # Or for full autonomous mode (no permission prompts):
     # args:
     #   - "--dangerously-skip-permissions"
+    #   - "--output-format"
+    #   - "stream-json"
+    #   - "--verbose"
 
 # Agent concurrency limits
 agents:
