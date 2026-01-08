@@ -50,6 +50,8 @@ class RunService
                 'ended_at' => $data['ended_at'] ?? null,
                 'exit_code' => $data['exit_code'] ?? null,
                 'output' => $output,
+                'session_id' => $data['session_id'] ?? null,
+                'cost_usd' => $data['cost_usd'] ?? null,
             ];
 
             $runs[] = $run;
@@ -90,7 +92,7 @@ class RunService
      * Update the latest run for a task with completion data.
      *
      * @param  string  $taskId  Task ID
-     * @param  array<string, mixed>  $data  Update data (ended_at, exit_code, output)
+     * @param  array<string, mixed>  $data  Update data (ended_at, exit_code, output, session_id, cost_usd)
      */
     public function updateLatestRun(string $taskId, array $data): void
     {
@@ -120,6 +122,12 @@ class RunService
             }
             if (array_key_exists('output', $data)) {
                 $run['output'] = $output;
+            }
+            if (isset($data['session_id'])) {
+                $run['session_id'] = $data['session_id'];
+            }
+            if (isset($data['cost_usd'])) {
+                $run['cost_usd'] = $data['cost_usd'];
             }
 
             $runs[$latestIndex] = $run;
