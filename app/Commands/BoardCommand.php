@@ -43,32 +43,12 @@ class BoardCommand extends Command
 
     private function renderBoard(TaskService $taskService): int
     {
-        $readyTasks = $taskService->ready();
-        $readyIds = $readyTasks->pluck('id')->toArray();
-
-        $allTasks = $taskService->all();
-
-        $inProgressTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'in_progress')
-            ->sortByDesc('updated_at')
-            ->values();
-
-        // Blocked tasks exclude needs-human (those are shown in a separate line)
-        $blockedTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
-            ->filter(fn (array $t) => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
-            ->values();
-
-        // Needs-human tasks (open tasks with needs-human label)
-        $humanTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'open')
-            ->filter(fn (array $t) => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
-            ->values();
-
-        $doneTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'closed')
-            ->sortByDesc('updated_at')
-            ->values();
+        $boardData = $this->getBoardData($taskService);
+        $readyTasks = $boardData['ready'];
+        $inProgressTasks = $boardData['in_progress'];
+        $blockedTasks = $boardData['blocked'];
+        $humanTasks = $boardData['human'];
+        $doneTasks = $boardData['done'];
 
         if ($this->option('json')) {
             $this->outputJson([
@@ -221,61 +201,17 @@ class BoardCommand extends Command
     }
 
     /**
-     * Generate a hash representing the current board content.
+     * Get all board data from a single snapshot (prevents race conditions).
+     *
+     * @return array{ready: \Illuminate\Support\Collection, in_progress: \Illuminate\Support\Collection, blocked: \Illuminate\Support\Collection, human: \Illuminate\Support\Collection, done: \Illuminate\Support\Collection}
      */
-    private function getBoardContentHash(TaskService $taskService): string
+    private function getBoardData(TaskService $taskService): array
     {
-        $readyTasks = $taskService->ready();
-        $readyIds = $readyTasks->pluck('id')->toArray();
-
+        // Single read - all computations use this snapshot
         $allTasks = $taskService->all();
 
-        $inProgressTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'in_progress')
-            ->sortByDesc('updated_at')
-            ->values();
-
-        $blockedTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
-            ->filter(fn (array $t) => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
-            ->values();
-
-        $humanTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'open')
-            ->filter(fn (array $t) => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
-            ->values();
-
-        $doneTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'closed')
-            ->sortByDesc('updated_at')
-            ->values();
-
-        return $this->hashBoardContent([
-            'ready' => $readyTasks->pluck('id')->toArray(),
-            'in_progress' => $inProgressTasks->pluck('id')->toArray(),
-            'blocked' => $blockedTasks->pluck('id')->toArray(),
-            'human' => $humanTasks->pluck('id')->toArray(),
-            'done' => $doneTasks->pluck('id')->toArray(),
-        ]);
-    }
-
-    private function refreshBoard(TaskService $taskService): void
-    {
-        // Move cursor to home without clearing - overwrites in place to avoid flicker
-        if (stream_isatty(STDOUT)) {
-            $this->getOutput()->write("\033[H");
-        } else {
-            // In non-TTY, just output newlines to separate refreshes
-            $this->newLine();
-            $this->line('<fg=yellow>--- Refresh ---</>');
-            $this->newLine();
-        }
-
-        // Render the board
-        $readyTasks = $taskService->ready();
+        $readyTasks = $taskService->readyFrom($allTasks);
         $readyIds = $readyTasks->pluck('id')->toArray();
-
-        $allTasks = $taskService->all();
 
         $inProgressTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'in_progress')
@@ -298,6 +234,51 @@ class BoardCommand extends Command
             ->filter(fn (array $t) => $t['status'] === 'closed')
             ->sortByDesc('updated_at')
             ->values();
+
+        return [
+            'ready' => $readyTasks,
+            'in_progress' => $inProgressTasks,
+            'blocked' => $blockedTasks,
+            'human' => $humanTasks,
+            'done' => $doneTasks,
+        ];
+    }
+
+    /**
+     * Generate a hash representing the current board content.
+     */
+    private function getBoardContentHash(TaskService $taskService): string
+    {
+        $boardData = $this->getBoardData($taskService);
+
+        return $this->hashBoardContent([
+            'ready' => $boardData['ready']->pluck('id')->toArray(),
+            'in_progress' => $boardData['in_progress']->pluck('id')->toArray(),
+            'blocked' => $boardData['blocked']->pluck('id')->toArray(),
+            'human' => $boardData['human']->pluck('id')->toArray(),
+            'done' => $boardData['done']->pluck('id')->toArray(),
+        ]);
+    }
+
+    private function refreshBoard(TaskService $taskService): void
+    {
+        // Move cursor to home without clearing - overwrites in place to avoid flicker
+        if (stream_isatty(STDOUT)) {
+            $this->getOutput()->write("\033[H");
+        } else {
+            // In non-TTY, just output newlines to separate refreshes
+            $this->newLine();
+            $this->line('<fg=yellow>--- Refresh ---</>');
+            $this->newLine();
+        }
+
+        // Get all board data from a single snapshot
+        $boardData = $this->getBoardData($taskService);
+        $readyTasks = $boardData['ready'];
+        $inProgressTasks = $boardData['in_progress'];
+        $blockedTasks = $boardData['blocked'];
+        $humanTasks = $boardData['human'];
+        $doneTasks = $boardData['done'];
 
         $this->calculateColumnWidths();
 

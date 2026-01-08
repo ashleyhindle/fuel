@@ -409,45 +409,7 @@ class TaskService
      */
     public function ready(): Collection
     {
-        $tasks = $this->all();
-
-        // Build a map of task ID to task for quick lookups
-        $taskMap = $tasks->keyBy('id');
-
-        // Find all blocked task IDs
-        $blockedIds = [];
-        foreach ($tasks as $task) {
-            $blockedBy = $task['blocked_by'] ?? [];
-            foreach ($blockedBy as $blockerId) {
-                if (is_string($blockerId)) {
-                    $blocker = $taskMap->get($blockerId);
-                    // Task is blocked if the blocker exists and is not closed
-                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
-                        $blockedIds[] = $task['id'];
-                        break; // No need to check other blockers
-                    }
-                }
-            }
-        }
-
-        // Return open tasks that are not blocked (exclude in_progress tasks)
-        // Also exclude tasks with 'needs-human' label
-        return $tasks
-            ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
-            ->filter(fn (array $t): bool => ! in_array($t['id'], $blockedIds, true))
-            ->filter(function (array $t): bool {
-                $labels = $t['labels'] ?? [];
-                if (! is_array($labels)) {
-                    return true; // If labels is not an array, include the task
-                }
-
-                return ! in_array('needs-human', $labels, true);
-            })
-            ->sortBy([
-                ['priority', 'asc'],
-                ['created_at', 'asc'],
-            ])
-            ->values();
+        return $this->readyFrom($this->all());
     }
 
     /**
@@ -462,28 +424,47 @@ class TaskService
      */
     public function blocked(): Collection
     {
-        $tasks = $this->all();
+        return $this->blockedFrom($this->all());
+    }
 
-        // Build a map of task ID to task for quick lookups
-        $taskMap = $tasks->keyBy('id');
+    /**
+     * Compute ready tasks from a given collection (for snapshot-based operations).
+     *
+     * @param  Collection<int, array<string, mixed>>  $tasks
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function readyFrom(Collection $tasks): Collection
+    {
+        $blockedIds = $this->getBlockedIds($tasks);
 
-        // Find all blocked task IDs
-        $blockedIds = [];
-        foreach ($tasks as $task) {
-            $blockedBy = $task['blocked_by'] ?? [];
-            foreach ($blockedBy as $blockerId) {
-                if (is_string($blockerId)) {
-                    $blocker = $taskMap->get($blockerId);
-                    // Task is blocked if the blocker exists and is not closed
-                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
-                        $blockedIds[] = $task['id'];
-                        break; // No need to check other blockers
-                    }
+        return $tasks
+            ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
+            ->filter(fn (array $t): bool => ! in_array($t['id'], $blockedIds, true))
+            ->filter(function (array $t): bool {
+                $labels = $t['labels'] ?? [];
+                if (! is_array($labels)) {
+                    return true;
                 }
-            }
-        }
 
-        // Return open tasks that ARE blocked (inverse of ready)
+                return ! in_array('needs-human', $labels, true);
+            })
+            ->sortBy([
+                ['priority', 'asc'],
+                ['created_at', 'asc'],
+            ])
+            ->values();
+    }
+
+    /**
+     * Compute blocked tasks from a given collection (for snapshot-based operations).
+     *
+     * @param  Collection<int, array<string, mixed>>  $tasks
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function blockedFrom(Collection $tasks): Collection
+    {
+        $blockedIds = $this->getBlockedIds($tasks);
+
         return $tasks
             ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
             ->filter(fn (array $t): bool => in_array($t['id'], $blockedIds, true))
@@ -492,6 +473,33 @@ class TaskService
                 ['created_at', 'asc'],
             ])
             ->values();
+    }
+
+    /**
+     * Get IDs of tasks that are blocked by open dependencies.
+     *
+     * @param  Collection<int, array<string, mixed>>  $tasks
+     * @return array<string>
+     */
+    public function getBlockedIds(Collection $tasks): array
+    {
+        $taskMap = $tasks->keyBy('id');
+        $blockedIds = [];
+
+        foreach ($tasks as $task) {
+            $blockedBy = $task['blocked_by'] ?? [];
+            foreach ($blockedBy as $blockerId) {
+                if (is_string($blockerId)) {
+                    $blocker = $taskMap->get($blockerId);
+                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
+                        $blockedIds[] = $task['id'];
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $blockedIds;
     }
 
     /**
