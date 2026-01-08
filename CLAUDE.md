@@ -29,7 +29,7 @@ fuel dep:remove <id> <blocker>  # Remove dependency
 
 ### TodoWrite vs Fuel
 
-Use **TodoWrite** for single-session step tracking. Use **fuel** for work that outlives the session (multi-session, dependencies, discovered work for future). When unsure, prefer fuel. It is better to over-persist than lose context.
+Use **TodoWrite** for single-session step tracking. Use **fuel** for work that outlives the session (multi-session, dependencies, discovered work for future). When unsure, prefer fuel.
 
 ### 🚨 MANDATORY: Session Close Protocol - Land The Plane
 
@@ -44,95 +44,61 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 [ ] fuel add "..."              # File tasks for ANY incomplete/discovered work
 ```
 
-**Failure to complete these steps means your work is NOT done.**
-
-Commit messages should follow conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
+Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 
 ### Workflow
 
-1. `fuel ready` - Find available work if not provided a particular task (prefer P0 > P1 > P2)
+1. `fuel ready` - Find available work (prefer P0 > P1 > P2)
 2. `fuel start <id>` - Claim task before starting
 3. Do the work - implement, test, verify
-4. Discover new work as you build? Add it `fuel add "..." --blocked-by=<id>`
-5. `fuel done <id> --commit=<hash>` - Complete the task (hash from your git commit output)
+4. Discover new work? `fuel add "..." --blocked-by=<id>`
+5. `fuel done <id> --commit=<hash>` - Complete with commit hash
 6. Land the plane
 
 ### Task Options
 
 ```bash
-fuel add "Title" \
-  --description="Details here" \
-  --type=bug|feature|task|chore \
-  --priority=0-4 \
-  --blocked-by=fuel-xxxx,fuel-yyyy \
-  --labels=api,urgent \
-  --complexity=trivial|simple|moderate|complex
+fuel add "Title" --description="..." --type=bug|feature|task|chore --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
 ```
 
 ### Writing Good Descriptions
 
-Descriptions should be explicit enough for a less capable agent to complete the task without guessing. Include:
-
-- **Files to modify**: Exact paths (`app/Commands/FooCommand.php`)
-- **What to change**: Specific methods, line numbers, or patterns
-- **Expected behavior**: What success looks like
-- **Patterns to follow**: Reference existing similar code (`see BarCommand.php`)
+Descriptions should be explicit enough for a less capable agent to complete without guessing. Include: files to modify (exact paths), what to change (methods, patterns), expected behavior, and patterns to follow.
 
 **Bad**: "Fix the ID display bug"
-**Good**: "BoardCommand.php line 320 uses substr($id, 5, 4) for old fuel-xxxx format. Change to substr($id, 2, 6) for new f-xxxxxx format. Check RendersBoardColumns trait for same pattern."
+**Good**: "BoardCommand.php:320 uses substr($id, 5, 4) for old format. Change to substr($id, 2, 6) for f-xxxxxx format."
 
 ### Complexity
 
-**Always set `--complexity` when adding tasks:** `trivial` (typos, string changes) | `simple` (clear requirements, single focus) | `moderate` (multiple steps/files) | `complex` (architectural, break into subtasks)
+**Always set `--complexity`:** `trivial` (typos) | `simple` (single focus) | `moderate` (multiple files) | `complex` (break into subtasks)
 
 ### Dependencies
 
 ```bash
-fuel add "Design API"
-fuel add "Implement API" --blocked-by=fuel-xxxx
+fuel add "Implement API" --blocked-by=f-xxxx
 ```
 
 Blocked tasks won't appear in `fuel ready` until blockers are closed.
 
 ### Needs-Human Workflow
 
-When blocked on credentials, decisions, verification, or manual steps:
-
-1. Create needs-human task with clear description of what's needed:
-   ```bash
-   fuel add 'Provide Cloudflare API token' \
-     --labels=needs-human \
-     --description='Run npx wrangler login or set CLOUDFLARE_API_TOKEN'
-   ```
-2. Block current work: `fuel dep:add <current-task-id> <needs-human-task-id>`
-3. Human completes and runs `fuel done <needs-human-task-id>`
-4. Your blocked task reappears in `fuel ready`
-
-### Contracts for Parallel Work
-
-When parallel tasks share an interface, define it in a parent task's `--description`. Dependent tasks reference the parent to see the contract.
+When blocked on credentials, decisions, or manual steps:
+1. `fuel add 'What you need' --labels=needs-human --description='Instructions'`
+2. `fuel dep:add <your-task> <needs-human-task>` - Block your work
+3. Human runs `fuel done <needs-human-task>`, your task reappears in `fuel ready`
 
 ### Parallel Execution
 
 Primary agent coordinates - subagents do NOT pick tasks:
 
 1. Primary runs `fuel ready --json`, identifies parallel work
-2. Primary claims each task with `fuel start <id>`
-3. Primary spawns subagents with explicit task ID assignments
-4. Subagents complete work and run `fuel done <id>`
-5. **Primary reviews subagent work** - verify tests added, check implementation, run tests
-6. If issues found: create fix task referencing the original (e.g., `fuel add "Fix X from fuel-xxxx"`)
-7. Primary checks `fuel ready` for newly unblocked work
+2. Primary claims each task with `fuel start <id>` before spawning
+3. Primary spawns subagents with explicit task IDs and instructions to run `fuel done <id>`
+4. Primary reviews subagent work (tests added? tests pass? matches requirements?)
+5. If issues found: `fuel add "Fix X from f-xxxx"`
+6. Check `fuel ready` for newly unblocked work
 
-**Subagent instructions must include:** task ID, task information, instruction to run `fuel done <id>` after landing the plane.
-
-**Review checklist for primary:**
-- Did subagent add tests?
-- Do all tests pass?
-- Does the implementation match the task requirements?
-- Any obvious bugs or issues in the code?
-
-Avoid parallel work on tasks touching same files - use dependencies instead.
+When parallel tasks share an interface, define it in a parent task's description. Avoid parallel work on tasks touching same files - use dependencies instead.
 </fuel>
 
 ## Development Commands
