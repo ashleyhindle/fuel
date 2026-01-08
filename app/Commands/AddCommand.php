@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\BacklogService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -23,12 +24,42 @@ class AddCommand extends Command
         {--labels= : Comma-separated list of labels}
         {--size= : Task size (xs|s|m|l|xl)}
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
-        {--blocked-by= : Comma-separated task IDs this is blocked by}';
+        {--blocked-by= : Comma-separated task IDs this is blocked by}
+        {--someday : Add to backlog instead of tasks}';
 
     protected $description = 'Add a new task';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, BacklogService $backlogService): int
     {
+        // Handle --someday flag: add to backlog instead of tasks
+        if ($this->option('someday')) {
+            // Configure cwd for BacklogService
+            if ($cwd = $this->option('cwd')) {
+                $backlogService->setStoragePath($cwd.'/.fuel/backlog.jsonl');
+            }
+
+            $backlogService->initialize();
+
+            $title = $this->argument('title');
+            $description = $this->option('description');
+
+            try {
+                $item = $backlogService->add($title, $description);
+            } catch (RuntimeException $e) {
+                return $this->outputError($e->getMessage());
+            }
+
+            if ($this->option('json')) {
+                $this->outputJson($item);
+            } else {
+                $this->info("Added to backlog: {$item['id']}");
+                $this->line("  Title: {$item['title']}");
+            }
+
+            return self::SUCCESS;
+        }
+
+        // Existing task creation logic
         $this->configureCwd($taskService);
 
         $taskService->initialize();
