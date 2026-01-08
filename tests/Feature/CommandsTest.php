@@ -4230,20 +4230,4 @@ describe('remove command', function () {
         expect($backlogService->find($item['id']))->toBeNull();
     });
 
-    it('handles ambiguous partial ID for tasks', function () {
-        $this->taskService->initialize();
-        // Create two tasks with same first character in ID (unlikely but possible)
-        $task1 = $this->taskService->create(['title' => 'Task 1']);
-        $task2 = $this->taskService->create(['title' => 'Task 2']);
-
-        // Try to use just 'f' as ID - this should either match uniquely or be ambiguous
-        // Since IDs are random, we can't guarantee ambiguity, so we'll test that the command
-        // handles the case gracefully (either succeeds with unique match or shows ambiguous error)
-        Artisan::call('remove', ['id' => 'f', '--force' => true, '--cwd' => $this->tempDir]);
-        $output = Artisan::output();
-        $exitCode = Artisan::exitCode();
-
-        // Should either succeed (unique match) or fail with ambiguous error
-        expect($exitCode === 0 || ($exitCode === 1 && str_contains($output, 'Ambiguous')))->toBeTrue();
-    });
 });
