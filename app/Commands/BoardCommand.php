@@ -22,11 +22,9 @@ class BoardCommand extends Command
 
     protected $description = 'Display tasks in a kanban board layout (live by default)';
 
-    private int $readyWidth;
+    private int $topColumnWidth;
 
-    private int $inProgressWidth;
-
-    private int $blockedWidth;
+    private int $bottomColumnWidth;
 
     private TaskService $taskService;
 
@@ -55,14 +53,21 @@ class BoardCommand extends Command
             ->sortByDesc('updated_at')
             ->values();
 
+        // Blocked tasks exclude needs-human (those are shown in a separate line)
         $blockedTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
+            ->filter(fn (array $t) => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
+            ->values();
+
+        // Needs-human tasks (open tasks with needs-human label)
+        $humanTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'open')
+            ->filter(fn (array $t) => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
             ->values();
 
         $doneTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'closed')
             ->sortByDesc('updated_at')
-            ->take(10)
             ->values();
 
         if ($this->option('json')) {
@@ -70,34 +75,47 @@ class BoardCommand extends Command
                 'ready' => $readyTasks->values()->toArray(),
                 'in_progress' => $inProgressTasks->toArray(),
                 'blocked' => $blockedTasks->toArray(),
+                'human' => $humanTasks->toArray(),
                 'done' => $doneTasks->toArray(),
             ]);
 
             return self::SUCCESS;
         }
 
-        $this->calculateColumnWidths($readyTasks->count(), $inProgressTasks->count(), $blockedTasks->count());
+        $this->calculateColumnWidths();
 
-        $readyColumn = $this->buildColumn('Ready', $readyTasks->all(), $this->readyWidth);
-        $inProgressColumn = $this->buildColumn('In Progress', $inProgressTasks->all(), $this->inProgressWidth);
-        $blockedColumn = $this->buildColumn('Blocked', $blockedTasks->all(), $this->blockedWidth);
+        // Top row: Ready and In Progress (show up to 10 each, but header shows total count)
+        $readyColumn = $this->buildColumn('Ready', $readyTasks->take(10)->all(), $this->topColumnWidth, $readyTasks->count());
+        $inProgressColumn = $this->buildColumn('In Progress', $inProgressTasks->take(10)->all(), $this->topColumnWidth, $inProgressTasks->count());
 
-        $maxHeight = max(count($readyColumn), count($inProgressColumn), count($blockedColumn));
+        $topMaxHeight = max(count($readyColumn), count($inProgressColumn));
+        $readyColumn = $this->padColumn($readyColumn, $topMaxHeight, $this->topColumnWidth);
+        $inProgressColumn = $this->padColumn($inProgressColumn, $topMaxHeight, $this->topColumnWidth);
 
-        $readyColumn = $this->padColumn($readyColumn, $maxHeight, $this->readyWidth);
-        $inProgressColumn = $this->padColumn($inProgressColumn, $maxHeight, $this->inProgressWidth);
-        $blockedColumn = $this->padColumn($blockedColumn, $maxHeight, $this->blockedWidth);
-
-        $rows = array_map(null, $readyColumn, $inProgressColumn, $blockedColumn);
-
-        foreach ($rows as $row) {
+        $topRows = array_map(null, $readyColumn, $inProgressColumn);
+        foreach ($topRows as $row) {
             $this->line(implode('  ', $row));
         }
 
-        // Show recently done tasks as a single line below the board
-        if ($doneTasks->isNotEmpty()) {
+        $this->newLine();
+
+        // Bottom row: Blocked and Done (show up to 3 each, but header shows total count)
+        $blockedColumn = $this->buildColumn('Blocked', $blockedTasks->take(3)->all(), $this->bottomColumnWidth, $blockedTasks->count(), 'blocked');
+        $doneColumn = $this->buildColumn('Done', $doneTasks->take(3)->all(), $this->bottomColumnWidth, $doneTasks->count(), 'done');
+
+        $bottomMaxHeight = max(count($blockedColumn), count($doneColumn));
+        $blockedColumn = $this->padColumn($blockedColumn, $bottomMaxHeight, $this->bottomColumnWidth);
+        $doneColumn = $this->padColumn($doneColumn, $bottomMaxHeight, $this->bottomColumnWidth);
+
+        $bottomRows = array_map(null, $blockedColumn, $doneColumn);
+        foreach ($bottomRows as $row) {
+            $this->line(implode('  ', $row));
+        }
+
+        // Show needs-human tasks as a single line below the board
+        if ($humanTasks->isNotEmpty()) {
             $this->newLine();
-            $this->renderDoneLine($doneTasks->all());
+            $this->renderHumanLine($humanTasks->all());
         }
 
         return self::SUCCESS;
@@ -219,18 +237,24 @@ class BoardCommand extends Command
 
         $blockedTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
+            ->filter(fn (array $t) => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
+            ->values();
+
+        $humanTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'open')
+            ->filter(fn (array $t) => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
             ->values();
 
         $doneTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'closed')
             ->sortByDesc('updated_at')
-            ->take(10)
             ->values();
 
         return $this->hashBoardContent([
             'ready' => $readyTasks->pluck('id')->toArray(),
             'in_progress' => $inProgressTasks->pluck('id')->toArray(),
             'blocked' => $blockedTasks->pluck('id')->toArray(),
+            'human' => $humanTasks->pluck('id')->toArray(),
             'done' => $doneTasks->pluck('id')->toArray(),
         ]);
     }
@@ -258,38 +282,57 @@ class BoardCommand extends Command
             ->sortByDesc('updated_at')
             ->values();
 
+        // Blocked tasks exclude needs-human (those are shown in a separate line)
         $blockedTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
+            ->filter(fn (array $t) => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
+            ->values();
+
+        // Needs-human tasks (open tasks with needs-human label)
+        $humanTasks = $allTasks
+            ->filter(fn (array $t) => $t['status'] === 'open')
+            ->filter(fn (array $t) => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
             ->values();
 
         $doneTasks = $allTasks
             ->filter(fn (array $t) => $t['status'] === 'closed')
             ->sortByDesc('updated_at')
-            ->take(10)
             ->values();
 
-        $this->calculateColumnWidths($readyTasks->count(), $inProgressTasks->count(), $blockedTasks->count());
+        $this->calculateColumnWidths();
 
-        $readyColumn = $this->buildColumn('Ready', $readyTasks->all(), $this->readyWidth);
-        $inProgressColumn = $this->buildColumn('In Progress', $inProgressTasks->all(), $this->inProgressWidth);
-        $blockedColumn = $this->buildColumn('Blocked', $blockedTasks->all(), $this->blockedWidth);
+        // Top row: Ready and In Progress (show up to 10 each)
+        $readyColumn = $this->buildColumn('Ready', $readyTasks->take(10)->all(), $this->topColumnWidth, $readyTasks->count());
+        $inProgressColumn = $this->buildColumn('In Progress', $inProgressTasks->take(10)->all(), $this->topColumnWidth, $inProgressTasks->count());
 
-        $maxHeight = max(count($readyColumn), count($inProgressColumn), count($blockedColumn));
+        $topMaxHeight = max(count($readyColumn), count($inProgressColumn));
+        $readyColumn = $this->padColumn($readyColumn, $topMaxHeight, $this->topColumnWidth);
+        $inProgressColumn = $this->padColumn($inProgressColumn, $topMaxHeight, $this->topColumnWidth);
 
-        $readyColumn = $this->padColumn($readyColumn, $maxHeight, $this->readyWidth);
-        $inProgressColumn = $this->padColumn($inProgressColumn, $maxHeight, $this->inProgressWidth);
-        $blockedColumn = $this->padColumn($blockedColumn, $maxHeight, $this->blockedWidth);
-
-        $rows = array_map(null, $readyColumn, $inProgressColumn, $blockedColumn);
-
-        foreach ($rows as $row) {
+        $topRows = array_map(null, $readyColumn, $inProgressColumn);
+        foreach ($topRows as $row) {
             $this->line(implode('  ', $row));
         }
 
-        // Show recently done tasks as a single line below the board
-        if ($doneTasks->isNotEmpty()) {
+        $this->newLine();
+
+        // Bottom row: Blocked and Done (show up to 3 each)
+        $blockedColumn = $this->buildColumn('Blocked', $blockedTasks->take(3)->all(), $this->bottomColumnWidth, $blockedTasks->count(), 'blocked');
+        $doneColumn = $this->buildColumn('Done', $doneTasks->take(3)->all(), $this->bottomColumnWidth, $doneTasks->count(), 'done');
+
+        $bottomMaxHeight = max(count($blockedColumn), count($doneColumn));
+        $blockedColumn = $this->padColumn($blockedColumn, $bottomMaxHeight, $this->bottomColumnWidth);
+        $doneColumn = $this->padColumn($doneColumn, $bottomMaxHeight, $this->bottomColumnWidth);
+
+        $bottomRows = array_map(null, $blockedColumn, $doneColumn);
+        foreach ($bottomRows as $row) {
+            $this->line(implode('  ', $row));
+        }
+
+        // Show needs-human tasks as a single line below the board
+        if ($humanTasks->isNotEmpty()) {
             $this->newLine();
-            $this->renderDoneLine($doneTasks->all());
+            $this->renderHumanLine($humanTasks->all());
         }
 
         // Show footer with refresh info
@@ -305,13 +348,14 @@ class BoardCommand extends Command
 
     /**
      * @param  array<int, array<string, mixed>>  $tasks
+     * @param  string  $style  Column style: 'normal', 'blocked', or 'done'
      * @return array<int, string>
      */
-    private function buildColumn(string $title, array $tasks, int $width): array
+    private function buildColumn(string $title, array $tasks, int $width, int $totalCount, string $style = 'normal'): array
     {
         $lines = [];
 
-        $lines[] = $this->padLine("<fg=white;options=bold>{$title}</> (".count($tasks).')', $width);
+        $lines[] = $this->padLine("<fg=white;options=bold>{$title}</> ({$totalCount})", $width);
         $lines[] = str_repeat('─', $width);
 
         if (empty($tasks)) {
@@ -326,26 +370,31 @@ class BoardCommand extends Command
                 // Show icon for tasks being consumed by fuel consume
                 $consumeIcon = ! empty($task['consumed']) ? '⚡' : '';
 
-                // Show icon for tasks with needs-human label
-                $labels = $task['labels'] ?? [];
-                $needsHumanIcon = is_array($labels) && in_array('needs-human', $labels, true) ? '👤' : '';
-
                 // Show icon for failed tasks
                 $isPidDead = fn (int $pid): bool => ! $this->isPidRunning($pid);
                 $failedIcon = $this->taskService->isFailed($task, $isPidDead) ? '🪫' : '';
 
                 // Build icon string (all icons if present)
-                $icons = array_filter([$consumeIcon, $needsHumanIcon, $failedIcon]);
+                $icons = array_filter([$consumeIcon, $failedIcon]);
                 $iconString = implode(' ', $icons);
                 // Each emoji displays as 2 chars wide + 1 space after = 3 per icon
                 $iconWidth = count($icons) * 3;
                 // Account for complexity char (2 chars: middle dot + char)
                 $truncatedTitle = $this->truncate($taskTitle, $width - 11 - $iconWidth);
 
+                // Apply style-specific colors
+                $idColor = match ($style) {
+                    'blocked' => 'fg=#b36666',  // Dimmer reddish for blocked
+                    'done' => 'fg=#888888',     // Gray for done
+                    default => 'fg=cyan',
+                };
+                $titleColor = $style === 'done' ? '<fg=#888888>' : '';
+                $titleEnd = $style === 'done' ? '</>' : '';
+
                 if ($iconString !== '') {
-                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}·{$complexityChar}]</> {$iconString} {$truncatedTitle}", $width);
+                    $lines[] = $this->padLine("<{$idColor}>[{$shortId}·{$complexityChar}]</> {$iconString} {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
                 } else {
-                    $lines[] = $this->padLine("<fg=cyan>[{$shortId}·{$complexityChar}]</> {$truncatedTitle}", $width);
+                    $lines[] = $this->padLine("<{$idColor}>[{$shortId}·{$complexityChar}]</> {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
                 }
             }
         }
@@ -353,65 +402,24 @@ class BoardCommand extends Command
         return $lines;
     }
 
-    private function calculateColumnWidths(int $readyCount, int $inProgressCount, int $blockedCount): void
+    private function calculateColumnWidths(): void
     {
         $terminalWidth = $this->getTerminalWidth();
 
-        // Available width minus spacing between columns (2 spaces × 2 gaps for 3 columns)
-        $availableWidth = $terminalWidth - 4;
+        // Top row: 2 columns with 2 spaces gap
+        $this->topColumnWidth = (int) (($terminalWidth - 2) / 2);
 
-        // Minimum width for header (enough for "Ready (0)" or "In Progress (0)")
-        $minWidth = 15;
-
-        // Count how many columns have content
-        $columnsWithContent = 0;
-        if ($readyCount > 0) {
-            $columnsWithContent++;
-        }
-        if ($inProgressCount > 0) {
-            $columnsWithContent++;
-        }
-        if ($blockedCount > 0) {
-            $columnsWithContent++;
-        }
-
-        // If all columns have content or no columns have content, distribute evenly
-        if ($columnsWithContent === 3 || $columnsWithContent === 0) {
-            $widthPerColumn = (int) ($availableWidth / 3);
-            $this->readyWidth = $widthPerColumn;
-            $this->inProgressWidth = $widthPerColumn;
-            $this->blockedWidth = $widthPerColumn;
-
-            return;
-        }
-
-        // Some columns are empty: empty columns get minimum width, others share remaining space
-        $emptyColumns = 3 - $columnsWithContent;
-        $totalMinWidth = $minWidth * $emptyColumns;
-        $remainingWidth = max(0, $availableWidth - $totalMinWidth);
-        $widthPerContentColumn = (int) ($remainingWidth / $columnsWithContent);
-
-        // Distribute width - columns with content get more space
-        $this->readyWidth = $readyCount > 0
-            ? $widthPerContentColumn
-            : $minWidth;
-
-        $this->inProgressWidth = $inProgressCount > 0
-            ? $widthPerContentColumn
-            : $minWidth;
-
-        $this->blockedWidth = $blockedCount > 0
-            ? $widthPerContentColumn
-            : $minWidth;
+        // Bottom row: 2 columns with 2 spaces gap (same width as top)
+        $this->bottomColumnWidth = $this->topColumnWidth;
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $doneTasks
+     * @param  array<int, array<string, mixed>>  $humanTasks
      */
-    private function renderDoneLine(array $doneTasks): void
+    private function renderHumanLine(array $humanTasks): void
     {
         $terminalWidth = $this->getTerminalWidth();
-        $prefix = '<fg=gray>Recently done:</> ';
+        $prefix = '<fg=yellow>👤 Needs human:</> ';
         $prefixLength = $this->visibleLength($prefix);
 
         // Available width for task items
@@ -421,7 +429,7 @@ class BoardCommand extends Command
         $currentLength = 0;
         $separator = '<fg=gray> | </>';
 
-        foreach ($doneTasks as $task) {
+        foreach ($humanTasks as $task) {
             $id = (string) $task['id'];
             $title = (string) $task['title'];
             $shortId = substr($id, 2, 6); // Skip 'f-' prefix
@@ -429,8 +437,8 @@ class BoardCommand extends Command
             // Calculate separator length if not first item
             $separatorLength = count($items) > 0 ? $this->visibleLength($separator) : 0;
 
-            // Build ID part to calculate its visible length
-            $idPart = "<fg=cyan>[{$shortId}]</> ";
+            // Build ID part to calculate its visible length (use yellow for human tasks)
+            $idPart = "<fg=yellow>[{$shortId}]</> ";
             $idPartLength = $this->visibleLength($idPart);
 
             // Calculate how much space we have for the title
@@ -441,7 +449,7 @@ class BoardCommand extends Command
                 break;
             }
 
-            $truncatedTitle = $this->truncateTitle($title, $titleMaxLength);
+            $truncatedTitle = $this->truncateHumanTitle($title, $titleMaxLength);
             $item = $idPart.$truncatedTitle;
             $itemLength = $this->visibleLength($item);
 
@@ -462,9 +470,9 @@ class BoardCommand extends Command
         $this->line($line);
     }
 
-    private function truncateTitle(string $title, int $maxLength): string
+    private function truncateHumanTitle(string $title, int $maxLength): string
     {
-        // Truncate to first 3 words for done tasks
+        // Truncate to first 3 words for human tasks
         $words = preg_split('/\s+/', trim($title));
         if (count($words) <= 3) {
             $truncated = $title;
