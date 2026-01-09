@@ -33,6 +33,21 @@ class ConsumeCommand extends Command
     /** @var array<int, array{task_id: string, agent_name: string, start_time: int, session_id: ?string, output_buffer: string, session_id_captured: bool}> Process metadata indexed by PID */
     private array $processMetadata = [];
 
+    /** Maximum size for output buffer per process (16KB) to prevent memory leaks */
+    private const MAX_OUTPUT_BUFFER_SIZE = 16384;
+
+    /** Cache TTL for task data in seconds */
+    private const TASK_CACHE_TTL = 2;
+
+    /** @var array{tasks: \Illuminate\Support\Collection|null, ready: \Illuminate\Support\Collection|null, failed: \Illuminate\Support\Collection|null, timestamp: int} */
+    private array $taskCache = ['tasks' => null, 'ready' => null, 'failed' => null, 'timestamp' => 0];
+
+    /** Original terminal state for restoration */
+    private ?string $originalTty = null;
+
+    /** Whether we've entered alternate screen mode */
+    private bool $inAlternateScreen = false;
+
     public function handle(TaskService $taskService, ConfigService $configService, RunService $runService): int
     {
         $this->configureCwd($taskService);
@@ -50,13 +65,17 @@ class ConsumeCommand extends Command
         $agentOverride = $this->option('agent');
         $dryrun = $this->option('dryrun');
 
+        // Save terminal state and register shutdown handler BEFORE modifying terminal
+        $this->originalTty = shell_exec('stty -g');
+        register_shutdown_function([$this, 'restoreTerminal']);
+
         $this->getOutput()->write("\033[?1049h");
+        $this->inAlternateScreen = true;
         $this->getOutput()->write("\033[?25l"); // Hide cursor
         $this->getOutput()->write("\033[H\033[2J");
 
         $exiting = false;
         $paused = true;
-        $originalTty = null;
 
         \pcntl_signal(SIGINT, function () use (&$exiting) {
             $exiting = true;
@@ -65,7 +84,6 @@ class ConsumeCommand extends Command
             $exiting = true;
         });
 
-        $originalTty = shell_exec('stty -g');
         shell_exec('stty -icanon -echo');
         stream_set_blocking(STDIN, false);
 
@@ -81,6 +99,7 @@ class ConsumeCommand extends Command
                     $statusLines[] = $paused
                         ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
                         : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                    $statusLines = $this->trimStatusLines($statusLines);
                 }
 
                 // When paused, just refresh display and wait
@@ -93,7 +112,7 @@ class ConsumeCommand extends Command
                 }
 
                 // Step 1: Fill available slots across all agents
-                $readyTasks = $taskService->ready();
+                $readyTasks = $this->getCachedReadyTasks($taskService);
 
                 if ($readyTasks->isNotEmpty()) {
                     // Score and sort tasks by priority, complexity, and size
@@ -144,6 +163,7 @@ class ConsumeCommand extends Command
                     $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
                     if (empty($statusLines) || end($statusLines) !== $waitingMsg) {
                         $statusLines[] = $waitingMsg;
+                        $statusLines = $this->trimStatusLines($statusLines);
                     }
                     $this->setTerminalTitle('fuel: Waiting for tasks...');
                     $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
@@ -157,10 +177,14 @@ class ConsumeCommand extends Command
                             $statusLines[] = $paused
                                 ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
                                 : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                            $statusLines = $this->trimStatusLines($statusLines);
                             $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
                         }
                         usleep(100000); // 100ms
                     }
+
+                    // Invalidate cache after waiting period so we get fresh data
+                    $this->invalidateTaskCache();
 
                     continue;
                 }
@@ -180,17 +204,40 @@ class ConsumeCommand extends Command
                 usleep(100000); // 100ms
             }
         } finally {
-            // Restore terminal state
-            if ($originalTty !== null) {
-                shell_exec('stty '.trim($originalTty));
-                stream_set_blocking(STDIN, true);
-            }
-            $this->getOutput()->write("\033[?25h"); // Show cursor
-            $this->getOutput()->write("\033[?1049l");
-            $this->setTerminalTitle('');  // Reset terminal title
+            $this->restoreTerminal();
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Restore terminal to its original state.
+     * Called both from finally block and shutdown handler for safety.
+     */
+    public function restoreTerminal(): void
+    {
+        // Only restore once - check and clear the flag atomically
+        if (! $this->inAlternateScreen && $this->originalTty === null) {
+            return;
+        }
+
+        // Restore stty settings first (most important for usability)
+        if ($this->originalTty !== null) {
+            shell_exec('stty '.trim($this->originalTty));
+            $this->originalTty = null;
+        }
+
+        // Restore stream blocking
+        stream_set_blocking(STDIN, true);
+
+        // Exit alternate screen buffer and show cursor
+        if ($this->inAlternateScreen) {
+            // Use echo to ensure output even if Laravel output is unavailable
+            echo "\033[?25h";     // Show cursor
+            echo "\033[?1049l";   // Exit alternate screen
+            echo "\033]0;\007";   // Reset terminal title
+            $this->inAlternateScreen = false;
+        }
     }
 
     /**
@@ -295,6 +342,8 @@ PROMPT;
         $taskService->update($taskId, [
             'consumed' => true,
         ]);
+        // Invalidate cache since task state changed
+        $this->invalidateTaskCache();
 
         // Create run entry with started_at
         $runService->logRun($taskId, [
@@ -406,8 +455,17 @@ PROMPT;
             return;
         }
 
-        // Append to buffer
+        // Append to buffer (capped to prevent memory leaks)
         $this->processMetadata[$pid]['output_buffer'] .= $incrementalOutput;
+
+        // Cap buffer size to prevent memory leaks from long-running processes
+        if (strlen($this->processMetadata[$pid]['output_buffer']) > self::MAX_OUTPUT_BUFFER_SIZE) {
+            // Keep only the last portion that might contain the session_id
+            $this->processMetadata[$pid]['output_buffer'] = substr(
+                $this->processMetadata[$pid]['output_buffer'],
+                -self::MAX_OUTPUT_BUFFER_SIZE
+            );
+        }
 
         // Try to parse each line for the init message with session_id
         $lines = explode("\n", $this->processMetadata[$pid]['output_buffer']);
@@ -429,6 +487,8 @@ PROMPT;
                 $sessionId = $json['session_id'];
                 $this->processMetadata[$pid]['session_id'] = $sessionId;
                 $this->processMetadata[$pid]['session_id_captured'] = true;
+                // Clear buffer after capturing session_id to free memory
+                $this->processMetadata[$pid]['output_buffer'] = '';
 
                 // Store session_id in run data immediately
                 $taskId = $this->processMetadata[$pid]['task_id'];
@@ -548,6 +608,7 @@ PROMPT;
                 if (stripos($output, $pattern) !== false) {
                     // Reopen task so it can be retried on next cycle
                     $taskService->reopen($taskId);
+                    $this->invalidateTaskCache();
                     $statusLines[] = $this->formatStatus('🔄', "{$taskId} failed with network error, will retry (exit {$exitCode}, {$durationStr})", 'yellow');
 
                     return;
@@ -581,6 +642,7 @@ PROMPT;
                 // Block the original task until permissions are configured
                 $taskService->addDependency($taskId, $humanTask['id']);
                 $taskService->reopen($taskId);
+                $this->invalidateTaskCache();
 
                 $statusLines[] = $this->formatStatus('🔒', "{$taskId} blocked - {$agentName} needs permissions (created {$humanTask['id']})", 'yellow');
 
@@ -594,6 +656,7 @@ PROMPT;
             $task = $taskService->find($taskId);
             if ($task && $task['status'] === 'in_progress') {
                 $taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
+                $this->invalidateTaskCache();
                 $statusLines[] = $this->formatStatus('✓', "{$taskId} auto-completed ({$durationStr})", 'green');
             } else {
                 $statusLines[] = $this->formatStatus('✓', "{$taskId} completed ({$durationStr})", 'green');
@@ -601,6 +664,8 @@ PROMPT;
         } else {
             $statusLines[] = $this->formatStatus('✗', "{$taskId} failed (exit {$exitCode}, {$durationStr})", 'red');
         }
+        // Invalidate cache after any process completion since task state may have changed
+        $this->invalidateTaskCache();
     }
 
     /**
@@ -762,6 +827,45 @@ PROMPT;
     {
         // OSC 0 sets both window title and icon name
         $this->getOutput()->write("\033]0;{$title}\007");
+    }
+
+    /**
+     * Get cached ready tasks (refreshes if cache expired or after task mutations).
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function getCachedReadyTasks(TaskService $taskService): \Illuminate\Support\Collection
+    {
+        $now = time();
+        if ($this->taskCache['ready'] === null || ($now - $this->taskCache['timestamp']) >= self::TASK_CACHE_TTL) {
+            $this->taskCache['ready'] = $taskService->ready();
+            $this->taskCache['timestamp'] = $now;
+        }
+
+        return $this->taskCache['ready'];
+    }
+
+    /**
+     * Invalidate task cache (call after mutations like start, update, done).
+     */
+    private function invalidateTaskCache(): void
+    {
+        $this->taskCache = ['tasks' => null, 'ready' => null, 'failed' => null, 'timestamp' => 0];
+    }
+
+    /**
+     * Trim status lines to prevent unbounded growth.
+     *
+     * @param  array<string>  $statusLines
+     * @return array<string>
+     */
+    private function trimStatusLines(array $statusLines, int $maxLines = 5): array
+    {
+        if (count($statusLines) > $maxLines) {
+            return array_slice($statusLines, -$maxLines);
+        }
+
+        return $statusLines;
     }
 
     /**
