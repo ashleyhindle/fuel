@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Providers;
 
 use App\Contracts\ProcessManagerInterface;
@@ -24,17 +26,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(TaskService::class, function () {
-            return new TaskService(getcwd().'/.fuel/tasks.jsonl');
-        });
+        $this->app->singleton(TaskService::class, fn(): TaskService => new TaskService(getcwd().'/.fuel/tasks.jsonl'));
 
-        $this->app->singleton(ConfigService::class, function () {
-            return new ConfigService(getcwd().'/.fuel/config.yaml');
-        });
+        $this->app->singleton(ConfigService::class, fn(): ConfigService => new ConfigService(getcwd().'/.fuel/config.yaml'));
 
-        $this->app->singleton(RunService::class, function () {
-            return new RunService(getcwd().'/.fuel/runs');
-        });
+        $this->app->singleton(RunService::class, fn(): RunService => new RunService(getcwd().'/.fuel/runs'));
 
         $this->app->singleton(ProcessManagerInterface::class, ProcessManager::class);
     }

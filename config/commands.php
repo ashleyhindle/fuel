@@ -1,5 +1,15 @@
 <?php
 
+use Symfony\Component\Console\Command\ListCommand;
+use NunoMaduro\LaravelConsoleSummary\SummaryCommand;
+use Symfony\Component\Console\Command\DumpCompletionCommand;
+use Symfony\Component\Console\Command\HelpCommand;
+use Illuminate\Console\Scheduling\ScheduleRunCommand;
+use Illuminate\Console\Scheduling\ScheduleListCommand;
+use Illuminate\Console\Scheduling\ScheduleFinishCommand;
+use Illuminate\Foundation\Console\VendorPublishCommand;
+use LaravelZero\Framework\Commands\StubPublishCommand;
+
 return [
 
     /*
@@ -13,7 +23,7 @@ return [
     |
     */
 
-    'default' => Symfony\Component\Console\Command\ListCommand::class,
+    'default' => ListCommand::class,
 
     /*
     |--------------------------------------------------------------------------
@@ -55,14 +65,14 @@ return [
     */
 
     'hidden' => [
-        NunoMaduro\LaravelConsoleSummary\SummaryCommand::class,
-        Symfony\Component\Console\Command\DumpCompletionCommand::class,
-        Symfony\Component\Console\Command\HelpCommand::class,
-        Illuminate\Console\Scheduling\ScheduleRunCommand::class,
-        Illuminate\Console\Scheduling\ScheduleListCommand::class,
-        Illuminate\Console\Scheduling\ScheduleFinishCommand::class,
-        Illuminate\Foundation\Console\VendorPublishCommand::class,
-        LaravelZero\Framework\Commands\StubPublishCommand::class,
+        SummaryCommand::class,
+        DumpCompletionCommand::class,
+        HelpCommand::class,
+        ScheduleRunCommand::class,
+        ScheduleListCommand::class,
+        ScheduleFinishCommand::class,
+        VendorPublishCommand::class,
+        StubPublishCommand::class,
     ],
 
     /*
@@ -77,7 +87,7 @@ return [
     */
 
     'remove' => [
-        NunoMaduro\LaravelConsoleSummary\SummaryCommand::class,
+        SummaryCommand::class,
     ],
 
 ];

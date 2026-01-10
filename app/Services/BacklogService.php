@@ -105,7 +105,7 @@ class BacklogService
 
         if ($matches->count() > 1) {
             throw new RuntimeException(
-                "Ambiguous backlog ID '{$id}'. Matches: ".$matches->pluck('id')->implode(', ')
+                sprintf("Ambiguous backlog ID '%s'. Matches: ", $id).$matches->pluck('id')->implode(', ')
             );
         }
 
@@ -124,7 +124,7 @@ class BacklogService
             $item = $this->findInCollection($backlog, $id);
 
             if ($item === null) {
-                throw new RuntimeException("Backlog item '{$id}' not found");
+                throw new RuntimeException(sprintf("Backlog item '%s' not found", $id));
             }
 
             $backlog = $backlog->filter(fn (array $i): bool => $i['id'] !== $item['id']);
@@ -148,7 +148,7 @@ class BacklogService
         $maxAttempts = 100;
 
         $existingIds = [];
-        if ($existingItems !== null) {
+        if ($existingItems instanceof Collection) {
             $existingIds = $existingItems->pluck('id')->toArray();
         }
 
@@ -165,7 +165,7 @@ class BacklogService
         }
 
         throw new RuntimeException(
-            "Failed to generate unique backlog ID after {$maxAttempts} attempts."
+            sprintf('Failed to generate unique backlog ID after %d attempts.', $maxAttempts)
         );
     }
 
@@ -283,7 +283,7 @@ class BacklogService
 
         if ($matches->count() > 1) {
             throw new RuntimeException(
-                "Ambiguous backlog ID '{$id}'. Matches: ".$matches->pluck('id')->implode(', ')
+                sprintf("Ambiguous backlog ID '%s'. Matches: ", $id).$matches->pluck('id')->implode(', ')
             );
         }
 

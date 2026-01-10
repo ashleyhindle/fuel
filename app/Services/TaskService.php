@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use Closure;
 use Illuminate\Support\Collection;
 use RuntimeException;
@@ -75,7 +76,7 @@ class TaskService
 
         if ($matches->count() > 1) {
             throw new RuntimeException(
-                "Ambiguous task ID '{$id}'. Matches: ".$matches->pluck('id')->implode(', ')
+                sprintf("Ambiguous task ID '%s'. Matches: ", $id).$matches->pluck('id')->implode(', ')
             );
         }
 
@@ -93,7 +94,7 @@ class TaskService
     {
         if (! in_array($value, $validValues, true)) {
             throw new RuntimeException(
-                "Invalid {$fieldName} '{$value}'. Must be one of: ".implode(', ', $validValues)
+                sprintf("Invalid %s '%s'. Must be one of: ", $fieldName, $value).implode(', ', $validValues)
             );
         }
     }
@@ -117,7 +118,7 @@ class TaskService
             $priority = $data['priority'] ?? 2;
             if (! is_int($priority) || $priority < 0 || $priority > 4) {
                 throw new RuntimeException(
-                    "Invalid priority '{$priority}'. Must be an integer between 0 and 4."
+                    sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)
                 );
             }
 
@@ -126,6 +127,7 @@ class TaskService
             if (! is_array($labels)) {
                 throw new RuntimeException('Labels must be an array of strings.');
             }
+
             // Ensure all labels are strings
             foreach ($labels as $label) {
                 if (! is_string($label)) {
@@ -176,7 +178,7 @@ class TaskService
             $task = $this->findInCollection($tasks, $id);
 
             if ($task === null) {
-                throw new RuntimeException("Task '{$id}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $id));
             }
 
             // Update title if provided
@@ -200,9 +202,10 @@ class TaskService
                 $priority = $data['priority'];
                 if (! is_int($priority) || $priority < 0 || $priority > 4) {
                     throw new RuntimeException(
-                        "Invalid priority '{$priority}'. Must be an integer between 0 and 4."
+                        sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)
                     );
                 }
+
                 $task['priority'] = $priority;
             }
 
@@ -278,7 +281,7 @@ class TaskService
             $task = $this->findInCollection($tasks, $id);
 
             if ($task === null) {
-                throw new RuntimeException("Task '{$id}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $id));
             }
 
             $task['status'] = 'in_progress';
@@ -305,7 +308,7 @@ class TaskService
             $task = $this->findInCollection($tasks, $id);
 
             if ($task === null) {
-                throw new RuntimeException("Task '{$id}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $id));
             }
 
             $task['status'] = 'closed';
@@ -313,6 +316,7 @@ class TaskService
             if ($reason !== null) {
                 $task['reason'] = $reason;
             }
+
             if ($commitHash !== null) {
                 $task['commit_hash'] = $commitHash;
             }
@@ -336,12 +340,12 @@ class TaskService
             $task = $this->findInCollection($tasks, $id);
 
             if ($task === null) {
-                throw new RuntimeException("Task '{$id}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $id));
             }
 
             $status = $task['status'] ?? '';
             if ($status !== 'closed' && $status !== 'in_progress') {
-                throw new RuntimeException("Task '{$id}' is not closed or in_progress. Only closed or in_progress tasks can be reopened.");
+                throw new RuntimeException(sprintf("Task '%s' is not closed or in_progress. Only closed or in_progress tasks can be reopened.", $id));
             }
 
             $task['status'] = 'open';
@@ -374,7 +378,7 @@ class TaskService
             $task = $this->findInCollection($tasks, $id);
 
             if ($task === null) {
-                throw new RuntimeException("Task '{$id}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $id));
             }
 
             $consumed = ! empty($task['consumed']);
@@ -382,7 +386,7 @@ class TaskService
 
             // Any consumed in_progress task can be retried (agent started but didn't complete)
             if (! ($consumed && $status === 'in_progress')) {
-                throw new RuntimeException("Task '{$id}' is not a consumed in_progress task. Use 'reopen' for closed tasks.");
+                throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
             }
 
             $task['status'] = 'open';
@@ -574,13 +578,13 @@ class TaskService
             // Find the task to add dependency to
             $task = $this->findInCollection($tasks, $taskId);
             if ($task === null) {
-                throw new RuntimeException("Task '{$taskId}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
             }
 
             // Validate that the dependency target exists
             $dependsOnTask = $this->findInCollection($tasks, $dependsOnId);
             if ($dependsOnTask === null) {
-                throw new RuntimeException("Dependency target '{$dependsOnId}' not found");
+                throw new RuntimeException(sprintf("Dependency target '%s' not found", $dependsOnId));
             }
 
             // Use the actual resolved IDs
@@ -644,7 +648,7 @@ class TaskService
         // Find the task
         $task = $this->findInCollection($tasks, $taskId);
         if ($task === null) {
-            throw new RuntimeException("Task '{$taskId}' not found");
+            throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
         $blockers = collect();
@@ -677,7 +681,7 @@ class TaskService
 
         // Extract existing IDs if tasks collection provided
         $existingIds = [];
-        if ($existingTasks !== null) {
+        if ($existingTasks instanceof Collection) {
             $existingIds = $existingTasks->pluck('id')->toArray();
         }
 
@@ -695,7 +699,7 @@ class TaskService
         }
 
         throw new RuntimeException(
-            "Failed to generate unique task ID after {$maxAttempts} attempts. This is extremely unlikely."
+            sprintf('Failed to generate unique task ID after %d attempts. This is extremely unlikely.', $maxAttempts)
         );
     }
 
@@ -777,10 +781,10 @@ class TaskService
                 }
 
                 try {
-                    $taskDate = \Carbon\Carbon::parse($updatedAt);
+                    $taskDate = Carbon::parse($updatedAt);
 
                     return $taskDate->lt($cutoffDate);
-                } catch (\Exception $e) {
+                } catch (\Exception) {
                     return false; // Invalid date, skip
                 }
             });
@@ -806,9 +810,7 @@ class TaskService
 
             // Remove archived tasks from main tasks file
             $archivedIds = $tasksToArchive->pluck('id')->toArray();
-            $remainingTasks = $tasks->filter(function (array $task) use ($archivedIds): bool {
-                return ! in_array($task['id'], $archivedIds, true);
-            });
+            $remainingTasks = $tasks->filter(fn(array $task): bool => ! in_array($task['id'], $archivedIds, true));
 
             $this->writeTasks($remainingTasks);
 
@@ -1053,7 +1055,7 @@ class TaskService
         $visited = [];
         $queue = [$dependsOnId];
 
-        while (! empty($queue)) {
+        while ($queue !== []) {
             $current = array_shift($queue);
 
             // If we reached the task we're adding dependency to, there's a cycle
@@ -1095,7 +1097,7 @@ class TaskService
             $task = $this->findInCollection($tasks, $id);
 
             if ($task === null) {
-                throw new RuntimeException("Task '{$id}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $id));
             }
 
             $tasks = $tasks->filter(fn (array $t): bool => $t['id'] !== $task['id']);
@@ -1117,12 +1119,12 @@ class TaskService
 
             $fromTask = $this->findInCollection($tasks, $fromId);
             if ($fromTask === null) {
-                throw new RuntimeException("Task '{$fromId}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $fromId));
             }
 
             $toTask = $this->findInCollection($tasks, $toId);
             if ($toTask === null) {
-                throw new RuntimeException("Task '{$toId}' not found");
+                throw new RuntimeException(sprintf("Task '%s' not found", $toId));
             }
 
             $blockedBy = $fromTask['blocked_by'] ?? [];
@@ -1189,7 +1191,7 @@ class TaskService
 
         if ($matches->count() > 1) {
             throw new RuntimeException(
-                "Ambiguous task ID '{$id}'. Matches: ".$matches->pluck('id')->implode(', ')
+                sprintf("Ambiguous task ID '%s'. Matches: ", $id).$matches->pluck('id')->implode(', ')
             );
         }
 

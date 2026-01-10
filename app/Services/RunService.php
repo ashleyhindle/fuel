@@ -11,7 +11,7 @@ class RunService
 {
     private const OUTPUT_MAX_LENGTH = 10240; // 10KB
 
-    private string $storageBasePath;
+    private readonly string $storageBasePath;
 
     private int $lockRetries = 10;
 
@@ -80,7 +80,7 @@ class RunService
     {
         $runs = $this->getRuns($taskId);
 
-        if (empty($runs)) {
+        if ($runs === []) {
             return null;
         }
 
@@ -99,8 +99,8 @@ class RunService
         $this->withExclusiveLock($taskId, function () use ($taskId, $data): void {
             $runs = $this->readRuns($taskId);
 
-            if (empty($runs)) {
-                throw new RuntimeException("No runs found for task {$taskId} to update");
+            if ($runs === []) {
+                throw new RuntimeException(sprintf('No runs found for task %s to update', $taskId));
             }
 
             // Update the last run (most recent)
@@ -117,15 +117,19 @@ class RunService
             if (isset($data['ended_at'])) {
                 $run['ended_at'] = $data['ended_at'];
             }
+
             if (isset($data['exit_code'])) {
                 $run['exit_code'] = $data['exit_code'];
             }
+
             if (array_key_exists('output', $data)) {
                 $run['output'] = $output;
             }
+
             if (isset($data['session_id'])) {
                 $run['session_id'] = $data['session_id'];
             }
+
             if (isset($data['cost_usd'])) {
                 $run['cost_usd'] = $data['cost_usd'];
             }
@@ -229,7 +233,7 @@ class RunService
         }
 
         throw new RuntimeException(
-            "Failed to generate unique run ID after {$maxAttempts} attempts. This is extremely unlikely."
+            sprintf('Failed to generate unique run ID after %d attempts. This is extremely unlikely.', $maxAttempts)
         );
     }
 
