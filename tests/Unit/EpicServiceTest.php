@@ -211,6 +211,31 @@ it('gets tasks for epic', function () {
     expect($tasks)->toBe([]);
 });
 
+it('gets tasks for epic when tasks are linked', function () {
+    $epic = $this->service->createEpic('Epic with tasks');
+
+    $task1 = $this->taskService->create([
+        'title' => 'Task 1',
+        'epic_id' => $epic['id'],
+    ]);
+    $task2 = $this->taskService->create([
+        'title' => 'Task 2',
+        'epic_id' => $epic['id'],
+    ]);
+    // Create a task not linked to epic
+    $task3 = $this->taskService->create([
+        'title' => 'Task 3',
+    ]);
+
+    $tasks = $this->service->getTasksForEpic($epic['id']);
+
+    expect($tasks)->toHaveCount(2);
+    $taskIds = array_column($tasks, 'id');
+    expect($taskIds)->toContain($task1['id']);
+    expect($taskIds)->toContain($task2['id']);
+    expect($taskIds)->not->toContain($task3['id']);
+});
+
 it('throws exception when getting tasks for non-existent epic', function () {
     $this->db->initialize();
 
