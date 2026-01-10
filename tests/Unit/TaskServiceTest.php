@@ -102,7 +102,7 @@ it('validates task type enum', function (): void {
     $this->taskService->initialize();
 
     // Valid types
-    $validTypes = ['bug', 'feature', 'task', 'epic', 'chore'];
+    $validTypes = ['bug', 'feature', 'task', 'epic', 'chore', 'docs', 'test', 'refactor'];
     foreach ($validTypes as $type) {
         $task = $this->taskService->create(['title' => 'Test', 'type' => $type]);
         expect($task['type'])->toBe($type);

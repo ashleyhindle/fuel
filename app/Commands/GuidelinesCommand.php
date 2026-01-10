@@ -112,7 +112,7 @@ Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 ### Task Options
 
 ```bash
-fuel add "Title" --description="..." --type=bug|feature|task|chore --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
+fuel add "Title" --description="..." --type=bug|feature|task|epic|chore|docs|test|refactor --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
 ```
 
 ### Writing Good Descriptions

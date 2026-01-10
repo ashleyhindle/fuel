@@ -19,7 +19,7 @@ class PromoteCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--priority= : Task priority (0-4)}
-        {--type= : Task type (bug|feature|task|epic|chore|test)}
+        {--type= : Task type (bug|feature|task|epic|chore|docs|test|refactor)}
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--labels= : Comma-separated list of labels}
         {--size= : Task size (xs|s|m|l|xl)}

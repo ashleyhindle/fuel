@@ -19,20 +19,21 @@ class AddCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--d|description= : Task description}
-        {--type= : Task type (bug|feature|task|epic|chore|test)}
+        {--type= : Task type (bug|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Task priority (0-4)}
         {--labels= : Comma-separated list of labels}
         {--size= : Task size (xs|s|m|l|xl)}
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}
-        {--someday : Add to backlog instead of tasks}';
+        {--someday : Add to backlog instead of tasks}
+        {--backlog : Add to backlog (alias for --someday)}';
 
     protected $description = 'Add a new task';
 
     public function handle(TaskService $taskService, BacklogService $backlogService): int
     {
-        // Handle --someday flag: add to backlog instead of tasks
-        if ($this->option('someday')) {
+        // Handle --someday or --backlog flag: add to backlog instead of tasks
+        if ($this->option('backlog') || $this->option('someday')) {
             // Configure cwd for BacklogService
             if ($cwd = $this->option('cwd')) {
                 $backlogService->setStoragePath($cwd.'/.fuel/backlog.jsonl');
