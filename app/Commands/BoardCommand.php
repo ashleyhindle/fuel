@@ -6,6 +6,8 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
+use App\Contracts\AgentHealthTrackerInterface;
+use App\Services\ConfigService;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
@@ -29,21 +31,27 @@ class BoardCommand extends Command
 
     private TaskService $taskService;
 
-    public function handle(TaskService $taskService): int
-    {
+    public function handle(
+        TaskService $taskService,
+        ?ConfigService $configService = null,
+        ?AgentHealthTrackerInterface $healthTracker = null
+    ): int {
         $this->taskService = $taskService;
         $this->configureCwd($taskService);
 
         // Live mode by default, unless --once is passed or --json is used
         if (! $this->option('once') && ! $this->option('json')) {
-            return $this->watchMode($taskService);
+            return $this->watchMode($taskService, $configService, $healthTracker);
         }
 
-        return $this->renderBoard($taskService);
+        return $this->renderBoard($taskService, $configService, $healthTracker);
     }
 
-    private function renderBoard(TaskService $taskService): int
-    {
+    private function renderBoard(
+        TaskService $taskService,
+        ?ConfigService $configService = null,
+        ?AgentHealthTrackerInterface $healthTracker = null
+    ): int {
         $boardData = $this->getBoardData($taskService);
         $readyTasks = $boardData['ready'];
         $inProgressTasks = $boardData['in_progress'];
@@ -99,11 +107,17 @@ class BoardCommand extends Command
             $this->renderHumanLine($humanTasks->all());
         }
 
+        // Show agent health summary
+        $this->renderHealthSummary($configService, $healthTracker);
+
         return self::SUCCESS;
     }
 
-    private function watchMode(TaskService $taskService): int
-    {
+    private function watchMode(
+        TaskService $taskService,
+        ?ConfigService $configService = null,
+        ?AgentHealthTrackerInterface $healthTracker = null
+    ): int {
         $storagePath = $taskService->getStoragePath();
         $interval = max(1, (int) $this->option('interval'));
 
@@ -142,7 +156,7 @@ class BoardCommand extends Command
         try {
             // Initial render
             $lastContentHash = $this->getBoardContentHash($taskService);
-            $this->refreshBoard($taskService);
+            $this->refreshBoard($taskService, $configService, $healthTracker);
             $lastRender = time();
 
             while (true) {
@@ -182,7 +196,7 @@ class BoardCommand extends Command
                 }
 
                 if ($needsRefresh) {
-                    $this->refreshBoard($taskService);
+                    $this->refreshBoard($taskService, $configService, $healthTracker);
                     $lastContentHash = $this->getBoardContentHash($taskService);
                     $lastRender = time();
                 }
@@ -261,8 +275,11 @@ class BoardCommand extends Command
         ]);
     }
 
-    private function refreshBoard(TaskService $taskService): void
-    {
+    private function refreshBoard(
+        TaskService $taskService,
+        ?ConfigService $configService = null,
+        ?AgentHealthTrackerInterface $healthTracker = null
+    ): void {
         // Move cursor to home without clearing - overwrites in place to avoid flicker
         if (stream_isatty(STDOUT)) {
             $this->getOutput()->write("\033[H");
@@ -316,6 +333,9 @@ class BoardCommand extends Command
             $this->newLine();
             $this->renderHumanLine($humanTasks->all());
         }
+
+        // Show agent health summary
+        $this->renderHealthSummary($configService, $healthTracker);
 
         // Show footer with refresh info
         $this->newLine();
@@ -518,5 +538,93 @@ class BoardCommand extends Command
             'complex' => 'c',
             default => 's',
         };
+    }
+
+    /**
+     * Render agent health summary below the board.
+     */
+    private function renderHealthSummary(
+        ?ConfigService $configService = null,
+        ?AgentHealthTrackerInterface $healthTracker = null
+    ): void {
+        if ($configService === null || $healthTracker === null) {
+            return;
+        }
+
+        $agentNames = $configService->getAgentNames();
+        if ($agentNames === []) {
+            return;
+        }
+
+        $unhealthyAgents = [];
+        $degradedAgents = [];
+        $warningAgents = [];
+
+        foreach ($agentNames as $agentName) {
+            $health = $healthTracker->getHealthStatus($agentName);
+            $status = $health->getStatus();
+
+            if ($status === 'unhealthy') {
+                $backoffSeconds = $health->getBackoffSeconds();
+                $formatted = $backoffSeconds < 60
+                    ? "{$backoffSeconds}s"
+                    : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                $unhealthyAgents[] = sprintf(
+                    '<fg=red>%s</> (%d failures, backoff: %s)',
+                    $agentName,
+                    $health->consecutiveFailures,
+                    $formatted
+                );
+            } elseif ($status === 'degraded') {
+                $backoffSeconds = $health->getBackoffSeconds();
+                if ($backoffSeconds > 0) {
+                    $formatted = $backoffSeconds < 60
+                        ? "{$backoffSeconds}s"
+                        : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                    $degradedAgents[] = sprintf(
+                        '<fg=yellow>%s</> (%d failures, backoff: %s)',
+                        $agentName,
+                        $health->consecutiveFailures,
+                        $formatted
+                    );
+                } else {
+                    $degradedAgents[] = sprintf(
+                        '<fg=yellow>%s</> (%d failures)',
+                        $agentName,
+                        $health->consecutiveFailures
+                    );
+                }
+            } elseif ($status === 'warning') {
+                $warningAgents[] = sprintf(
+                    '<fg=yellow>%s</> (%d failure%s)',
+                    $agentName,
+                    $health->consecutiveFailures,
+                    $health->consecutiveFailures === 1 ? '' : 's'
+                );
+            }
+        }
+
+        if ($unhealthyAgents === [] && $degradedAgents === [] && $warningAgents === []) {
+            return; // All agents healthy, don't show anything
+        }
+
+        $this->newLine();
+        $lines = [];
+
+        if ($unhealthyAgents !== []) {
+            $lines[] = '<fg=red>⚠ Unhealthy:</> '.implode(' | ', $unhealthyAgents);
+        }
+
+        if ($degradedAgents !== []) {
+            $lines[] = '<fg=yellow>⚠ Degraded:</> '.implode(' | ', $degradedAgents);
+        }
+
+        if ($warningAgents !== []) {
+            $lines[] = '<fg=yellow>⚠ Warning:</> '.implode(' | ', $warningAgents);
+        }
+
+        foreach ($lines as $line) {
+            $this->line($line);
+        }
     }
 }

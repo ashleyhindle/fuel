@@ -25,7 +25,8 @@ class ConsumeCommand extends Command
         {--interval=5 : Check interval in seconds when idle}
         {--agent= : Agent name to use (overrides config-based routing)}
         {--prompt=Consume one task from fuel, then land the plane : Prompt to send to agent}
-        {--dryrun : Show what would happen without claiming tasks or spawning agents}';
+        {--dryrun : Show what would happen without claiming tasks or spawning agents}
+        {--health : Show agent health status and exit}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
@@ -58,6 +59,11 @@ class ConsumeCommand extends Command
     {
         $this->configureCwd($this->taskService, $this->configService);
         $this->taskService->initialize();
+
+        // Handle --health flag: show health status and exit
+        if ($this->option('health')) {
+            return $this->displayHealthStatus();
+        }
 
         // Set the cwd on ProcessManager so it uses the correct directory for output
         $cwd = $this->option('cwd') ?: getcwd();
@@ -716,6 +722,14 @@ PROMPT;
             $this->line('<fg=red>Failed: '.implode(' | ', $failedLines).' (fuel retry)</>');
         }
 
+        // Show agent health status (unhealthy/degraded agents only)
+        $healthLines = $this->getHealthStatusLines();
+        if ($healthLines !== []) {
+            foreach ($healthLines as $healthLine) {
+                $this->line($healthLine);
+            }
+        }
+
         // Show status history
         foreach ($statusLines as $line) {
             $this->line($line);
@@ -906,5 +920,119 @@ PROMPT;
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Display agent health status and exit.
+     */
+    private function displayHealthStatus(): int
+    {
+        if ($this->healthTracker === null) {
+            $this->error('Health tracker not available');
+
+            return self::FAILURE;
+        }
+
+        $agentNames = $this->configService->getAgentNames();
+        if ($agentNames === []) {
+            $this->line('<fg=yellow>No agents configured</>');
+
+            return self::SUCCESS;
+        }
+
+        $this->line('<fg=white;options=bold>Agent Health Status</>');
+        $this->newLine();
+
+        foreach ($agentNames as $agentName) {
+            $health = $this->healthTracker->getHealthStatus($agentName);
+            $status = $health->getStatus();
+            $color = match ($status) {
+                'healthy' => 'green',
+                'warning' => 'yellow',
+                'degraded' => 'yellow',
+                'unhealthy' => 'red',
+                default => 'gray',
+            };
+
+            $statusIcon = match ($status) {
+                'healthy' => '✓',
+                'warning' => '⚠',
+                'degraded' => '⚠',
+                'unhealthy' => '✗',
+                default => '?',
+            };
+
+            $line = sprintf('<fg=%s>%s %s</>', $color, $statusIcon, $agentName);
+
+            // Add consecutive failures info
+            if ($health->consecutiveFailures > 0) {
+                $line .= sprintf(' <fg=gray>(%d consecutive failure%s)</>', $health->consecutiveFailures, $health->consecutiveFailures === 1 ? '' : 's');
+            }
+
+            // Add backoff info if in backoff
+            $backoffSeconds = $health->getBackoffSeconds();
+            if ($backoffSeconds > 0) {
+                $formatted = $backoffSeconds < 60
+                    ? "{$backoffSeconds}s"
+                    : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                $line .= sprintf(' <fg=yellow>backoff: %s</>', $formatted);
+            }
+
+            // Add success rate if available
+            $successRate = $health->getSuccessRate();
+            if ($successRate !== null) {
+                $line .= sprintf(' <fg=gray>(%.0f%% success rate)</>', $successRate);
+            }
+
+            $this->line($line);
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Get health status summary for display in consume output.
+     * Returns array of formatted health status lines.
+     *
+     * @return array<string>
+     */
+    private function getHealthStatusLines(): array
+    {
+        if ($this->healthTracker === null) {
+            return [];
+        }
+
+        $agentNames = $this->configService->getAgentNames();
+        $unhealthyAgents = [];
+
+        foreach ($agentNames as $agentName) {
+            $health = $this->healthTracker->getHealthStatus($agentName);
+            $status = $health->getStatus();
+
+            // Only show unhealthy/degraded agents
+            if ($status === 'unhealthy' || $status === 'degraded') {
+                $backoffSeconds = $health->getBackoffSeconds();
+                $formatted = $backoffSeconds < 60
+                    ? "{$backoffSeconds}s"
+                    : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+
+                $color = $status === 'unhealthy' ? 'red' : 'yellow';
+                $icon = $status === 'unhealthy' ? '✗' : '⚠';
+
+                $unhealthyAgents[] = $this->formatStatus(
+                    $icon,
+                    sprintf(
+                        'Agent %s is %s (%d consecutive failures, backoff: %s)',
+                        $agentName,
+                        $status,
+                        $health->consecutiveFailures,
+                        $formatted
+                    ),
+                    $color
+                );
+            }
+        }
+
+        return $unhealthyAgents;
     }
 }
