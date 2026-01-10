@@ -27,6 +27,12 @@ class ProcessManager implements ProcessManagerInterface
     /** @var array<string, Process> Process metadata indexed by taskId */
     private array $processMetadata = [];
 
+    /** Flag indicating if the process manager is shutting down */
+    private bool $shuttingDown = false;
+
+    /** Number of times SIGTERM/SIGINT has been received */
+    private int $shutdownSignalCount = 0;
+
     /**
      * Spawn a new process for a given task and agent.
      *
@@ -325,40 +331,147 @@ class ProcessManager implements ProcessManagerInterface
     }
 
     /**
+     * Register signal handlers for graceful shutdown.
+     * Should be called at the start of consume command.
+     */
+    public function registerSignalHandlers(): void
+    {
+        if (!extension_loaded('pcntl')) {
+            throw new \RuntimeException('PCNTL extension is required for signal handling');
+        }
+
+        // Register handlers for SIGTERM and SIGINT
+        pcntl_signal(SIGTERM, [$this, 'handleShutdownSignal']);
+        pcntl_signal(SIGINT, [$this, 'handleShutdownSignal']);
+    }
+
+    /**
+     * Handle shutdown signals (SIGTERM/SIGINT).
+     *
+     * @param int $signal The signal number received
+     */
+    public function handleShutdownSignal(int $signal): void
+    {
+        $this->shutdownSignalCount++;
+
+        if ($this->shutdownSignalCount === 1) {
+            // First signal: graceful shutdown
+            $this->shuttingDown = true;
+
+            // Output message to STDERR to ensure it's visible
+            fwrite(STDERR, "\n\033[33m⚠ Shutting down gracefully... Press Ctrl+C again to force quit.\033[0m\n");
+
+            // Start graceful shutdown process
+            $this->shutdown();
+        } else {
+            // Second signal: force immediate exit
+            fwrite(STDERR, "\n\033[31m✗ Forcing immediate shutdown...\033[0m\n");
+
+            // Force kill all processes immediately
+            foreach ($this->processes as $symfonyProcess) {
+                if ($symfonyProcess->isRunning()) {
+                    $symfonyProcess->stop(0); // Immediate SIGKILL
+                }
+            }
+
+            exit(130); // Standard exit code for SIGINT
+        }
+    }
+
+    /**
+     * Check if the process manager is shutting down.
+     *
+     * @return bool True if shutting down, false otherwise
+     */
+    public function isShuttingDown(): bool
+    {
+        return $this->shuttingDown;
+    }
+
+    /**
      * Gracefully shutdown the process manager, terminating all running processes.
      */
     public function shutdown(): void
     {
+        $this->shuttingDown = true;
+
+        // Log initial status
+        $runningCount = $this->getRunningCount();
+        if ($runningCount > 0) {
+            fwrite(STDERR, "Stopping {$runningCount} running process(es)...\n");
+        }
+
+        // Step 1: Send SIGTERM to all running processes
         foreach ($this->processes as $taskId => $symfonyProcess) {
             if ($symfonyProcess->isRunning()) {
-                $symfonyProcess->stop(10); // 10 second timeout
+                $pid = $symfonyProcess->getPid();
+                $metadata = $this->processMetadata[$taskId];
+                fwrite(STDERR, "  - Sending SIGTERM to {$taskId} (PID: {$pid})\n");
+                $symfonyProcess->stop(30); // 30 second timeout before SIGKILL
             }
         }
 
-        // Wait for all processes to stop (max 15 seconds)
-        $timeout = 15;
+        // Step 2: Wait for graceful exit (max 30 seconds)
+        $timeout = 30;
         $start = time();
+        $lastReport = 0;
 
         while (time() - $start < $timeout) {
-            $anyRunning = false;
-            foreach ($this->processes as $symfonyProcess) {
+            $stillRunning = [];
+            foreach ($this->processes as $taskId => $symfonyProcess) {
                 if ($symfonyProcess->isRunning()) {
-                    $anyRunning = true;
-                    break;
+                    $stillRunning[] = $taskId;
                 }
             }
 
-            if (!$anyRunning) {
+            if (empty($stillRunning)) {
+                fwrite(STDERR, "\033[32m✓ All processes stopped gracefully.\033[0m\n");
                 break;
+            }
+
+            // Report progress every 5 seconds
+            $elapsed = time() - $start;
+            if ($elapsed - $lastReport >= 5) {
+                $remaining = $timeout - $elapsed;
+                fwrite(STDERR, "  Still waiting for " . count($stillRunning) . " process(es)... ({$remaining}s remaining)\n");
+                $lastReport = $elapsed;
             }
 
             usleep(100000); // 100ms
         }
 
-        // Force kill any remaining processes
-        foreach ($this->processes as $symfonyProcess) {
+        // Step 3: Force kill any remaining processes
+        $forceKilled = [];
+        foreach ($this->processes as $taskId => $symfonyProcess) {
             if ($symfonyProcess->isRunning()) {
+                $pid = $symfonyProcess->getPid();
+                fwrite(STDERR, "\033[31m  - Force killing {$taskId} (PID: {$pid})\033[0m\n");
                 $symfonyProcess->stop(0); // Immediate SIGKILL
+                $forceKilled[] = $taskId;
+            }
+        }
+
+        // Step 4: Log final status
+        if (!empty($forceKilled)) {
+            fwrite(STDERR, "\033[31m✗ Had to force kill " . count($forceKilled) . " process(es).\033[0m\n");
+        }
+
+        // Update metadata for all terminated processes
+        foreach ($this->processMetadata as $taskId => $metadata) {
+            if ($metadata->status === ProcessStatus::Running) {
+                $exitCode = $this->processes[$taskId]->getExitCode() ?? -1;
+                $this->processMetadata[$taskId] = new Process(
+                    id: $metadata->id,
+                    taskId: $metadata->taskId,
+                    agent: $metadata->agent,
+                    command: $metadata->command,
+                    cwd: $metadata->cwd,
+                    pid: $metadata->pid,
+                    status: ProcessStatus::Killed,
+                    exitCode: $exitCode,
+                    startedAt: $metadata->startedAt,
+                    completedAt: new DateTimeImmutable()
+                );
             }
         }
 

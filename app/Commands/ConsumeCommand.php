@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Process\CompletionResult;
+use App\Process\CompletionType;
 use App\Services\ConfigService;
+use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
-use Symfony\Component\Process\Process;
 
 class ConsumeCommand extends Command
 {
@@ -18,23 +20,11 @@ class ConsumeCommand extends Command
     protected $signature = 'consume
         {--cwd= : Working directory (defaults to current directory)}
         {--interval=5 : Check interval in seconds when idle}
-        {--agent= : Agent command to spawn (overrides config-based routing)}
+        {--agent= : Agent name to use (overrides config-based routing)}
         {--prompt=Consume one task from fuel, then land the plane : Prompt to send to agent}
         {--dryrun : Show what would happen without claiming tasks or spawning agents}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
-
-    /** @var array<int, Process> Active agent processes indexed by PID */
-    private array $activeProcesses = [];
-
-    /** @var array<string, int> Count of active processes per agent name */
-    private array $agentCounts = [];
-
-    /** @var array<int, array{task_id: string, agent_name: string, start_time: int, session_id: ?string, output_buffer: string, session_id_captured: bool}> Process metadata indexed by PID */
-    private array $processMetadata = [];
-
-    /** Maximum size for output buffer per process (16KB) to prevent memory leaks */
-    private const MAX_OUTPUT_BUFFER_SIZE = 16384;
 
     /** Cache TTL for task data in seconds */
     private const TASK_CACHE_TTL = 2;
@@ -48,22 +38,29 @@ class ConsumeCommand extends Command
     /** Whether we've entered alternate screen mode */
     private bool $inAlternateScreen = false;
 
-    public function handle(TaskService $taskService, ConfigService $configService, RunService $runService): int
-    {
-        $this->configureCwd($taskService);
+    public function handle(
+        TaskService $taskService,
+        ConfigService $configService,
+        RunService $runService,
+        ProcessManager $processManager,
+    ): int {
+        $this->configureCwd($taskService, $configService);
         $taskService->initialize();
 
-        // Configure ConfigService with cwd path if provided
-        if ($cwd = $this->option('cwd')) {
-            $configService->setConfigPath($cwd.'/.fuel/config.yaml');
-        }
-
         // Clean up orphaned runs from previous consume crashes
-        $cleanupCount = $runService->cleanupOrphanedRuns(fn (int $pid): bool => ! $this->isProcessRunning($pid));
+        $runService->cleanupOrphanedRuns(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid));
 
         $interval = max(1, (int) $this->option('interval'));
         $agentOverride = $this->option('agent');
         $dryrun = $this->option('dryrun');
+
+        // Register ProcessManager signal handlers first
+        try {
+            $processManager->registerSignalHandlers();
+        } catch (\RuntimeException $e) {
+            $this->error('Error: ' . $e->getMessage());
+            return self::FAILURE;
+        }
 
         // Save terminal state and register shutdown handler BEFORE modifying terminal
         $this->originalTty = shell_exec('stty -g');
@@ -74,15 +71,7 @@ class ConsumeCommand extends Command
         $this->getOutput()->write("\033[?25l"); // Hide cursor
         $this->getOutput()->write("\033[H\033[2J");
 
-        $exiting = false;
         $paused = true;
-
-        \pcntl_signal(SIGINT, function () use (&$exiting) {
-            $exiting = true;
-        });
-        \pcntl_signal(SIGTERM, function () use (&$exiting) {
-            $exiting = true;
-        });
 
         shell_exec('stty -icanon -echo');
         stream_set_blocking(STDIN, false);
@@ -90,7 +79,7 @@ class ConsumeCommand extends Command
         $statusLines = [];
 
         try {
-            while (! $exiting) {
+            while (! $processManager->isShuttingDown()) {
                 \pcntl_signal_dispatch();
 
                 // Check for pause toggle (Shift+Tab)
@@ -105,16 +94,16 @@ class ConsumeCommand extends Command
                 // When paused, just refresh display and wait
                 if ($paused) {
                     $this->setTerminalTitle('fuel: PAUSED');
-                    $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
+                    $this->refreshDisplay($taskService, $statusLines, $processManager, $paused);
                     usleep(200000); // 200ms
 
                     continue;
                 }
 
-                // Step 1: Fill available slots across all agents
+                // Step 1: Fill available slots across all agents (but not if shutting down)
                 $readyTasks = $this->getCachedReadyTasks($taskService);
 
-                if ($readyTasks->isNotEmpty()) {
+                if ($readyTasks->isNotEmpty() && ! $processManager->isShuttingDown()) {
                     // Score and sort tasks by priority, complexity, and size
                     $scoredTasks = $readyTasks->map(function (array $task) {
                         return [
@@ -137,6 +126,7 @@ class ConsumeCommand extends Command
                             $taskService,
                             $configService,
                             $runService,
+                            $processManager,
                             $agentOverride,
                             $dryrun,
                             $statusLines
@@ -148,17 +138,14 @@ class ConsumeCommand extends Command
                             $this->line('<fg=gray>Press Ctrl+C to exit, or wait to see next task...</>');
                             sleep(3);
                         }
-
-                        // If we couldn't spawn (capacity reached for this agent), try next task
-                        // This allows us to spawn tasks for different agents even if one is at capacity
                     }
                 }
 
                 // Step 2: Poll all running processes
-                $this->pollRunningProcesses($taskService, $runService, $statusLines);
+                $this->pollAndHandleCompletions($processManager, $taskService, $runService, $statusLines);
 
                 // Step 3: Check if we have any work or should wait
-                if (empty($this->activeProcesses) && $readyTasks->isEmpty()) {
+                if (! $processManager->hasActiveProcesses() && $readyTasks->isEmpty()) {
                     // Only add waiting message if not already the last status
                     $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
                     if (empty($statusLines) || end($statusLines) !== $waitingMsg) {
@@ -166,10 +153,10 @@ class ConsumeCommand extends Command
                         $statusLines = $this->trimStatusLines($statusLines);
                     }
                     $this->setTerminalTitle('fuel: Waiting for tasks...');
-                    $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
+                    $this->refreshDisplay($taskService, $statusLines, $processManager, $paused);
 
                     // Poll while waiting
-                    for ($i = 0; $i < $interval * 10 && ! $exiting; $i++) {
+                    for ($i = 0; $i < $interval * 10 && ! $processManager->isShuttingDown(); $i++) {
                         \pcntl_signal_dispatch();
                         // Check for pause toggle while waiting
                         if ($this->checkForPauseToggle()) {
@@ -178,7 +165,7 @@ class ConsumeCommand extends Command
                                 ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
                                 : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
                             $statusLines = $this->trimStatusLines($statusLines);
-                            $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
+                            $this->refreshDisplay($taskService, $statusLines, $processManager, $paused);
                         }
                         usleep(100000); // 100ms
                     }
@@ -190,12 +177,12 @@ class ConsumeCommand extends Command
                 }
 
                 // Update display with current state
-                $this->refreshDisplay($taskService, $statusLines, $this->activeProcesses, $paused);
+                $this->refreshDisplay($taskService, $statusLines, $processManager, $paused);
 
                 // Update terminal title with active process count
-                if (! empty($this->activeProcesses)) {
-                    $count = count($this->activeProcesses);
-                    $this->setTerminalTitle("fuel: {$count} active");
+                $activeCount = $processManager->getActiveCount();
+                if ($activeCount > 0) {
+                    $this->setTerminalTitle("fuel: {$activeCount} active");
                 } else {
                     $this->setTerminalTitle('fuel: Idle');
                 }
@@ -243,16 +230,25 @@ class ConsumeCommand extends Command
     /**
      * Try to spawn a task if agent capacity allows.
      * Returns true if spawned (or would spawn in dryrun), false if at capacity.
+     *
+     * @param  array<string, mixed>  $task
+     * @param  array<string>  $statusLines
      */
     private function trySpawnTask(
         array $task,
         TaskService $taskService,
         ConfigService $configService,
         RunService $runService,
+        ProcessManager $processManager,
         ?string $agentOverride,
         bool $dryrun,
         array &$statusLines
     ): bool {
+        // Don't spawn new tasks if shutting down
+        if ($processManager->isShuttingDown()) {
+            return false;
+        }
+
         $taskId = $task['id'];
         $taskTitle = $task['title'];
         $shortTitle = mb_strlen($taskTitle) > 40 ? mb_substr($taskTitle, 0, 37).'...' : $taskTitle;
@@ -291,44 +287,28 @@ Skipping steps breaks the workflow. Your work is NOT done until all steps comple
 Working directory: {$cwd}
 PROMPT;
 
-        // Build agent command array
-        if ($agentOverride) {
-            $agentCommandArray = [$agentOverride, '-p', $fullPrompt];
-        } else {
-            $taskComplexity = $task['complexity'] ?? 'simple';
+        // Determine agent name for capacity check and dryrun display
+        $agentName = $agentOverride;
+        if ($agentName === null) {
+            $complexity = $task['complexity'] ?? 'simple';
             try {
-                $agentCommandArray = $configService->getAgentCommand($taskComplexity, $fullPrompt);
+                $agentName = $configService->getAgentForComplexity($complexity);
             } catch (\RuntimeException $e) {
-                $this->error("Failed to get agent command: {$e->getMessage()}");
+                $this->error("Failed to get agent: {$e->getMessage()}");
                 $this->line('Use --agent to override or ensure .fuel/config.yaml exists');
 
                 return false;
             }
         }
 
-        // Extract agent name for capacity check
-        $agentCommand = $agentCommandArray[0];
-        $agentName = basename($agentCommand);
-
-        // Check if we can spawn another instance of this agent
-        if (! $dryrun && ! $this->canSpawnAgent($agentName, $configService)) {
+        // Check capacity before dryrun display (so we skip at-capacity agents in dryrun too)
+        if (! $dryrun && ! $processManager->canSpawn($agentName)) {
             return false; // At capacity, can't spawn
-        }
-
-        // Validate agent command exists in PATH (skip in dryrun)
-        if (! $dryrun) {
-            $agentPath = trim(shell_exec("which {$agentCommand} 2>/dev/null") ?? '');
-            if (empty($agentPath)) {
-                $this->error("Agent command not found: {$agentCommand}");
-                $this->line('Ensure it\'s in your PATH or use --agent=/full/path/to/agent');
-
-                return false;
-            }
         }
 
         if ($dryrun) {
             // Dryrun: show what would happen without claiming or spawning
-            $statusLines[] = $this->formatStatus('👁', "[DRYRUN] Would spawn agent for {$taskId}: {$shortTitle}", 'cyan');
+            $statusLines[] = $this->formatStatus('👁', "[DRYRUN] Would spawn {$agentName} for {$taskId}: {$shortTitle}", 'cyan');
             $this->setTerminalTitle("fuel: [DRYRUN] {$taskId}");
             $this->newLine();
             $this->line('<fg=cyan>== PROMPT THAT WOULD BE SENT ==</>');
@@ -342,364 +322,203 @@ PROMPT;
         $taskService->update($taskId, [
             'consumed' => true,
         ]);
-        // Invalidate cache since task state changed
         $this->invalidateTaskCache();
 
-        // Create run entry with started_at
-        $runService->logRun($taskId, [
-            'agent' => $agentName,
-            'started_at' => date('c'),
-        ]);
+        // Spawn via ProcessManager
+        $result = $processManager->spawn($task, $fullPrompt, $cwd, $agentOverride);
 
-        $statusLines[] = $this->formatStatus('🚀', "Spawning {$agentName} for {$taskId}: {$shortTitle}", 'yellow');
+        if (! $result->success) {
+            $this->error($result->error ?? 'Unknown spawn error');
 
-        $startTime = time();
-
-        // Spawn agent using Symfony Process for reliable management
-        $process = new Process(
-            $agentCommandArray,
-            $cwd,
-            null,  // inherit environment variables
-            null,  // no stdin
-            null   // no timeout
-        );
-        $process->setTimeout(null);
-        $process->setIdleTimeout(null);
-        $process->start();
-
-        $pid = $process->getPid();
-        if ($pid === null || $pid <= 0) {
-            $this->error("Failed to spawn agent for {$taskId}");
+            // Revert task state
+            $taskService->reopen($taskId);
+            $this->invalidateTaskCache();
 
             return false;
         }
 
-        // Track the process
-        $this->activeProcesses[$pid] = $process;
-        $this->agentCounts[$agentName] = ($this->agentCounts[$agentName] ?? 0) + 1;
-        $this->processMetadata[$pid] = [
-            'task_id' => $taskId,
-            'agent_name' => $agentName,
-            'start_time' => $startTime,
-            'session_id' => null,
-            'output_buffer' => '',
-            'session_id_captured' => false,
-        ];
+        $process = $result->process;
+        $pid = $process->getPid();
+
+        // Create run entry with started_at
+        $runService->logRun($taskId, [
+            'agent' => $process->getAgentName(),
+            'started_at' => date('c'),
+        ]);
 
         // Store the process PID in the task
         $taskService->update($taskId, [
             'consume_pid' => $pid,
         ]);
 
+        $statusLines[] = $this->formatStatus('🚀', "Spawning {$process->getAgentName()} for {$taskId}: {$shortTitle}", 'yellow');
+
         return true;
     }
 
     /**
-     * Check if a process is still running by PID.
-     * Used for detecting orphaned processes from previous consume runs.
-     */
-    private function isProcessRunning(int $pid): bool
-    {
-        // posix_kill with signal 0 checks if process exists
-        return posix_kill($pid, 0);
-    }
-
-    /**
      * Poll all running processes and handle completions.
+     *
+     * @param  array<string>  $statusLines
      */
-    private function pollRunningProcesses(
+    private function pollAndHandleCompletions(
+        ProcessManager $processManager,
         TaskService $taskService,
         RunService $runService,
         array &$statusLines
     ): void {
-        foreach ($this->activeProcesses as $pid => $process) {
-            // Read incremental output and try to capture session_id
-            $this->captureSessionIdFromOutput($pid, $process, $runService);
-
-            if (! $process->isRunning()) {
-                // Process completed - handle it
-                $this->handleProcessCompletion(
-                    $pid,
-                    $process,
-                    $taskService,
-                    $runService,
-                    $statusLines
-                );
+        // Also update session_id in run service as processes are polled
+        foreach ($processManager->getActiveProcesses() as $process) {
+            if ($process->getSessionId() !== null) {
+                $runService->updateLatestRun($process->getTaskId(), [
+                    'session_id' => $process->getSessionId(),
+                ]);
             }
+        }
+
+        $completions = $processManager->poll();
+
+        foreach ($completions as $completion) {
+            $this->handleCompletion($completion, $taskService, $runService, $statusLines);
         }
 
         // Keep only last 5 status lines
-        if (count($statusLines) > 5) {
-            $statusLines = array_slice($statusLines, -5);
-        }
+        $statusLines = $this->trimStatusLines($statusLines);
     }
 
     /**
-     * Capture session_id from Claude's stream-json output.
-     * Parses the init message: {"type":"system","subtype":"init","session_id":"..."}
+     * Handle a completed process result.
+     *
+     * @param  array<string>  $statusLines
      */
-    private function captureSessionIdFromOutput(int $pid, Process $process, RunService $runService): void
-    {
-        if (! isset($this->processMetadata[$pid])) {
-            return;
-        }
-
-        // Already captured session_id for this process
-        if ($this->processMetadata[$pid]['session_id_captured']) {
-            return;
-        }
-
-        // Read incremental output
-        $incrementalOutput = $process->getIncrementalOutput();
-        if (empty($incrementalOutput)) {
-            return;
-        }
-
-        // Append to buffer (capped to prevent memory leaks)
-        $this->processMetadata[$pid]['output_buffer'] .= $incrementalOutput;
-
-        // Cap buffer size to prevent memory leaks from long-running processes
-        if (strlen($this->processMetadata[$pid]['output_buffer']) > self::MAX_OUTPUT_BUFFER_SIZE) {
-            // Keep only the last portion that might contain the session_id
-            $this->processMetadata[$pid]['output_buffer'] = substr(
-                $this->processMetadata[$pid]['output_buffer'],
-                -self::MAX_OUTPUT_BUFFER_SIZE
-            );
-        }
-
-        // Try to parse each line for the init message with session_id
-        $lines = explode("\n", $this->processMetadata[$pid]['output_buffer']);
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) {
-                continue;
-            }
-
-            $json = json_decode($line, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                continue;
-            }
-
-            // Look for init message: {"type":"system","subtype":"init","session_id":"..."}
-            if (isset($json['type'], $json['session_id']) &&
-                $json['type'] === 'system' &&
-                ($json['subtype'] ?? '') === 'init') {
-                $sessionId = $json['session_id'];
-                $this->processMetadata[$pid]['session_id'] = $sessionId;
-                $this->processMetadata[$pid]['session_id_captured'] = true;
-                // Clear buffer after capturing session_id to free memory
-                $this->processMetadata[$pid]['output_buffer'] = '';
-
-                // Store session_id in run data immediately
-                $taskId = $this->processMetadata[$pid]['task_id'];
-                $runService->updateLatestRun($taskId, [
-                    'session_id' => $sessionId,
-                ]);
-
-                return;
-            }
-        }
-    }
-
-    /**
-     * Handle a completed process.
-     */
-    private function handleProcessCompletion(
-        int $pid,
-        Process $process,
+    private function handleCompletion(
+        CompletionResult $completion,
         TaskService $taskService,
         RunService $runService,
         array &$statusLines
     ): void {
-        if (! isset($this->processMetadata[$pid])) {
-            return;
-        }
-
-        $metadata = $this->processMetadata[$pid];
-        $taskId = $metadata['task_id'];
-        $agentName = $metadata['agent_name'];
-        $startTime = $metadata['start_time'];
-        $sessionId = $metadata['session_id'];
-
-        $exitCode = $process->getExitCode();
-        $duration = time() - $startTime;
-        $durationStr = $this->formatDuration($duration);
-
-        // Capture agent output (include any buffered output from incremental reads)
-        $bufferedOutput = $metadata['output_buffer'];
-        $finalOutput = $process->getOutput();
-        $output = $bufferedOutput.$finalOutput.$process->getErrorOutput();
-
-        // Parse stream-json output for result message with session_id and cost
-        $costUsd = null;
-        $lines = explode("\n", $output);
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) {
-                continue;
-            }
-
-            $json = json_decode($line, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                continue;
-            }
-
-            // Look for init message: {"type":"system","subtype":"init","session_id":"..."}
-            // This handles fast-completing processes where the polling loop missed the init message
-            if (isset($json['type'], $json['session_id']) &&
-                $json['type'] === 'system' &&
-                ($json['subtype'] ?? '') === 'init' &&
-                $sessionId === null) {
-                $sessionId = $json['session_id'];
-            }
-
-            // Look for result message: {"type":"result","session_id":"...","total_cost_usd":...}
-            if (isset($json['type']) && $json['type'] === 'result') {
-                if (isset($json['session_id']) && $sessionId === null) {
-                    $sessionId = $json['session_id'];
-                }
-                if (isset($json['total_cost_usd'])) {
-                    $costUsd = (float) $json['total_cost_usd'];
-                }
-            }
-        }
+        $taskId = $completion->taskId;
+        $agentName = $completion->agentName;
+        $durationStr = $completion->getFormattedDuration();
 
         // Update run entry with completion data
         $runData = [
             'ended_at' => date('c'),
-            'exit_code' => $exitCode,
-            'output' => $output,
+            'exit_code' => $completion->exitCode,
+            'output' => $completion->output,
         ];
-        if ($sessionId !== null) {
-            $runData['session_id'] = $sessionId;
+        if ($completion->sessionId !== null) {
+            $runData['session_id'] = $completion->sessionId;
         }
-        if ($costUsd !== null) {
-            $runData['cost_usd'] = $costUsd;
+        if ($completion->costUsd !== null) {
+            $runData['cost_usd'] = $completion->costUsd;
         }
         $runService->updateLatestRun($taskId, $runData);
 
+        // Clear PID from task
         $taskService->update($taskId, [
-            'consume_pid' => null, // Clear PID on completion
+            'consume_pid' => null,
         ]);
 
-        // Clean up process tracking
-        unset($this->activeProcesses[$pid]);
-        unset($this->processMetadata[$pid]);
-        if (isset($this->agentCounts[$agentName]) && $this->agentCounts[$agentName] > 0) {
-            $this->agentCounts[$agentName]--;
-        }
+        // Handle by completion type
+        match ($completion->type) {
+            CompletionType::Success => $this->handleSuccess($completion, $taskService, $statusLines, $durationStr),
+            CompletionType::Failed => $this->handleFailure($completion, $statusLines, $durationStr),
+            CompletionType::NetworkError => $this->handleNetworkError($completion, $taskService, $statusLines, $durationStr),
+            CompletionType::PermissionBlocked => $this->handlePermissionBlocked($completion, $taskService, $statusLines, $agentName),
+        };
 
-        // Check for network errors and retry if needed
-        if ($exitCode === 1) {
-            $networkErrorPatterns = [
-                'ConnectError',
-                'ConnectionError',
-                'NetworkError',
-                'ECONNREFUSED',
-                'ETIMEDOUT',
-                'ENOTFOUND',
-                'Connection refused',
-                'Connection timed out',
-                'Network is unreachable',
-                'Name or service not known',
-            ];
-
-            foreach ($networkErrorPatterns as $pattern) {
-                if (stripos($output, $pattern) !== false) {
-                    // Reopen task so it can be retried on next cycle
-                    $taskService->reopen($taskId);
-                    $this->invalidateTaskCache();
-                    $statusLines[] = $this->formatStatus('🔄', "{$taskId} failed with network error, will retry (exit {$exitCode}, {$durationStr})", 'yellow');
-
-                    return;
-                }
-            }
-        }
-
-        // Check for permission-blocked agents (exit 0 but couldn't complete)
-        $permissionBlockedPatterns = [
-            'commands are being rejected',
-            'terminal commands are being rejected',
-            'please manually complete',
-        ];
-
-        foreach ($permissionBlockedPatterns as $pattern) {
-            if (stripos($output, $pattern) !== false) {
-                // Create a needs-human task for permission configuration
-                $humanTask = $taskService->create([
-                    'title' => "Configure agent permissions for {$agentName}",
-                    'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
-                        "To fix, either:\n".
-                        "1. Run `{$agentName}` interactively and select 'Always allow' for tool permissions\n".
-                        "2. Or add autonomous flags to .fuel/config.yaml:\n".
-                        "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
-                        "   - cursor-agent: args: [\"--force\"]\n\n".
-                        "See README.md 'Agent Permissions' section for details.",
-                    'labels' => ['needs-human'],
-                    'priority' => 1,
-                ]);
-
-                // Block the original task until permissions are configured
-                $taskService->addDependency($taskId, $humanTask['id']);
-                $taskService->reopen($taskId);
-                $this->invalidateTaskCache();
-
-                $statusLines[] = $this->formatStatus('🔒', "{$taskId} blocked - {$agentName} needs permissions (created {$humanTask['id']})", 'yellow');
-
-                return;
-            }
-        }
-
-        // Handle completion status
-        if ($exitCode === 0) {
-            // Auto-complete task if agent didn't run `fuel done`
-            $task = $taskService->find($taskId);
-            if ($task && $task['status'] === 'in_progress') {
-                $taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
-                $this->invalidateTaskCache();
-                $statusLines[] = $this->formatStatus('✓', "{$taskId} auto-completed ({$durationStr})", 'green');
-            } else {
-                $statusLines[] = $this->formatStatus('✓', "{$taskId} completed ({$durationStr})", 'green');
-            }
-        } else {
-            $statusLines[] = $this->formatStatus('✗', "{$taskId} failed (exit {$exitCode}, {$durationStr})", 'red');
-        }
-        // Invalidate cache after any process completion since task state may have changed
         $this->invalidateTaskCache();
     }
 
     /**
-     * Check if we can spawn another agent instance.
-     * Cleans up completed processes and checks against configured limit.
+     * @param  array<string>  $statusLines
      */
-    private function canSpawnAgent(string $agentName, ConfigService $configService): bool
-    {
-        // Clean up completed processes
-        foreach ($this->activeProcesses as $pid => $process) {
-            if (! $process->isRunning()) {
-                unset($this->activeProcesses[$pid]);
+    private function handleSuccess(
+        CompletionResult $completion,
+        TaskService $taskService,
+        array &$statusLines,
+        string $durationStr
+    ): void {
+        $taskId = $completion->taskId;
 
-                // Decrement count for this agent (get from metadata)
-                $agentForProcess = $this->processMetadata[$pid]['agent_name'] ?? 'unknown';
-                if (isset($this->agentCounts[$agentForProcess]) && $this->agentCounts[$agentForProcess] > 0) {
-                    $this->agentCounts[$agentForProcess]--;
-                }
-            }
+        // Auto-complete task if agent didn't run `fuel done`
+        $task = $taskService->find($taskId);
+        if ($task && $task['status'] === 'in_progress') {
+            $taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
+            $statusLines[] = $this->formatStatus('✓', "{$taskId} auto-completed ({$durationStr})", 'green');
+        } else {
+            $statusLines[] = $this->formatStatus('✓', "{$taskId} completed ({$durationStr})", 'green');
         }
-
-        // Check current count vs limit
-        $currentCount = $this->agentCounts[$agentName] ?? 0;
-        $limit = $configService->getAgentLimit($agentName);
-
-        return $currentCount < $limit;
     }
 
     /**
      * @param  array<string>  $statusLines
-     * @param  array<int, Process>  $activeProcesses
      */
-    private function refreshDisplay(TaskService $taskService, array $statusLines, array $activeProcesses, bool $paused = false): void
-    {
+    private function handleFailure(
+        CompletionResult $completion,
+        array &$statusLines,
+        string $durationStr
+    ): void {
+        $statusLines[] = $this->formatStatus('✗', "{$completion->taskId} failed (exit {$completion->exitCode}, {$durationStr})", 'red');
+    }
+
+    /**
+     * @param  array<string>  $statusLines
+     */
+    private function handleNetworkError(
+        CompletionResult $completion,
+        TaskService $taskService,
+        array &$statusLines,
+        string $durationStr
+    ): void {
+        // Reopen task so it can be retried on next cycle
+        $taskService->reopen($completion->taskId);
+        $statusLines[] = $this->formatStatus('🔄', "{$completion->taskId} failed with network error, will retry (exit {$completion->exitCode}, {$durationStr})", 'yellow');
+    }
+
+    /**
+     * @param  array<string>  $statusLines
+     */
+    private function handlePermissionBlocked(
+        CompletionResult $completion,
+        TaskService $taskService,
+        array &$statusLines,
+        string $agentName
+    ): void {
+        $taskId = $completion->taskId;
+
+        // Create a needs-human task for permission configuration
+        $humanTask = $taskService->create([
+            'title' => "Configure agent permissions for {$agentName}",
+            'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
+                "To fix, either:\n".
+                "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
+                "2. Or add autonomous flags to .fuel/config.yaml agent definition:\n".
+                "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
+                "   - cursor-agent: args: [\"--force\"]\n".
+                "   - opencode: env: {OPENCODE_PERMISSION: '{\"permission\":\"allow\"}'}\n\n".
+                "See README.md 'Agent Permissions' section for details.",
+            'labels' => ['needs-human'],
+            'priority' => 1,
+        ]);
+
+        // Block the original task until permissions are configured
+        $taskService->addDependency($taskId, $humanTask['id']);
+        $taskService->reopen($taskId);
+
+        $statusLines[] = $this->formatStatus('🔒', "{$taskId} blocked - {$agentName} needs permissions (created {$humanTask['id']})", 'yellow');
+    }
+
+    /**
+     * @param  array<string>  $statusLines
+     */
+    private function refreshDisplay(
+        TaskService $taskService,
+        array $statusLines,
+        ProcessManager $processManager,
+        bool $paused = false
+    ): void {
         // Begin synchronized output (terminal buffers until end marker)
         $this->getOutput()->write("\033[?2026h");
         // Move cursor home and clear screen
@@ -711,23 +530,21 @@ PROMPT;
         $this->newLine();
 
         // Show active processes
+        $activeProcesses = $processManager->getActiveProcesses();
         if (! empty($activeProcesses)) {
             $processLines = [];
-            foreach (array_keys($activeProcesses) as $pid) {
-                if (isset($this->processMetadata[$pid])) {
-                    $metadata = $this->processMetadata[$pid];
-                    $taskId = $metadata['task_id'];
-                    $agentName = $metadata['agent_name'] ?? 'unknown';
-                    $startTime = $metadata['start_time'];
-                    $duration = $this->formatDuration(time() - $startTime);
-                    $shortId = substr($taskId, 2, 6); // Skip 'f-' prefix
-                    $sessionInfo = '';
-                    if (! empty($metadata['session_id'])) {
-                        $shortSession = substr($metadata['session_id'], 0, 8);
-                        $sessionInfo = " 🔗{$shortSession}";
-                    }
-                    $processLines[] = "🔄 {$shortId} [{$agentName}] ({$duration}){$sessionInfo}";
+            foreach ($activeProcesses as $process) {
+                $metadata = $process->getMetadata();
+                $taskId = $metadata['task_id'];
+                $agentName = $metadata['agent_name'];
+                $duration = $this->formatDuration($metadata['duration']);
+                $shortId = substr($taskId, 2, 6); // Skip 'f-' prefix
+                $sessionInfo = '';
+                if (! empty($metadata['session_id'])) {
+                    $shortSession = substr($metadata['session_id'], 0, 8);
+                    $sessionInfo = " 🔗{$shortSession}";
                 }
+                $processLines[] = "🔄 {$shortId} [{$agentName}] ({$duration}){$sessionInfo}";
             }
             if (! empty($processLines)) {
                 $this->line('<fg=yellow>Active: '.implode(' | ', $processLines).'</>');
@@ -735,9 +552,8 @@ PROMPT;
         }
 
         // Show failed/stuck tasks
-        $isPidDead = fn (int $pid): bool => ! $this->isProcessRunning($pid);
-        $excludePids = array_keys($activeProcesses);
-        $failedTasks = $taskService->failed($isPidDead, $excludePids);
+        $excludePids = $processManager->getTrackedPids();
+        $failedTasks = $taskService->failed(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid), $excludePids);
         if ($failedTasks->isNotEmpty()) {
             $failedLines = [];
             foreach ($failedTasks as $task) {
@@ -871,18 +687,6 @@ PROMPT;
     /**
      * Calculate a score for task selection based on priority, complexity, and size.
      * Lower score = higher priority (should be selected first).
-     *
-     * Scoring weights:
-     * - Priority: 0-4 (0 = critical, 4 = backlog) - weight: 100
-     * - Complexity: trivial=0, simple=1, moderate=2, complex=3 - weight: 10
-     * - Size: xs=0, s=1, m=2, l=3, xl=4 - weight: 1
-     *
-     * Weight ratio explanation (100:10:1):
-     * - Priority always dominates: Max complexity difference (30) < min priority step (100),
-     *   so priority differences cannot be overcome by complexity or size.
-     * - Complexity breaks ties: Max size difference (4) < min complexity step (10),
-     *   so complexity differences break ties when priority is equal.
-     * - Size is final tiebreaker: Only affects ordering when priority and complexity are equal.
      *
      * @param  array<string, mixed>  $task
      */
