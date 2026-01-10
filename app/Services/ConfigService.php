@@ -371,6 +371,17 @@ class ConfigService
     }
 
     /**
+     * Get the review agent name, or null if not configured.
+     * If not set, the same agent that completed the task will review.
+     */
+    public function getReviewAgent(): ?string
+    {
+        $config = $this->loadConfig();
+
+        return $config['review_agent'] ?? null;
+    }
+
+    /**
      * Get the config file path.
      */
     public function getConfigPath(): string
@@ -497,6 +508,10 @@ class ConfigService
 
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
+
+# Agent to use for reviewing completed work
+# If not set, the same agent that completed the task will review
+# review_agent: claude-sonnet
 
 agents:
   cursor-composer:
