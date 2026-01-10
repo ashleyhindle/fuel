@@ -330,6 +330,12 @@ class EpicService
             return ['completed' => false, 'review_task_id' => null];
         }
 
+        // Check if a review task already exists for this epic
+        $existingReviewTask = $this->findExistingReviewTask($resolvedId);
+        if ($existingReviewTask !== null) {
+            return ['completed' => true, 'review_task_id' => $existingReviewTask['id']];
+        }
+
         $gitDiff = $this->getCombinedGitDiff($tasks);
         $summary = $this->generateEpicSummary($epic, $tasks, $gitDiff);
         $reviewTask = $this->createEpicReviewTask($epic, $summary);
@@ -407,6 +413,38 @@ class EpicService
         $summary .= "\n## Git Changes Summary\n\n```\n{$gitDiff}\n```\n";
 
         return $summary;
+    }
+
+    /**
+     * Find an existing review task for an epic.
+     *
+     * @param  string  $epicId  The epic ID to search for
+     * @return array<string, mixed>|null The existing review task, or null if not found
+     */
+    private function findExistingReviewTask(string $epicId): ?array
+    {
+        $allTasks = $this->taskService->all();
+
+        return $allTasks->first(function (array $task) use ($epicId): bool {
+            $labels = $task['labels'] ?? [];
+            if (! is_array($labels) || ! in_array('epic-review', $labels, true)) {
+                return false;
+            }
+
+            // Check if epic ID is in the title (format: "Review completed epic: ... ({$epicId})")
+            $title = $task['title'] ?? '';
+            if (str_contains($title, "({$epicId})")) {
+                return true;
+            }
+
+            // Also check description in case title format changed
+            $description = $task['description'] ?? '';
+            if (str_contains($description, $epicId)) {
+                return true;
+            }
+
+            return false;
+        });
     }
 
     /**

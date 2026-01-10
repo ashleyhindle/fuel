@@ -405,3 +405,37 @@ it('includes task commit hashes in summary when available', function () {
     $reviewTask = $this->taskService->find($result['review_task_id']);
     expect($reviewTask['description'])->toContain('abc1234');
 });
+
+it('does not create duplicate review tasks when checkEpicCompletion is called multiple times', function () {
+    $epic = $this->service->createEpic('Epic for idempotency test');
+
+    $task = $this->taskService->create([
+        'title' => 'Task 1',
+        'epic_id' => $epic['id'],
+    ]);
+
+    $this->taskService->done($task['id']);
+
+    // First call should create a review task
+    $result1 = $this->service->checkEpicCompletion($epic['id']);
+    expect($result1['completed'])->toBeTrue();
+    expect($result1['review_task_id'])->not->toBeNull();
+
+    $firstReviewTaskId = $result1['review_task_id'];
+
+    // Second call should return the same review task ID, not create a new one
+    $result2 = $this->service->checkEpicCompletion($epic['id']);
+    expect($result2['completed'])->toBeTrue();
+    expect($result2['review_task_id'])->toBe($firstReviewTaskId);
+
+    // Verify only one review task exists
+    $allTasks = $this->taskService->all();
+    $reviewTasks = $allTasks->filter(function (array $task): bool {
+        $labels = $task['labels'] ?? [];
+
+        return is_array($labels) && in_array('epic-review', $labels, true);
+    });
+
+    expect($reviewTasks->count())->toBe(1);
+    expect($reviewTasks->first()['id'])->toBe($firstReviewTaskId);
+});
