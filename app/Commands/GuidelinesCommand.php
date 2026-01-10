@@ -136,14 +136,29 @@ Blocked tasks won't appear in `fuel ready` until blockers are closed.
 
 ### Epics
 
-Epics group related tasks and trigger a combined review when all tasks complete.
+**Use epics for any feature or change requiring multiple tasks.** Epics group related tasks and trigger a combined review when all tasks complete.
+
+**When to create an epic:**
+- Feature with 2+ tasks (e.g., "Add user preferences" → API + UI + tests)
+- Refactoring spanning multiple files/concerns
+- Any work you'd want reviewed as a coherent whole
+
+**Workflow:**
+1. `fuel epic:add "Feature name" --description="What and why"`
+2. Break down into tasks, linking each: `fuel add "Task" --epic=e-xxxx`
+3. Tasks get worked and reviewed individually
+4. When ALL tasks close → epic review triggers → human inbox notification
 
 ```bash
-fuel epic:add "Epic title"              # Create a new epic
-fuel add "Task" --epic=e-xxxx           # Link task to epic (or use -e)
-fuel epics                               # List all epics
-fuel epic:show <e-id>                   # View epic details and tasks
+fuel epic:add "Add user preferences"    # Create epic (note the ID)
+fuel add "Add preferences API" --epic=e-xxxx -e e-xxxx  # Link task
+fuel add "Add preferences UI" --epic=e-xxxx             # Link another
+fuel epics                               # List all epics with status
+fuel epic:show <e-id>                   # View epic + linked tasks
+fuel epic:reviewed <e-id>               # Mark as human-reviewed
 ```
+
+**Always use epics for multi-task work.** Standalone tasks are fine for single-file fixes.
 
 ### Backlog Management
 

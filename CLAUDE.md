@@ -64,7 +64,7 @@ Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 ### Task Options
 
 ```bash
-fuel add "Title" --description="..." --type=bug|feature|task|chore --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
+fuel add "Title" --description="..." --type=bug|feature|task|epic|chore|docs|test|refactor --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
 ```
 
 ### Writing Good Descriptions
@@ -85,6 +85,32 @@ fuel add "Implement API" --blocked-by=f-xxxx
 ```
 
 Blocked tasks won't appear in `fuel ready` until blockers are closed.
+
+### Epics
+
+**Use epics for any feature or change requiring multiple tasks.** Epics group related tasks and trigger a combined review when all tasks complete.
+
+**When to create an epic:**
+- Feature with 2+ tasks (e.g., "Add user preferences" → API + UI + tests)
+- Refactoring spanning multiple files/concerns
+- Any work you'd want reviewed as a coherent whole
+
+**Workflow:**
+1. `fuel epic:add "Feature name" --description="What and why"`
+2. Break down into tasks, linking each: `fuel add "Task" --epic=e-xxxx`
+3. Tasks get worked and reviewed individually
+4. When ALL tasks close → epic review triggers → human inbox notification
+
+```bash
+fuel epic:add "Add user preferences"    # Create epic (note the ID)
+fuel add "Add preferences API" --epic=e-xxxx  # Link task
+fuel add "Add preferences UI" --epic=e-xxxx   # Link another
+fuel epics                               # List all epics with status
+fuel epic:show <e-id>                   # View epic + linked tasks
+fuel epic:reviewed <e-id>               # Mark as human-reviewed
+```
+
+**Always use epics for multi-task work.** Standalone tasks are fine for single-file fixes.
 
 ### Backlog Management
 
