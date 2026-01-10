@@ -473,7 +473,7 @@ PROMPT;
             // Use DoneCommand logic so future done enhancements apply automatically
             Artisan::call('done', [
                 'ids' => [$taskId],
-                'reason' => 'Auto-completed by consume (agent exit 0)',
+                '--reason' => 'Auto-completed by consume (agent exit 0)',
             ]);
 
             $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
