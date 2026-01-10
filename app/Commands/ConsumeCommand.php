@@ -58,7 +58,8 @@ class ConsumeCommand extends Command
         try {
             $processManager->registerSignalHandlers();
         } catch (\RuntimeException $e) {
-            $this->error('Error: ' . $e->getMessage());
+            $this->error('Error: '.$e->getMessage());
+
             return self::FAILURE;
         }
 

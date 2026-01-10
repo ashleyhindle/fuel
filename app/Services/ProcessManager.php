@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Contracts\ProcessManagerInterface;
+use App\Process\AgentProcess;
 use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessResult;
@@ -27,11 +28,24 @@ class ProcessManager implements ProcessManagerInterface
     /** @var array<string, Process> Process metadata indexed by taskId */
     private array $processMetadata = [];
 
+    /** @var array<string, AgentProcess> Active agent processes indexed by taskId */
+    private array $activeAgentProcesses = [];
+
+    /** @var array<string, int> Agent process counts indexed by agent name */
+    private array $agentCounts = [];
+
+    private ConfigService $configService;
+
     /** Flag indicating if the process manager is shutting down */
     private bool $shuttingDown = false;
 
     /** Number of times SIGTERM/SIGINT has been received */
     private int $shutdownSignalCount = 0;
+
+    public function __construct(?ConfigService $configService = null)
+    {
+        $this->configService = $configService ?? new ConfigService;
+    }
 
     /**
      * Spawn a new process for a given task and agent.
@@ -45,11 +59,11 @@ class ProcessManager implements ProcessManagerInterface
     public function spawn(string $taskId, string $agent, string $command, string $cwd): Process
     {
         // Generate unique process ID
-        $processId = 'p-' . substr(bin2hex(random_bytes(3)), 0, 6);
+        $processId = 'p-'.substr(bin2hex(random_bytes(3)), 0, 6);
 
         // Create output directory
         $outputDir = storage_path(".fuel/processes/{$taskId}");
-        if (!File::exists($outputDir)) {
+        if (! File::exists($outputDir)) {
             File::makeDirectory($outputDir, 0755, true);
         }
 
@@ -96,7 +110,7 @@ class ProcessManager implements ProcessManagerInterface
             pid: $pid,
             status: ProcessStatus::Running,
             exitCode: null,
-            startedAt: new DateTimeImmutable(),
+            startedAt: new DateTimeImmutable,
             completedAt: null
         );
 
@@ -115,7 +129,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function isRunning(string $taskId): bool
     {
-        if (!isset($this->processes[$taskId])) {
+        if (! isset($this->processes[$taskId])) {
             return false;
         }
 
@@ -123,11 +137,11 @@ class ProcessManager implements ProcessManagerInterface
         $isRunning = $symfonyProcess->isRunning();
 
         // Update metadata if process completed
-        if (!$isRunning && isset($this->processMetadata[$taskId])) {
+        if (! $isRunning && isset($this->processMetadata[$taskId])) {
             $metadata = $this->processMetadata[$taskId];
             if ($metadata->status === ProcessStatus::Running) {
                 $exitCode = $symfonyProcess->getExitCode();
-                $status = match($exitCode) {
+                $status = match ($exitCode) {
                     0 => ProcessStatus::Completed,
                     -1, null => ProcessStatus::Failed,
                     default => ProcessStatus::Failed
@@ -143,7 +157,7 @@ class ProcessManager implements ProcessManagerInterface
                     status: $status,
                     exitCode: $exitCode,
                     startedAt: $metadata->startedAt,
-                    completedAt: new DateTimeImmutable()
+                    completedAt: new DateTimeImmutable
                 );
             }
         }
@@ -158,7 +172,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function kill(string $taskId): void
     {
-        if (!isset($this->processes[$taskId])) {
+        if (! isset($this->processes[$taskId])) {
             return;
         }
 
@@ -182,7 +196,7 @@ class ProcessManager implements ProcessManagerInterface
                 status: ProcessStatus::Killed,
                 exitCode: $symfonyProcess->getExitCode() ?? -1,
                 startedAt: $metadata->startedAt,
-                completedAt: new DateTimeImmutable()
+                completedAt: new DateTimeImmutable
             );
         }
     }
@@ -232,6 +246,7 @@ class ProcessManager implements ProcessManagerInterface
                 $count++;
             }
         }
+
         return $count;
     }
 
@@ -266,7 +281,7 @@ class ProcessManager implements ProcessManagerInterface
         while ((microtime(true) * 1000 - $startTime) < $timeoutMs) {
             foreach ($this->processes as $taskId => $symfonyProcess) {
                 // Check if this process just completed
-                if (!$symfonyProcess->isRunning() &&
+                if (! $symfonyProcess->isRunning() &&
                     isset($this->processMetadata[$taskId]) &&
                     $this->processMetadata[$taskId]->status === ProcessStatus::Running) {
 
@@ -307,7 +322,7 @@ class ProcessManager implements ProcessManagerInterface
             foreach ($this->processes as $taskId => $symfonyProcess) {
                 if ($this->isRunning($taskId)) {
                     $allCompleted = false;
-                } elseif (!isset($results[$taskId])) {
+                } elseif (! isset($results[$taskId])) {
                     // Process completed but not yet in results
                     $metadata = $this->processMetadata[$taskId];
                     $output = $this->getOutput($taskId);
@@ -336,7 +351,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function registerSignalHandlers(): void
     {
-        if (!extension_loaded('pcntl')) {
+        if (! extension_loaded('pcntl')) {
             throw new \RuntimeException('PCNTL extension is required for signal handling');
         }
 
@@ -348,7 +363,7 @@ class ProcessManager implements ProcessManagerInterface
     /**
      * Handle shutdown signals (SIGTERM/SIGINT).
      *
-     * @param int $signal The signal number received
+     * @param  int  $signal  The signal number received
      */
     public function handleShutdownSignal(int $signal): void
     {
@@ -433,7 +448,7 @@ class ProcessManager implements ProcessManagerInterface
             $elapsed = time() - $start;
             if ($elapsed - $lastReport >= 5) {
                 $remaining = $timeout - $elapsed;
-                fwrite(STDERR, "  Still waiting for " . count($stillRunning) . " process(es)... ({$remaining}s remaining)\n");
+                fwrite(STDERR, '  Still waiting for '.count($stillRunning)." process(es)... ({$remaining}s remaining)\n");
                 $lastReport = $elapsed;
             }
 
@@ -452,8 +467,8 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         // Step 4: Log final status
-        if (!empty($forceKilled)) {
-            fwrite(STDERR, "\033[31m✗ Had to force kill " . count($forceKilled) . " process(es).\033[0m\n");
+        if (! empty($forceKilled)) {
+            fwrite(STDERR, "\033[31m✗ Had to force kill ".count($forceKilled)." process(es).\033[0m\n");
         }
 
         // Update metadata for all terminated processes
@@ -470,7 +485,7 @@ class ProcessManager implements ProcessManagerInterface
                     status: ProcessStatus::Killed,
                     exitCode: $exitCode,
                     startedAt: $metadata->startedAt,
-                    completedAt: new DateTimeImmutable()
+                    completedAt: new DateTimeImmutable
                 );
             }
         }
