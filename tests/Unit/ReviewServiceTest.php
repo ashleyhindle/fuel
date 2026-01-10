@@ -10,6 +10,7 @@ use App\Prompts\ReviewPrompt;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\ReviewService;
+use App\Services\RunService;
 use App\Services\TaskService;
 use Tests\TestCase;
 
@@ -60,6 +61,7 @@ YAML;
     $this->configService = new ConfigService($this->configPath);
     $this->reviewPrompt = new ReviewPrompt;
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);
+    $this->runService = new RunService($this->testDir.'/.fuel/runs');
 
     // Create database service for test directory and initialize it
     $this->databaseService = new DatabaseService($this->testDir.'/.fuel/agent.db');
@@ -105,7 +107,8 @@ it('triggers a review by spawning a process', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -148,7 +151,8 @@ it('updates task status to review when triggering review', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -189,7 +193,8 @@ it('returns correct pending reviews', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     // Initially no pending reviews
@@ -239,7 +244,8 @@ it('returns true for isReviewComplete when process finished', function (): void 
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -257,7 +263,8 @@ it('returns false for isReviewComplete when task not in pending reviews', functi
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     // Task that was never reviewed
@@ -293,7 +300,8 @@ it('uses configured review agent instead of completing agent', function (): void
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     // Trigger review with 'test-agent', but should use 'review-agent' from config
@@ -353,7 +361,8 @@ YAML;
         $this->taskService,
         $configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -365,7 +374,8 @@ it('throws exception when task not found during trigger', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     expect(fn () => $reviewService->triggerReview('f-nonexistent', 'test-agent'))
@@ -415,7 +425,8 @@ it('gets review result when review is complete', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -480,7 +491,8 @@ it('detects follow-up tasks created by reviewer', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -525,7 +537,8 @@ it('returns null for getReviewResult when review not complete', function (): voi
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -541,7 +554,8 @@ it('generates review prompt via getReviewPrompt', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $task = [
@@ -607,7 +621,8 @@ it('detects uncommitted changes issue from output', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService
+        $this->databaseService,
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');

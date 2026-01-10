@@ -26,6 +26,7 @@ class ReviewService implements ReviewServiceInterface
         private readonly ConfigService $configService,
         private readonly ReviewPrompt $reviewPrompt,
         private readonly DatabaseService $databaseService,
+        private readonly RunService $runService,
     ) {}
 
     /**
@@ -239,5 +240,55 @@ class ReviewService implements ReviewServiceInterface
             followUpTaskIds: $followUpTaskIds,
             completedAt: Carbon::now('UTC')->toIso8601String()
         );
+    }
+
+    /**
+     * Recover stuck reviews by re-triggering reviews for tasks stuck in 'review' status.
+     *
+     * Tasks can get stuck in 'review' status if consume crashes after spawning a review,
+     * or if 'fuel review' is run manually and exits. This method detects such tasks
+     * and re-triggers their reviews.
+     *
+     * @return array<string> Array of task IDs that were recovered
+     */
+    public function recoverStuckReviews(): array
+    {
+        $recovered = [];
+
+        // Find all tasks in 'review' status
+        $allTasks = $this->taskService->all();
+        $reviewTasks = $allTasks->filter(fn (array $task): bool => ($task['status'] ?? '') === 'review');
+
+        foreach ($reviewTasks as $task) {
+            $taskId = $task['id'];
+            $reviewTaskId = 'review-'.$taskId;
+
+            // Check if review process is still running
+            if ($this->processManager->isRunning($reviewTaskId)) {
+                // Review is still running, not stuck
+                continue;
+            }
+
+            // Review process is not running - task is stuck
+            // Get the agent that completed the task from run history
+            $latestRun = $this->runService->getLatestRun($taskId);
+            $agent = $latestRun['agent'] ?? null;
+
+            if ($agent === null) {
+                // No run history, skip this task
+                continue;
+            }
+
+            // Re-trigger the review
+            try {
+                $this->triggerReview($taskId, $agent);
+                $recovered[] = $taskId;
+            } catch (\Throwable $e) {
+                // Failed to re-trigger, skip this task
+                continue;
+            }
+        }
+
+        return $recovered;
     }
 }
