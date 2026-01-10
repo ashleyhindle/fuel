@@ -31,17 +31,14 @@ class ProcessManager implements ProcessManagerInterface
     /** @var array<string, int> Agent process counts indexed by agent name */
     private array $agentCounts = [];
 
-    private ConfigService $configService;
-
     /** Flag indicating if the process manager is shutting down */
     private bool $shuttingDown = false;
 
     /** Number of times SIGTERM/SIGINT has been received */
     private int $shutdownSignalCount = 0;
 
-    public function __construct(?ConfigService $configService = null)
+    public function __construct(private readonly ?ConfigService $configService = new ConfigService)
     {
-        $this->configService = $configService ?? new ConfigService;
     }
 
     /**
@@ -97,9 +94,9 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function getOutput(string $taskId): ProcessOutput
     {
-        $outputDir = getcwd()."/.fuel/processes/{$taskId}";
-        $stdoutPath = "{$outputDir}/stdout.log";
-        $stderrPath = "{$outputDir}/stderr.log";
+        $outputDir = getcwd().('/.fuel/processes/' . $taskId);
+        $stdoutPath = $outputDir . '/stdout.log';
+        $stderrPath = $outputDir . '/stderr.log';
 
         $stdout = '';
         $stderr = '';
@@ -129,7 +126,7 @@ class ProcessManager implements ProcessManagerInterface
     public function getRunningCount(): int
     {
         $count = 0;
-        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+        foreach ($this->activeAgentProcesses as $agentProcess) {
             if ($agentProcess->isRunning()) {
                 $count++;
             }
@@ -159,8 +156,7 @@ class ProcessManager implements ProcessManagerInterface
                     pid: $agentProcess->getPid() ?? 0,
                     status: ProcessStatus::Running,
                     exitCode: null,
-                    startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
-                    completedAt: null
+                    startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime())
                 );
             }
         }
@@ -286,8 +282,8 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         // Register handlers for SIGTERM and SIGINT
-        pcntl_signal(SIGTERM, [$this, 'handleShutdownSignal']);
-        pcntl_signal(SIGINT, [$this, 'handleShutdownSignal']);
+        pcntl_signal(SIGTERM, $this->handleShutdownSignal(...));
+        pcntl_signal(SIGINT, $this->handleShutdownSignal(...));
     }
 
     /**
@@ -370,7 +366,7 @@ class ProcessManager implements ProcessManagerInterface
                 }
             }
 
-            if (empty($stillRunning)) {
+            if ($stillRunning === []) {
                 fwrite(STDERR, "\033[32m✓ All processes stopped gracefully.\033[0m\n");
                 break;
             }
@@ -399,7 +395,7 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         // Step 4: Log final status
-        if (! empty($forceKilled)) {
+        if ($forceKilled !== []) {
             fwrite(STDERR, "\033[31m✗ Had to force kill ".count($forceKilled)." process(es).\033[0m\n");
         }
 
@@ -415,7 +411,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function hasActiveProcesses(): bool
     {
-        return ! empty($this->activeAgentProcesses);
+        return $this->activeAgentProcesses !== [];
     }
 
     /**
@@ -450,22 +446,21 @@ class ProcessManager implements ProcessManagerInterface
      */
     private function createOutputDirectory(string $taskId): array
     {
-        $outputDir = getcwd()."/.fuel/processes/{$taskId}";
-        if (! File::exists($outputDir)) {
-            if (! File::makeDirectory($outputDir, 0755, true)) {
-                throw new \RuntimeException("Failed to create output directory: {$outputDir}");
-            }
+        $outputDir = getcwd().('/.fuel/processes/' . $taskId);
+        if (!File::exists($outputDir) && ! File::makeDirectory($outputDir, 0755, true)) {
+            throw new \RuntimeException('Failed to create output directory: ' . $outputDir);
         }
 
-        $stdoutPath = "{$outputDir}/stdout.log";
-        $stderrPath = "{$outputDir}/stderr.log";
+        $stdoutPath = $outputDir . '/stdout.log';
+        $stderrPath = $outputDir . '/stderr.log';
 
         // Clear existing output files
         if (File::put($stdoutPath, '') === false) {
-            throw new \RuntimeException("Failed to create stdout file: {$stdoutPath}");
+            throw new \RuntimeException('Failed to create stdout file: ' . $stdoutPath);
         }
+
         if (File::put($stderrPath, '') === false) {
-            throw new \RuntimeException("Failed to create stderr file: {$stderrPath}");
+            throw new \RuntimeException('Failed to create stderr file: ' . $stderrPath);
         }
 
         return [
@@ -507,7 +502,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     private function startWithOutputCapture(SymfonyProcess $process, string $stdoutPath, string $stderrPath): void
     {
-        $process->start(function ($type, $buffer) use ($stdoutPath, $stderrPath) {
+        $process->start(function ($type, $buffer) use ($stdoutPath, $stderrPath): void {
             if ($type === SymfonyProcess::ERR) {
                 File::append($stderrPath, $buffer);
             } else {
@@ -566,8 +561,7 @@ class ProcessManager implements ProcessManagerInterface
             pid: $symfonyProcess->getPid() ?? 0,
             status: ProcessStatus::Running,
             exitCode: null,
-            startedAt: new DateTimeImmutable,
-            completedAt: null
+            startedAt: new DateTimeImmutable
         );
     }
 
@@ -610,6 +604,7 @@ class ProcessManager implements ProcessManagerInterface
             foreach ($agentDef['prompt_args'] as $promptArg) {
                 $commandArray[] = $promptArg;
             }
+
             $commandArray[] = $fullPrompt;
 
             // Add model if specified
@@ -654,8 +649,8 @@ class ProcessManager implements ProcessManagerInterface
 
             return SpawnResult::success($agentProcess);
 
-        } catch (\Exception $e) {
-            return SpawnResult::configError($e->getMessage());
+        } catch (\Exception $exception) {
+            return SpawnResult::configError($exception->getMessage());
         }
     }
 
@@ -788,12 +783,12 @@ class ProcessManager implements ProcessManagerInterface
 
         // Fallback: check /proc on Linux
         if (PHP_OS_FAMILY === 'Linux') {
-            return file_exists("/proc/{$pid}");
+            return file_exists('/proc/' . $pid);
         }
 
         // Fallback: use ps command
-        $output = shell_exec("ps -p {$pid} -o pid=");
+        $output = shell_exec(sprintf('ps -p %d -o pid=', $pid));
 
-        return ! empty(trim($output ?? ''));
+        return !in_array(trim($output ?? ''), ['', '0'], true);
     }
 }
