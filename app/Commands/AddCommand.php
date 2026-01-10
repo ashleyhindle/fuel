@@ -21,7 +21,7 @@ class AddCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--d|description= : Task description}
-        {--type= : Task type (bug|feature|task|epic|chore|docs|test|refactor)}
+        {--type= : Task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Task priority (0-4)}
         {--labels= : Comma-separated list of labels}
         {--size= : Task size (xs|s|m|l|xl)}

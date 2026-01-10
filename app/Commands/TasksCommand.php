@@ -16,7 +16,7 @@ class TasksCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--status= : Filter by status (open|closed)}
-        {--type= : Filter by type (bug|feature|task|epic|chore|docs|test|refactor)}
+        {--type= : Filter by type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Filter by priority (0-4)}
         {--labels= : Filter by labels (comma-separated)}
         {--size= : Filter by size (xs|s|m|l|xl)}';
