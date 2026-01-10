@@ -34,7 +34,7 @@ final readonly class SpawnResult
     {
         return new self(
             success: false,
-            error: 'Agent command not found: ' . $agentCommand,
+            error: 'Agent command not found: '.$agentCommand,
             reason: SpawnFailureReason::AgentNotFound,
         );
     }
@@ -43,7 +43,7 @@ final readonly class SpawnResult
     {
         return new self(
             success: false,
-            error: 'Failed to spawn agent for ' . $taskId,
+            error: 'Failed to spawn agent for '.$taskId,
             reason: SpawnFailureReason::SpawnFailed,
         );
     }
@@ -57,8 +57,26 @@ final readonly class SpawnResult
         );
     }
 
+    public static function agentInBackoff(string $agentName, int $remainingSeconds): self
+    {
+        $formatted = $remainingSeconds < 60
+            ? "{$remainingSeconds}s"
+            : sprintf('%dm %ds', (int) ($remainingSeconds / 60), $remainingSeconds % 60);
+
+        return new self(
+            success: false,
+            error: sprintf("Agent '%s' is in backoff for %s", $agentName, $formatted),
+            reason: SpawnFailureReason::AgentInBackoff,
+        );
+    }
+
     public function isAtCapacity(): bool
     {
         return $this->reason === SpawnFailureReason::AtCapacity;
+    }
+
+    public function isInBackoff(): bool
+    {
+        return $this->reason === SpawnFailureReason::AgentInBackoff;
     }
 }

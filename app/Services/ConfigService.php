@@ -15,6 +15,8 @@ class ConfigService
 
     private const DEFAULT_MAX_CONCURRENT = 2;
 
+    private const DEFAULT_MAX_ATTEMPTS = 3;
+
     private string $configPath;
 
     /** @var array<string, mixed>|null */
@@ -107,6 +109,10 @@ class ConfigService
             if (isset($agentConfig['max_concurrent']) && ! is_int($agentConfig['max_concurrent'])) {
                 throw new RuntimeException(sprintf("Agent '%s' max_concurrent must be an integer", $agentName));
             }
+
+            if (isset($agentConfig['max_attempts']) && ! is_int($agentConfig['max_attempts'])) {
+                throw new RuntimeException(sprintf("Agent '%s' max_attempts must be an integer", $agentName));
+            }
         }
 
         // Validate complexity section
@@ -198,7 +204,7 @@ class ConfigService
     /**
      * Get full agent definition by name.
      *
-     * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int}
+     * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int, max_attempts: int}
      */
     public function getAgentDefinition(string $agentName): array
     {
@@ -218,6 +224,7 @@ class ConfigService
             'env' => $agentConfig['env'] ?? [],
             'resume_args' => $agentConfig['resume_args'] ?? [],
             'max_concurrent' => $agentConfig['max_concurrent'] ?? self::DEFAULT_MAX_CONCURRENT,
+            'max_attempts' => $agentConfig['max_attempts'] ?? self::DEFAULT_MAX_ATTEMPTS,
         ];
     }
 
@@ -400,6 +407,23 @@ class ConfigService
     }
 
     /**
+     * Get max_attempts for a specific agent.
+     * Returns default of 3 if agent is not configured.
+     */
+    public function getAgentMaxAttempts(string $agentName): int
+    {
+        $config = $this->loadConfig();
+
+        if (! isset($config['agents'][$agentName])) {
+            return self::DEFAULT_MAX_ATTEMPTS;
+        }
+
+        $agentConfig = $config['agents'][$agentName];
+
+        return $agentConfig['max_attempts'] ?? self::DEFAULT_MAX_ATTEMPTS;
+    }
+
+    /**
      * Get all agent -> limit mappings.
      * Returns array with agent name as key and max_concurrent as value.
      *
@@ -484,6 +508,7 @@ agents:
       - "--output-format"
       - "stream-json"
     max_concurrent: 2
+    max_attempts: 3  # Max retry attempts for retryable failures
     resume_args: ["--resume="]
 
   claude-sonnet:
@@ -496,6 +521,7 @@ agents:
       - "stream-json"
       - "--verbose"
     max_concurrent: 2
+    max_attempts: 3
     resume_args: ["--resume"]
 
   claude-opus:
@@ -508,6 +534,7 @@ agents:
       - "stream-json"
       - "--verbose"
     max_concurrent: 1
+    max_attempts: 5  # More retries for complex tasks
     resume_args: ["--resume"]
 
   opencode-glm:
@@ -518,6 +545,7 @@ agents:
     env:
       OPENCODE_PERMISSION: '{"permission":"allow"}'
     max_concurrent: 2
+    max_attempts: 3
     resume_args: ["--session"]
 
   amp-free:
@@ -531,6 +559,7 @@ agents:
       - "--dangerously-allow-all"
       - "--no-notifications"
     max_concurrent: 2
+    max_attempts: 3
     resume_args: []  # amp uses threads - TBD if resume supported
 
 # Map complexity levels to agents (just reference agent names)

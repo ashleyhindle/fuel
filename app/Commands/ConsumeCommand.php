@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Contracts\AgentHealthTrackerInterface;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
@@ -40,11 +41,15 @@ class ConsumeCommand extends Command
     /** Whether we've entered alternate screen mode */
     private bool $inAlternateScreen = false;
 
+    /** @var array<string, int> Track retry attempts per task */
+    private array $taskRetryAttempts = [];
+
     public function __construct(
         private TaskService $taskService,
         private ConfigService $configService,
         private RunService $runService,
         private ProcessManager $processManager,
+        private ?AgentHealthTrackerInterface $healthTracker = null,
     ) {
         parent::__construct();
     }
@@ -334,6 +339,19 @@ PROMPT;
             return false; // At capacity, can't spawn
         }
 
+        // Check agent health / backoff before attempting to spawn
+        if (! $dryrun && $this->healthTracker !== null && ! $this->healthTracker->isAvailable($agentName)) {
+            $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
+            $formatted = $backoffSeconds < 60
+                ? "{$backoffSeconds}s"
+                : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+
+            // Only show message once per backoff period (check if already shown recently)
+            $statusLines[] = $this->formatStatus('⏳', sprintf('%s waiting - %s in backoff (%s)', $taskId, $agentName, $formatted), 'gray');
+
+            return false; // Agent in backoff, don't spawn
+        }
+
         if ($dryrun) {
             // Dryrun: show what would happen without claiming or spawning
             $statusLines[] = $this->formatStatus('👁', sprintf('[DRYRUN] Would spawn %s for %s: %s', $agentName, $taskId, $shortTitle), 'cyan');
@@ -356,6 +374,14 @@ PROMPT;
         $result = $this->processManager->spawnForTask($task, $fullPrompt, $cwd, $agentOverride);
 
         if (! $result->success) {
+            // Agent in backoff should already be caught above, but handle just in case
+            if ($result->isInBackoff()) {
+                $this->taskService->reopen($taskId);
+                $this->invalidateTaskCache();
+
+                return false;
+            }
+
             $this->error($result->error ?? 'Unknown spawn error');
 
             // Revert task state
@@ -466,6 +492,14 @@ PROMPT;
     ): void {
         $taskId = $completion->taskId;
 
+        // Record success with health tracker
+        if ($this->healthTracker !== null) {
+            $this->healthTracker->recordSuccess($completion->agentName);
+        }
+
+        // Clear retry attempts on success
+        unset($this->taskRetryAttempts[$taskId]);
+
         // Auto-complete task if agent didn't run `fuel done`
         $task = $this->taskService->find($taskId);
         if ($task && $task['status'] === 'in_progress') {
@@ -494,7 +528,49 @@ PROMPT;
         array &$statusLines,
         string $durationStr
     ): void {
-        $statusLines[] = $this->formatStatus('✗', sprintf('%s failed (exit %d, %s)', $completion->taskId, $completion->exitCode, $durationStr), 'red');
+        $taskId = $completion->taskId;
+        $agentName = $completion->agentName;
+
+        // Record failure with health tracker
+        $failureType = $completion->toFailureType();
+        if ($this->healthTracker !== null && $failureType !== null) {
+            $this->healthTracker->recordFailure($agentName, $failureType);
+        }
+
+        // Check if we should retry (crash errors are retryable with limit)
+        $retryAttempts = $this->taskRetryAttempts[$taskId] ?? 0;
+        $maxAttempts = $this->configService->getAgentMaxAttempts($agentName);
+
+        // Crash errors are retryable but limited by max_attempts
+        if ($completion->isRetryable() && $retryAttempts < $maxAttempts - 1) {
+            // Increment retry counter
+            $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
+
+            // Reopen task so it can be retried
+            $this->taskService->reopen($taskId);
+
+            // Get backoff time if health tracker is available
+            $backoffInfo = '';
+            if ($this->healthTracker !== null) {
+                $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
+                if ($backoffSeconds > 0) {
+                    $backoffInfo = sprintf(', backoff %ds', $backoffSeconds);
+                }
+            }
+
+            $statusLines[] = $this->formatStatus('🔄', sprintf(
+                '%s failed (exit %d, %s), retry %d/%d%s',
+                $taskId,
+                $completion->exitCode,
+                $durationStr,
+                $retryAttempts + 1,
+                $maxAttempts - 1,
+                $backoffInfo
+            ), 'yellow');
+        } else {
+            // Max retries reached or not retryable
+            $statusLines[] = $this->formatStatus('✗', sprintf('%s failed (exit %d, %s)', $taskId, $completion->exitCode, $durationStr), 'red');
+        }
     }
 
     /**
@@ -505,9 +581,46 @@ PROMPT;
         array &$statusLines,
         string $durationStr
     ): void {
-        // Reopen task so it can be retried on next cycle
-        $this->taskService->reopen($completion->taskId);
-        $statusLines[] = $this->formatStatus('🔄', sprintf('%s failed with network error, will retry (exit %d, %s)', $completion->taskId, $completion->exitCode, $durationStr), 'yellow');
+        $taskId = $completion->taskId;
+        $agentName = $completion->agentName;
+
+        // Record failure with health tracker (network errors trigger backoff)
+        $failureType = $completion->toFailureType();
+        if ($this->healthTracker !== null && $failureType !== null) {
+            $this->healthTracker->recordFailure($agentName, $failureType);
+        }
+
+        // Check retry attempts
+        $retryAttempts = $this->taskRetryAttempts[$taskId] ?? 0;
+        $maxAttempts = $this->configService->getAgentMaxAttempts($agentName);
+
+        if ($retryAttempts < $maxAttempts - 1) {
+            // Increment retry counter
+            $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
+
+            // Reopen task so it can be retried on next cycle
+            $this->taskService->reopen($taskId);
+
+            // Get backoff time info
+            $backoffInfo = '';
+            if ($this->healthTracker !== null) {
+                $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
+                if ($backoffSeconds > 0) {
+                    $backoffInfo = sprintf(', backoff %ds', $backoffSeconds);
+                }
+            }
+
+            $statusLines[] = $this->formatStatus('🔄', sprintf(
+                '%s network error, retry %d/%d%s',
+                $taskId,
+                $retryAttempts + 1,
+                $maxAttempts - 1,
+                $backoffInfo
+            ), 'yellow');
+        } else {
+            // Max retries reached
+            $statusLines[] = $this->formatStatus('✗', sprintf('%s network error, max retries reached (%s)', $taskId, $durationStr), 'red');
+        }
     }
 
     /**
@@ -519,6 +632,15 @@ PROMPT;
         string $agentName
     ): void {
         $taskId = $completion->taskId;
+
+        // Record failure with health tracker (permission errors don't trigger backoff)
+        $failureType = $completion->toFailureType();
+        if ($this->healthTracker !== null && $failureType !== null) {
+            $this->healthTracker->recordFailure($agentName, $failureType);
+        }
+
+        // Clear retry attempts - permission errors need human intervention
+        unset($this->taskRetryAttempts[$taskId]);
 
         // Create a needs-human task for permission configuration
         $humanTask = $this->taskService->create([

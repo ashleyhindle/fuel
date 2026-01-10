@@ -11,4 +11,5 @@ enum SpawnFailureReason: string
     case AgentNotFound = 'agent_not_found';
     case SpawnFailed = 'spawn_failed';
     case ConfigError = 'config_error';
+    case AgentInBackoff = 'agent_in_backoff';
 }

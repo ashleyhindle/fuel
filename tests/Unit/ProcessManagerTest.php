@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use App\Process\ProcessOutput;
 use App\Process\Process;
+use App\Process\ProcessOutput;
 use App\Process\ProcessStatus;
 use App\Services\ConfigService;
 use App\Services\ProcessManager;
@@ -38,7 +38,7 @@ class ProcessManagerTest extends TestCase
         $mockConfig->shouldReceive('getAgentLimit')
             ->andReturn(2);
 
-        $this->processManager = new ProcessManager($mockConfig, $this->testDir);
+        $this->processManager = new ProcessManager(configService: $mockConfig, cwd: $this->testDir);
     }
 
     public function test_spawn_creates_process_with_correct_properties(): void
@@ -65,8 +65,8 @@ class ProcessManagerTest extends TestCase
         // Verify output directory and files are created
         $outputDir = $this->testDir.'/.fuel/processes/f-test01';
         $this->assertTrue(File::exists($outputDir));
-        $this->assertTrue(File::exists($outputDir . '/stdout.log'));
-        $this->assertTrue(File::exists($outputDir . '/stderr.log'));
+        $this->assertTrue(File::exists($outputDir.'/stdout.log'));
+        $this->assertTrue(File::exists($outputDir.'/stderr.log'));
 
         // Clean up - kill the process
         $this->processManager->kill('f-test01');

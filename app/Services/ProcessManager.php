@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
 use App\Process\AgentProcess;
 use App\Process\CompletionResult;
@@ -42,6 +43,7 @@ class ProcessManager implements ProcessManagerInterface
 
     public function __construct(
         private readonly ?ConfigService $configService = new ConfigService,
+        private readonly ?AgentHealthTrackerInterface $healthTracker = null,
         ?string $cwd = null
     ) {
         $this->cwd = $cwd;
@@ -619,6 +621,13 @@ class ProcessManager implements ProcessManagerInterface
             } catch (\RuntimeException $e) {
                 return SpawnResult::configError($e->getMessage());
             }
+        }
+
+        // Check agent health / backoff status before spawning
+        if ($this->healthTracker !== null && ! $this->healthTracker->isAvailable($agentName)) {
+            $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
+
+            return SpawnResult::agentInBackoff($agentName, $backoffSeconds);
         }
 
         // Check capacity

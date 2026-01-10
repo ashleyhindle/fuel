@@ -14,6 +14,7 @@ agents:
       - "--output-format"
       - "stream-json"
     max_concurrent: 2
+    max_attempts: 3
     resume_args: ["--resume="]
 
   cursor-opus:
@@ -25,6 +26,7 @@ agents:
       - "--output-format"
       - "stream-json"
     max_concurrent: 2
+    max_attempts: 3
     resume_args: ["--resume="]
 
   claude-sonnet:
@@ -37,6 +39,7 @@ agents:
       - "stream-json"
       - "--verbose"
     max_concurrent: 2
+    max_attempts: 3
     resume_args: ["--resume"]
 
   claude-opus:
@@ -49,6 +52,7 @@ agents:
       - "stream-json"
       - "--verbose"
     max_concurrent: 2
+    max_attempts: 5
     resume_args: ["--resume"]
 
   opencode-glm:
@@ -59,6 +63,7 @@ agents:
     env:
       OPENCODE_PERMISSION: '{"permission":"allow"}'
     max_concurrent: 2
+    max_attempts: 3
     resume_args: ["--session"]
 
   amp-free:
@@ -72,6 +77,7 @@ agents:
       - "--dangerously-allow-all"
       - "--no-notifications"
     max_concurrent: 2
+    max_attempts: 3
     resume_args: []  # amp uses threads - TBD if resume supported
 
 # Map complexity levels to agents

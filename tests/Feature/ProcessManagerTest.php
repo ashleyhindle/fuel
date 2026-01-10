@@ -36,7 +36,7 @@ class ProcessManagerTest extends TestCase
         $mockConfig->shouldReceive('getAgentLimit')
             ->andReturn(10); // Higher limit for feature tests
 
-        $this->processManager = new ProcessManager($mockConfig, $this->testDir);
+        $this->processManager = new ProcessManager(configService: $mockConfig, cwd: $this->testDir);
     }
 
     protected function tearDown(): void
