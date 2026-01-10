@@ -44,7 +44,7 @@ class StuckCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info("Stuck tasks ({$stuckTasks->count()}):");
+            $this->info(sprintf('Stuck tasks (%d):', $stuckTasks->count()));
             $this->newLine();
 
             foreach ($stuckTasks as $task) {
@@ -52,17 +52,17 @@ class StuckCommand extends Command
                 $exitColor = 'red';
                 $output = $task['consumed_output'] ?? '';
 
-                $this->line("<info>{$task['id']}</info> - {$task['title']}");
-                $this->line("  Exit code: <fg={$exitColor}>{$exitCode}</>");
+                $this->line(sprintf('<info>%s</info> - %s', $task['id'], $task['title']));
+                $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $exitCode));
 
                 if ($output !== '') {
                     // Truncate output to a reasonable length for display (e.g., 500 chars)
-                    $truncated = mb_strlen($output) > 500 ? mb_substr($output, 0, 497).'...' : $output;
+                    $truncated = mb_strlen((string) $output) > 500 ? mb_substr((string) $output, 0, 497).'...' : $output;
                     $this->line('  Output:');
                     // Indent each line of output
-                    $outputLines = explode("\n", $truncated);
+                    $outputLines = explode("\n", (string) $truncated);
                     foreach ($outputLines as $line) {
-                        $this->line("    {$line}");
+                        $this->line('    ' . $line);
                     }
                 }
 

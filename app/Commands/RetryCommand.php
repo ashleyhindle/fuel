@@ -41,6 +41,7 @@ class RetryCommand extends Command
 
                 return self::SUCCESS;
             }
+
             $ids = $failedTasks->pluck('id')->all();
         }
 
@@ -56,7 +57,7 @@ class RetryCommand extends Command
             }
         }
 
-        if (empty($tasks) && ! empty($errors)) {
+        if ($tasks === [] && $errors !== []) {
             // All failed
             return $this->outputError($errors[0]['error']);
         }
@@ -71,15 +72,15 @@ class RetryCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info("Retried task: {$task['id']}");
-                $this->line("  Title: {$task['title']}");
+                $this->info('Retried task: ' . $task['id']);
+                $this->line('  Title: ' . $task['title']);
             }
         }
 
         // If there were any errors, return failure even if some succeeded
-        if (! empty($errors)) {
+        if ($errors !== []) {
             foreach ($errors as $error) {
-                $this->outputError("Task '{$error['id']}': {$error['error']}");
+                $this->outputError(sprintf("Task '%s': %s", $error['id'], $error['error']));
             }
 
             return self::FAILURE;
@@ -107,7 +108,7 @@ class RetryCommand extends Command
         $this->info('Failed tasks (use fuel retry to retry all):');
         foreach ($failedTasks as $task) {
             $reason = $this->getFailureReason($task);
-            $this->line("  {$task['id']}: {$task['title']} <fg=gray>({$reason})</>");
+            $this->line(sprintf('  %s: %s <fg=gray>(%s)</>', $task['id'], $task['title'], $reason));
         }
 
         return self::SUCCESS;
@@ -117,7 +118,7 @@ class RetryCommand extends Command
     {
         $exitCode = $task['consumed_exit_code'] ?? null;
         if ($exitCode !== null && $exitCode !== 0) {
-            return "exit code {$exitCode}";
+            return 'exit code ' . $exitCode;
         }
 
         if (($task['status'] ?? '') === 'in_progress' && ! empty($task['consumed']) && ($task['consume_pid'] ?? null) === null) {

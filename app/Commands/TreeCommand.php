@@ -142,7 +142,6 @@ class TreeCommand extends Command
      */
     private function getDisplayStatus(array $task): string
     {
-        $labels = $task['labels'] ?? [];
         $blockedBy = $task['blocked_by'] ?? [];
         $status = $task['status'] ?? 'open';
 

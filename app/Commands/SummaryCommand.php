@@ -34,7 +34,7 @@ class SummaryCommand extends Command
             $task = $taskService->find($this->argument('id'));
 
             if ($task === null) {
-                return $this->outputError("Task '{$this->argument('id')}' not found");
+                return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
             $taskId = $task['id'];
@@ -42,8 +42,8 @@ class SummaryCommand extends Command
             // Get runs
             $runs = $runService->getRuns($taskId);
 
-            if (empty($runs)) {
-                return $this->outputError("No runs found for task '{$taskId}'");
+            if ($runs === []) {
+                return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
             }
 
             // Prepare data
@@ -53,7 +53,7 @@ class SummaryCommand extends Command
                 // JSON output: return task + runs with parsed summaries
                 $output = [
                     'task' => $task,
-                    'runs' => array_map(fn (array $run) => $this->enrichRunData($run), $runsToDisplay),
+                    'runs' => array_map($this->enrichRunData(...), $runsToDisplay),
                 ];
                 $this->outputJson($output);
             } else {
@@ -74,8 +74,8 @@ class SummaryCommand extends Command
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 
@@ -91,8 +91,8 @@ class SummaryCommand extends Command
             default => $task['status'],
         };
 
-        $this->line("<fg=cyan>Task:</> {$task['id']} - {$task['title']}");
-        $this->line("<fg=cyan>Status:</> {$statusLabel}");
+        $this->line(sprintf('<fg=cyan>Task:</> %s - %s', $task['id'], $task['title']));
+        $this->line('<fg=cyan>Status:</> ' . $statusLabel);
         $this->line('<fg=cyan>Runs:</> '.count($runs));
     }
 
@@ -102,43 +102,43 @@ class SummaryCommand extends Command
     private function displayRunSummary(array $run, bool $showAsLatest = false): void
     {
         $header = $showAsLatest ? 'Latest Run' : 'Run';
-        $this->line("<fg=white;options=bold>{$header} ({$run['run_id']})</>");
+        $this->line(sprintf('<fg=white;options=bold>%s (%s)</>', $header, $run['run_id']));
 
         // Agent info
         $agent = Agent::fromString($run['agent'] ?? null);
-        if ($agent !== null) {
+        if ($agent instanceof Agent) {
             $agentLabel = $agent->label();
             $model = $run['model'] ?? null;
-            $agentDisplay = $model ? "{$agentLabel} ({$model})" : $agentLabel;
-            $this->line("  <fg=cyan>Agent:</> {$agentDisplay}");
+            $agentDisplay = $model ? sprintf('%s (%s)', $agentLabel, $model) : $agentLabel;
+            $this->line('  <fg=cyan>Agent:</> ' . $agentDisplay);
         } elseif (isset($run['agent']) && $run['agent'] !== null) {
-            $this->line("  <fg=cyan>Agent:</> {$run['agent']}");
+            $this->line('  <fg=cyan>Agent:</> ' . $run['agent']);
         }
 
         // Duration
         $duration = $this->calculateDuration($run['started_at'] ?? null, $run['ended_at'] ?? null);
         if ($duration !== '') {
-            $this->line("  <fg=cyan>Duration:</> {$duration}");
+            $this->line('  <fg=cyan>Duration:</> ' . $duration);
         }
 
         // Cost
         if (isset($run['cost_usd']) && $run['cost_usd'] !== null) {
             $cost = '$'.number_format($run['cost_usd'], 4);
-            $this->line("  <fg=cyan>Cost:</> {$cost}");
+            $this->line('  <fg=cyan>Cost:</> ' . $cost);
         }
 
         // Exit code
         if (isset($run['exit_code']) && $run['exit_code'] !== null) {
             $exitColor = $run['exit_code'] === 0 ? 'green' : 'red';
             $exitLabel = $run['exit_code'] === 0 ? 'success' : 'failed';
-            $this->line("  <fg=cyan>Exit:</> <fg={$exitColor}>{$run['exit_code']} ({$exitLabel})</>");
+            $this->line(sprintf('  <fg=cyan>Exit:</> <fg=%s>%s (%s)</>', $exitColor, $run['exit_code'], $exitLabel));
         }
 
         // Session ID and resume command
-        if (isset($run['session_id']) && $run['session_id'] !== null && $agent !== null) {
+        if (isset($run['session_id']) && $run['session_id'] !== null && $agent instanceof Agent) {
             $this->newLine();
-            $this->line("  <fg=cyan>Session:</> {$run['session_id']}");
-            $this->line("  <fg=cyan>Resume:</> {$agent->resumeCommand($run['session_id'])}");
+            $this->line('  <fg=cyan>Session:</> ' . $run['session_id']);
+            $this->line('  <fg=cyan>Resume:</> ' . $agent->resumeCommand($run['session_id']));
         }
 
         // Parse and display output summary
@@ -156,14 +156,14 @@ class SummaryCommand extends Command
     {
         $summary = $this->parseOutput($output);
 
-        if (empty($summary)) {
+        if ($summary === []) {
             $this->line('    <fg=gray>No actionable items detected in output</>');
 
             return;
         }
 
         foreach ($summary as $item) {
-            $this->line("    - {$item}");
+            $this->line('    - ' . $item);
         }
     }
 
@@ -179,41 +179,41 @@ class SummaryCommand extends Command
         // File operations
         $fileCreated = $this->extractPattern($output, '/(?:Created|Writing|Wrote|Created new file|Create).*?(?:file|class)?[\s:]+([^\s\n]+\.(?:php|js|ts|jsx|tsx|json|yaml|yml|md|txt|html|css))/i');
         foreach ($fileCreated as $file) {
-            $summary[] = "Created file: {$file}";
+            $summary[] = 'Created file: ' . $file;
         }
 
         $fileModified = $this->extractPattern($output, '/(?:Modified|Updated|Editing|Edit|Changed).*?(?:file)?[\s:]+([^\s\n]+\.(?:php|js|ts|jsx|tsx|json|yaml|yml|md|txt|html|css))/i');
         foreach ($fileModified as $file) {
-            $summary[] = "Modified file: {$file}";
+            $summary[] = 'Modified file: ' . $file;
         }
 
         $fileDeleted = $this->extractPattern($output, '/(?:Deleted|Removed|Removing).*?(?:file)?[\s:]+([^\s\n]+\.(?:php|js|ts|jsx|tsx|json|yaml|yml|md|txt|html|css))/i');
         foreach ($fileDeleted as $file) {
-            $summary[] = "Deleted file: {$file}";
+            $summary[] = 'Deleted file: ' . $file;
         }
 
         // Test results
         if (preg_match('/(\d+)\s+(?:tests?|specs?)\s+passed/i', $output, $matches)) {
-            $summary[] = "{$matches[1]} tests passed";
+            $summary[] = $matches[1] . ' tests passed';
         }
 
         if (preg_match('/(\d+)\s+(?:tests?|specs?)\s+failed/i', $output, $matches)) {
-            $summary[] = "<fg=red>{$matches[1]} tests failed</>";
+            $summary[] = sprintf('<fg=red>%s tests failed</>', $matches[1]);
         }
 
         // Pest/PHPUnit specific
         if (preg_match('/Tests:\s+(\d+)\s+passed/i', $output, $matches)) {
-            $summary[] = "{$matches[1]} tests passed";
+            $summary[] = $matches[1] . ' tests passed';
         }
 
         if (preg_match('/Assertions:\s+(\d+)\s+passed/i', $output, $matches)) {
-            $summary[] = "{$matches[1]} assertions passed";
+            $summary[] = $matches[1] . ' assertions passed';
         }
 
         // Git commits
         $commits = $this->extractPattern($output, '/\[(?:main|master|develop|[\w\-\/]+)\s+([a-f0-9]{7,})\]/i');
         foreach ($commits as $commit) {
-            $summary[] = "Git commit: {$commit}";
+            $summary[] = 'Git commit: ' . $commit;
         }
 
         // Error/warning patterns
@@ -241,11 +241,11 @@ class SummaryCommand extends Command
         // Fuel task operations
         $fuelTasks = $this->extractPattern($output, '/(?:fuel add|Created task).*?(f-[a-f0-9]{6})/i');
         foreach ($fuelTasks as $taskId) {
-            $summary[] = "Created task: {$taskId}";
+            $summary[] = 'Created task: ' . $taskId;
         }
 
         if (preg_match('/fuel done\s+(f-[a-f0-9]{6})/i', $output, $matches)) {
-            $summary[] = "Completed task: {$matches[1]}";
+            $summary[] = 'Completed task: ' . $matches[1];
         }
 
         return array_unique($summary);

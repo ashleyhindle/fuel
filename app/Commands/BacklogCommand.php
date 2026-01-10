@@ -30,12 +30,12 @@ class BacklogCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info("Backlog items ({$items->count()}):");
+            $this->info(sprintf('Backlog items (%d):', $items->count()));
             $this->newLine();
 
             $this->table(
                 ['ID', 'Title', 'Created'],
-                $items->map(fn (array $item) => [
+                $items->map(fn (array $item): array => [
                     $item['id'],
                     $item['title'],
                     $item['created_at'],

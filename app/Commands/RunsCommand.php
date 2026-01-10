@@ -34,7 +34,7 @@ class RunsCommand extends Command
             $task = $taskService->find($this->argument('id'));
 
             if ($task === null) {
-                return $this->outputError("Task '{$this->argument('id')}' not found");
+                return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
             $taskId = $task['id'];
@@ -44,7 +44,7 @@ class RunsCommand extends Command
                 $latestRun = $runService->getLatestRun($taskId);
 
                 if ($latestRun === null) {
-                    return $this->outputError("No runs found for task '{$taskId}'");
+                    return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
                 }
 
                 // Calculate duration
@@ -57,19 +57,19 @@ class RunsCommand extends Command
                 if ($this->option('json')) {
                     $this->outputJson($runData);
                 } else {
-                    $this->info("Latest run for task {$taskId}:");
+                    $this->info(sprintf('Latest run for task %s:', $taskId));
                     $this->newLine();
                     $this->displayRunDetails($runData, true);
                 }
             } else {
                 $runs = $runService->getRuns($taskId);
 
-                if (empty($runs)) {
-                    return $this->outputError("No runs found for task '{$taskId}'");
+                if ($runs === []) {
+                    return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
                 }
 
                 // Calculate duration for each run
-                $runsWithDuration = array_map(function (array $run) {
+                $runsWithDuration = array_map(function (array $run): array {
                     $duration = $this->calculateDuration($run['started_at'] ?? null, $run['ended_at'] ?? null);
                     $run['duration'] = $duration;
 
@@ -79,11 +79,11 @@ class RunsCommand extends Command
                 if ($this->option('json')) {
                     $this->outputJson($runsWithDuration);
                 } else {
-                    $this->info("Runs for task {$taskId} (".count($runs).'):');
+                    $this->info(sprintf('Runs for task %s (', $taskId).count($runs).'):');
                     $this->newLine();
 
                     $headers = ['Run ID', 'Agent', 'Model', 'Started At', 'Duration', 'Exit', 'Cost', 'Session'];
-                    $rows = array_map(function (array $run) {
+                    $rows = array_map(function (array $run): array {
                         $sessionId = $run['session_id'] ?? '';
                         $shortSession = $sessionId ? substr($sessionId, 0, 8).'...' : '';
 
@@ -104,8 +104,8 @@ class RunsCommand extends Command
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 
@@ -122,7 +122,7 @@ class RunsCommand extends Command
             $date = new \DateTime($dateTimeString);
 
             return $date->format('Y-m-d H:i:s');
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return $dateTimeString;
         }
     }
@@ -134,31 +134,31 @@ class RunsCommand extends Command
      */
     private function displayRunDetails(array $run, bool $showOutput = false): void
     {
-        $this->line("  Run ID: {$run['run_id']}");
+        $this->line('  Run ID: ' . $run['run_id']);
 
         if (isset($run['agent']) && $run['agent'] !== null) {
-            $this->line("  Agent: {$run['agent']}");
+            $this->line('  Agent: ' . $run['agent']);
         }
 
         if (isset($run['model']) && $run['model'] !== null) {
-            $this->line("  Model: {$run['model']}");
+            $this->line('  Model: ' . $run['model']);
         }
 
         if (isset($run['started_at']) && $run['started_at'] !== null) {
-            $this->line("  Started: {$this->formatDateTime($run['started_at'])}");
+            $this->line('  Started: ' . $this->formatDateTime($run['started_at']));
         }
 
         if (isset($run['ended_at']) && $run['ended_at'] !== null) {
-            $this->line("  Ended: {$this->formatDateTime($run['ended_at'])}");
+            $this->line('  Ended: ' . $this->formatDateTime($run['ended_at']));
         }
 
         if (isset($run['duration']) && $run['duration'] !== '') {
-            $this->line("  Duration: {$run['duration']}");
+            $this->line('  Duration: ' . $run['duration']);
         }
 
         if (isset($run['exit_code']) && $run['exit_code'] !== null) {
             $exitColor = $run['exit_code'] === 0 ? 'green' : 'red';
-            $this->line("  Exit code: <fg={$exitColor}>{$run['exit_code']}</>");
+            $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $run['exit_code']));
         }
 
         if (isset($run['cost_usd']) && $run['cost_usd'] !== null) {
@@ -166,12 +166,12 @@ class RunsCommand extends Command
         }
 
         if (isset($run['session_id']) && $run['session_id'] !== null) {
-            $this->line("  Session: {$run['session_id']}");
+            $this->line('  Session: ' . $run['session_id']);
 
             $agent = Agent::fromString($run['agent'] ?? null);
-            if ($agent !== null) {
+            if ($agent instanceof Agent) {
                 $this->newLine();
-                $this->line("  <fg=green>Resume:</> {$agent->resumeCommand($run['session_id'])}");
+                $this->line('  <fg=green>Resume:</> ' . $agent->resumeCommand($run['session_id']));
             }
         }
 
@@ -179,9 +179,9 @@ class RunsCommand extends Command
             $this->newLine();
             $this->line('  <fg=cyan>── Output ──</>');
             // Indent each line of output
-            $outputLines = explode("\n", $run['output']);
+            $outputLines = explode("\n", (string) $run['output']);
             foreach ($outputLines as $line) {
-                $this->line("  {$line}");
+                $this->line('  ' . $line);
             }
         }
     }

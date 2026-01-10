@@ -39,8 +39,9 @@ class PromoteCommand extends Command
             // Try to find if it's a partial match that would resolve to b-xxx
             $backlogItem = $backlogService->find($id);
             if ($backlogItem === null || ! str_starts_with($backlogItem['id'] ?? '', 'b-')) {
-                return $this->outputError("ID '{$id}' is not a backlog item. Backlog items must have 'b-' prefix.");
+                return $this->outputError(sprintf("ID '%s' is not a backlog item. Backlog items must have 'b-' prefix.", $id));
             }
+
             // Use the resolved ID
             $id = $backlogItem['id'];
         }
@@ -49,13 +50,13 @@ class PromoteCommand extends Command
             // Find the backlog item
             $backlogItem = $backlogService->find($id);
             if ($backlogItem === null) {
-                return $this->outputError("Backlog item '{$id}' not found");
+                return $this->outputError(sprintf("Backlog item '%s' not found", $id));
             }
 
             // Ensure we have the full ID with b- prefix
             $resolvedId = $backlogItem['id'];
-            if (! str_starts_with($resolvedId, 'b-')) {
-                return $this->outputError("Backlog item '{$resolvedId}' does not have 'b-' prefix");
+            if (! str_starts_with((string) $resolvedId, 'b-')) {
+                return $this->outputError(sprintf("Backlog item '%s' does not have 'b-' prefix", $resolvedId));
             }
 
             // Delete from backlog
@@ -70,8 +71,9 @@ class PromoteCommand extends Command
             // Add options if provided
             if ($priority = $this->option('priority')) {
                 if (! is_numeric($priority)) {
-                    return $this->outputError("Invalid priority '{$priority}'. Must be an integer between 0 and 4.");
+                    return $this->outputError(sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority));
                 }
+
                 $taskData['priority'] = (int) $priority;
             }
 
@@ -84,7 +86,7 @@ class PromoteCommand extends Command
             }
 
             if ($labels = $this->option('labels')) {
-                $taskData['labels'] = array_map('trim', explode(',', $labels));
+                $taskData['labels'] = array_map(trim(...), explode(',', $labels));
             }
 
             if ($size = $this->option('size')) {
@@ -92,7 +94,7 @@ class PromoteCommand extends Command
             }
 
             if ($blockedBy = $this->option('blocked-by')) {
-                $taskData['blocked_by'] = array_map('trim', explode(',', $blockedBy));
+                $taskData['blocked_by'] = array_map(trim(...), explode(',', $blockedBy));
             }
 
             // Create the task
@@ -102,20 +104,20 @@ class PromoteCommand extends Command
             if ($this->option('json')) {
                 $this->outputJson($task);
             } else {
-                $this->info("Promoted backlog item {$resolvedId} to task: {$task['id']}");
-                $this->line("  Title: {$task['title']}");
+                $this->info(sprintf('Promoted backlog item %s to task: %s', $resolvedId, $task['id']));
+                $this->line('  Title: ' . $task['title']);
 
                 if (! empty($task['blocked_by'])) {
                     $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
                     if ($blockerIds !== '') {
-                        $this->line("  Blocked by: {$blockerIds}");
+                        $this->line('  Blocked by: ' . $blockerIds);
                     }
                 }
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 

@@ -41,7 +41,7 @@ class DoneCommand extends Command
             }
         }
 
-        if (empty($tasks) && ! empty($errors)) {
+        if ($tasks === [] && $errors !== []) {
             // All failed
             return $this->outputError($errors[0]['error']);
         }
@@ -56,21 +56,22 @@ class DoneCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info("Completed task: {$task['id']}");
-                $this->line("  Title: {$task['title']}");
+                $this->info('Completed task: ' . $task['id']);
+                $this->line('  Title: ' . $task['title']);
                 if (isset($task['reason'])) {
-                    $this->line("  Reason: {$task['reason']}");
+                    $this->line('  Reason: ' . $task['reason']);
                 }
+
                 if (isset($task['commit_hash'])) {
-                    $this->line("  Commit: {$task['commit_hash']}");
+                    $this->line('  Commit: ' . $task['commit_hash']);
                 }
             }
         }
 
         // If there were any errors, return failure even if some succeeded
-        if (! empty($errors)) {
+        if ($errors !== []) {
             foreach ($errors as $error) {
-                $this->outputError("Task '{$error['id']}': {$error['error']}");
+                $this->outputError(sprintf("Task '%s': %s", $error['id'], $error['error']));
             }
 
             return self::FAILURE;

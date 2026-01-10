@@ -44,12 +44,12 @@ class TasksCommand extends Command
         }
 
         if ($labels = $this->option('labels')) {
-            $filterLabels = array_map('trim', explode(',', $labels));
+            $filterLabels = array_map(trim(...), explode(',', $labels));
             $tasks = $tasks->filter(function (array $t) use ($filterLabels): bool {
                 $taskLabels = $t['labels'] ?? [];
 
                 // Task must have at least one of the filter labels
-                return ! empty(array_intersect($filterLabels, $taskLabels));
+                return array_intersect($filterLabels, $taskLabels) !== [];
             });
         }
 
@@ -69,23 +69,21 @@ class TasksCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info("Tasks ({$tasks->count()}):");
+            $this->info(sprintf('Tasks (%d):', $tasks->count()));
             $this->newLine();
 
             // Display all schema fields in a table
             $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Size', 'Labels', 'Created'];
-            $rows = $tasks->map(function (array $t) {
-                return [
-                    $t['id'],
-                    $t['title'],
-                    $t['status'] ?? 'open',
-                    $t['type'] ?? 'task',
-                    $t['priority'] ?? 2,
-                    $t['size'] ?? 'm',
-                    isset($t['labels']) && ! empty($t['labels']) ? implode(', ', $t['labels']) : '',
-                    $t['created_at'],
-                ];
-            })->toArray();
+            $rows = $tasks->map(fn(array $t): array => [
+                $t['id'],
+                $t['title'],
+                $t['status'] ?? 'open',
+                $t['type'] ?? 'task',
+                $t['priority'] ?? 2,
+                $t['size'] ?? 'm',
+                isset($t['labels']) && ! empty($t['labels']) ? implode(', ', $t['labels']) : '',
+                $t['created_at'],
+            ])->toArray();
 
             $this->table($headers, $rows);
         }

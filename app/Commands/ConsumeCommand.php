@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use Illuminate\Support\Collection;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
@@ -29,7 +30,7 @@ class ConsumeCommand extends Command
     /** Cache TTL for task data in seconds */
     private const TASK_CACHE_TTL = 2;
 
-    /** @var array{tasks: \Illuminate\Support\Collection|null, ready: \Illuminate\Support\Collection|null, failed: \Illuminate\Support\Collection|null, timestamp: int} */
+    /** @var array{tasks: Collection|null, ready: Collection|null, failed: Collection|null, timestamp: int} */
     private array $taskCache = ['tasks' => null, 'ready' => null, 'failed' => null, 'timestamp' => 0];
 
     /** Original terminal state for restoration */
@@ -52,6 +53,12 @@ class ConsumeCommand extends Command
         $this->configureCwd($this->taskService, $this->configService);
         $this->taskService->initialize();
 
+        // Ensure processes directory exists for output capture
+        $processesDir = getcwd().'/.fuel/processes';
+        if (! is_dir($processesDir)) {
+            mkdir($processesDir, 0755, true);
+        }
+
         // Clean up orphaned runs from previous consume crashes
         $this->runService->cleanupOrphanedRuns(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid));
 
@@ -62,8 +69,8 @@ class ConsumeCommand extends Command
         // Register ProcessManager signal handlers first
         try {
             $this->processManager->registerSignalHandlers();
-        } catch (\RuntimeException $e) {
-            $this->error('Error: '.$e->getMessage());
+        } catch (\RuntimeException $runtimeException) {
+            $this->error('Error: '.$runtimeException->getMessage());
 
             return self::FAILURE;
         }
@@ -111,12 +118,10 @@ class ConsumeCommand extends Command
 
                 if ($readyTasks->isNotEmpty() && ! $this->processManager->isShuttingDown()) {
                     // Score and sort tasks by priority, complexity, and size
-                    $scoredTasks = $readyTasks->map(function (array $task) {
-                        return [
-                            'task' => $task,
-                            'score' => $this->calculateTaskScore($task),
-                        ];
-                    })->sortBy([
+                    $scoredTasks = $readyTasks->map(fn(array $task): array => [
+                        'task' => $task,
+                        'score' => $this->calculateTaskScore($task),
+                    ])->sortBy([
                         ['score', 'asc'], // Lower score = higher priority
                         ['task.priority', 'asc'],
                         ['task.created_at', 'asc'],
@@ -150,10 +155,11 @@ class ConsumeCommand extends Command
                 if (! $this->processManager->hasActiveProcesses() && $readyTasks->isEmpty()) {
                     // Only add waiting message if not already the last status
                     $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
-                    if (empty($statusLines) || end($statusLines) !== $waitingMsg) {
+                    if ($statusLines === [] || end($statusLines) !== $waitingMsg) {
                         $statusLines[] = $waitingMsg;
                         $statusLines = $this->trimStatusLines($statusLines);
                     }
+
                     $this->setTerminalTitle('fuel: Waiting for tasks...');
                     $this->refreshDisplay($statusLines, $paused);
 
@@ -169,6 +175,7 @@ class ConsumeCommand extends Command
                             $statusLines = $this->trimStatusLines($statusLines);
                             $this->refreshDisplay($statusLines, $paused);
                         }
+
                         usleep(100000); // 100ms
                     }
 
@@ -184,7 +191,7 @@ class ConsumeCommand extends Command
                 // Update terminal title with active process count
                 $activeCount = $this->processManager->getActiveCount();
                 if ($activeCount > 0) {
-                    $this->setTerminalTitle("fuel: {$activeCount} active");
+                    $this->setTerminalTitle(sprintf('fuel: %d active', $activeCount));
                 } else {
                     $this->setTerminalTitle('fuel: Idle');
                 }
@@ -249,13 +256,15 @@ class ConsumeCommand extends Command
 
         $taskId = $task['id'];
         $taskTitle = $task['title'];
-        $shortTitle = mb_strlen($taskTitle) > 40 ? mb_substr($taskTitle, 0, 37).'...' : $taskTitle;
+        $shortTitle = mb_strlen((string) $taskTitle) > 40 ? mb_substr((string) $taskTitle, 0, 37).'...' : $taskTitle;
 
         // Build structured prompt with task details
         $cwd = $this->option('cwd') ?: getcwd();
         $taskDetails = $this->formatTaskForPrompt($task);
 
         $fullPrompt = <<<PROMPT
+IMPORTANT: You are being orchestrated. Trust the system.
+
 == YOUR ASSIGNMENT ==
 You are assigned EXACTLY ONE task: {$taskId}
 You must ONLY work on this task. Nothing else.
@@ -263,9 +272,14 @@ You must ONLY work on this task. Nothing else.
 == TASK DETAILS ==
 {$taskDetails}
 
-== STRICT BOUNDARIES - READ CAREFULLY ==
-You are part of a parallel execution system. Other agents are handling other tasks.
-Breaking these rules corrupts the entire workflow:
+== TEAMWORK - YOU ARE NOT ALONE ==
+You are ONE agent in a team working in parallel on this codebase.
+Other teammates are working on other tasks RIGHT NOW. They're counting on you to:
+- Stay in your lane (only work on YOUR assigned task)
+- Not step on their toes (don't touch tasks assigned to others)
+- Be a good teammate (log discovered work for others, don't hoard it)
+
+Breaking these rules wastes your teammates' work and corrupts the workflow:
 
 FORBIDDEN - DO NOT DO THESE:
 - NEVER run `fuel start` on ANY task (your task is already started)
@@ -303,7 +317,7 @@ PROMPT;
             try {
                 $agentName = $this->configService->getAgentForComplexity($complexity);
             } catch (\RuntimeException $e) {
-                $this->error("Failed to get agent: {$e->getMessage()}");
+                $this->error('Failed to get agent: ' . $e->getMessage());
                 $this->line('Use --agent to override or ensure .fuel/config.yaml exists');
 
                 return false;
@@ -317,8 +331,8 @@ PROMPT;
 
         if ($dryrun) {
             // Dryrun: show what would happen without claiming or spawning
-            $statusLines[] = $this->formatStatus('👁', "[DRYRUN] Would spawn {$agentName} for {$taskId}: {$shortTitle}", 'cyan');
-            $this->setTerminalTitle("fuel: [DRYRUN] {$taskId}");
+            $statusLines[] = $this->formatStatus('👁', sprintf('[DRYRUN] Would spawn %s for %s: %s', $agentName, $taskId, $shortTitle), 'cyan');
+            $this->setTerminalTitle('fuel: [DRYRUN] ' . $taskId);
             $this->newLine();
             $this->line('<fg=cyan>== PROMPT THAT WOULD BE SENT ==</>');
             $this->line($fullPrompt);
@@ -360,7 +374,7 @@ PROMPT;
             'consume_pid' => $pid,
         ]);
 
-        $statusLines[] = $this->formatStatus('🚀', "Spawning {$process->getAgentName()} for {$taskId}: {$shortTitle}", 'yellow');
+        $statusLines[] = $this->formatStatus('🚀', sprintf('Spawning %s for %s: %s', $process->getAgentName(), $taskId, $shortTitle), 'yellow');
 
         return true;
     }
@@ -414,9 +428,11 @@ PROMPT;
         if ($completion->sessionId !== null) {
             $runData['session_id'] = $completion->sessionId;
         }
+
         if ($completion->costUsd !== null) {
             $runData['cost_usd'] = $completion->costUsd;
         }
+
         $this->runService->updateLatestRun($taskId, $runData);
 
         // Clear PID from task
@@ -449,9 +465,9 @@ PROMPT;
         $task = $this->taskService->find($taskId);
         if ($task && $task['status'] === 'in_progress') {
             $this->taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
-            $statusLines[] = $this->formatStatus('✓', "{$taskId} auto-completed ({$durationStr})", 'green');
+            $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
         } else {
-            $statusLines[] = $this->formatStatus('✓', "{$taskId} completed ({$durationStr})", 'green');
+            $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green');
         }
     }
 
@@ -463,7 +479,7 @@ PROMPT;
         array &$statusLines,
         string $durationStr
     ): void {
-        $statusLines[] = $this->formatStatus('✗', "{$completion->taskId} failed (exit {$completion->exitCode}, {$durationStr})", 'red');
+        $statusLines[] = $this->formatStatus('✗', sprintf('%s failed (exit %d, %s)', $completion->taskId, $completion->exitCode, $durationStr), 'red');
     }
 
     /**
@@ -476,7 +492,7 @@ PROMPT;
     ): void {
         // Reopen task so it can be retried on next cycle
         $this->taskService->reopen($completion->taskId);
-        $statusLines[] = $this->formatStatus('🔄', "{$completion->taskId} failed with network error, will retry (exit {$completion->exitCode}, {$durationStr})", 'yellow');
+        $statusLines[] = $this->formatStatus('🔄', sprintf('%s failed with network error, will retry (exit %d, %s)', $completion->taskId, $completion->exitCode, $durationStr), 'yellow');
     }
 
     /**
@@ -491,7 +507,7 @@ PROMPT;
 
         // Create a needs-human task for permission configuration
         $humanTask = $this->taskService->create([
-            'title' => "Configure agent permissions for {$agentName}",
+            'title' => 'Configure agent permissions for ' . $agentName,
             'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
                 "To fix, either:\n".
                 "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
@@ -508,7 +524,7 @@ PROMPT;
         $this->taskService->addDependency($taskId, $humanTask['id']);
         $this->taskService->reopen($taskId);
 
-        $statusLines[] = $this->formatStatus('🔒', "{$taskId} blocked - {$agentName} needs permissions (created {$humanTask['id']})", 'yellow');
+        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTask['id']), 'yellow');
     }
 
     /**
@@ -530,7 +546,7 @@ PROMPT;
 
         // Show active processes
         $activeProcesses = $this->processManager->getActiveProcesses();
-        if (! empty($activeProcesses)) {
+        if ($activeProcesses !== []) {
             $processLines = [];
             foreach ($activeProcesses as $process) {
                 $metadata = $process->getMetadata();
@@ -541,13 +557,13 @@ PROMPT;
                 $sessionInfo = '';
                 if (! empty($metadata['session_id'])) {
                     $shortSession = substr($metadata['session_id'], 0, 8);
-                    $sessionInfo = " 🔗{$shortSession}";
+                    $sessionInfo = ' 🔗' . $shortSession;
                 }
-                $processLines[] = "🔄 {$shortId} [{$agentName}] ({$duration}){$sessionInfo}";
+
+                $processLines[] = sprintf('🔄 %s [%s] (%s)%s', $shortId, $agentName, $duration, $sessionInfo);
             }
-            if (! empty($processLines)) {
-                $this->line('<fg=yellow>Active: '.implode(' | ', $processLines).'</>');
-            }
+
+            $this->line('<fg=yellow>Active: '.implode(' | ', $processLines).'</>');
         }
 
         // Show failed/stuck tasks
@@ -556,9 +572,10 @@ PROMPT;
         if ($failedTasks->isNotEmpty()) {
             $failedLines = [];
             foreach ($failedTasks as $task) {
-                $shortId = substr($task['id'], 2, 6);
-                $failedLines[] = "🪫 {$shortId}";
+                $shortId = substr((string) $task['id'], 2, 6);
+                $failedLines[] = '🪫 ' . $shortId;
             }
+
             $this->line('<fg=red>Failed: '.implode(' | ', $failedLines).' (fuel retry)</>');
         }
 
@@ -582,19 +599,19 @@ PROMPT;
 
     private function formatStatus(string $icon, string $message, string $color): string
     {
-        return "<fg={$color}>{$icon} {$message}</>";
+        return sprintf('<fg=%s>%s %s</>', $color, $icon, $message);
     }
 
     private function formatDuration(int $seconds): string
     {
         if ($seconds < 60) {
-            return "{$seconds}s";
+            return $seconds . 's';
         }
 
         $minutes = (int) ($seconds / 60);
         $secs = $seconds % 60;
 
-        return "{$minutes}m {$secs}s";
+        return sprintf('%dm %ds', $minutes, $secs);
     }
 
     /**
@@ -647,9 +664,9 @@ PROMPT;
     /**
      * Get cached ready tasks (refreshes if cache expired or after task mutations).
      *
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * @return Collection<int, array<string, mixed>>
      */
-    private function getCachedReadyTasks(): \Illuminate\Support\Collection
+    private function getCachedReadyTasks(): Collection
     {
         $now = time();
         if ($this->taskCache['ready'] === null || ($now - $this->taskCache['timestamp']) >= self::TASK_CACHE_TTL) {
@@ -726,23 +743,27 @@ PROMPT;
     private function formatTaskForPrompt(array $task): string
     {
         $lines = [
-            "Task: {$task['id']}",
-            "Title: {$task['title']}",
-            "Status: {$task['status']}",
+            'Task: ' . $task['id'],
+            'Title: ' . $task['title'],
+            'Status: ' . $task['status'],
         ];
 
         if (! empty($task['description'])) {
-            $lines[] = "Description: {$task['description']}";
+            $lines[] = 'Description: ' . $task['description'];
         }
+
         if (! empty($task['type'])) {
-            $lines[] = "Type: {$task['type']}";
+            $lines[] = 'Type: ' . $task['type'];
         }
+
         if (! empty($task['priority'])) {
-            $lines[] = "Priority: P{$task['priority']}";
+            $lines[] = 'Priority: P' . $task['priority'];
         }
+
         if (! empty($task['labels'])) {
             $lines[] = 'Labels: '.implode(', ', $task['labels']);
         }
+
         if (! empty($task['blocked_by'])) {
             $lines[] = 'Blocked by: '.implode(', ', $task['blocked_by']);
         }

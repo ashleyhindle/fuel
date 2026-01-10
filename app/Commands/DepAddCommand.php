@@ -37,12 +37,12 @@ class DepAddCommand extends Command
                 $fromId = $task['id'];
                 $toId = $this->resolveToTaskId($taskService, $this->argument('to'));
 
-                $this->info("Added dependency: {$fromId} blocked by {$toId}");
+                $this->info(sprintf('Added dependency: %s blocked by %s', $fromId, $toId));
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 

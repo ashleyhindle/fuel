@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
+use App\Services\ConfigService;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -24,15 +25,15 @@ class ResumeSessionCommand extends Command
 
     protected $description = 'Resume a task session interactively or with a prompt';
 
-    public function handle(TaskService $taskService, RunService $runService): int
+    public function handle(TaskService $taskService, RunService $runService, ConfigService $configService): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($taskService, $configService);
 
         try {
             $task = $taskService->find($this->argument('id'));
 
             if ($task === null) {
-                return $this->outputError("Task '{$this->argument('id')}' not found");
+                return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
             $taskId = $task['id'];
@@ -48,15 +49,15 @@ class ResumeSessionCommand extends Command
                     return $rId === $runId || str_starts_with($rId, $runId);
                 });
 
-                if (empty($matches)) {
-                    return $this->outputError("Run '{$runId}' not found for task '{$taskId}'");
+                if ($matches === []) {
+                    return $this->outputError(sprintf("Run '%s' not found for task '%s'", $runId, $taskId));
                 }
 
                 if (count($matches) > 1) {
                     $matchedIds = array_map(fn (array $r): string => $r['run_id'] ?? '', array_values($matches));
 
                     return $this->outputError(
-                        "Ambiguous run ID '{$runId}'. Matches: ".implode(', ', $matchedIds)
+                        sprintf("Ambiguous run ID '%s'. Matches: ", $runId).implode(', ', $matchedIds)
                     );
                 }
 
@@ -66,44 +67,54 @@ class ResumeSessionCommand extends Command
             }
 
             if ($run === null) {
-                return $this->outputError("No runs found for task '{$taskId}'");
+                return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
             }
 
             $sessionId = $run['session_id'] ?? null;
             if ($sessionId === null || $sessionId === '') {
                 return $this->outputError(
-                    "Run '{$run['run_id']}' for task '{$taskId}' has no session_id"
+                    sprintf("Run '%s' for task '%s' has no session_id", $run['run_id'], $taskId)
                 );
             }
 
             $agentName = $run['agent'] ?? null;
             if ($agentName === null || $agentName === '') {
                 return $this->outputError(
-                    "Run '{$run['run_id']}' for task '{$taskId}' has no agent"
+                    sprintf("Run '%s' for task '%s' has no agent", $run['run_id'], $taskId)
                 );
             }
 
-            $agent = Agent::fromString($agentName);
-            if ($agent === null) {
+            // Try to get agent command from config (for custom agent names like 'claude-sonnet')
+            $command = null;
+            if ($configService->hasAgent($agentName)) {
+                $agentDef = $configService->getAgentDefinition($agentName);
+                $command = $agentDef['command'];
+            }
+
+            // Try to determine the agent type for resume
+            $agent = Agent::fromAgentName($agentName, $command);
+            if (!$agent instanceof Agent) {
                 return $this->outputError(
-                    "Unknown agent '{$agentName}' for run '{$run['run_id']}'"
+                    sprintf("Unknown agent '%s' for run '%s'. ", $agentName, $run['run_id']).
+                    'Cannot determine resume command format.'
                 );
             }
 
             $prompt = $this->option('prompt');
-            $command = ($prompt !== null && $prompt !== '')
+            $resumeCommand = ($prompt !== null && $prompt !== '')
                 ? $agent->resumeWithPromptCommand($sessionId, $prompt)
                 : $agent->resumeCommand($sessionId);
 
             if (! $this->option('json')) {
-                $this->info("Resuming session for task {$taskId}, run {$run['run_id']}");
-                $this->line("Agent: {$agent->label()}");
-                $this->line("Session: {$sessionId}");
+                $this->info(sprintf('Resuming session for task %s, run %s', $taskId, $run['run_id']));
+                $this->line(sprintf('Agent: %s (%s)', $agent->label(), $agentName));
+                $this->line('Session: ' . $sessionId);
                 if ($prompt !== null && $prompt !== '') {
-                    $this->line("Prompt: {$prompt}");
+                    $this->line('Prompt: ' . $prompt);
                 }
+
                 $this->newLine();
-                $this->line("Executing: {$command}");
+                $this->line('Executing: ' . $resumeCommand);
                 $this->newLine();
             }
 
@@ -116,10 +127,10 @@ class ResumeSessionCommand extends Command
             // This ensures the agent inherits the TTY properly
             if ($prompt === null || $prompt === '') {
                 $binary = $agent->binary();
-                $binaryPath = trim((string) shell_exec("which {$binary}"));
+                $binaryPath = trim((string) shell_exec('which ' . $binary));
 
                 if ($binaryPath === '') {
-                    return $this->outputError("Could not find '{$binary}' in PATH");
+                    return $this->outputError(sprintf("Could not find '%s' in PATH", $binary));
                 }
 
                 $args = $agent->resumeArgs($sessionId);
@@ -128,14 +139,14 @@ class ResumeSessionCommand extends Command
                 pcntl_exec($binaryPath, $args);
 
                 // Only reached if pcntl_exec fails
-                return $this->outputError("Failed to execute '{$binary}'");
+                return $this->outputError(sprintf("Failed to execute '%s'", $binary));
             }
 
-            passthru($command, $exitCode);
+            passthru($resumeCommand, $exitCode);
 
             return $exitCode;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 }

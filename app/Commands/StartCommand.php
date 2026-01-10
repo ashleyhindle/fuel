@@ -28,15 +28,15 @@ class StartCommand extends Command
 
         try {
             $task = $taskService->start($id);
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
 
         if ($this->option('json')) {
             $this->outputJson($task);
         } else {
-            $this->info("Started task: {$task['id']}");
-            $this->line("  Title: {$task['title']}");
+            $this->info('Started task: ' . $task['id']);
+            $this->line('  Title: ' . $task['title']);
         }
 
         return self::SUCCESS;

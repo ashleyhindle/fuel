@@ -52,8 +52,8 @@ class AddCommand extends Command
             if ($this->option('json')) {
                 $this->outputJson($item);
             } else {
-                $this->info("Added to backlog: {$item['id']}");
-                $this->line("  Title: {$item['title']}");
+                $this->info('Added to backlog: ' . $item['id']);
+                $this->line('  Title: ' . $item['title']);
             }
 
             return self::SUCCESS;
@@ -82,14 +82,15 @@ class AddCommand extends Command
         if ($priority = $this->option('priority')) {
             // Validate priority is numeric before casting
             if (! is_numeric($priority)) {
-                return $this->outputError("Invalid priority '{$priority}'. Must be an integer between 0 and 4.");
+                return $this->outputError(sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority));
             }
+
             $data['priority'] = (int) $priority;
         }
 
         // Add labels (comma-separated)
         if ($labels = $this->option('labels')) {
-            $data['labels'] = array_map('trim', explode(',', $labels));
+            $data['labels'] = array_map(trim(...), explode(',', $labels));
         }
 
         // Add size
@@ -104,25 +105,25 @@ class AddCommand extends Command
 
         // Add blocked-by dependencies (comma-separated task IDs)
         if ($blockedBy = $this->option('blocked-by')) {
-            $data['blocked_by'] = array_map('trim', explode(',', $blockedBy));
+            $data['blocked_by'] = array_map(trim(...), explode(',', $blockedBy));
         }
 
         try {
             $task = $taskService->create($data);
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
 
         if ($this->option('json')) {
             $this->outputJson($task);
         } else {
-            $this->info("Created task: {$task['id']}");
-            $this->line("  Title: {$task['title']}");
+            $this->info('Created task: ' . $task['id']);
+            $this->line('  Title: ' . $task['title']);
 
             if (! empty($task['blocked_by'])) {
                 $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
                 if ($blockerIds !== '') {
-                    $this->line("  Blocked by: {$blockerIds}");
+                    $this->line('  Blocked by: ' . $blockerIds);
                 }
             }
         }

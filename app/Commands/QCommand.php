@@ -30,8 +30,8 @@ class QCommand extends Command
             $task = $taskService->create([
                 'title' => $this->argument('title'),
             ]);
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
 
         $this->line($task['id']);

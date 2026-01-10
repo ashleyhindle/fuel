@@ -44,7 +44,7 @@ trait CalculatesDuration
             }
 
             return implode(' ', $parts);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return '';
         }
     }

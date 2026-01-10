@@ -49,8 +49,9 @@ class UpdateCommand extends Command
 
         if ($priority = $this->option('priority')) {
             if (! is_numeric($priority)) {
-                return $this->outputError("Invalid priority '{$priority}'. Must be an integer between 0 and 4.");
+                return $this->outputError(sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority));
             }
+
             $updateData['priority'] = (int) $priority;
         }
 
@@ -63,11 +64,11 @@ class UpdateCommand extends Command
         }
 
         if ($addLabels = $this->option('add-labels')) {
-            $updateData['add_labels'] = array_map('trim', explode(',', $addLabels));
+            $updateData['add_labels'] = array_map(trim(...), explode(',', $addLabels));
         }
 
         if ($removeLabels = $this->option('remove-labels')) {
-            $updateData['remove_labels'] = array_map('trim', explode(',', $removeLabels));
+            $updateData['remove_labels'] = array_map(trim(...), explode(',', $removeLabels));
         }
 
         if (empty($updateData)) {
@@ -80,13 +81,13 @@ class UpdateCommand extends Command
             if ($this->option('json')) {
                 $this->outputJson($task);
             } else {
-                $this->info("Updated task: {$task['id']}");
-                $this->line("  Title: {$task['title']}");
+                $this->info('Updated task: ' . $task['id']);
+                $this->line('  Title: ' . $task['title']);
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 }

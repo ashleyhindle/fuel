@@ -47,14 +47,15 @@ class HumanCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info("Tasks needing human attention ({$humanTasks->count()}):");
+            $this->info(sprintf('Tasks needing human attention (%d):', $humanTasks->count()));
             $this->newLine();
 
             foreach ($humanTasks as $task) {
-                $this->line("<info>{$task['id']}</info> - {$task['title']}");
+                $this->line(sprintf('<info>%s</info> - %s', $task['id'], $task['title']));
                 if (! empty($task['description'] ?? null)) {
-                    $this->line("  {$task['description']}");
+                    $this->line('  ' . $task['description']);
                 }
+
                 $this->newLine();
             }
         }

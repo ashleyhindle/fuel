@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
+use App\Services\ConfigService;
 use App\Services\TaskService;
 
 /**
@@ -18,10 +19,14 @@ trait HandlesJsonOutput
     /**
      * Configure the TaskService with --cwd option if provided.
      */
-    protected function configureCwd(TaskService $taskService): void
+    protected function configureCwd(TaskService $taskService, ?ConfigService $configService = null): void
     {
         if ($cwd = $this->option('cwd')) {
             $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
+
+            if ($configService instanceof ConfigService) {
+                $configService->setConfigPath($cwd.'/.fuel/config.yaml');
+            }
         }
     }
 

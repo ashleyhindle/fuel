@@ -47,19 +47,16 @@ class RemoveCommand extends Command
                 $item = $backlogService->find($id);
 
                 if ($item === null) {
-                    return $this->outputError("Backlog item '{$id}' not found");
+                    return $this->outputError(sprintf("Backlog item '%s' not found", $id));
                 }
 
                 $resolvedId = $item['id'];
                 $title = $item['title'] ?? '';
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json')) {
-                    if (! $this->confirm("Are you sure you want to delete backlog item '{$resolvedId}' ({$title})?")) {
-                        $this->line('Deletion cancelled.');
-
-                        return self::SUCCESS;
-                    }
+                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
+                    $this->line('Deletion cancelled.');
+                    return self::SUCCESS;
                 }
 
                 // Delete from backlog
@@ -72,8 +69,8 @@ class RemoveCommand extends Command
                         'deleted' => $deletedItem,
                     ]);
                 } else {
-                    $this->info("Deleted backlog item: {$resolvedId}");
-                    $this->line("  Title: {$title}");
+                    $this->info('Deleted backlog item: ' . $resolvedId);
+                    $this->line('  Title: ' . $title);
                 }
 
                 return self::SUCCESS;
@@ -83,24 +80,21 @@ class RemoveCommand extends Command
                 $task = $taskService->find($id);
 
                 if ($task === null) {
-                    return $this->outputError("Task '{$id}' not found");
+                    return $this->outputError(sprintf("Task '%s' not found", $id));
                 }
 
                 $resolvedId = $task['id'];
                 $title = $task['title'] ?? '';
 
                 // Validate that the resolved task ID starts with 'f-' (is a task, not backlog item)
-                if (! str_starts_with($resolvedId, 'f-')) {
-                    return $this->outputError("ID '{$id}' is not a task (must have f- prefix)");
+                if (! str_starts_with((string) $resolvedId, 'f-')) {
+                    return $this->outputError(sprintf("ID '%s' is not a task (must have f- prefix)", $id));
                 }
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json')) {
-                    if (! $this->confirm("Are you sure you want to delete task '{$resolvedId}' ({$title})?")) {
-                        $this->line('Deletion cancelled.');
-
-                        return self::SUCCESS;
-                    }
+                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
+                    $this->line('Deletion cancelled.');
+                    return self::SUCCESS;
                 }
 
                 // Delete from tasks
@@ -113,8 +107,8 @@ class RemoveCommand extends Command
                         'deleted' => $deletedTask,
                     ]);
                 } else {
-                    $this->info("Deleted task: {$resolvedId}");
-                    $this->line("  Title: {$title}");
+                    $this->info('Deleted task: ' . $resolvedId);
+                    $this->line('  Title: ' . $title);
                 }
 
                 return self::SUCCESS;
@@ -126,7 +120,7 @@ class RemoveCommand extends Command
 
             // Check for ambiguous matches
             if ($task !== null && $backlogItem !== null) {
-                return $this->outputError("ID '{$id}' is ambiguous. Matches both task '{$task['id']}' and backlog item '{$backlogItem['id']}'. Use full ID with prefix.");
+                return $this->outputError(sprintf("ID '%s' is ambiguous. Matches both task '%s' and backlog item '%s'. Use full ID with prefix.", $id, $task['id'], $backlogItem['id']));
             }
 
             if ($backlogItem !== null) {
@@ -134,12 +128,9 @@ class RemoveCommand extends Command
                 $title = $backlogItem['title'] ?? '';
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json')) {
-                    if (! $this->confirm("Are you sure you want to delete backlog item '{$resolvedId}' ({$title})?")) {
-                        $this->line('Deletion cancelled.');
-
-                        return self::SUCCESS;
-                    }
+                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
+                    $this->line('Deletion cancelled.');
+                    return self::SUCCESS;
                 }
 
                 // Delete from backlog
@@ -152,8 +143,8 @@ class RemoveCommand extends Command
                         'deleted' => $deletedItem,
                     ]);
                 } else {
-                    $this->info("Deleted backlog item: {$resolvedId}");
-                    $this->line("  Title: {$title}");
+                    $this->info('Deleted backlog item: ' . $resolvedId);
+                    $this->line('  Title: ' . $title);
                 }
 
                 return self::SUCCESS;
@@ -164,17 +155,14 @@ class RemoveCommand extends Command
                 $title = $task['title'] ?? '';
 
                 // Validate that the resolved task ID starts with 'f-' (is a task, not backlog item)
-                if (! str_starts_with($resolvedId, 'f-')) {
-                    return $this->outputError("ID '{$id}' is not a task (must have f- prefix)");
+                if (! str_starts_with((string) $resolvedId, 'f-')) {
+                    return $this->outputError(sprintf("ID '%s' is not a task (must have f- prefix)", $id));
                 }
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json')) {
-                    if (! $this->confirm("Are you sure you want to delete task '{$resolvedId}' ({$title})?")) {
-                        $this->line('Deletion cancelled.');
-
-                        return self::SUCCESS;
-                    }
+                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
+                    $this->line('Deletion cancelled.');
+                    return self::SUCCESS;
                 }
 
                 // Delete from tasks
@@ -187,17 +175,17 @@ class RemoveCommand extends Command
                         'deleted' => $deletedTask,
                     ]);
                 } else {
-                    $this->info("Deleted task: {$resolvedId}");
-                    $this->line("  Title: {$title}");
+                    $this->info('Deleted task: ' . $resolvedId);
+                    $this->line('  Title: ' . $title);
                 }
 
                 return self::SUCCESS;
             }
 
             // Not found in either service
-            return $this->outputError("Task or backlog item '{$id}' not found");
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+            return $this->outputError(sprintf("Task or backlog item '%s' not found", $id));
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 }

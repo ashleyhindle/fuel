@@ -32,7 +32,7 @@ class SelfUpdateCommand extends Command
         // Detect architecture
         $arch = $this->detectArch();
         if ($arch === null) {
-            $this->error("Unsupported architecture: {$this->getUnameArch()}");
+            $this->error('Unsupported architecture: ' . $this->getUnameArch());
 
             return self::FAILURE;
         }
@@ -47,7 +47,7 @@ class SelfUpdateCommand extends Command
         // Skip download if already on latest version
         $currentVersion = config('app.version');
         if ($currentVersion === $version) {
-            $this->info("Already on latest version ({$version})");
+            $this->info(sprintf('Already on latest version (%s)', $version));
 
             return self::SUCCESS;
         }
@@ -58,23 +58,20 @@ class SelfUpdateCommand extends Command
         $targetPath = $targetDir.'/fuel';
 
         // Create target directory if it doesn't exist
-        if (! is_dir($targetDir)) {
-            if (! mkdir($targetDir, 0755, true)) {
-                $this->error("Failed to create directory: {$targetDir}");
-
-                return self::FAILURE;
-            }
+        if (!is_dir($targetDir) && ! mkdir($targetDir, 0755, true)) {
+            $this->error('Failed to create directory: ' . $targetDir);
+            return self::FAILURE;
         }
 
         // Download binary
         $binaryUrl = $this->getBinaryUrl($os, $arch, $version);
-        $this->info("Downloading from: {$binaryUrl}");
+        $this->info('Downloading from: ' . $binaryUrl);
 
         $tempPath = $targetPath.'.tmp';
         try {
             $this->downloadBinary($binaryUrl, $tempPath);
-        } catch (RuntimeException $e) {
-            $this->error("Download failed: {$e->getMessage()}");
+        } catch (RuntimeException $runtimeException) {
+            $this->error('Download failed: ' . $runtimeException->getMessage());
 
             return self::FAILURE;
         }
@@ -90,12 +87,12 @@ class SelfUpdateCommand extends Command
         // Atomic replace
         if (! rename($tempPath, $targetPath)) {
             @unlink($tempPath);
-            $this->error("Failed to replace binary at: {$targetPath}");
+            $this->error('Failed to replace binary at: ' . $targetPath);
 
             return self::FAILURE;
         }
 
-        $this->info("Updated to {$version}");
+        $this->info('Updated to ' . $version);
 
         return self::SUCCESS;
     }
@@ -235,7 +232,7 @@ class SelfUpdateCommand extends Command
         $dest = @fopen($targetPath, 'wb');
         if ($dest === false) {
             fclose($source);
-            throw new RuntimeException("Failed to open target file: {$targetPath}");
+            throw new RuntimeException('Failed to open target file: ' . $targetPath);
         }
 
         $bytes = stream_copy_to_stream($source, $dest);

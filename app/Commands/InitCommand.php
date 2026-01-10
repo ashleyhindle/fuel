@@ -24,11 +24,17 @@ class InitCommand extends Command
     {
         $cwd = $this->option('cwd') ?: getcwd();
 
-        // Create .fuel directory
+        // Create .fuel directory and subdirectories
         $fuelDir = $cwd.'/.fuel';
         if (! is_dir($fuelDir)) {
             mkdir($fuelDir, 0755, true);
             $this->info('Created .fuel/ directory');
+        }
+
+        // Create processes directory for agent output capture
+        $processesDir = $fuelDir.'/processes';
+        if (! is_dir($processesDir)) {
+            mkdir($processesDir, 0755, true);
         }
 
         // Initialize TaskService (creates tasks.jsonl if needed)
@@ -41,7 +47,7 @@ class InitCommand extends Command
 
         // Determine agent and model (from flags or defaults)
         $agent = $this->getAgent();
-        $model = $this->getModel($agent);
+        $model = $this->getModel();
 
         // Create default config
         $configService->createDefaultConfig();
@@ -66,8 +72,9 @@ class InitCommand extends Command
                 'priority' => 2,
             ]);
 
-            $this->info("Created starter task: {$task['id']}");
+            $this->info('Created starter task: ' . $task['id']);
         }
+
         $this->newLine();
         $this->line('Run your favourite agent and ask it to "Consume the fuel"');
 
@@ -79,25 +86,16 @@ class InitCommand extends Command
      */
     private function getAgent(): ?string
     {
-        $agentFlag = $this->option('agent');
-
         // Accept any agent string - no validation needed
-        return $agentFlag;
+        return $this->option('agent');
     }
 
     /**
      * Get model from flag or use defaults.
      */
-    private function getModel(?string $agent): ?string
+    private function getModel(): ?string
     {
-        $modelFlag = $this->option('model');
-
-        if ($modelFlag !== null) {
-            return $modelFlag;
-        }
-
-        // No flag provided - use defaults from ConfigService
-        return null;
+        return $this->option('model');
     }
 
     /**
@@ -111,7 +109,7 @@ class InitCommand extends Command
 
         $content = file_get_contents($configPath);
         if ($content === false) {
-            throw new RuntimeException("Failed to read config file: {$configPath}");
+            throw new RuntimeException('Failed to read config file: ' . $configPath);
         }
 
         $config = Yaml::parse($content);
@@ -121,7 +119,7 @@ class InitCommand extends Command
 
         // Update complexity levels with provided agent/model
         if (isset($config['complexity']) && is_array($config['complexity'])) {
-            foreach ($config['complexity'] as $complexity => &$complexityConfig) {
+            foreach ($config['complexity'] as &$complexityConfig) {
                 if (! is_array($complexityConfig)) {
                     continue;
                 }
@@ -136,6 +134,7 @@ class InitCommand extends Command
                     $complexityConfig['model'] = $model;
                 }
             }
+
             unset($complexityConfig); // Break reference
         }
 
@@ -155,7 +154,7 @@ class InitCommand extends Command
         if (file_exists($gitignorePath)) {
             $content = file_get_contents($gitignorePath);
             if ($content === false) {
-                throw new RuntimeException("Failed to read .gitignore file: {$gitignorePath}");
+                throw new RuntimeException('Failed to read .gitignore file: ' . $gitignorePath);
             }
 
             // Check if entry already exists

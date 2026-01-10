@@ -35,12 +35,10 @@ class ArchiveCommand extends Command
 
         if ($this->option('json')) {
             $this->outputJson($result);
+        } elseif ($result['archived'] === 0) {
+            $this->info('No tasks to archive.');
         } else {
-            if ($result['archived'] === 0) {
-                $this->info('No tasks to archive.');
-            } else {
-                $this->info("Archived {$result['archived']} task(s) to .fuel/archive.jsonl");
-            }
+            $this->info(sprintf('Archived %s task(s) to .fuel/archive.jsonl', $result['archived']));
         }
 
         return self::SUCCESS;

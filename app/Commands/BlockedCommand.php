@@ -39,12 +39,12 @@ class BlockedCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info("Blocked tasks ({$tasks->count()}):");
+            $this->info(sprintf('Blocked tasks (%d):', $tasks->count()));
             $this->newLine();
 
             $this->table(
                 ['ID', 'Title', 'Created'],
-                $tasks->map(fn (array $t) => [
+                $tasks->map(fn (array $t): array => [
                     $t['id'],
                     $t['title'],
                     $t['created_at'],

@@ -43,19 +43,17 @@ class CompletedCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info("Completed tasks ({$tasks->count()}):");
+            $this->info(sprintf('Completed tasks (%d):', $tasks->count()));
             $this->newLine();
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority'];
-            $rows = $tasks->map(function (array $t) {
-                return [
-                    $t['id'],
-                    $t['title'],
-                    $this->formatDate($t['updated_at']),
-                    $t['type'] ?? 'task',
-                    $t['priority'] ?? 2,
-                ];
-            })->toArray();
+            $rows = $tasks->map(fn(array $t): array => [
+                $t['id'],
+                $t['title'],
+                $this->formatDate($t['updated_at']),
+                $t['type'] ?? 'task',
+                $t['priority'] ?? 2,
+            ])->toArray();
 
             $this->table($headers, $rows);
         }
@@ -82,21 +80,21 @@ class CompletedCommand extends Command
             if ($diff->days === 0 && $diff->h === 0) {
                 $minutes = $diff->i;
 
-                return "{$minutes}m ago";
+                return $minutes . 'm ago';
             }
 
             // If less than 24 hours ago
             if ($diff->days === 0) {
                 $hours = $diff->h;
 
-                return "{$hours}h ago";
+                return $hours . 'h ago';
             }
 
             // If less than 7 days ago
             if ($diff->days < 7) {
                 $days = $diff->days;
 
-                return "{$days}d ago";
+                return $days . 'd ago';
             }
 
             // If same year, show "Mon Day" (e.g., "Jan 7")
@@ -106,7 +104,7 @@ class CompletedCommand extends Command
 
             // Different year, show "Mon Day, Year" (e.g., "Jan 7, 2025")
             return $date->format('M j, Y');
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             // Fallback to original if parsing fails
             return $dateString;
         }

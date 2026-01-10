@@ -37,7 +37,7 @@ class ReopenCommand extends Command
             }
         }
 
-        if (empty($tasks) && ! empty($errors)) {
+        if ($tasks === [] && $errors !== []) {
             // All failed
             return $this->outputError($errors[0]['error']);
         }
@@ -52,15 +52,15 @@ class ReopenCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info("Reopened task: {$task['id']}");
-                $this->line("  Title: {$task['title']}");
+                $this->info('Reopened task: ' . $task['id']);
+                $this->line('  Title: ' . $task['title']);
             }
         }
 
         // If there were any errors, return failure even if some succeeded
-        if (! empty($errors)) {
+        if ($errors !== []) {
             foreach ($errors as $error) {
-                $this->outputError("Task '{$error['id']}': {$error['error']}");
+                $this->outputError(sprintf("Task '%s': %s", $error['id'], $error['error']));
             }
 
             return self::FAILURE;

@@ -37,12 +37,12 @@ class DepRemoveCommand extends Command
                 $fromId = $updatedTask['id'];
                 $toTask = $taskService->find($this->argument('to'));
                 $toId = $toTask['id'] ?? $this->argument('to');
-                $this->info("Removed dependency: {$fromId} no longer blocked by {$toId}");
+                $this->info(sprintf('Removed dependency: %s no longer blocked by %s', $fromId, $toId));
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 }

@@ -37,13 +37,13 @@ class DeferCommand extends Command
             $task = $taskService->find($id);
 
             if ($task === null) {
-                return $this->outputError("Task '{$id}' not found");
+                return $this->outputError(sprintf("Task '%s' not found", $id));
             }
 
             // Validate that the resolved task ID starts with 'f-' (is a task, not backlog item)
             $resolvedId = $task['id'] ?? '';
             if (! str_starts_with($resolvedId, 'f-')) {
-                return $this->outputError("ID '{$id}' is not a task (must have f- prefix)");
+                return $this->outputError(sprintf("ID '%s' is not a task (must have f- prefix)", $id));
             }
 
             // Get task data before deletion
@@ -62,14 +62,14 @@ class DeferCommand extends Command
                     'backlog_item' => $backlogItem,
                 ]);
             } else {
-                $this->info("Deferred task: {$resolvedId}");
-                $this->line("  Title: {$title}");
-                $this->line("  Added to backlog: {$backlogItem['id']}");
+                $this->info('Deferred task: ' . $resolvedId);
+                $this->line('  Title: ' . $title);
+                $this->line('  Added to backlog: ' . $backlogItem['id']);
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 }

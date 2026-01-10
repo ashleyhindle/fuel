@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use Illuminate\Support\Collection;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Services\TaskService;
@@ -120,15 +121,15 @@ class BoardCommand extends Command
         $shouldRefresh = false;
 
         if (function_exists('pcntl_signal')) {
-            pcntl_signal(SIGINT, function () use (&$exiting) {
+            pcntl_signal(SIGINT, function () use (&$exiting): void {
                 $exiting = true;
             });
-            pcntl_signal(SIGTERM, function () use (&$exiting) {
+            pcntl_signal(SIGTERM, function () use (&$exiting): void {
                 $exiting = true;
             });
             // Handle window resize (SIGWINCH)
             if (defined('SIGWINCH')) {
-                pcntl_signal(SIGWINCH, function () use (&$shouldRefresh) {
+                pcntl_signal(SIGWINCH, function () use (&$shouldRefresh): void {
                     $shouldRefresh = true;
                 });
             }
@@ -189,7 +190,7 @@ class BoardCommand extends Command
                 // Sleep briefly to avoid CPU spinning (100ms)
                 usleep(100000);
             }
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             // Fall through to cleanup
         } finally {
             if (stream_isatty(STDOUT)) {
@@ -203,7 +204,7 @@ class BoardCommand extends Command
     /**
      * Get all board data from a single snapshot (prevents race conditions).
      *
-     * @return array{ready: \Illuminate\Support\Collection, in_progress: \Illuminate\Support\Collection, blocked: \Illuminate\Support\Collection, human: \Illuminate\Support\Collection, done: \Illuminate\Support\Collection}
+     * @return array{ready: Collection, in_progress: Collection, blocked: Collection, human: Collection, done: Collection}
      */
     private function getBoardData(TaskService $taskService): array
     {
@@ -214,24 +215,24 @@ class BoardCommand extends Command
         $readyIds = $readyTasks->pluck('id')->toArray();
 
         $inProgressTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'in_progress')
+            ->filter(fn (array $t): bool => $t['status'] === 'in_progress')
             ->sortByDesc('updated_at')
             ->values();
 
         // Blocked tasks exclude needs-human (those are shown in a separate line)
         $blockedTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
-            ->filter(fn (array $t) => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
+            ->filter(fn (array $t): bool => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
+            ->filter(fn (array $t): bool => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
             ->values();
 
         // Needs-human tasks (open tasks with needs-human label)
         $humanTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'open')
-            ->filter(fn (array $t) => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
+            ->filter(fn (array $t): bool => $t['status'] === 'open')
+            ->filter(fn (array $t): bool => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
             ->values();
 
         $doneTasks = $allTasks
-            ->filter(fn (array $t) => $t['status'] === 'closed')
+            ->filter(fn (array $t): bool => $t['status'] === 'closed')
             ->sortByDesc('updated_at')
             ->values();
 
@@ -336,10 +337,10 @@ class BoardCommand extends Command
     {
         $lines = [];
 
-        $lines[] = $this->padLine("<fg=white;options=bold>{$title}</> ({$totalCount})", $width);
+        $lines[] = $this->padLine(sprintf('<fg=white;options=bold>%s</> (%d)', $title, $totalCount), $width);
         $lines[] = str_repeat('─', $width);
 
-        if (empty($tasks)) {
+        if ($tasks === []) {
             $lines[] = $this->padLine('<fg=gray>No tasks</>', $width);
         } else {
             foreach ($tasks as $task) {
@@ -349,7 +350,7 @@ class BoardCommand extends Command
                 $complexityChar = $this->getComplexityChar($task);
 
                 // Show icon for tasks being consumed by fuel consume
-                $consumeIcon = ! empty($task['consumed']) ? '⚡' : '';
+                $consumeIcon = empty($task['consumed']) ? '' : '⚡';
 
                 // Show icon for failed tasks
                 $isPidDead = fn (int $pid): bool => ! $this->isPidRunning($pid);
@@ -373,9 +374,9 @@ class BoardCommand extends Command
                 $titleEnd = $style === 'done' ? '</>' : '';
 
                 if ($iconString !== '') {
-                    $lines[] = $this->padLine("<{$idColor}>[{$shortId} ·{$complexityChar}]</> {$iconString} {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
+                    $lines[] = $this->padLine(sprintf('<%s>[%s ·%s]</> %s %s%s%s', $idColor, $shortId, $complexityChar, $iconString, $titleColor, $truncatedTitle, $titleEnd), $width);
                 } else {
-                    $lines[] = $this->padLine("<{$idColor}>[{$shortId} ·{$complexityChar}]</> {$titleColor}{$truncatedTitle}{$titleEnd}", $width);
+                    $lines[] = $this->padLine(sprintf('<%s>[%s ·%s]</> %s%s%s', $idColor, $shortId, $complexityChar, $titleColor, $truncatedTitle, $titleEnd), $width);
                 }
             }
         }
@@ -416,10 +417,10 @@ class BoardCommand extends Command
             $shortId = substr($id, 2, 6); // Skip 'f-' prefix
 
             // Calculate separator length if not first item
-            $separatorLength = count($items) > 0 ? $this->visibleLength($separator) : 0;
+            $separatorLength = $items !== [] ? $this->visibleLength($separator) : 0;
 
             // Build ID part to calculate its visible length (use yellow for human tasks)
-            $idPart = "<fg=yellow>[{$shortId}]</> ";
+            $idPart = sprintf('<fg=yellow>[%s]</> ', $shortId);
             $idPartLength = $this->visibleLength($idPart);
 
             // Calculate how much space we have for the title
@@ -443,7 +444,7 @@ class BoardCommand extends Command
             $currentLength += $separatorLength + $itemLength;
         }
 
-        if (empty($items)) {
+        if ($items === []) {
             return;
         }
 
@@ -455,11 +456,7 @@ class BoardCommand extends Command
     {
         // Truncate to first 3 words for human tasks
         $words = preg_split('/\s+/', trim($title));
-        if (count($words) <= 3) {
-            $truncated = $title;
-        } else {
-            $truncated = implode(' ', array_slice($words, 0, 3)).'...';
-        }
+        $truncated = count($words) <= 3 ? $title : implode(' ', array_slice($words, 0, 3)).'...';
 
         // If the 3-word version is still too long, truncate further
         if (mb_strlen($truncated) > $maxLength) {
@@ -482,25 +479,20 @@ class BoardCommand extends Command
 
         // Fallback: check /proc on Linux
         if (PHP_OS_FAMILY === 'Linux' && is_dir('/proc')) {
-            return is_dir("/proc/{$pid}");
+            return is_dir('/proc/' . $pid);
         }
 
         // Fallback: use ps command on Unix-like systems
         if (PHP_OS_FAMILY !== 'Windows') {
-            $output = @shell_exec("ps -p {$pid} -o pid= 2>/dev/null");
+            $output = @shell_exec(sprintf('ps -p %d -o pid= 2>/dev/null', $pid));
 
-            return ! empty(trim($output ?? ''));
+            return !in_array(trim($output ?? ''), ['', '0'], true);
         }
 
         // Windows fallback: use tasklist
-        if (PHP_OS_FAMILY === 'Windows') {
-            $output = @shell_exec("tasklist /FI \"PID eq {$pid}\" 2>NUL");
+        $output = @shell_exec(sprintf('tasklist /FI "PID eq %d" 2>NUL', $pid));
 
-            return str_contains($output ?? '', (string) $pid);
-        }
-
-        // If we can't check, assume it's running (conservative approach)
-        return true;
+        return str_contains($output ?? '', (string) $pid);
     }
 
     /**
