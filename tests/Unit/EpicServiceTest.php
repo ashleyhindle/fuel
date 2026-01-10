@@ -118,12 +118,57 @@ it('clears epic description with null', function () {
     expect($updated['description'])->toBeNull();
 });
 
-it('updates epic status', function () {
+it('computes epic status as planning when no tasks', function () {
     $created = $this->service->createEpic('Title');
 
-    $updated = $this->service->updateEpic($created['id'], ['status' => 'active']);
+    $epic = $this->service->getEpic($created['id']);
 
-    expect($updated['status'])->toBe('active');
+    expect($epic['status'])->toBe('planning');
+});
+
+it('computes epic status as in_progress when task is open', function () {
+    $epic = $this->service->createEpic('Title');
+    $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
+
+    $epic = $this->service->getEpic($epic['id']);
+
+    expect($epic['status'])->toBe('in_progress');
+});
+
+it('computes epic status as in_progress when task is in_progress', function () {
+    $epic = $this->service->createEpic('Title');
+    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
+    $this->taskService->start($task['id']);
+
+    $epic = $this->service->getEpic($epic['id']);
+
+    expect($epic['status'])->toBe('in_progress');
+});
+
+it('computes epic status as review_pending when all tasks are closed', function () {
+    $epic = $this->service->createEpic('Title');
+    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
+    $this->taskService->done($task['id']);
+
+    $epic = $this->service->getEpic($epic['id']);
+
+    expect($epic['status'])->toBe('review_pending');
+});
+
+it('computes epic status as approved when approved_at is set', function () {
+    $epic = $this->service->createEpic('Title');
+    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
+
+    // Set approved_at directly in DB
+    $this->db->initialize();
+    $this->db->query(
+        'UPDATE epics SET approved_at = ? WHERE id = ?',
+        [\Carbon\Carbon::now('UTC')->toIso8601String(), $epic['id']]
+    );
+
+    $epic = $this->service->getEpic($epic['id']);
+
+    expect($epic['status'])->toBe('approved');
 });
 
 it('throws exception for invalid status', function () {
