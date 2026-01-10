@@ -21,7 +21,16 @@ final readonly class CompletionResult
         public string $output,
         public CompletionType $type,
         public ?string $message = null,
+        public ProcessType $processType = ProcessType::Task,
     ) {}
+
+    /**
+     * Check if this is a review process completion.
+     */
+    public function isReview(): bool
+    {
+        return $this->processType === ProcessType::Review;
+    }
 
     /**
      * Check if this was a successful completion.

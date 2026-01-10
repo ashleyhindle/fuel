@@ -13,6 +13,7 @@ use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessResult;
 use App\Process\ProcessStatus;
+use App\Process\ProcessType;
 use App\Process\SpawnResult;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\File;
@@ -554,9 +555,10 @@ class ProcessManager implements ProcessManagerInterface
      * @param  string  $agent  The agent name (for tracking purposes only)
      * @param  string  $command  The command to execute
      * @param  string  $cwd  The current working directory for the process
+     * @param  ProcessType  $processType  The type of process (task or review)
      * @return Process The spawned process
      */
-    public function spawn(string $taskId, string $agent, string $command, string $cwd): Process
+    public function spawn(string $taskId, string $agent, string $command, string $cwd, ProcessType $processType = ProcessType::Task): Process
     {
         // Create output directory and files
         $outputPaths = $this->createOutputDirectory($taskId);
@@ -579,7 +581,8 @@ class ProcessManager implements ProcessManagerInterface
             $agent,
             time(),
             $stdoutPath,
-            $stderrPath
+            $stderrPath,
+            $processType
         );
 
         // Track the process
@@ -771,7 +774,8 @@ class ProcessManager implements ProcessManagerInterface
                     costUsd: null, // TODO: Extract cost from output if available
                     output: $output,
                     type: $type,
-                    message: $message
+                    message: $message,
+                    processType: $agentProcess->getProcessType()
                 );
 
                 // Clean up tracking

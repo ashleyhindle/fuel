@@ -7,6 +7,7 @@ namespace App\Contracts;
 use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessResult;
+use App\Process\ProcessType;
 
 /**
  * Contract for process management.
@@ -23,9 +24,10 @@ interface ProcessManagerInterface
      * @param  string  $agent  The agent name to use for processing
      * @param  string  $command  The command to execute
      * @param  string  $cwd  The current working directory for the process
+     * @param  ProcessType  $processType  The type of process (task or review)
      * @return Process The spawned process
      */
-    public function spawn(string $taskId, string $agent, string $command, string $cwd): Process;
+    public function spawn(string $taskId, string $agent, string $command, string $cwd, ProcessType $processType = ProcessType::Task): Process;
 
     /**
      * Check if a process for the given task is currently running.

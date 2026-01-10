@@ -30,7 +30,13 @@ final class AgentProcess
         private readonly int $startTime,
         private readonly ?string $stdoutPath = null,
         private readonly ?string $stderrPath = null,
+        private readonly ProcessType $processType = ProcessType::Task,
     ) {}
+
+    public function getProcessType(): ProcessType
+    {
+        return $this->processType;
+    }
 
     public function getProcess(): Process
     {
