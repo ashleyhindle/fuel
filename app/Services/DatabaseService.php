@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use PDO;
 use PDOException;
 use RuntimeException;
@@ -187,7 +188,7 @@ class DatabaseService
     public function recordReviewStarted(string $taskId, string $agent): string
     {
         $reviewId = 'r-'.bin2hex(random_bytes(3));
-        $startedAt = date('c');
+        $startedAt = Carbon::now('UTC')->toIso8601String();
 
         $this->query(
             'INSERT INTO reviews (id, task_id, agent, status, started_at) VALUES (?, ?, ?, ?, ?)',
@@ -208,7 +209,7 @@ class DatabaseService
     public function recordReviewCompleted(string $reviewId, bool $passed, array $issues, array $followupTaskIds): void
     {
         $status = $passed ? 'passed' : 'failed';
-        $completedAt = date('c');
+        $completedAt = Carbon::now('UTC')->toIso8601String();
 
         $this->query(
             'UPDATE reviews SET status = ?, issues = ?, followup_task_ids = ?, completed_at = ? WHERE id = ?',

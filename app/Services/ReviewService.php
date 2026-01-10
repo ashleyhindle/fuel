@@ -8,6 +8,7 @@ use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Process\ReviewResult;
 use App\Prompts\ReviewPrompt;
+use Carbon\Carbon;
 use Symfony\Component\Process\Process;
 
 /**
@@ -243,7 +244,7 @@ class ReviewService implements ReviewServiceInterface
             passed: $passed,
             issues: $issues,
             followUpTaskIds: $followUpTaskIds,
-            completedAt: now()->toIso8601String()
+            completedAt: Carbon::now('UTC')->toIso8601String()
         );
     }
 }

@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
+use Carbon\Carbon;
 use LaravelZero\Framework\Commands\Command;
 
 class ReviewsCommand extends Command
@@ -128,8 +129,8 @@ class ReviewsCommand extends Command
         }
 
         try {
-            $date = new \DateTime($dateString);
-            $now = new \DateTime;
+            $date = Carbon::parse($dateString)->setTimezone('UTC');
+            $now = Carbon::now('UTC');
             $diff = $now->diff($date);
 
             // If less than 1 minute ago
