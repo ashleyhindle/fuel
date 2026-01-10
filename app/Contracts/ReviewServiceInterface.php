@@ -21,10 +21,14 @@ interface ReviewServiceInterface
      * Spawns a review agent to check the work.
      * Non-blocking - returns immediately, review runs in background.
      *
+     * Returns false if no review agent is configured (review skipped).
+     * In this case, the task should be marked as closed directly.
+     *
      * @param  string  $taskId  The ID of the task to review
      * @param  string  $agent  The agent name that completed the task
+     * @return bool True if review was triggered, false if skipped (no review agent)
      */
-    public function triggerReview(string $taskId, string $agent): void;
+    public function triggerReview(string $taskId, string $agent): bool;
 
     /**
      * Build the prompt for the reviewing agent.

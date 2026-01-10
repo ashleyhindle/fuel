@@ -6,6 +6,7 @@ use App\Contracts\ProcessManagerInterface;
 use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessStatus;
+use App\Process\ProcessType;
 use App\Prompts\ReviewPrompt;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
@@ -53,7 +54,7 @@ complexity:
   moderate: test-agent
   complex: test-agent
 
-review_agent: review-agent
+review: review-agent
 YAML;
     file_put_contents($this->configPath, $configContent);
 
@@ -84,11 +85,12 @@ it('triggers a review by spawning a process', function (): void {
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd) use ($taskId) {
+        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) use ($taskId) {
             return $reviewTaskId === 'review-'.$taskId
                 && $agent === 'review-agent'
                 && str_contains($command, 'echo')
-                && $cwd === getcwd();
+                && $cwd === getcwd()
+                && $processType === ProcessType::Review;
         })
         ->andReturn(new Process(
             id: 'p-test01',
@@ -111,7 +113,8 @@ it('triggers a review by spawning a process', function (): void {
         $this->runService
     );
 
-    $reviewService->triggerReview($taskId, 'test-agent');
+    $result = $reviewService->triggerReview($taskId, 'test-agent');
+    expect($result)->toBeTrue();
 
     // Verify task status was updated to review
     $updatedTask = $this->taskService->find($taskId);
@@ -280,8 +283,8 @@ it('uses configured review agent instead of completing agent', function (): void
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd) {
-            return $agent === 'review-agent'; // Should use config's review_agent
+        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) {
+            return $agent === 'review-agent' && $processType === ProcessType::Review;
         })
         ->andReturn(new Process(
             id: 'p-test',
@@ -305,11 +308,12 @@ it('uses configured review agent instead of completing agent', function (): void
     );
 
     // Trigger review with 'test-agent', but should use 'review-agent' from config
-    $reviewService->triggerReview($taskId, 'test-agent');
+    $result = $reviewService->triggerReview($taskId, 'test-agent');
+    expect($result)->toBeTrue();
 });
 
-it('uses completing agent when no review agent configured', function (): void {
-    // Create config without review_agent
+it('falls back to primary agent when no review agent configured', function (): void {
+    // Create config without review (but with primary)
     $configContent = <<<'YAML'
 primary: test-agent
 
@@ -337,12 +341,12 @@ YAML;
     $task = $this->taskService->create(['title' => 'No review agent test']);
     $taskId = $task['id'];
 
-    // Expect spawn to be called with test-agent (completing agent)
+    // Expect spawn to be called with test-agent (primary agent fallback)
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd) {
-            return $agent === 'test-agent'; // Should use completing agent
+        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) {
+            return $agent === 'test-agent' && $processType === ProcessType::Review;
         })
         ->andReturn(new Process(
             id: 'p-test',
@@ -365,8 +369,36 @@ YAML;
         $this->runService
     );
 
-    $reviewService->triggerReview($taskId, 'test-agent');
+    $result = $reviewService->triggerReview($taskId, 'some-other-agent');
+    expect($result)->toBeTrue();
 });
+
+it('throws when no primary agent configured', function (): void {
+    // Create config without primary
+    $configContent = <<<'YAML'
+agents:
+  test-agent:
+    command: echo
+    prompt_args: ["-p"]
+    model: test-model
+    args: []
+    env: {}
+    resume_args: []
+    max_concurrent: 2
+    max_attempts: 3
+
+complexity:
+  trivial: test-agent
+  simple: test-agent
+  moderate: test-agent
+  complex: test-agent
+YAML;
+    file_put_contents($this->configPath, $configContent);
+    $configService = new ConfigService($this->context);
+
+    // This will throw because 'primary' is required
+    $configService->getReviewAgent();
+})->throws(RuntimeException::class, "Config must have 'primary' key");
 
 it('throws exception when task not found during trigger', function (): void {
     $reviewService = new ReviewService(
@@ -657,8 +689,8 @@ it('recovers stuck reviews for tasks in review status with no active process', f
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd) use ($taskId) {
-            return $reviewTaskId === 'review-'.$taskId;
+        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) use ($taskId) {
+            return $reviewTaskId === 'review-'.$taskId && $processType === ProcessType::Review;
         })
         ->andReturn(new Process(
             id: 'p-recover',

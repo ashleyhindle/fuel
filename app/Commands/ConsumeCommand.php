@@ -668,8 +668,13 @@ PROMPT;
                 if ($wasAlreadyClosed) {
                     $this->preReviewTaskStatus[$taskId] = $originalStatus;
                 }
-                $this->reviewService->triggerReview($taskId, $completion->agentName);
-                $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan');
+                $reviewTriggered = $this->reviewService->triggerReview($taskId, $completion->agentName);
+                if ($reviewTriggered) {
+                    $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan');
+                } else {
+                    // No review agent configured - auto-complete with warning
+                    $this->fallbackAutoComplete($taskId, $statusLines, $durationStr, true);
+                }
             } catch (\RuntimeException $e) {
                 // Review failed to trigger - fall back to auto-complete
                 $this->fallbackAutoComplete($taskId, $statusLines, $durationStr);
@@ -684,11 +689,13 @@ PROMPT;
      * Fall back to auto-completing the task when review is not available.
      *
      * @param  array<string>  $statusLines
+     * @param  bool  $noReviewAgent  Whether this is due to no review agent configured (shows warning)
      */
     private function fallbackAutoComplete(
         string $taskId,
         array &$statusLines,
-        string $durationStr
+        string $durationStr,
+        bool $noReviewAgent = false
     ): void {
         // Add 'auto-closed' label to indicate it wasn't self-reported
         $this->taskService->update($taskId, [
@@ -701,7 +708,11 @@ PROMPT;
             '--reason' => 'Auto-completed by consume (agent exit 0)',
         ]);
 
-        $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
+        if ($noReviewAgent) {
+            $statusLines[] = $this->formatStatus('⚠', sprintf('%s auto-completed - no review agent configured (%s)', $taskId, $durationStr), 'yellow');
+        } else {
+            $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
+        }
     }
 
     /**

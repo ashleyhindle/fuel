@@ -3,6 +3,7 @@
 
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
+review: claude-opus
 
 agents:
   cursor-composer:

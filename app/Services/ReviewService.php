@@ -36,10 +36,13 @@ class ReviewService implements ReviewServiceInterface
      * Spawns a review agent to check the work.
      * Non-blocking - returns immediately, review runs in background.
      *
+     * Returns false if no review agent is configured (review skipped).
+     *
      * @param  string  $taskId  The ID of the task to review
      * @param  string  $agent  The agent name that completed the task
+     * @return bool True if review was triggered, false if skipped (no review agent)
      */
-    public function triggerReview(string $taskId, string $agent): void
+    public function triggerReview(string $taskId, string $agent): bool
     {
         // 1. Get task details
         $task = $this->taskService->find($taskId);
@@ -47,7 +50,14 @@ class ReviewService implements ReviewServiceInterface
             throw new \RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
-        // 2. Capture git state
+        // 2. Get review agent from config (falls back to primary, then null)
+        $reviewAgent = $this->configService->getReviewAgent();
+        if ($reviewAgent === null) {
+            // No review agent configured - skip review
+            return false;
+        }
+
+        // 3. Capture git state
         $gitDiff = '';
         $gitStatus = '';
 
@@ -67,11 +77,8 @@ class ReviewService implements ReviewServiceInterface
             // Silently handle errors (matching original behavior of 2>/dev/null)
         }
 
-        // 3. Build review prompt
+        // 4. Build review prompt
         $prompt = $this->reviewPrompt->generate($task, $gitDiff, $gitStatus);
-
-        // 4. Get review agent from config (or use same agent that did the work)
-        $reviewAgent = $this->configService->getReviewAgent() ?? $agent;
 
         // 5. Build the command for the review agent
         $agentDef = $this->configService->getAgentDefinition($reviewAgent);
@@ -115,6 +122,8 @@ class ReviewService implements ReviewServiceInterface
 
         // 9. Track pending review with review ID
         $this->pendingReviews[$taskId] = ['reviewId' => $reviewId, 'timestamp' => Carbon::now('UTC')->timestamp];
+
+        return true;
     }
 
     /**
@@ -266,8 +275,13 @@ class ReviewService implements ReviewServiceInterface
 
             // Re-trigger the review
             try {
-                $this->triggerReview($taskId, $agent);
-                $recovered[] = $taskId;
+                $triggered = $this->triggerReview($taskId, $agent);
+                if ($triggered) {
+                    $recovered[] = $taskId;
+                } else {
+                    // No review agent configured - mark task as closed
+                    $this->taskService->update($taskId, ['status' => 'closed']);
+                }
             } catch (\Throwable $e) {
                 // Failed to re-trigger, skip this task
                 continue;

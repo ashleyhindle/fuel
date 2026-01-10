@@ -44,7 +44,13 @@ class ReviewCommand extends Command
         // Get the agent that worked on it (from runs table or default)
         $agent = $this->determineReviewAgent($task['id'], $runService, $configService);
 
-        $reviewService->triggerReview($task['id'], $agent);
+        $reviewTriggered = $reviewService->triggerReview($task['id'], $agent);
+
+        if (! $reviewTriggered) {
+            $this->warn('No review agent configured. Set "review" or "primary" in .fuel/config.yaml');
+
+            return self::FAILURE;
+        }
 
         $this->info('Review spawned. Check `fuel board` for status.');
 
