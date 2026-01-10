@@ -128,7 +128,6 @@ class BoardCommand extends Command
         ?ConfigService $configService = null,
         ?AgentHealthTrackerInterface $healthTracker = null
     ): int {
-        $storagePath = $taskService->getStoragePath();
         $interval = max(1, (int) $this->option('interval'));
 
         // Check if we're in a TTY (interactive terminal)
@@ -159,7 +158,6 @@ class BoardCommand extends Command
             }
         }
 
-        $lastModified = file_exists($storagePath) ? @filemtime($storagePath) : false;
         $lastRender = 0;
         $lastContentHash = null;
 
@@ -175,34 +173,24 @@ class BoardCommand extends Command
                     break;
                 }
 
-                // Handle signals if pcntl is available (check before file check to catch SIGWINCH quickly)
+                // Handle signals if pcntl is available
                 if (function_exists('pcntl_signal_dispatch')) {
                     pcntl_signal_dispatch();
                 }
 
-                // Check for file changes (lightweight - filemtime() only reads inode metadata, not file contents)
-                $currentModified = file_exists($storagePath) ? @filemtime($storagePath) : false;
                 $needsRefresh = false;
 
-                // Refresh if file changed AND content actually changed
-                if ($currentModified !== false && $currentModified !== $lastModified) {
-                    $lastModified = $currentModified;
-                    $currentContentHash = $this->getBoardContentHash($taskService);
-                    if ($currentContentHash !== $lastContentHash) {
-                        $lastContentHash = $currentContentHash;
-                        $needsRefresh = true;
-                    }
-                } elseif (time() - $lastRender >= $interval) {
-                    // Periodic check - verify content changed before refreshing
-                    $currentContentHash = $this->getBoardContentHash($taskService);
-                    if ($currentContentHash !== $lastContentHash) {
-                        $lastContentHash = $currentContentHash;
-                        $needsRefresh = true;
-                    }
-                } elseif ($shouldRefresh) {
-                    // SIGWINCH received - force refresh and reset flag (terminal resize)
+                if ($shouldRefresh) {
+                    // SIGWINCH received - force refresh (terminal resize)
                     $needsRefresh = true;
                     $shouldRefresh = false;
+                } elseif (time() - $lastRender >= $interval) {
+                    // Periodic check - refresh if content changed
+                    $currentContentHash = $this->getBoardContentHash($taskService);
+                    if ($currentContentHash !== $lastContentHash) {
+                        $lastContentHash = $currentContentHash;
+                        $needsRefresh = true;
+                    }
                 }
 
                 if ($needsRefresh) {
