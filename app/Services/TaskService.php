@@ -351,7 +351,32 @@ class TaskService
             $data['commit_hash'] = $commitHash;
         }
 
+        // Clear any previous review issues when task is completed
+        $data['last_review_issues'] = null;
+
         return $this->update($id, $data);
+    }
+
+    /**
+     * Set or clear the last review issues on a task.
+     *
+     * @param  array<string>|null  $issues  Array of issue strings, or null to clear
+     * @return array<string, mixed>
+     */
+    public function setLastReviewIssues(string $id, ?array $issues): array
+    {
+        $encodedIssues = $issues !== null ? json_encode($issues) : null;
+
+        $task = $this->update($id, ['last_review_issues' => $encodedIssues]);
+
+        // Ensure the returned task has the decoded array, not the JSON string
+        if ($issues !== null) {
+            $task['last_review_issues'] = $issues;
+        } else {
+            unset($task['last_review_issues']);
+        }
+
+        return $task;
     }
 
     /**
@@ -1021,6 +1046,9 @@ class TaskService
         }
         if (isset($row['consume_pid']) && $row['consume_pid'] !== null) {
             $task['consume_pid'] = (int) $row['consume_pid'];
+        }
+        if (isset($row['last_review_issues']) && $row['last_review_issues'] !== null) {
+            $task['last_review_issues'] = json_decode($row['last_review_issues'], true);
         }
 
         return $task;

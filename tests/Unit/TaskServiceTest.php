@@ -828,3 +828,80 @@ it('persists all consume fields together', function (): void {
     expect($reloaded['consumed_output'])->toBe('Success output');
     expect($reloaded['consume_pid'])->toBe(99999);
 });
+
+// =============================================================================
+// Last Review Issues Tests
+// =============================================================================
+
+it('sets last review issues on a task', function (): void {
+    $task = $this->taskService->create(['title' => 'Task for review']);
+
+    $updated = $this->taskService->setLastReviewIssues($task['id'], [
+        'uncommitted_changes',
+        'tests_failing',
+    ]);
+
+    expect($updated['last_review_issues'])->toBe(['uncommitted_changes', 'tests_failing']);
+
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['last_review_issues'])->toBe(['uncommitted_changes', 'tests_failing']);
+});
+
+it('clears last review issues when set to null', function (): void {
+    $task = $this->taskService->create(['title' => 'Task for review']);
+
+    // Set issues first
+    $this->taskService->setLastReviewIssues($task['id'], ['uncommitted_changes']);
+
+    // Now clear them
+    $updated = $this->taskService->setLastReviewIssues($task['id'], null);
+
+    expect($updated['last_review_issues'] ?? null)->toBeNull();
+
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['last_review_issues'] ?? null)->toBeNull();
+});
+
+it('clears last review issues when task is marked done', function (): void {
+    $task = $this->taskService->create(['title' => 'Task for review']);
+
+    // Set issues first
+    $this->taskService->setLastReviewIssues($task['id'], ['uncommitted_changes', 'tests_failing']);
+
+    // Mark as done
+    $done = $this->taskService->done($task['id']);
+
+    // Issues should be cleared
+    expect($done['last_review_issues'] ?? null)->toBeNull();
+
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['last_review_issues'] ?? null)->toBeNull();
+});
+
+it('preserves last review issues when task is reopened', function (): void {
+    $task = $this->taskService->create(['title' => 'Task for review']);
+
+    // Start and consume the task
+    $this->taskService->start($task['id']);
+    $this->taskService->update($task['id'], ['consumed' => true]);
+
+    // Set issues
+    $this->taskService->setLastReviewIssues($task['id'], ['uncommitted_changes']);
+
+    // Reopen the task
+    $this->taskService->reopen($task['id']);
+
+    // Issues should still be present
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['last_review_issues'])->toBe(['uncommitted_changes']);
+});
+
+it('returns task without last_review_issues key when field is null', function (): void {
+    $task = $this->taskService->create(['title' => 'Task without issues']);
+
+    // Field should not be present when null
+    expect(isset($task['last_review_issues']))->toBeFalse();
+
+    $reloaded = $this->taskService->find($task['id']);
+    expect(isset($reloaded['last_review_issues']))->toBeFalse();
+});

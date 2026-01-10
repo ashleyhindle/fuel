@@ -351,6 +351,21 @@ class DatabaseService
                     $pdo->exec('ALTER TABLE tasks ADD COLUMN commit_hash TEXT');
                 }
             },
+            7 => function (PDO $pdo): void {
+                // v7: Add last_review_issues column to tasks table for retry feedback
+                $tableInfo = $pdo->query('PRAGMA table_info(tasks)')->fetchAll();
+                $hasColumn = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'last_review_issues') {
+                        $hasColumn = true;
+                        break;
+                    }
+                }
+
+                if (! $hasColumn) {
+                    $pdo->exec('ALTER TABLE tasks ADD COLUMN last_review_issues TEXT');
+                }
+            },
         ];
     }
 
@@ -500,6 +515,7 @@ class DatabaseService
                 consumed_exit_code INTEGER,
                 consumed_output TEXT,
                 consume_pid INTEGER,
+                last_review_issues TEXT,
                 created_at TEXT,
                 updated_at TEXT
             )
