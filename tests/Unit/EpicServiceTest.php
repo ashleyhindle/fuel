@@ -176,11 +176,36 @@ it('computes epic status as approved when approved_at is set', function () {
     expect($epic['status'])->toBe('approved');
 });
 
-it('throws exception for invalid status', function () {
+it('computes epic status as reviewed when reviewed_at is set', function () {
+    $epic = $this->service->createEpic('Title');
+    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
+    $this->taskService->done($task['id']);
+
+    // Initially should be review_pending
+    $epic = $this->service->getEpic($epic['id']);
+    expect($epic['status'])->toBe('review_pending');
+
+    // Set reviewed_at directly in DB
+    $this->db->initialize();
+    $this->db->query(
+        'UPDATE epics SET reviewed_at = ? WHERE id = ?',
+        [\Carbon\Carbon::now('UTC')->toIso8601String(), $epic['id']]
+    );
+
+    $epic = $this->service->getEpic($epic['id']);
+
+    expect($epic['status'])->toBe('reviewed');
+});
+
+it('ignores status updates since status is computed', function () {
     $created = $this->service->createEpic('Title');
 
-    $this->service->updateEpic($created['id'], ['status' => 'invalid']);
-})->throws(RuntimeException::class, "Invalid status 'invalid'. Must be one of:");
+    // Status updates are ignored - status is purely computed
+    $updated = $this->service->updateEpic($created['id'], ['status' => 'invalid']);
+
+    // Status should still be computed correctly, not set to 'invalid'
+    expect($updated['status'])->toBe('planning');
+});
 
 it('throws exception when updating non-existent epic', function () {
     $this->db->initialize();
