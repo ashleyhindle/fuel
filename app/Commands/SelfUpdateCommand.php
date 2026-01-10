@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -83,7 +81,7 @@ class SelfUpdateCommand extends Command
 
         // Make executable
         if (! chmod($tempPath, 0755)) {
-            @unlink($tempPath); // Clean up temp file on failure
+            @unlink($tempPath);
             $this->error('Failed to set executable permissions on downloaded binary');
 
             return self::FAILURE;
@@ -91,7 +89,7 @@ class SelfUpdateCommand extends Command
 
         // Atomic replace
         if (! rename($tempPath, $targetPath)) {
-            @unlink($tempPath); // Clean up temp file on failure
+            @unlink($tempPath);
             $this->error("Failed to replace binary at: {$targetPath}");
 
             return self::FAILURE;
@@ -156,43 +154,60 @@ class SelfUpdateCommand extends Command
     }
 
     /**
+     * Create a stream context for HTTP requests.
+     *
+     * @return resource
+     */
+    private function createHttpContext(int $timeout = 10)
+    {
+        return stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => [
+                    'Accept: application/vnd.github.v3+json',
+                    'User-Agent: fuel-cli',
+                ],
+                'timeout' => $timeout,
+                'follow_location' => true,
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+    }
+
+    /**
      * Query GitHub API for latest release version tag.
      *
      * @return string|null Returns version tag (e.g., 'v1.0.0') or null on failure
      */
     private function getLatestVersion(): ?string
     {
-        $client = new Client([
-            'timeout' => 10,
-            'headers' => [
-                'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => 'fuel-cli',
-            ],
-        ]);
+        $url = self::GITHUB_API_BASE.'/'.self::GITHUB_REPO.'/releases/latest';
+        $context = $this->createHttpContext();
 
-        try {
-            $url = self::GITHUB_API_BASE.'/'.self::GITHUB_REPO.'/releases/latest';
-            $response = $client->get($url);
-            $data = json_decode($response->getBody()->getContents(), true);
-
-            if ($data === null) {
-                $this->error('GitHub API returned invalid JSON response');
-
-                return null;
-            }
-
-            if (! isset($data['tag_name'])) {
-                $this->error('GitHub API response missing tag_name');
-
-                return null;
-            }
-
-            return $data['tag_name'];
-        } catch (GuzzleException $e) {
-            $this->error("Failed to fetch latest version: {$e->getMessage()}");
+        $response = @file_get_contents($url, false, $context);
+        if ($response === false) {
+            $this->error('Failed to fetch latest version from GitHub API');
 
             return null;
         }
+
+        $data = json_decode($response, true);
+        if ($data === null) {
+            $this->error('GitHub API returned invalid JSON response');
+
+            return null;
+        }
+
+        if (! isset($data['tag_name'])) {
+            $this->error('GitHub API response missing tag_name');
+
+            return null;
+        }
+
+        return $data['tag_name'];
     }
 
     /**
@@ -210,32 +225,26 @@ class SelfUpdateCommand extends Command
      */
     private function downloadBinary(string $url, string $targetPath): void
     {
-        $client = new Client([
-            'timeout' => 300, // 5 minutes for large downloads
-            'headers' => [
-                'User-Agent' => 'fuel-cli',
-            ],
-        ]);
+        $context = $this->createHttpContext(300);
 
-        try {
-            $response = $client->get($url, [
-                'sink' => $targetPath, // Stream directly to file
-            ]);
+        $source = @fopen($url, 'rb', false, $context);
+        if ($source === false) {
+            throw new RuntimeException('Failed to open download URL');
+        }
 
-            // Verify we got a successful response
-            if ($response->getStatusCode() !== 200) {
-                @unlink($targetPath); // Clean up on failure
-                throw new RuntimeException("HTTP {$response->getStatusCode()} response");
-            }
+        $dest = @fopen($targetPath, 'wb');
+        if ($dest === false) {
+            fclose($source);
+            throw new RuntimeException("Failed to open target file: {$targetPath}");
+        }
 
-            // Verify file was actually written (not empty)
-            if (! file_exists($targetPath) || filesize($targetPath) === 0) {
-                @unlink($targetPath); // Clean up on failure
-                throw new RuntimeException('Downloaded file is empty or does not exist');
-            }
-        } catch (GuzzleException $e) {
-            @unlink($targetPath); // Clean up on failure
-            throw new RuntimeException("Download failed: {$e->getMessage()}", 0, $e);
+        $bytes = stream_copy_to_stream($source, $dest);
+        fclose($source);
+        fclose($dest);
+
+        if ($bytes === false || $bytes === 0) {
+            @unlink($targetPath);
+            throw new RuntimeException('Downloaded file is empty or transfer failed');
         }
     }
 }
