@@ -51,6 +51,9 @@ class ConsumeCommand extends Command
     /** @var array<string, array{status: string, in_backoff: bool, is_dead: bool}> Track previous health state per agent */
     private array $previousHealthStates = [];
 
+    /** @var array<string, string> Track original task status before review (to handle already-closed tasks) */
+    private array $preReviewTaskStatus = [];
+
     public function __construct(
         private TaskService $taskService,
         private ConfigService $configService,
@@ -488,17 +491,44 @@ PROMPT;
                     continue;
                 }
 
+                // Check if task was already closed before review
+                $wasAlreadyClosed = isset($this->preReviewTaskStatus[$taskId]);
+                $originalStatus = $this->preReviewTaskStatus[$taskId] ?? null;
+                unset($this->preReviewTaskStatus[$taskId]);
+
                 if ($result->passed) {
-                    // Review passed - mark task as done
-                    Artisan::call('done', [
-                        'ids' => [$taskId],
-                        '--reason' => 'Review passed',
-                    ]);
-                    $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
+                    // Review passed
+                    if ($wasAlreadyClosed) {
+                        // Task was already closed - confirm done (maybe update reason)
+                        $task = $this->taskService->find($taskId);
+                        if ($task && ($task['status'] ?? '') !== 'closed') {
+                            // Task status changed (shouldn't happen, but handle gracefully)
+                            Artisan::call('done', [
+                                'ids' => [$taskId],
+                                '--reason' => 'Review passed (was already closed)',
+                            ]);
+                        }
+                        $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s (was already closed)', $taskId), 'green');
+                    } else {
+                        // Task was in_progress - mark as done
+                        Artisan::call('done', [
+                            'ids' => [$taskId],
+                            '--reason' => 'Review passed',
+                        ]);
+                        $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
+                    }
                 } else {
-                    // Review found issues - task stays in 'review' status
+                    // Review found issues - reopen task if it was already closed
                     $issuesSummary = empty($result->issues) ? 'issues found' : implode(', ', $result->issues);
-                    $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
+
+                    if ($wasAlreadyClosed) {
+                        // Task was already closed but review failed - reopen with issues
+                        $this->taskService->reopen($taskId);
+                        $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
+                    } else {
+                        // Task stays in 'review' status
+                        $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
+                    }
 
                     // If follow-up tasks were created, show them
                     if (! empty($result->followUpTaskIds)) {
@@ -584,22 +614,31 @@ PROMPT;
 
         // Check task status
         $task = $this->taskService->find($taskId);
-        if (! $task || $task['status'] !== 'in_progress') {
-            // Task was already closed by agent via 'fuel done'
-            $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green');
+        if (! $task) {
+            // Task was deleted?
+            $statusLines[] = $this->formatStatus('?', sprintf('%s completed but task not found (%s)', $taskId, $durationStr), 'yellow');
 
             return;
         }
 
-        // Task still in_progress - agent didn't call 'fuel done'
-        // Check if we should skip review
+        // Always trigger review as quality gate for ALL completions (Phase 3 spec)
+        // Track original status to handle already-closed tasks correctly
+        $originalStatus = $task['status'] ?? 'in_progress';
+        $wasAlreadyClosed = $originalStatus === 'closed' || $originalStatus === 'done';
+
         if ($this->option('skip-review')) {
             // Skip review and mark done directly
-            $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
+            if (! $wasAlreadyClosed) {
+                $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
+            }
             $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (review skipped) (%s)', $taskId, $durationStr), 'green');
         } elseif ($this->reviewService !== null) {
             // Trigger review if ReviewService is available
             try {
+                // Store original status before triggering review
+                if ($wasAlreadyClosed) {
+                    $this->preReviewTaskStatus[$taskId] = $originalStatus;
+                }
                 $this->reviewService->triggerReview($taskId, $completion->agentName);
                 $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan');
             } catch (\RuntimeException $e) {
