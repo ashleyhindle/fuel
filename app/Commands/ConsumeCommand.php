@@ -11,6 +11,7 @@ use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Process\ProcessType;
 use App\Services\ConfigService;
+use App\Services\EpicService;
 use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -59,6 +60,7 @@ class ConsumeCommand extends Command
         private ConfigService $configService,
         private RunService $runService,
         private ProcessManager $processManager,
+        private EpicService $epicService,
         private ?AgentHealthTrackerInterface $healthTracker = null,
         private ?ReviewServiceInterface $reviewService = null,
     ) {
@@ -534,6 +536,11 @@ PROMPT;
                     // Review found issues - reopen task if it was already closed
                     $issuesSummary = empty($result->issues) ? 'issues found' : implode(', ', $result->issues);
 
+                    // Store the review issues on the task for the next agent run
+                    if (! empty($result->issues)) {
+                        $this->taskService->setLastReviewIssues($taskId, $result->issues);
+                    }
+
                     if ($wasAlreadyClosed) {
                         // Task was already closed but review failed - reopen with issues
                         try {
@@ -543,8 +550,13 @@ PROMPT;
                             $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s (could not reopen: %s)', $taskId, $issuesSummary, $e->getMessage()), 'yellow');
                         }
                     } else {
-                        // Task stays in 'review' status
-                        $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
+                        // Task needs to be reopened so it can be retried
+                        try {
+                            $this->taskService->reopen($taskId);
+                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
+                        } catch (\RuntimeException $e) {
+                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
+                        }
                     }
 
                     // If follow-up tasks were created, show them
@@ -1065,6 +1077,24 @@ PROMPT;
             'Status: '.$task['status'],
         ];
 
+        // Include epic information if task is part of an epic
+        if (! empty($task['epic_id'])) {
+            $epic = $this->epicService->getEpic($task['epic_id']);
+            if ($epic !== null) {
+                $lines[] = '';
+                $lines[] = '== EPIC CONTEXT ==';
+                $lines[] = 'This task is part of a larger epic:';
+                $lines[] = 'Epic: '.$epic['id'];
+                $lines[] = 'Epic Title: '.$epic['title'];
+                if (! empty($epic['description'])) {
+                    $lines[] = 'Epic Description: '.$epic['description'];
+                }
+                $lines[] = '';
+                $lines[] = 'You are working on a small part of this larger epic. Understanding the epic context will help you build better solutions that align with the overall goal.';
+                $lines[] = '';
+            }
+        }
+
         if (! empty($task['description'])) {
             $lines[] = 'Description: '.$task['description'];
         }
@@ -1083,6 +1113,19 @@ PROMPT;
 
         if (! empty($task['blocked_by'])) {
             $lines[] = 'Blocked by: '.implode(', ', $task['blocked_by']);
+        }
+
+        // Include previous review issues if present
+        if (! empty($task['last_review_issues'])) {
+            $lines[] = '';
+            $lines[] = '⚠️ PREVIOUS ATTEMPT FAILED REVIEW';
+            $lines[] = 'You ALREADY completed this task, but a reviewer found issues:';
+            foreach ($task['last_review_issues'] as $issue) {
+                $lines[] = '  - '.$issue;
+            }
+            $lines[] = '';
+            $lines[] = 'DO NOT redo the entire task from scratch.';
+            $lines[] = 'ONLY fix the specific issues listed above, then run the closing protocol again.';
         }
 
         return implode("\n", $lines);

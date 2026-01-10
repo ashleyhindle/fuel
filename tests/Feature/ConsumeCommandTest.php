@@ -2,6 +2,7 @@
 
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -32,6 +33,12 @@ beforeEach(function () {
 
     $this->app->singleton(ConfigService::class, function () use ($context) {
         return new ConfigService($context);
+    });
+
+    $this->app->singleton(EpicService::class, function () use ($databaseService) {
+        $taskService = $this->app->make(TaskService::class);
+
+        return new EpicService($databaseService, $taskService);
     });
 
     $this->taskService = $this->app->make(TaskService::class);
