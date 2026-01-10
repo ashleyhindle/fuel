@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Process;
 
 use DateTimeImmutable;
@@ -26,7 +28,7 @@ readonly class Process
 
     public function getDurationSeconds(): ?int
     {
-        if ($this->startedAt === null) {
+        if (!$this->startedAt instanceof \DateTimeImmutable) {
             return null;
         }
 

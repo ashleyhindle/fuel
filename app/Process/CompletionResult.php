@@ -7,18 +7,18 @@ namespace App\Process;
 /**
  * Result of a process completion.
  */
-final class CompletionResult
+final readonly class CompletionResult
 {
     public function __construct(
-        public readonly string $taskId,
-        public readonly string $agentName,
-        public readonly int $exitCode,
-        public readonly int $duration,
-        public readonly ?string $sessionId,
-        public readonly ?float $costUsd,
-        public readonly string $output,
-        public readonly CompletionType $type,
-        public readonly ?string $message = null,
+        public string $taskId,
+        public string $agentName,
+        public int $exitCode,
+        public int $duration,
+        public ?string $sessionId,
+        public ?float $costUsd,
+        public string $output,
+        public CompletionType $type,
+        public ?string $message = null,
     ) {}
 
     /**
@@ -59,12 +59,12 @@ final class CompletionResult
     public function getFormattedDuration(): string
     {
         if ($this->duration < 60) {
-            return "{$this->duration}s";
+            return $this->duration . 's';
         }
 
         $minutes = (int) ($this->duration / 60);
         $secs = $this->duration % 60;
 
-        return "{$minutes}m {$secs}s";
+        return sprintf('%dm %ds', $minutes, $secs);
     }
 }

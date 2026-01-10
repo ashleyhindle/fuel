@@ -7,13 +7,13 @@ namespace App\Process;
 /**
  * Result of a spawn attempt.
  */
-final class SpawnResult
+final readonly class SpawnResult
 {
     private function __construct(
-        public readonly bool $success,
-        public readonly ?AgentProcess $process = null,
-        public readonly ?string $error = null,
-        public readonly SpawnFailureReason $reason = SpawnFailureReason::None,
+        public bool $success,
+        public ?AgentProcess $process = null,
+        public ?string $error = null,
+        public SpawnFailureReason $reason = SpawnFailureReason::None,
     ) {}
 
     public static function success(AgentProcess $process): self
@@ -25,7 +25,7 @@ final class SpawnResult
     {
         return new self(
             success: false,
-            error: "Agent '{$agentName}' is at maximum capacity",
+            error: sprintf("Agent '%s' is at maximum capacity", $agentName),
             reason: SpawnFailureReason::AtCapacity,
         );
     }
@@ -34,7 +34,7 @@ final class SpawnResult
     {
         return new self(
             success: false,
-            error: "Agent command not found: {$agentCommand}",
+            error: 'Agent command not found: ' . $agentCommand,
             reason: SpawnFailureReason::AgentNotFound,
         );
     }
@@ -43,7 +43,7 @@ final class SpawnResult
     {
         return new self(
             success: false,
-            error: "Failed to spawn agent for {$taskId}",
+            error: 'Failed to spawn agent for ' . $taskId,
             reason: SpawnFailureReason::SpawnFailed,
         );
     }
