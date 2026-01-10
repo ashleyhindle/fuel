@@ -9,6 +9,7 @@ use App\Services\BacklogService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
+use Symfony\Component\Console\Input\InputOption;
 
 class RemoveCommand extends Command
 {
@@ -17,10 +18,15 @@ class RemoveCommand extends Command
     protected $signature = 'remove
         {id : The task or backlog ID (f-xxx or b-xxx, supports partial matching)}
         {--cwd= : Working directory (defaults to current directory)}
-        {--json : Output as JSON}
-        {--force : Skip confirmation prompt}';
+        {--json : Output as JSON}';
 
     protected $description = 'Delete a task or backlog item';
+
+    protected function configure(): void
+    {
+        parent::configure();
+        $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip confirmation prompt');
+    }
 
     public function handle(TaskService $taskService, BacklogService $backlogService): int
     {
