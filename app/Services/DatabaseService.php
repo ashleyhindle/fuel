@@ -336,6 +336,21 @@ class DatabaseService
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task_id ON reviews(task_id)');
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
             },
+            6 => function (PDO $pdo): void {
+                // v6: Add commit_hash column to tasks table if it doesn't exist
+                $tableInfo = $pdo->query('PRAGMA table_info(tasks)')->fetchAll();
+                $hasCommitHash = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'commit_hash') {
+                        $hasCommitHash = true;
+                        break;
+                    }
+                }
+
+                if (! $hasCommitHash) {
+                    $pdo->exec('ALTER TABLE tasks ADD COLUMN commit_hash TEXT');
+                }
+            },
         ];
     }
 
