@@ -41,10 +41,9 @@ Fuel is an AI agent orchestration system built on Laravel Zero. It manages tasks
 │                           DATA STORAGE                                       │
 │                                                                              │
 │   .fuel/                                                                     │
-│   ├── tasks.jsonl        ← Tasks (git-tracked, merge-friendly)              │
+│   ├── agent.db           ← SQLite: tasks, epics, reviews, health            │
 │   ├── backlog.jsonl      ← Future ideas (git-tracked)                       │
 │   ├── config.yaml        ← Agent definitions, routing (git-tracked)         │
-│   ├── agent.db           ← SQLite: epics, reviews, health (.gitignored)     │
 │   ├── runs/              ← Run history per task (.gitignored)               │
 │   └── processes/         ← Live stdout/stderr per task (.gitignored)        │
 │       └── {taskId}/                                                          │
@@ -59,7 +58,7 @@ Fuel is an AI agent orchestration system built on Laravel Zero. It manages tasks
 
 ### Tasks
 
-The fundamental unit of work. Stored in `.fuel/tasks.jsonl` (one JSON object per line).
+The fundamental unit of work. Stored in SQLite (`agent.db`).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -333,19 +332,20 @@ Shows everything needing human attention:
 │                    WHY THIS SPLIT?                               │
 └─────────────────────────────────────────────────────────────────┘
 
-JSONL (.fuel/tasks.jsonl, backlog.jsonl)
-├── Git-tracked, merge-friendly
-├── Human-readable, editable
-├── The "source of truth" for work
-└── Survives across machines via git
-
 SQLite (.fuel/agent.db)
-├── .gitignored (operational, not collaborative)
+├── Primary data store for active work
 ├── Fast queries, joins, aggregations
+├── Tasks (the fundamental unit of work)
 ├── Epics (cross-task grouping)
 ├── Reviews (transient process data)
 ├── Agent health (local telemetry)
 └── Schema versioned with auto-migrations
+
+JSONL (.fuel/backlog.jsonl)
+├── Git-tracked, merge-friendly
+├── Human-readable, editable
+├── Rough ideas and future work
+└── Survives across machines via git
 ```
 
 ---
@@ -443,7 +443,7 @@ fuel/
 │   │   ├── EpicAddCommand.php
 │   │   └── ...
 │   ├── Services/           ← Core business logic
-│   │   ├── TaskService.php      ← JSONL task CRUD
+│   │   ├── TaskService.php      ← SQLite task CRUD
 │   │   ├── EpicService.php      ← SQLite epic CRUD + status
 │   │   ├── ConfigService.php    ← Agent routing config
 │   │   ├── ReviewService.php    ← Review orchestration
@@ -480,7 +480,7 @@ fuel/
 
 | Decision | Rationale |
 |----------|-----------|
-| JSONL for tasks | Git-native, merge-friendly, human-readable |
+| SQLite for tasks | Fast queries, reliable storage, auto-migration from JSONL |
 | SQLite for epics | Need cross-task queries, not collaborative |
 | Complexity-based routing | Simple, predictable, agents can set it |
 | Review on completion | Catch issues before they compound |

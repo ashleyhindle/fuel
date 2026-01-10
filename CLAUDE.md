@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Fuel is a standalone CLI task management and execution system for AI agents, built with Laravel Zero. It provides task tracking via JSONL files that are git-native and merge-friendly.
+Fuel is a standalone CLI task management and execution system for AI agents, built with Laravel Zero. It provides task tracking via SQLite (`.fuel/agent.db`) for fast queries and reliable storage.
 
 The original design spec is archived in `FUEL-PLAN-ORIGINAL.md` (outdated - kept for historical reference). Reference implementation exists in `agent-resources/old-implementation-within-boost/`. Laravel Zero docs are in `agent-resources/laravel-zero-docs/`.
 
 <fuel>
 ## Fuel Task Management
 
-This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/tasks.jsonl`.
+This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/agent.db` (SQLite database).
 
 ### Quick Reference
 
@@ -187,14 +187,15 @@ When parallel tasks share an interface, define it in a parent task's description
 - `fuel` - CLI entry point
 
 ### Key Services
-- **TaskService** - JSONL task storage with atomic writes, file locking, partial ID matching
+- **TaskService** - SQLite task storage with partial ID matching
 - **RunService** - Agent run history per task (`.fuel/runs/`)
 - **ConfigService** - Agent routing by complexity (`.fuel/config.yaml`)
 
 ### Data Storage
-- `.fuel/tasks.jsonl` - Task data (one JSON object per line, sorted by ID)
+- `.fuel/agent.db` - SQLite database (tasks, epics, reviews, agent health)
 - `.fuel/runs/<task-id>.jsonl` - Run history per task
 - `.fuel/config.yaml` - Agent configuration
+- `.fuel/backlog.jsonl` - Backlog items (rough ideas, future work)
 
 ## Testing Patterns
 
@@ -237,6 +238,12 @@ $this->artisan('command', ['--json' => true])
 - Tests live in the `tests/Feature` and `tests/Unit` directories.
 - Pest tests look and behave like this:
 <code-snippet name="Basic Pest Test Example" lang="php">
+test('inspiring command', function () {
+    $this->artisan('inspiring')
+         ->expectsOutput('Simplicity is the ultimate sophistication.')
+         ->assertExitCode(0);
+});
+
 it('is true', function () {
     expect(true)->toBeTrue();
 });
