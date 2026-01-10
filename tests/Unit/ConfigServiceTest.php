@@ -188,6 +188,7 @@ it('returns agent definition', function (): void {
         'env' => [],
         'resume_args' => [],
         'max_concurrent' => 3,
+        'max_attempts' => 3,
     ]);
 });
 
