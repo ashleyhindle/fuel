@@ -9,6 +9,7 @@ use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
+use App\Process\ProcessType;
 use App\Services\ConfigService;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -46,6 +47,9 @@ class ConsumeCommand extends Command
 
     /** @var array<string, int> Track retry attempts per task */
     private array $taskRetryAttempts = [];
+
+    /** @var array<string, array{status: string, in_backoff: bool, is_dead: bool}> Track previous health state per agent */
+    private array $previousHealthStates = [];
 
     public function __construct(
         private TaskService $taskService,
@@ -167,13 +171,16 @@ class ConsumeCommand extends Command
                     }
                 }
 
-                // Step 2: Poll all running processes
+                // Step 2: Check agent health status changes
+                $this->checkAgentHealthChanges($statusLines);
+
+                // Step 3: Poll all running processes
                 $this->pollAndHandleCompletions($statusLines);
 
-                // Step 3: Check for completed reviews
+                // Step 4: Check for completed reviews
                 $this->checkCompletedReviews($statusLines);
 
-                // Step 4: Check if we have any work or should wait
+                // Step 5: Check if we have any work or should wait
                 if (! $this->processManager->hasActiveProcesses() && $readyTasks->isEmpty()) {
                     // Only add waiting message if not already the last status
                     $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
@@ -364,6 +371,16 @@ PROMPT;
             return false; // Agent in backoff, don't spawn
         }
 
+        // Check if agent is dead (exceeded max_retries consecutive failures)
+        if (! $dryrun && $this->healthTracker !== null) {
+            $maxRetries = $this->configService->getAgentMaxRetries($agentName);
+            if ($this->healthTracker->isDead($agentName, $maxRetries)) {
+                $statusLines[] = $this->formatStatus('💀', sprintf('%s skipped - %s is dead (>= %d consecutive failures)', $taskId, $agentName, $maxRetries), 'red');
+
+                return false; // Agent is dead, don't assign work
+            }
+        }
+
         if ($dryrun) {
             // Dryrun: show what would happen without claiming or spawning
             $statusLines[] = $this->formatStatus('👁', sprintf('[DRYRUN] Would spawn %s for %s: %s', $agentName, $taskId, $shortTitle), 'cyan');
@@ -431,7 +448,11 @@ PROMPT;
         array &$statusLines
     ): void {
         // Also update session_id in run service as processes are polled
+        // Skip review processes as they don't have run entries
         foreach ($this->processManager->getActiveProcesses() as $process) {
+            if ($process->getProcessType() === ProcessType::Review) {
+                continue;
+            }
             if ($process->getSessionId() !== null) {
                 $this->runService->updateLatestRun($process->getTaskId(), [
                     'session_id' => $process->getSessionId(),
@@ -502,6 +523,11 @@ PROMPT;
         CompletionResult $completion,
         array &$statusLines
     ): void {
+        // Review completions are handled separately by checkCompletedReviews()
+        if ($completion->isReview()) {
+            return;
+        }
+
         $taskId = $completion->taskId;
         $agentName = $completion->agentName;
         $durationStr = $completion->getFormattedDuration();
@@ -795,7 +821,7 @@ PROMPT;
 
         // Show failed/stuck tasks
         $excludePids = $this->processManager->getTrackedPids();
-        $failedTasks = $this->taskService->failed(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid), $excludePids);
+        $failedTasks = $this->taskService->failed($excludePids);
         if ($failedTasks->isNotEmpty()) {
             $failedLines = [];
             foreach ($failedTasks as $task) {
@@ -1029,27 +1055,39 @@ PROMPT;
 
         foreach ($agentNames as $agentName) {
             $health = $this->healthTracker->getHealthStatus($agentName);
-            $status = $health->getStatus();
-            $color = match ($status) {
-                'healthy' => 'green',
-                'warning' => 'yellow',
-                'degraded' => 'yellow',
-                'unhealthy' => 'red',
-                default => 'gray',
-            };
+            $maxRetries = $this->configService->getAgentMaxRetries($agentName);
+            $isDead = $this->healthTracker->isDead($agentName, $maxRetries);
 
-            $statusIcon = match ($status) {
-                'healthy' => '✓',
-                'warning' => '⚠',
-                'degraded' => '⚠',
-                'unhealthy' => '✗',
-                default => '?',
-            };
+            // Dead agents get special status
+            if ($isDead) {
+                $color = 'red';
+                $statusIcon = '💀';
+                $status = 'dead';
+            } else {
+                $status = $health->getStatus();
+                $color = match ($status) {
+                    'healthy' => 'green',
+                    'warning' => 'yellow',
+                    'degraded' => 'yellow',
+                    'unhealthy' => 'red',
+                    default => 'gray',
+                };
+
+                $statusIcon = match ($status) {
+                    'healthy' => '✓',
+                    'warning' => '⚠',
+                    'degraded' => '⚠',
+                    'unhealthy' => '✗',
+                    default => '?',
+                };
+            }
 
             $line = sprintf('<fg=%s>%s %s</>', $color, $statusIcon, $agentName);
 
-            // Add consecutive failures info
-            if ($health->consecutiveFailures > 0) {
+            // Add dead/consecutive failures info
+            if ($isDead) {
+                $line .= sprintf(' <fg=red>(DEAD - %d consecutive failures, max: %d)</>', $health->consecutiveFailures, $maxRetries);
+            } elseif ($health->consecutiveFailures > 0) {
                 $line .= sprintf(' <fg=gray>(%d consecutive failure%s)</>', $health->consecutiveFailures, $health->consecutiveFailures === 1 ? '' : 's');
             }
 
@@ -1075,6 +1113,81 @@ PROMPT;
     }
 
     /**
+     * Check agent health status changes and add warnings/recovery messages.
+     *
+     * @param  array<string>  $statusLines
+     */
+    private function checkAgentHealthChanges(array &$statusLines): void
+    {
+        if ($this->healthTracker === null) {
+            return;
+        }
+
+        $agentNames = $this->configService->getAgentNames();
+
+        foreach ($agentNames as $agentName) {
+            $health = $this->healthTracker->getHealthStatus($agentName);
+            $status = $health->getStatus();
+            $backoffSeconds = $health->getBackoffSeconds();
+            $inBackoff = $backoffSeconds > 0;
+            $maxRetries = $this->configService->getAgentMaxRetries($agentName);
+            $isDead = $this->healthTracker->isDead($agentName, $maxRetries);
+
+            // Get previous state (default to healthy if not tracked)
+            $previous = $this->previousHealthStates[$agentName] ?? [
+                'status' => 'healthy',
+                'in_backoff' => false,
+                'is_dead' => false,
+            ];
+
+            // Check for state changes
+            $statusChanged = $previous['status'] !== $status;
+            $backoffChanged = $previous['in_backoff'] !== $inBackoff;
+            $deadChanged = $previous['is_dead'] !== $isDead;
+
+            // Agent entered backoff
+            if ($backoffChanged && $inBackoff && ! $previous['in_backoff']) {
+                $formatted = $backoffSeconds < 60
+                    ? "{$backoffSeconds}s"
+                    : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                $statusLines[] = $this->formatStatus('⏳', sprintf('%s entered backoff (%s remaining)', $agentName, $formatted), 'yellow');
+            }
+
+            // Agent exited backoff (recovered)
+            if ($backoffChanged && ! $inBackoff && $previous['in_backoff']) {
+                $statusLines[] = $this->formatStatus('✓', sprintf('%s recovered from backoff', $agentName), 'green');
+            }
+
+            // Agent became dead
+            if ($deadChanged && $isDead && ! $previous['is_dead']) {
+                $statusLines[] = $this->formatStatus('💀', sprintf('%s is dead (%d consecutive failures >= %d)', $agentName, $health->consecutiveFailures, $maxRetries), 'red');
+            }
+
+            // Agent recovered from dead state
+            if ($deadChanged && ! $isDead && $previous['is_dead']) {
+                $statusLines[] = $this->formatStatus('✓', sprintf('%s recovered from dead state', $agentName), 'green');
+            }
+
+            // Agent became unhealthy (but not dead)
+            if ($statusChanged && $status === 'unhealthy' && $previous['status'] !== 'unhealthy' && ! $isDead) {
+                $statusLines[] = $this->formatStatus('⚠', sprintf('%s is unhealthy (%d consecutive failures)', $agentName, $health->consecutiveFailures), 'red');
+            }
+
+            // Agent recovered from unhealthy to healthy/warning/degraded
+            if ($statusChanged && $previous['status'] === 'unhealthy' && $status !== 'unhealthy' && ! $isDead) {
+                $statusLines[] = $this->formatStatus('✓', sprintf('%s recovered to %s status', $agentName, $status), 'green');
+            }
+
+            // Update previous state
+            $this->previousHealthStates[$agentName] = [
+                'status' => $status,
+                'in_backoff' => $inBackoff,
+                'is_dead' => $isDead,
+            ];
+        }
+    }
+
+    /**
      * Get health status summary for display in consume output.
      * Returns array of formatted health status lines.
      *
@@ -1091,29 +1204,58 @@ PROMPT;
 
         foreach ($agentNames as $agentName) {
             $health = $this->healthTracker->getHealthStatus($agentName);
+            $maxRetries = $this->configService->getAgentMaxRetries($agentName);
+            $isDead = $this->healthTracker->isDead($agentName, $maxRetries);
             $status = $health->getStatus();
 
-            // Only show unhealthy/degraded agents
-            if ($status === 'unhealthy' || $status === 'degraded') {
-                $backoffSeconds = $health->getBackoffSeconds();
-                $formatted = $backoffSeconds < 60
-                    ? "{$backoffSeconds}s"
-                    : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
-
-                $color = $status === 'unhealthy' ? 'red' : 'yellow';
-                $icon = $status === 'unhealthy' ? '✗' : '⚠';
-
+            // Show dead agents first (red)
+            if ($isDead) {
                 $unhealthyAgents[] = $this->formatStatus(
-                    $icon,
+                    '💀',
                     sprintf(
-                        'Agent %s is %s (%d consecutive failures, backoff: %s)',
+                        'Agent %s is DEAD (%d consecutive failures, max: %d)',
                         $agentName,
-                        $status,
                         $health->consecutiveFailures,
-                        $formatted
+                        $maxRetries
                     ),
-                    $color
+                    'red'
                 );
+            } else {
+                $backoffSeconds = $health->getBackoffSeconds();
+                $inBackoff = $backoffSeconds > 0;
+
+                // Show agents in backoff (yellow)
+                if ($inBackoff) {
+                    $formatted = $backoffSeconds < 60
+                        ? "{$backoffSeconds}s"
+                        : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                    $unhealthyAgents[] = $this->formatStatus(
+                        '⏳',
+                        sprintf(
+                            'Agent %s in backoff (%s remaining, %d consecutive failures)',
+                            $agentName,
+                            $formatted,
+                            $health->consecutiveFailures
+                        ),
+                        'yellow'
+                    );
+                } elseif ($status === 'unhealthy' || $status === 'degraded') {
+                    // Show unhealthy/degraded agents (red/yellow)
+                    $color = $status === 'unhealthy' ? 'red' : 'yellow';
+                    $icon = $status === 'unhealthy' ? '✗' : '⚠';
+
+                    $unhealthyAgents[] = $this->formatStatus(
+                        $icon,
+                        sprintf(
+                            'Agent %s is %s (%d consecutive failures)',
+                            $agentName,
+                            $status,
+                            $health->consecutiveFailures
+                        ),
+                        $color
+                    );
+                }
+                // Healthy agents are not shown to avoid clutter
             }
         }
 
