@@ -385,6 +385,59 @@ it('provides failure type descriptions', function (): void {
 });
 
 // =============================================================================
+// isDead() Tests
+// =============================================================================
+
+it('returns false for new agent with isDead', function (): void {
+    expect($this->tracker->isDead('new-agent', 5))->toBeFalse();
+});
+
+it('returns false when consecutive failures below max_retries', function (): void {
+    $this->tracker->recordFailure('claude', FailureType::Network);
+    $this->tracker->recordFailure('claude', FailureType::Network);
+    $this->tracker->recordFailure('claude', FailureType::Network);
+
+    expect($this->tracker->isDead('claude', 5))->toBeFalse();
+});
+
+it('returns true when consecutive failures equals max_retries', function (): void {
+    for ($i = 0; $i < 5; $i++) {
+        $this->tracker->recordFailure('claude', FailureType::Network);
+    }
+
+    expect($this->tracker->isDead('claude', 5))->toBeTrue();
+});
+
+it('returns true when consecutive failures exceeds max_retries', function (): void {
+    for ($i = 0; $i < 7; $i++) {
+        $this->tracker->recordFailure('claude', FailureType::Network);
+    }
+
+    expect($this->tracker->isDead('claude', 5))->toBeTrue();
+});
+
+it('returns false after success resets consecutive failures', function (): void {
+    for ($i = 0; $i < 5; $i++) {
+        $this->tracker->recordFailure('claude', FailureType::Network);
+    }
+
+    expect($this->tracker->isDead('claude', 5))->toBeTrue();
+
+    $this->tracker->recordSuccess('claude');
+
+    expect($this->tracker->isDead('claude', 5))->toBeFalse();
+});
+
+it('respects custom max_retries threshold', function (): void {
+    $this->tracker->recordFailure('claude', FailureType::Network);
+    $this->tracker->recordFailure('claude', FailureType::Network);
+    $this->tracker->recordFailure('claude', FailureType::Network);
+
+    expect($this->tracker->isDead('claude', 3))->toBeTrue();
+    expect($this->tracker->isDead('claude', 5))->toBeFalse();
+});
+
+// =============================================================================
 // Edge Cases
 // =============================================================================
 

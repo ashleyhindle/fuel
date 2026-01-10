@@ -189,6 +189,7 @@ it('returns agent definition', function (): void {
         'resume_args' => [],
         'max_concurrent' => 3,
         'max_attempts' => 3,
+        'max_retries' => 5,
     ]);
 });
 
@@ -758,4 +759,71 @@ it('returns review agent name when set', function (): void {
     file_put_contents($this->configPath, Yaml::dump($config));
 
     expect($this->configService->getReviewAgent())->toBe('claude-sonnet');
+});
+
+// =============================================================================
+// getAgentMaxRetries() Tests
+// =============================================================================
+
+it('returns default max_retries when agent not configured', function (): void {
+    $config = makeConfig();
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect($this->configService->getAgentMaxRetries('unknown-agent'))->toBe(5);
+});
+
+it('returns default max_retries when agent has no max_retries set', function (): void {
+    $config = makeConfig(
+        agents: ['claude' => ['command' => 'claude']]
+    );
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect($this->configService->getAgentMaxRetries('claude'))->toBe(5);
+});
+
+it('returns configured max_retries for agent', function (): void {
+    $config = makeConfig(
+        agents: ['claude' => ['command' => 'claude', 'max_retries' => 10]]
+    );
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect($this->configService->getAgentMaxRetries('claude'))->toBe(10);
+});
+
+it('validates max_retries must be an integer', function (): void {
+    $config = makeConfig(
+        agents: ['claude' => ['command' => 'claude', 'max_retries' => 'invalid']]
+    );
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect(fn () => $this->configService->getAgentMaxRetries('claude'))
+        ->toThrow(RuntimeException::class, 'max_retries must be an integer');
+});
+
+it('includes max_retries in agent definition', function (): void {
+    $config = makeConfig(
+        agents: ['claude' => ['command' => 'claude', 'max_retries' => 7]]
+    );
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $def = $this->configService->getAgentDefinition('claude');
+
+    expect($def['max_retries'])->toBe(7);
+});
+
+it('defaults max_retries to 5 in agent definition', function (): void {
+    $config = makeConfig(
+        agents: ['claude' => ['command' => 'claude']]
+    );
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $def = $this->configService->getAgentDefinition('claude');
+
+    expect($def['max_retries'])->toBe(5);
 });
