@@ -27,8 +27,8 @@ beforeEach(function () {
         return new TaskService($databaseService);
     });
 
-    $this->app->singleton(RunService::class, function () use ($context) {
-        return new RunService($context->getRunsPath());
+    $this->app->singleton(RunService::class, function () use ($databaseService) {
+        return new RunService($databaseService);
     });
 
     $this->app->singleton(ConfigService::class, function () use ($context) {

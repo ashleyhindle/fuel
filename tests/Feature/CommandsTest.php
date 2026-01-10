@@ -30,7 +30,7 @@ beforeEach(function (): void {
     $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
     // Bind our test RunService instance
-    $this->app->singleton(RunService::class, fn (): RunService => new RunService($context->getRunsPath()));
+    $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
     // Bind our test BacklogService instance
     $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));

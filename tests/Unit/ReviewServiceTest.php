@@ -66,7 +66,7 @@ YAML;
     $this->configService = new ConfigService($this->context);
     $this->reviewPrompt = new ReviewPrompt;
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);
-    $this->runService = new RunService($this->context->getRunsPath());
+    $this->runService = new RunService($this->databaseService);
 });
 
 afterEach(function (): void {

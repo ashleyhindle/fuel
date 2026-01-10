@@ -1,13 +1,24 @@
 <?php
 
+use App\Services\DatabaseService;
 use App\Services\RunService;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->storageBasePath = $this->tempDir.'/.fuel/runs';
-    $this->runService = new RunService($this->storageBasePath);
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+    $this->dbPath = $this->tempDir.'/.fuel/agent.db';
+
+    $this->databaseService = new DatabaseService($this->dbPath);
+    $this->databaseService->initialize();
+
+    // Create a test task
     $this->taskId = 'f-test01';
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status) VALUES (?, ?, ?)',
+        [$this->taskId, 'Test Task', 'open']
+    );
+
+    $this->runService = new RunService($this->databaseService);
 });
 
 afterEach(function (): void {
@@ -40,14 +51,19 @@ afterEach(function (): void {
     $deleteDir($this->tempDir);
 });
 
-it('creates runs directory on first write', function (): void {
+it('logs a run to database', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'test-agent',
         'model' => 'test-model',
     ]);
 
-    expect(is_dir($this->storageBasePath))->toBeTrue();
-    expect(file_exists($this->storageBasePath.'/'.$this->taskId.'.jsonl'))->toBeTrue();
+    // Verify run was inserted into database
+    $taskIntId = $this->databaseService->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$this->taskId]);
+    $runs = $this->databaseService->fetchAll('SELECT * FROM runs WHERE task_id = ?', [$taskIntId['id']]);
+
+    expect($runs)->toHaveCount(1);
+    expect($runs[0]['agent'])->toBe('test-agent');
+    expect($runs[0]['model'])->toBe('test-model');
 });
 
 it('logs a run with hash-based run_id', function (): void {
@@ -217,6 +233,16 @@ it('generates unique run IDs', function (): void {
 it('stores runs for different tasks separately', function (): void {
     $taskId1 = 'f-task1';
     $taskId2 = 'f-task2';
+
+    // Create additional test tasks
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status) VALUES (?, ?, ?)',
+        [$taskId1, 'Test Task 1', 'open']
+    );
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status) VALUES (?, ?, ?)',
+        [$taskId2, 'Test Task 2', 'open']
+    );
 
     $this->runService->logRun($taskId1, [
         'agent' => 'agent1',

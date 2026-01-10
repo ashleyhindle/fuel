@@ -55,7 +55,7 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(RunService::class, fn ($app): RunService => new RunService(
-            $app->make(FuelContext::class)->getRunsPath()
+            $app->make(DatabaseService::class)
         ));
 
         $this->app->singleton(ProcessManagerInterface::class, fn ($app): ProcessManager => new ProcessManager(
