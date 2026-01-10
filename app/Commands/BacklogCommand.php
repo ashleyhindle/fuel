@@ -38,11 +38,44 @@ class BacklogCommand extends Command
                 $items->map(fn (array $item): array => [
                     $item['id'],
                     $item['title'],
-                    $item['created_at'],
+                    $this->formatDate($item['created_at']),
                 ])->toArray()
             );
         }
 
         return self::SUCCESS;
+    }
+
+    private function formatDate(string $dateString): string
+    {
+        try {
+            $date = new \DateTime($dateString);
+            $now = new \DateTime;
+            $diff = $now->diff($date);
+
+            if ($diff->days === 0 && $diff->h === 0 && $diff->i === 0) {
+                return 'just now';
+            }
+
+            if ($diff->days === 0 && $diff->h === 0) {
+                return $diff->i.'m ago';
+            }
+
+            if ($diff->days === 0) {
+                return $diff->h.'h ago';
+            }
+
+            if ($diff->days < 7) {
+                return $diff->days.'d ago';
+            }
+
+            if ($date->format('Y') === $now->format('Y')) {
+                return $date->format('M j');
+            }
+
+            return $date->format('M j, Y');
+        } catch (\Exception) {
+            return $dateString;
+        }
     }
 }
