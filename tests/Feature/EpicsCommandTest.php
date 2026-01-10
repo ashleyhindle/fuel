@@ -1,0 +1,158 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Services\DatabaseService;
+use App\Services\EpicService;
+use App\Services\TaskService;
+use Illuminate\Support\Facades\Artisan;
+
+beforeEach(function (): void {
+    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
+    mkdir($this->tempDir, 0755, true);
+    $this->dbPath = $this->tempDir.'/.fuel/agent.db';
+    mkdir(dirname($this->dbPath), 0755, true);
+    $this->tasksPath = $this->tempDir.'/.fuel/tasks.jsonl';
+
+    // Bind our test service instances
+    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => new DatabaseService($this->dbPath));
+    $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($this->tasksPath));
+    $this->app->singleton(EpicService::class, function (): EpicService {
+        return new EpicService(
+            $this->app->make(DatabaseService::class),
+            $this->app->make(TaskService::class)
+        );
+    });
+
+    $this->databaseService = $this->app->make(DatabaseService::class);
+    $this->databaseService->initialize();
+});
+
+afterEach(function (): void {
+    // Recursively delete temp directory
+    $deleteDir = function (string $dir) use (&$deleteDir): void {
+        if (! is_dir($dir)) {
+            return;
+        }
+
+        $items = scandir($dir);
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $dir.'/'.$item;
+            if (is_dir($path)) {
+                $deleteDir($path);
+            } else {
+                unlink($path);
+            }
+        }
+
+        rmdir($dir);
+    };
+
+    $deleteDir($this->tempDir);
+});
+
+describe('epics command', function (): void {
+    it('lists no epics when none exist', function (): void {
+        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('No epics found.');
+    });
+
+    it('lists epics in table format', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $epic1 = $epicService->createEpic('First Epic', 'Description 1');
+        $epic2 = $epicService->createEpic('Second Epic', 'Description 2');
+
+        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Epics (2):');
+        expect($output)->toContain('First Epic');
+        expect($output)->toContain('Second Epic');
+        expect($output)->toContain($epic1['id']);
+        expect($output)->toContain($epic2['id']);
+        expect($output)->toContain('planning');
+        expect($output)->toContain('Task Count');
+    });
+
+    it('outputs JSON when --json flag is used', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic('JSON Epic', 'JSON Description');
+
+        Artisan::call('epics', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $epics = json_decode($output, true);
+
+        expect($epics)->toBeArray();
+        expect($epics)->toHaveCount(1);
+        expect($epics[0]['id'])->toBe($epic['id']);
+        expect($epics[0]['title'])->toBe('JSON Epic');
+        expect($epics[0]['status'])->toBe('planning');
+        expect($epics[0])->toHaveKey('task_count');
+        expect($epics[0]['task_count'])->toBe(0);
+    });
+
+    it('shows correct task count for epics with tasks', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        $epic = $epicService->createEpic('Epic with Tasks');
+        $task1 = $taskService->create([
+            'title' => 'Task 1',
+            'epic_id' => $epic['id'],
+        ]);
+        $task2 = $taskService->create([
+            'title' => 'Task 2',
+            'epic_id' => $epic['id'],
+        ]);
+
+        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Epic with Tasks');
+        expect($output)->toContain('2'); // Task count should be 2
+    });
+
+    it('shows correct status based on task states', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        // Epic with no tasks - should be planning
+        $epic1 = $epicService->createEpic('Planning Epic');
+
+        // Epic with open task - should be in_progress
+        $epic2 = $epicService->createEpic('In Progress Epic');
+        $taskService->create([
+            'title' => 'Open Task',
+            'epic_id' => $epic2['id'],
+            'status' => 'open',
+        ]);
+
+        // Epic with all closed tasks - should be review_pending
+        $epic3 = $epicService->createEpic('Review Pending Epic');
+        $task3 = $taskService->create([
+            'title' => 'Closed Task',
+            'epic_id' => $epic3['id'],
+        ]);
+        $taskService->update($task3['id'], ['status' => 'closed']);
+
+        // Check JSON output for reliable status checking
+        Artisan::call('epics', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $epics = json_decode($output, true);
+
+        // Find epics by title
+        $planningEpic = collect($epics)->firstWhere('title', 'Planning Epic');
+        $inProgressEpic = collect($epics)->firstWhere('title', 'In Progress Epic');
+        $reviewPendingEpic = collect($epics)->firstWhere('title', 'Review Pending Epic');
+
+        expect($planningEpic['status'])->toBe('planning');
+        expect($inProgressEpic['status'])->toBe('in_progress');
+        expect($reviewPendingEpic['status'])->toBe('review_pending');
+    });
+});
