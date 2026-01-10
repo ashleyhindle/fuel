@@ -572,12 +572,14 @@ class ProcessManager implements ProcessManagerInterface
         // Start process with output capture
         $this->startWithOutputCapture($symfonyProcess, $stdoutPath, $stderrPath);
 
-        // Create AgentProcess for unified tracking
+        // Create AgentProcess for unified tracking with file paths
         $agentProcess = new AgentProcess(
             $symfonyProcess,
             $taskId,
             $agent,
-            time()
+            time(),
+            $stdoutPath,
+            $stderrPath
         );
 
         // Track the process
@@ -675,12 +677,14 @@ class ProcessManager implements ProcessManagerInterface
                 return SpawnResult::spawnFailed($taskId);
             }
 
-            // Create AgentProcess instance
+            // Create AgentProcess instance with file paths
             $agentProcess = new AgentProcess(
                 $symfonyProcess,
                 $taskId,
                 $agentName,
-                time()
+                time(),
+                $stdoutPath,
+                $stderrPath
             );
 
             // Track the process

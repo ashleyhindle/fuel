@@ -28,6 +28,8 @@ final class AgentProcess
         private readonly string $taskId,
         private readonly string $agentName,
         private readonly int $startTime,
+        private readonly ?string $stdoutPath = null,
+        private readonly ?string $stderrPath = null,
     ) {}
 
     public function getProcess(): Process
@@ -108,10 +110,21 @@ final class AgentProcess
     }
 
     /**
-     * Get full output including buffered output, stdout, and stderr.
+     * Get full output from files if available, otherwise fall back to process buffers.
+     * Files are written continuously via ProcessManager callback, so they contain
+     * all output even if process crashes or becomes zombie.
      */
     public function getOutput(): string
     {
+        // If file paths are available, read from files (most reliable)
+        if ($this->stdoutPath !== null && $this->stderrPath !== null) {
+            $stdout = file_exists($this->stdoutPath) ? file_get_contents($this->stdoutPath) : '';
+            $stderr = file_exists($this->stderrPath) ? file_get_contents($this->stderrPath) : '';
+
+            return $stdout.$stderr;
+        }
+
+        // Fallback to process buffers (for backward compatibility)
         return $this->outputBuffer.$this->process->getOutput().$this->process->getErrorOutput();
     }
 
