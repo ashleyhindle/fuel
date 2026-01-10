@@ -510,18 +510,15 @@ agents:
     max_concurrent: 1
     resume_args: ["--resume"]
 
-  # Example opencode configuration:
-  # opencode-glm:
-  #   command: opencode
-  #   prompt_args: ["run"]  # opencode uses positional args, not -p
-  #   model: opencode/glm-4.7-free
-  #   args:
-  #     - "--format"
-  #     - "json"
-  #   env:
-  #     OPENCODE_PERMISSION: '{"permission":"allow"}'
-  #   max_concurrent: 3
-  #   resume_args: ["--session"]
+  opencode-glm:
+    command: opencode
+    prompt_args: ["run"]
+    model: opencode/glm-4.7-free
+    args: []
+    env:
+      OPENCODE_PERMISSION: '{"permission":"allow"}'
+    max_concurrent: 2
+    resume_args: ["--session"]
 
   amp-free:
     command: amp
