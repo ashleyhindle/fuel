@@ -154,6 +154,7 @@ class TaskService
                 'size' => $size,
                 'complexity' => $complexity,
                 'blocked_by' => $data['blocked_by'] ?? [],
+                'epic_id' => $data['epic_id'] ?? null,
                 'created_at' => now()->toIso8601String(),
                 'updated_at' => now()->toIso8601String(),
             ];
@@ -227,6 +228,11 @@ class TaskService
                 $task['complexity'] = $data['complexity'];
             }
 
+            // Update epic_id if provided
+            if (array_key_exists('epic_id', $data)) {
+                $task['epic_id'] = $data['epic_id'];
+            }
+
             // Handle labels updates
             if (isset($data['add_labels']) || isset($data['remove_labels'])) {
                 $labels = $task['labels'] ?? [];
@@ -250,7 +256,7 @@ class TaskService
             }
 
             // Preserve arbitrary fields not explicitly handled above (e.g., consumed, consumed_at, consumed_exit_code, consumed_output)
-            $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'complexity', 'add_labels', 'remove_labels'];
+            $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'complexity', 'epic_id', 'add_labels', 'remove_labels'];
             foreach ($data as $key => $value) {
                 if (! in_array($key, $handledFields, true)) {
                     $task[$key] = $value;
@@ -512,13 +518,12 @@ class TaskService
      * A task is failed if:
      * 1. consumed=true with non-zero exit code (explicit failure)
      * 2. in_progress + consumed=true + null consume_pid (spawn failed or PID lost)
-     * 3. in_progress + consume_pid that is dead (if $isPidDead callback provided)
+     * 3. in_progress + consume_pid that is dead
      *
      * @param  array<string, mixed>  $task
-     * @param  callable|null  $isPidDead  Optional callback (int $pid): bool to check if a PID is dead
      * @param  array<int>  $excludePids  PIDs to exclude (e.g., actively tracked by current session)
      */
-    public function isFailed(array $task, ?callable $isPidDead = null, array $excludePids = []): bool
+    public function isFailed(array $task, array $excludePids = []): bool
     {
         $consumed = ! empty($task['consumed']);
         $exitCode = $task['consumed_exit_code'] ?? null;
@@ -535,15 +540,15 @@ class TaskService
             return true;
         }
 
-        // Case 3: in_progress + PID that is dead (if callback provided)
-        if ($status === 'in_progress' && $pid !== null && $isPidDead !== null) {
+        // Case 3: in_progress + PID that is dead
+        if ($status === 'in_progress' && $pid !== null) {
             $pidInt = (int) $pid;
             // Skip if this PID is being tracked by the caller
             if (in_array($pidInt, $excludePids, true)) {
                 return false;
             }
 
-            return $isPidDead($pidInt);
+            return ! ProcessManager::isProcessAlive($pidInt);
         }
 
         return false;
@@ -552,14 +557,13 @@ class TaskService
     /**
      * Find failed/stuck tasks that need retry.
      *
-     * @param  callable|null  $isPidDead  Optional callback (int $pid): bool to check if a PID is dead
      * @param  array<int>  $excludePids  PIDs to exclude (e.g., actively tracked by current session)
      * @return Collection<int, array<string, mixed>>
      */
-    public function failed(?callable $isPidDead = null, array $excludePids = []): Collection
+    public function failed(array $excludePids = []): Collection
     {
         return $this->all()
-            ->filter(fn (array $task): bool => $this->isFailed($task, $isPidDead, $excludePids))
+            ->filter(fn (array $task): bool => $this->isFailed($task, $excludePids))
             ->values();
     }
 
