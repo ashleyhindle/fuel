@@ -6,10 +6,13 @@ namespace App\Providers;
 
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
+use App\Contracts\ReviewServiceInterface;
+use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\ProcessManager;
+use App\Services\ReviewService;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\ServiceProvider;
@@ -45,5 +48,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => new DatabaseService(getcwd().'/.fuel/agent.db'));
 
         $this->app->singleton(AgentHealthTrackerInterface::class, AgentHealthTracker::class);
+
+        $this->app->singleton(ReviewServiceInterface::class, fn ($app): ReviewService => new ReviewService(
+            processManager: $app->make(ProcessManagerInterface::class),
+            taskService: $app->make(TaskService::class),
+            configService: $app->make(ConfigService::class),
+            reviewPrompt: new ReviewPrompt,
+        ));
     }
 }
