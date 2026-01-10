@@ -11,6 +11,10 @@ class ConfigService
 {
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
 
+    private const DEFAULT_PROMPT_ARGS = ['-p'];
+
+    private const DEFAULT_MAX_CONCURRENT = 2;
+
     private string $configPath;
 
     /** @var array<string, mixed>|null */
@@ -33,23 +37,24 @@ class ConfigService
         }
 
         if (! file_exists($this->configPath)) {
-            throw new RuntimeException("Config file not found: {$this->configPath}");
+            throw new RuntimeException('Config file not found: ' . $this->configPath);
         }
 
         $content = file_get_contents($this->configPath);
         if ($content === false) {
-            throw new RuntimeException("Failed to read config file: {$this->configPath}");
+            throw new RuntimeException('Failed to read config file: ' . $this->configPath);
         }
 
         try {
             $parsed = Yaml::parse($content);
-        } catch (\Exception $e) {
-            throw new RuntimeException("Failed to parse YAML config: {$e->getMessage()}");
+        } catch (\Exception $exception) {
+            throw new RuntimeException('Failed to parse YAML config: ' . $exception->getMessage(), $exception->getCode(), $exception);
         }
 
         if (! is_array($parsed)) {
             throw new RuntimeException('Invalid config format: expected array, got '.gettype($parsed));
         }
+
         $this->config = $parsed;
 
         $this->validateConfig($this->config);
@@ -64,68 +69,219 @@ class ConfigService
      */
     private function validateConfig(array $config): void
     {
+        // Validate agents section exists and has valid structure
+        if (! isset($config['agents']) || ! is_array($config['agents'])) {
+            throw new RuntimeException('Config must have "agents" key with array value');
+        }
+
+        foreach ($config['agents'] as $agentName => $agentConfig) {
+            if (! is_string($agentName)) {
+                throw new RuntimeException('Agent names must be strings');
+            }
+
+            if (! is_array($agentConfig)) {
+                throw new RuntimeException(sprintf("Agent '%s' config must be an array", $agentName));
+            }
+
+            if (! isset($agentConfig['command']) || ! is_string($agentConfig['command'])) {
+                throw new RuntimeException(sprintf("Agent '%s' must have 'command' string", $agentName));
+            }
+
+            // Validate optional fields have correct types
+            if (isset($agentConfig['prompt_args']) && ! is_array($agentConfig['prompt_args'])) {
+                throw new RuntimeException(sprintf("Agent '%s' prompt_args must be an array", $agentName));
+            }
+
+            if (isset($agentConfig['args']) && ! is_array($agentConfig['args'])) {
+                throw new RuntimeException(sprintf("Agent '%s' args must be an array", $agentName));
+            }
+
+            if (isset($agentConfig['env']) && ! is_array($agentConfig['env'])) {
+                throw new RuntimeException(sprintf("Agent '%s' env must be an array", $agentName));
+            }
+
+            if (isset($agentConfig['resume_args']) && ! is_array($agentConfig['resume_args'])) {
+                throw new RuntimeException(sprintf("Agent '%s' resume_args must be an array", $agentName));
+            }
+
+            if (isset($agentConfig['max_concurrent']) && ! is_int($agentConfig['max_concurrent'])) {
+                throw new RuntimeException(sprintf("Agent '%s' max_concurrent must be an integer", $agentName));
+            }
+        }
+
+        // Validate complexity section
         if (! isset($config['complexity']) || ! is_array($config['complexity'])) {
             throw new RuntimeException('Config must have "complexity" key with array value');
         }
 
-        // Validate complexity mappings
         foreach ($config['complexity'] as $complexity => $complexityConfig) {
             if (! in_array($complexity, self::VALID_COMPLEXITIES, true)) {
                 throw new RuntimeException(
-                    "Invalid complexity '{$complexity}'. Must be one of: ".implode(', ', self::VALID_COMPLEXITIES)
+                    sprintf("Invalid complexity '%s'. Must be one of: ", $complexity).implode(', ', self::VALID_COMPLEXITIES)
                 );
             }
 
-            if (! is_array($complexityConfig)) {
-                throw new RuntimeException("Complexity config for '{$complexity}' must be an array");
+            // Complexity can be a string (agent name) or array with 'agent' key
+            $agentName = $this->extractAgentName($complexityConfig);
+            if ($agentName === null) {
+                throw new RuntimeException(
+                    sprintf("Complexity '%s' must be a string (agent name) or array with 'agent' key", $complexity)
+                );
             }
 
-            if (! isset($complexityConfig['agent']) || ! is_string($complexityConfig['agent'])) {
-                throw new RuntimeException("Complexity '{$complexity}' must have 'agent' string");
+            // Validate agent reference exists
+            if (! isset($config['agents'][$agentName])) {
+                throw new RuntimeException(
+                    sprintf("Complexity '%s' references undefined agent '%s'", $complexity, $agentName)
+                );
             }
         }
 
-        // Validate agents section if present (lenient - invalid entries are skipped by getters)
-        if (isset($config['agents']) && ! is_array($config['agents'])) {
-            throw new RuntimeException('Config "agents" key must be an array');
+        // Validate primary agent (required)
+        if (! isset($config['primary'])) {
+            throw new RuntimeException("Config must have 'primary' key specifying the primary agent for orchestration");
+        }
+
+        if (! is_string($config['primary'])) {
+            throw new RuntimeException("Config 'primary' must be a string (agent name)");
+        }
+
+        if (! isset($config['agents'][$config['primary']])) {
+            throw new RuntimeException(
+                sprintf("Primary agent '%s' is not defined in agents section", $config['primary'])
+            );
         }
     }
 
     /**
-     * Get agent command array for given complexity and prompt.
+     * Extract agent name from complexity config.
+     * Supports both string format and array with 'agent' key.
      *
-     * All agents use -p for prompt and --model for model (hardcoded).
-     *
-     * @return array<int, string>
+     * @param  mixed  $complexityConfig
      */
-    public function getAgentCommand(string $complexity, string $prompt): array
+    private function extractAgentName($complexityConfig): ?string
+    {
+        if (is_string($complexityConfig)) {
+            return $complexityConfig;
+        }
+
+        if (is_array($complexityConfig) && isset($complexityConfig['agent']) && is_string($complexityConfig['agent'])) {
+            return $complexityConfig['agent'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the agent name for a given complexity level.
+     */
+    public function getAgentForComplexity(string $complexity): string
     {
         $this->validateComplexity($complexity);
 
         $config = $this->loadConfig();
 
         if (! isset($config['complexity'][$complexity])) {
-            throw new RuntimeException("No configuration found for complexity '{$complexity}'");
+            throw new RuntimeException(sprintf("No agent configured for complexity '%s'", $complexity));
         }
 
         $complexityConfig = $config['complexity'][$complexity];
-        $agent = $complexityConfig['agent'];
+        $agentName = $this->extractAgentName($complexityConfig);
 
-        // Build command array: [agent, -p, prompt, --model?, model?, ...args?]
-        $cmd = [$agent, '-p', $prompt];
-
-        // Add optional model argument if specified
-        if (isset($complexityConfig['model']) && is_string($complexityConfig['model'])) {
-            $cmd[] = '--model';
-            $cmd[] = $complexityConfig['model'];
+        if ($agentName === null) {
+            throw new RuntimeException(sprintf("No agent configured for complexity '%s'", $complexity));
         }
 
-        // Add optional extra args if specified
-        if (isset($complexityConfig['args']) && is_array($complexityConfig['args'])) {
-            foreach ($complexityConfig['args'] as $arg) {
-                if (is_string($arg)) {
-                    $cmd[] = $arg;
-                }
+        return $agentName;
+    }
+
+    /**
+     * Get full agent definition by name.
+     *
+     * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int}
+     */
+    public function getAgentDefinition(string $agentName): array
+    {
+        $config = $this->loadConfig();
+
+        if (! isset($config['agents'][$agentName])) {
+            throw new RuntimeException(sprintf("Agent '%s' is not defined", $agentName));
+        }
+
+        $agentConfig = $config['agents'][$agentName];
+
+        return [
+            'command' => $agentConfig['command'],
+            'prompt_args' => $agentConfig['prompt_args'] ?? self::DEFAULT_PROMPT_ARGS,
+            'model' => $agentConfig['model'] ?? null,
+            'args' => $agentConfig['args'] ?? [],
+            'env' => $agentConfig['env'] ?? [],
+            'resume_args' => $agentConfig['resume_args'] ?? [],
+            'max_concurrent' => $agentConfig['max_concurrent'] ?? self::DEFAULT_MAX_CONCURRENT,
+        ];
+    }
+
+    /**
+     * Get agent command array for given complexity and prompt.
+     *
+     * Builds: [command, ...prompt_args, prompt, --model, model, ...args]
+     *
+     * @return array<int, string>
+     */
+    public function getAgentCommand(string $complexity, string $prompt): array
+    {
+        $agentName = $this->getAgentForComplexity($complexity);
+
+        return $this->buildAgentCommand($agentName, $prompt, $complexity);
+    }
+
+    /**
+     * Build command array for a specific agent with a prompt.
+     *
+     * @return array<int, string>
+     */
+    public function buildAgentCommand(string $agentName, string $prompt, ?string $complexity = null): array
+    {
+        $agentDef = $this->getAgentDefinition($agentName);
+
+        // Get complexity-specific overrides if provided
+        $modelOverride = null;
+        $argsOverride = null;
+
+        if ($complexity !== null) {
+            $config = $this->loadConfig();
+            $complexityConfig = $config['complexity'][$complexity] ?? null;
+
+            if (is_array($complexityConfig)) {
+                $modelOverride = $complexityConfig['model'] ?? null;
+                $argsOverride = $complexityConfig['args'] ?? null;
+            }
+        }
+
+        // Use override or default from agent definition
+        $model = $modelOverride ?? $agentDef['model'];
+        $args = $argsOverride ?? $agentDef['args'];
+
+        // Build command: [command, ...prompt_args, prompt, --model?, model?, ...args]
+        $cmd = [$agentDef['command']];
+
+        // Add prompt args and prompt
+        foreach ($agentDef['prompt_args'] as $promptArg) {
+            $cmd[] = $promptArg;
+        }
+
+        $cmd[] = $prompt;
+
+        // Add model if specified
+        if ($model !== null && is_string($model)) {
+            $cmd[] = '--model';
+            $cmd[] = $model;
+        }
+
+        // Add additional args
+        foreach ($args as $arg) {
+            if (is_string($arg)) {
+                $cmd[] = $arg;
             }
         }
 
@@ -133,27 +289,66 @@ class ConfigService
     }
 
     /**
+     * Get environment variables for an agent.
+     *
+     * @return array<string, string>
+     */
+    public function getAgentEnv(string $agentName): array
+    {
+        $agentDef = $this->getAgentDefinition($agentName);
+
+        return $agentDef['env'];
+    }
+
+    /**
      * Get agent configuration for given complexity.
+     * Returns the full agent definition merged with any complexity overrides.
      *
      * @return array<string, mixed>
      */
     public function getAgentConfig(string $complexity): array
     {
-        $this->validateComplexity($complexity);
+        $agentName = $this->getAgentForComplexity($complexity);
+        $agentDef = $this->getAgentDefinition($agentName);
 
+        // Get complexity-specific overrides
         $config = $this->loadConfig();
-
-        if (! isset($config['complexity'][$complexity])) {
-            throw new RuntimeException("No configuration found for complexity '{$complexity}'");
-        }
-
         $complexityConfig = $config['complexity'][$complexity];
 
-        return [
-            'agent' => $complexityConfig['agent'],
-            'model' => $complexityConfig['model'] ?? null,
-            'args' => $complexityConfig['args'] ?? [],
-        ];
+        if (is_array($complexityConfig)) {
+            // Merge overrides
+            if (isset($complexityConfig['model'])) {
+                $agentDef['model'] = $complexityConfig['model'];
+            }
+
+            if (isset($complexityConfig['args'])) {
+                $agentDef['args'] = $complexityConfig['args'];
+            }
+        }
+
+        return array_merge($agentDef, ['name' => $agentName]);
+    }
+
+    /**
+     * Get the primary agent name for orchestration tasks.
+     */
+    public function getPrimaryAgent(): string
+    {
+        $config = $this->loadConfig();
+
+        return $config['primary'];
+    }
+
+    /**
+     * Get the primary agent definition.
+     *
+     * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int}
+     */
+    public function getPrimaryAgentDefinition(): array
+    {
+        $primaryAgent = $this->getPrimaryAgent();
+
+        return $this->getAgentDefinition($primaryAgent);
     }
 
     /**
@@ -163,7 +358,7 @@ class ConfigService
     {
         if (! in_array($complexity, self::VALID_COMPLEXITIES, true)) {
             throw new RuntimeException(
-                "Invalid complexity '{$complexity}'. Must be one of: ".implode(', ', self::VALID_COMPLEXITIES)
+                sprintf("Invalid complexity '%s'. Must be one of: ", $complexity).implode(', ', self::VALID_COMPLEXITIES)
             );
         }
     }
@@ -195,20 +390,13 @@ class ConfigService
     {
         $config = $this->loadConfig();
 
-        if (! isset($config['agents']) || ! is_array($config['agents'])) {
-            return 2; // Default if agents section doesn't exist
-        }
-
         if (! isset($config['agents'][$agentName])) {
-            return 2; // Default if agent not configured
+            return self::DEFAULT_MAX_CONCURRENT;
         }
 
         $agentConfig = $config['agents'][$agentName];
-        if (! is_array($agentConfig) || ! isset($agentConfig['max_concurrent'])) {
-            return 2; // Default if max_concurrent not set
-        }
 
-        return $agentConfig['max_concurrent'];
+        return $agentConfig['max_concurrent'] ?? self::DEFAULT_MAX_CONCURRENT;
     }
 
     /**
@@ -222,21 +410,47 @@ class ConfigService
         $config = $this->loadConfig();
 
         if (! isset($config['agents']) || ! is_array($config['agents'])) {
-            return []; // Return empty array if agents section doesn't exist
+            return [];
         }
 
         $limits = [];
         foreach ($config['agents'] as $agentName => $agentConfig) {
-            if (! is_string($agentName) || ! is_array($agentConfig)) {
-                continue; // Skip invalid entries
+            if (! is_string($agentName)) {
+                continue;
             }
-
-            if (isset($agentConfig['max_concurrent']) && is_int($agentConfig['max_concurrent'])) {
-                $limits[$agentName] = $agentConfig['max_concurrent'];
+            if (! is_array($agentConfig)) {
+                continue;
             }
+            $limits[$agentName] = $agentConfig['max_concurrent'] ?? self::DEFAULT_MAX_CONCURRENT;
         }
 
         return $limits;
+    }
+
+    /**
+     * Get all defined agent names.
+     *
+     * @return array<string>
+     */
+    public function getAgentNames(): array
+    {
+        $config = $this->loadConfig();
+
+        if (! isset($config['agents']) || ! is_array($config['agents'])) {
+            return [];
+        }
+
+        return array_keys($config['agents']);
+    }
+
+    /**
+     * Check if an agent is defined.
+     */
+    public function hasAgent(string $agentName): bool
+    {
+        $config = $this->loadConfig();
+
+        return isset($config['agents'][$agentName]);
     }
 
     /**
@@ -253,76 +467,73 @@ class ConfigService
             mkdir($dir, 0755, true);
         }
 
-        // Safe tools for Claude: file ops, search, fuel, git (no destructive commands)
-        $allowedTools = implode(',', [
-            'Read', 'Edit', 'Write', 'Grep', 'Glob',
-            'Bash(./fuel:*)', 'Bash(fuel:*)',
-            'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(git status:*)',
-            'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(git show:*)',
-            'Bash(ls:*)',
-            'Bash(./vendor/bin/pest:*)', 'Bash(./vendor/bin/pint:*)',
-        ]);
-
-        // Use template string to include comments showing autonomous mode flags
-        $yaml = <<<YAML
+        $yaml = <<<'YAML'
 # Fuel Configuration
-# Routes tasks to different agents based on complexity
+# Define agents once, reference by name in complexity mappings
 
-complexity:
-  trivial:
-    agent: cursor-agent
+# Primary agent for orchestration/decision-making (required)
+primary: claude-opus
+
+agents:
+  cursor-composer:
+    command: cursor-agent
+    prompt_args: ["-p"]
     model: composer-1
     args:
       - "--force"
       - "--output-format"
       - "stream-json"
+    max_concurrent: 2
+    resume_args: ["--resume="]
 
-  simple:
-    agent: cursor-agent
-    model: composer-1
-    args:
-      - "--force"
-      - "--output-format"
-      - "stream-json"
-
-  moderate:
-    agent: claude
+  claude-sonnet:
+    command: claude
+    prompt_args: ["-p"]
     model: sonnet
     args:
+      - "--dangerously-skip-permissions"
       - "--output-format"
       - "stream-json"
       - "--verbose"
-      - "--allowedTools"
-      - "{$allowedTools}"
-    # Or for full autonomous mode (no permission prompts):
-    # args:
-    #   - "--dangerously-skip-permissions"
-    #   - "--output-format"
-    #   - "stream-json"
-    #   - "--verbose"
+    max_concurrent: 2
+    resume_args: ["--resume"]
 
-  complex:
-    agent: claude
+  claude-opus:
+    command: claude
+    prompt_args: ["-p"]
     model: opus
     args:
+      - "--dangerously-skip-permissions"
       - "--output-format"
       - "stream-json"
       - "--verbose"
-      - "--allowedTools"
-      - "{$allowedTools}"
-    # Or for full autonomous mode (no permission prompts):
-    # args:
-    #   - "--dangerously-skip-permissions"
-    #   - "--output-format"
-    #   - "stream-json"
-    #   - "--verbose"
+    max_concurrent: 1
+    resume_args: ["--resume"]
 
-# Agent concurrency limits
-agents:
-  cursor-agent:
-    max_concurrent: 2
-  claude:
-    max_concurrent: 2
+  # Example opencode configuration:
+  # opencode-glm:
+  #   command: opencode
+  #   prompt_args: ["run"]  # opencode uses positional args, not -p
+  #   model: opencode/glm-4.7-free
+  #   args:
+  #     - "--format"
+  #     - "json"
+  #   env:
+  #     OPENCODE_PERMISSION: '{"permission":"allow"}'
+  #   max_concurrent: 3
+  #   resume_args: ["--session"]
+
+# Map complexity levels to agents (just reference agent names)
+complexity:
+  trivial: cursor-composer
+  simple: cursor-composer
+  moderate: claude-sonnet
+  complex: claude-opus
+
+  # Or with overrides:
+  # complex:
+  #   agent: claude-opus
+  #   model: opus  # override the agent's default model
 YAML;
 
         file_put_contents($this->configPath, $yaml);
