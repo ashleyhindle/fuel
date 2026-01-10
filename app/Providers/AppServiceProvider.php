@@ -11,6 +11,7 @@ use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\ReviewService;
 use App\Services\RunService;
@@ -32,11 +33,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService(getcwd().'/.fuel/tasks.jsonl'));
+        // FuelContext must be registered first - all path-dependent services use it
+        $this->app->singleton(FuelContext::class, fn (): FuelContext => new FuelContext);
 
-        $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService(getcwd().'/.fuel/config.yaml'));
+        $this->app->singleton(TaskService::class, fn ($app): TaskService => new TaskService(
+            $app->make(FuelContext::class)->getTasksJsonlPath()
+        ));
 
-        $this->app->singleton(RunService::class, fn (): RunService => new RunService(getcwd().'/.fuel/runs'));
+        $this->app->singleton(ConfigService::class, fn ($app): ConfigService => new ConfigService(
+            $app->make(FuelContext::class)->getConfigPath()
+        ));
+
+        $this->app->singleton(RunService::class, fn ($app): RunService => new RunService(
+            $app->make(FuelContext::class)->getRunsPath()
+        ));
 
         $this->app->singleton(ProcessManagerInterface::class, fn ($app): ProcessManager => new ProcessManager(
             configService: $app->make(ConfigService::class),
@@ -45,7 +55,9 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ProcessManager::class, fn ($app): ProcessManager => $app->make(ProcessManagerInterface::class));
 
-        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => new DatabaseService(getcwd().'/.fuel/agent.db'));
+        $this->app->singleton(DatabaseService::class, fn ($app): DatabaseService => new DatabaseService(
+            $app->make(FuelContext::class)->getDatabasePath()
+        ));
 
         $this->app->singleton(AgentHealthTrackerInterface::class, AgentHealthTracker::class);
 
