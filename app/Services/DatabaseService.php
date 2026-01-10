@@ -86,6 +86,24 @@ class DatabaseService
         // Create indexes
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
+
+        // Create reviews table
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS reviews (
+                id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL,
+                agent TEXT NOT NULL,
+                status TEXT DEFAULT \'pending\',
+                issues TEXT,
+                followup_task_ids TEXT,
+                started_at TEXT,
+                completed_at TEXT,
+                FOREIGN KEY (task_id) REFERENCES tasks(id)
+            )
+        ');
+
+        // Create indexes for reviews table
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_id)');
     }
 
     /**
@@ -159,5 +177,83 @@ class DatabaseService
     public function rollback(): void
     {
         $this->getConnection()->rollBack();
+    }
+
+    /**
+     * Record that a review has started.
+     *
+     * @return string The review ID
+     */
+    public function recordReviewStarted(string $taskId, string $agent): string
+    {
+        $reviewId = 'r-'.bin2hex(random_bytes(3));
+        $startedAt = date('c');
+
+        $this->query(
+            'INSERT INTO reviews (id, task_id, agent, status, started_at) VALUES (?, ?, ?, ?, ?)',
+            [$reviewId, $taskId, $agent, 'pending', $startedAt]
+        );
+
+        return $reviewId;
+    }
+
+    /**
+     * Record that a review has completed.
+     *
+     * @param  string  $reviewId  The review ID
+     * @param  bool  $passed  Whether the review passed
+     * @param  array  $issues  Array of issue types found (e.g., ['uncommitted_changes', 'tests_failing'])
+     * @param  array  $followupTaskIds  Array of follow-up task IDs created
+     */
+    public function recordReviewCompleted(string $reviewId, bool $passed, array $issues, array $followupTaskIds): void
+    {
+        $status = $passed ? 'passed' : 'failed';
+        $completedAt = date('c');
+
+        $this->query(
+            'UPDATE reviews SET status = ?, issues = ?, followup_task_ids = ?, completed_at = ? WHERE id = ?',
+            [$status, json_encode($issues), json_encode($followupTaskIds), $completedAt, $reviewId]
+        );
+    }
+
+    /**
+     * Get all reviews for a specific task.
+     *
+     * @return array Array of review records with issues and followup_task_ids decoded from JSON
+     */
+    public function getReviewsForTask(string $taskId): array
+    {
+        $reviews = $this->fetchAll(
+            'SELECT * FROM reviews WHERE task_id = ? ORDER BY started_at DESC',
+            [$taskId]
+        );
+
+        return array_map([$this, 'decodeReviewJsonFields'], $reviews);
+    }
+
+    /**
+     * Get all pending reviews.
+     *
+     * @return array Array of pending review records with issues and followup_task_ids decoded from JSON
+     */
+    public function getPendingReviews(): array
+    {
+        $reviews = $this->fetchAll(
+            'SELECT * FROM reviews WHERE status = ? ORDER BY started_at ASC',
+            ['pending']
+        );
+
+        return array_map([$this, 'decodeReviewJsonFields'], $reviews);
+    }
+
+    /**
+     * Decode JSON fields in a review record.
+     */
+    private function decodeReviewJsonFields(array $review): array
+    {
+        $review['issues'] = $review['issues'] !== null ? json_decode($review['issues'], true) : [];
+        $review['followup_task_ids'] = $review['followup_task_ids'] !== null ? json_decode($review['followup_task_ids'], true) : [];
+
+        return $review;
     }
 }
