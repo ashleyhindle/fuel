@@ -143,12 +143,12 @@ class InitCommand extends Command
     }
 
     /**
-     * Ensure .fuel/runs/ is in .gitignore.
+     * Ensure .fuel/runs/ and .fuel/processes/ are in .gitignore.
      */
     private function ensureGitignoreEntry(string $cwd): void
     {
         $gitignorePath = $cwd.'/.gitignore';
-        $entry = '.fuel/runs/';
+        $entries = ['.fuel/runs/', '.fuel/processes/'];
 
         // Check if .gitignore exists
         if (file_exists($gitignorePath)) {
@@ -157,19 +157,22 @@ class InitCommand extends Command
                 throw new RuntimeException('Failed to read .gitignore file: ' . $gitignorePath);
             }
 
-            // Check if entry already exists
-            if (str_contains($content, $entry)) {
-                return; // Already present, nothing to do
+            $added = [];
+            foreach ($entries as $entry) {
+                if (! str_contains($content, $entry)) {
+                    $content = rtrim($content)."\n".$entry."\n";
+                    $added[] = $entry;
+                }
             }
 
-            // Append entry to existing .gitignore
-            $content = rtrim($content)."\n".$entry."\n";
-            file_put_contents($gitignorePath, $content);
-            $this->info('Added .fuel/runs/ to .gitignore');
+            if (! empty($added)) {
+                file_put_contents($gitignorePath, $content);
+                $this->info('Added ' . implode(', ', $added) . ' to .gitignore');
+            }
         } else {
-            // Create new .gitignore with entry
-            file_put_contents($gitignorePath, $entry."\n");
-            $this->info('Created .gitignore with .fuel/runs/');
+            // Create new .gitignore with entries
+            file_put_contents($gitignorePath, implode("\n", $entries)."\n");
+            $this->info('Created .gitignore with ' . implode(', ', $entries));
         }
     }
 }
