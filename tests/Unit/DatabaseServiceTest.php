@@ -33,7 +33,7 @@ it('creates runs table with correct schema', function () {
 
     $columns = $this->service->fetchAll('PRAGMA table_info(runs)');
 
-    expect($columns)->toHaveCount(10);
+    expect($columns)->toHaveCount(13);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'task_id',
@@ -41,10 +41,13 @@ it('creates runs table with correct schema', function () {
         'status',
         'exit_code',
         'started_at',
-        'completed_at',
+        'ended_at',
         'duration_seconds',
         'session_id',
         'error_type',
+        'model',
+        'output',
+        'cost_usd',
     ]);
 });
 
@@ -72,7 +75,7 @@ it('creates indexes on runs table', function () {
     $indexNames = array_column($indexes, 'name');
 
     // SQLite auto-creates an index for PRIMARY KEY, so we check for our custom indexes
-    expect($indexNames)->toContain('idx_runs_task');
+    expect($indexNames)->toContain('idx_runs_task_id');
     expect($indexNames)->toContain('idx_runs_agent');
 });
 
@@ -160,7 +163,7 @@ it('creates epics table with correct schema', function () {
 
     $columns = $this->service->fetchAll('PRAGMA table_info(epics)');
 
-    expect($columns)->toHaveCount(8);
+    expect($columns)->toHaveCount(11);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'short_id',
@@ -170,6 +173,9 @@ it('creates epics table with correct schema', function () {
         'reviewed_at',
         'created_at',
         'updated_at',
+        'approved_at',
+        'approved_by',
+        'changes_requested_at',
     ]);
 });
 
@@ -188,7 +194,7 @@ it('auto-migrates on first getConnection call', function () {
 
     // Verify schema_version table exists and has correct version
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(7);
+    expect($version['version'])->toBe(10);
 
     // Verify tables were created
     $tables = $this->service->fetchAll(
@@ -239,7 +245,7 @@ it('runs only pending migrations when upgrading', function () {
 
     // Version should be updated to latest
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(7);
+    expect($version['version'])->toBe(10);
 
     // Epics table should be recreated
     $tables = $newService->fetchAll(
@@ -260,5 +266,5 @@ it('handles fresh database with no schema_version table', function () {
 
     // Should have all tables now
     $version = $newService->fetchOne('SELECT version FROM schema_version LIMIT 1');
-    expect($version['version'])->toBe(7);
+    expect($version['version'])->toBe(10);
 });

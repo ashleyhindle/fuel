@@ -394,6 +394,114 @@ class DatabaseService
                     $pdo->exec('ALTER TABLE epics ADD COLUMN changes_requested_at TEXT');
                 }
             },
+            9 => function (PDO $pdo): void {
+                // v9: Add run_id column to reviews table to link reviews to specific runs
+                $tableInfo = $pdo->query('PRAGMA table_info(reviews)')->fetchAll();
+                $hasRunId = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'run_id') {
+                        $hasRunId = true;
+                        break;
+                    }
+                }
+
+                if (! $hasRunId) {
+                    $pdo->exec('ALTER TABLE reviews ADD COLUMN run_id INTEGER');
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_run_id ON reviews(run_id)');
+                }
+            },
+            10 => function (PDO $pdo): void {
+                // v10: Migrate runs table to use integer FK for task_id, add model/output/cost_usd, rename completed_at to ended_at
+                // Check if runs table exists and has old schema (task_id as TEXT)
+                $tableInfo = $pdo->query('PRAGMA table_info(runs)')->fetchAll();
+                $hasOldSchema = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'task_id' && strtoupper($column['type']) === 'TEXT') {
+                        $hasOldSchema = true;
+                        break;
+                    }
+                }
+
+                if ($hasOldSchema) {
+                    // Build task short_id -> integer id lookup
+                    $taskLookup = [];
+                    $taskRows = $pdo->query('SELECT id, short_id FROM tasks')->fetchAll();
+                    foreach ($taskRows as $row) {
+                        $taskLookup[$row['short_id']] = (int) $row['id'];
+                    }
+
+                    // Create new runs table with updated schema
+                    $pdo->exec('
+                        CREATE TABLE runs_new (
+                            id TEXT PRIMARY KEY,
+                            task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+                            agent TEXT NOT NULL,
+                            status TEXT DEFAULT \'running\',
+                            exit_code INTEGER,
+                            started_at TEXT,
+                            ended_at TEXT,
+                            duration_seconds INTEGER,
+                            session_id TEXT,
+                            error_type TEXT,
+                            model TEXT,
+                            output TEXT,
+                            cost_usd REAL
+                        )
+                    ');
+
+                    // Copy data from old table (resolve task_id to integer, rename completed_at to ended_at)
+                    $oldRuns = $pdo->query('SELECT * FROM runs')->fetchAll();
+                    $stmt = $pdo->prepare('
+                        INSERT INTO runs_new (id, task_id, agent, status, exit_code, started_at, ended_at, duration_seconds, session_id, error_type, model, output, cost_usd)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ');
+
+                    foreach ($oldRuns as $run) {
+                        $taskIntId = $taskLookup[$run['task_id']] ?? null;
+                        $stmt->execute([
+                            $run['id'],
+                            $taskIntId,                      // resolved integer task_id (null if task deleted)
+                            $run['agent'],
+                            $run['status'],
+                            $run['exit_code'],
+                            $run['started_at'],
+                            $run['completed_at'],            // completed_at becomes ended_at
+                            $run['duration_seconds'],
+                            $run['session_id'],
+                            $run['error_type'],
+                            null,                            // model (new column)
+                            null,                            // output (new column)
+                            null,                            // cost_usd (new column)
+                        ]);
+                    }
+
+                    $pdo->exec('DROP TABLE runs');
+                    $pdo->exec('ALTER TABLE runs_new RENAME TO runs');
+                } else {
+                    // Fresh install or already migrated - create with new schema
+                    $pdo->exec('
+                        CREATE TABLE IF NOT EXISTS runs (
+                            id TEXT PRIMARY KEY,
+                            task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+                            agent TEXT NOT NULL,
+                            status TEXT DEFAULT \'running\',
+                            exit_code INTEGER,
+                            started_at TEXT,
+                            ended_at TEXT,
+                            duration_seconds INTEGER,
+                            session_id TEXT,
+                            error_type TEXT,
+                            model TEXT,
+                            output TEXT,
+                            cost_usd REAL
+                        )
+                    ');
+                }
+
+                // Recreate indexes for runs table
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)');
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
+            },
         ];
     }
 
@@ -454,15 +562,18 @@ class DatabaseService
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS runs (
                 id TEXT PRIMARY KEY,
-                task_id TEXT NOT NULL,
+                task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
                 agent TEXT NOT NULL,
                 status TEXT DEFAULT \'running\',
                 exit_code INTEGER,
                 started_at TEXT,
-                completed_at TEXT,
+                ended_at TEXT,
                 duration_seconds INTEGER,
                 session_id TEXT,
-                error_type TEXT
+                error_type TEXT,
+                model TEXT,
+                output TEXT,
+                cost_usd REAL
             )
         ');
 
@@ -480,7 +591,7 @@ class DatabaseService
         ');
 
         // Create indexes
-        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
 
         // Create reviews table (new schema with integer PK and short_id)
@@ -494,7 +605,8 @@ class DatabaseService
                 issues TEXT,
                 followup_task_ids TEXT,
                 started_at TEXT,
-                completed_at TEXT
+                completed_at TEXT,
+                run_id INTEGER
             )
         ');
 
@@ -502,6 +614,7 @@ class DatabaseService
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_short_id ON reviews(short_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task_id ON reviews(task_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_run_id ON reviews(run_id)');
 
         // Create epics table (new schema with integer PK and short_id)
         $pdo->exec('

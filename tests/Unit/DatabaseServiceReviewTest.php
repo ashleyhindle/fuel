@@ -42,7 +42,7 @@ function createTestTask(DatabaseService $service, string $shortId): void
 it('creates reviews table with correct schema', function () {
     $columns = $this->service->fetchAll('PRAGMA table_info(reviews)');
 
-    expect($columns)->toHaveCount(9);
+    expect($columns)->toHaveCount(10);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'short_id',
@@ -53,6 +53,7 @@ it('creates reviews table with correct schema', function () {
         'followup_task_ids',
         'started_at',
         'completed_at',
+        'run_id',
     ]);
 
     // Verify id is INTEGER PRIMARY KEY
@@ -77,6 +78,7 @@ it('creates indexes on reviews table', function () {
     expect($indexNames)->toContain('idx_reviews_short_id');
     expect($indexNames)->toContain('idx_reviews_task_id');
     expect($indexNames)->toContain('idx_reviews_status');
+    expect($indexNames)->toContain('idx_reviews_run_id');
 });
 
 it('records review started and returns review id', function () {
