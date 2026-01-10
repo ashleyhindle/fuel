@@ -1,6 +1,8 @@
 <?php
 
 use App\Services\BacklogService;
+use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Console\Command;
@@ -389,6 +391,102 @@ describe('add command', function (): void {
         // Note: TaskService.create() stores the ID as provided, so partial ID will be stored
         // The dependency resolution happens when checking blockers, not at creation time
         expect($task['blocked_by'])->toContain($partialId);
+    });
+
+    it('creates task with --epic flag', function (): void {
+        mkdir($this->tempDir.'/.fuel', 0755, true);
+        $dbPath = $this->tempDir.'/.fuel/agent.db';
+        $databaseService = new DatabaseService($dbPath);
+        $epicService = new EpicService($databaseService);
+        $epic = $epicService->createEpic('Test Epic');
+
+        Artisan::call('add', [
+            'title' => 'Task with epic',
+            '--epic' => $epic['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['epic_id'])->toBe($epic['id']);
+    });
+
+    it('creates task with -e flag (epic shortcut)', function (): void {
+        mkdir($this->tempDir.'/.fuel', 0755, true);
+        $dbPath = $this->tempDir.'/.fuel/agent.db';
+        $databaseService = new DatabaseService($dbPath);
+        $epicService = new EpicService($databaseService);
+        $epic = $epicService->createEpic('Test Epic');
+
+        Artisan::call('add', [
+            'title' => 'Task with epic shortcut',
+            '-e' => $epic['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['epic_id'])->toBe($epic['id']);
+    });
+
+    it('validates epic exists when using --epic flag', function (): void {
+        $this->artisan('add', [
+            'title' => 'Task with invalid epic',
+            '--epic' => 'e-nonexistent',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain("Epic 'e-nonexistent' not found")
+            ->assertExitCode(1);
+    });
+
+    it('creates task with --epic and other flags', function (): void {
+        mkdir($this->tempDir.'/.fuel', 0755, true);
+        $dbPath = $this->tempDir.'/.fuel/agent.db';
+        $databaseService = new DatabaseService($dbPath);
+        $epicService = new EpicService($databaseService);
+        $epic = $epicService->createEpic('Test Epic');
+
+        Artisan::call('add', [
+            'title' => 'Complete task with epic',
+            '--description' => 'Epic feature',
+            '--type' => 'feature',
+            '--priority' => '2',
+            '--labels' => 'backend',
+            '--epic' => $epic['id'],
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Complete task with epic');
+        expect($task['description'])->toBe('Epic feature');
+        expect($task['type'])->toBe('feature');
+        expect($task['priority'])->toBe(2);
+        expect($task['labels'])->toBe(['backend']);
+        expect($task['epic_id'])->toBe($epic['id']);
+    });
+
+    it('supports partial epic IDs in --epic flag', function (): void {
+        mkdir($this->tempDir.'/.fuel', 0755, true);
+        $dbPath = $this->tempDir.'/.fuel/agent.db';
+        $databaseService = new DatabaseService($dbPath);
+        $epicService = new EpicService($databaseService);
+        $epic = $epicService->createEpic('Test Epic');
+        $partialId = substr($epic['id'], 2, 3); // Just hash part
+
+        Artisan::call('add', [
+            'title' => 'Task with partial epic ID',
+            '--epic' => $partialId,
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['epic_id'])->toBe($epic['id']);
     });
 
     it('adds item to backlog with --someday flag', function (): void {
@@ -3599,7 +3697,8 @@ describe('stuck command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Stuck task');
-        expect($output)->toContain('Exit code: 42');
+        expect($output)->toContain('Reason:');
+        expect($output)->toContain('Exit code 42');
         expect($output)->toContain('Error message here');
     });
 

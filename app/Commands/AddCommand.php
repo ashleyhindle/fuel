@@ -6,6 +6,8 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
+use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -25,12 +27,13 @@ class AddCommand extends Command
         {--size= : Task size (xs|s|m|l|xl)}
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}
+        {--e|epic= : Epic ID to associate this task with}
         {--someday : Add to backlog instead of tasks}
         {--backlog : Add to backlog (alias for --someday)}';
 
     protected $description = 'Add a new task';
 
-    public function handle(TaskService $taskService, BacklogService $backlogService): int
+    public function handle(TaskService $taskService, BacklogService $backlogService, EpicService $epicService): int
     {
         // Handle --someday or --backlog flag: add to backlog instead of tasks
         if ($this->option('backlog') || $this->option('someday')) {
@@ -62,6 +65,12 @@ class AddCommand extends Command
 
         // Existing task creation logic
         $this->configureCwd($taskService);
+
+        // Configure EpicService database path if --cwd is provided
+        if ($cwd = $this->option('cwd')) {
+            $databaseService = new DatabaseService($cwd.'/.fuel/agent.db');
+            $epicService = new EpicService($databaseService);
+        }
 
         $taskService->initialize();
 
@@ -107,6 +116,16 @@ class AddCommand extends Command
         // Add blocked-by dependencies (comma-separated task IDs)
         if ($blockedBy = $this->option('blocked-by')) {
             $data['blocked_by'] = array_map(trim(...), explode(',', $blockedBy));
+        }
+
+        // Add epic_id if provided
+        if ($epic = $this->option('epic')) {
+            // Validate epic exists
+            $epicRecord = $epicService->getEpic($epic);
+            if ($epicRecord === null) {
+                return $this->outputError(sprintf("Epic '%s' not found", $epic));
+            }
+            $data['epic_id'] = $epicRecord['id'];
         }
 
         try {
