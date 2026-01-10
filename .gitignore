@@ -13,4 +13,6 @@ fuel-orchestrator-v2*.md
 handoff.md
 .fuel/processes/
 .fuel/agent.db
+.fuel/agent.db-wal
+.fuel/agent.db-shm
 *.md

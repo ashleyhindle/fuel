@@ -152,12 +152,12 @@ class InitCommand extends Command
     }
 
     /**
-     * Ensure .fuel/runs/, .fuel/processes/, and .fuel/agent.db are in .gitignore.
+     * Ensure .fuel/runs/, .fuel/processes/, .fuel/agent.db, .fuel/agent.db-wal, and .fuel/agent.db-shm are in .gitignore.
      */
     private function ensureGitignoreEntry(string $cwd): void
     {
         $gitignorePath = $cwd.'/.gitignore';
-        $entries = ['.fuel/runs/', '.fuel/processes/', '.fuel/agent.db'];
+        $entries = ['.fuel/runs/', '.fuel/processes/', '.fuel/agent.db', '.fuel/agent.db-wal', '.fuel/agent.db-shm'];
 
         // Check if .gitignore exists
         if (file_exists($gitignorePath)) {
