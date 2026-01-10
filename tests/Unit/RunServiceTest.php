@@ -230,6 +230,46 @@ it('generates unique run IDs', function (): void {
     expect(count(array_unique($runIds)))->toBe(10);
 });
 
+it('generates globally unique run IDs across all tasks', function (): void {
+    $taskId1 = 'f-task1';
+    $taskId2 = 'f-task2';
+
+    // Create additional test tasks
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status) VALUES (?, ?, ?)',
+        [$taskId1, 'Test Task 1', 'open']
+    );
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status) VALUES (?, ?, ?)',
+        [$taskId2, 'Test Task 2', 'open']
+    );
+
+    // Create runs for different tasks
+    for ($i = 0; $i < 5; $i++) {
+        $this->runService->logRun($taskId1, [
+            'agent' => 'agent1',
+            'model' => 'model1',
+        ]);
+    }
+
+    for ($i = 0; $i < 5; $i++) {
+        $this->runService->logRun($taskId2, [
+            'agent' => 'agent2',
+            'model' => 'model2',
+        ]);
+    }
+
+    // Get all run IDs from database
+    $allRuns = $this->databaseService->fetchAll('SELECT id FROM runs');
+    $allRunIds = array_map(fn (array $run): string => $run['id'], $allRuns);
+
+    // Verify we have 10 runs total
+    expect($allRunIds)->toHaveCount(10);
+
+    // Verify all run IDs are unique globally (not just per-task)
+    expect(count(array_unique($allRunIds)))->toBe(10);
+});
+
 it('stores runs for different tasks separately', function (): void {
     $taskId1 = 'f-task1';
     $taskId2 = 'f-task2';
@@ -360,4 +400,161 @@ it('truncates output when updating latest run', function (): void {
     $runs = $this->runService->getRuns($this->taskId);
 
     expect(strlen((string) $runs[0]['output']))->toBe(10240); // Exactly 10KB
+});
+
+it('throws exception when logging run for non-existent task', function (): void {
+    expect(fn () => $this->runService->logRun('f-nonexist', [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]))->toThrow(RuntimeException::class, 'Task f-nonexist not found');
+});
+
+it('returns empty array when getting runs for non-existent task', function (): void {
+    $runs = $this->runService->getRuns('f-nonexist');
+
+    expect($runs)->toBe([]);
+});
+
+it('returns null when getting latest run for non-existent task', function (): void {
+    $latest = $this->runService->getLatestRun('f-nonexist');
+
+    expect($latest)->toBeNull();
+});
+
+it('imports runs from JSONL files', function (): void {
+    // Create a runs directory with JSONL files
+    $runsDir = $this->tempDir.'/.fuel/runs';
+    mkdir($runsDir, 0755, true);
+
+    // Create a task to import runs for
+    $taskId = 'f-import1';
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status) VALUES (?, ?, ?)',
+        [$taskId, 'Import Test Task', 'open']
+    );
+
+    // Create a JSONL file with sample runs
+    $jsonlPath = $runsDir.'/'.$taskId.'.jsonl';
+    $runs = [
+        [
+            'run_id' => 'run-abc123',
+            'agent' => 'test-agent-1',
+            'model' => 'test-model-1',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'ended_at' => '2026-01-07T10:05:00+00:00',
+            'exit_code' => 0,
+            'output' => 'Test output 1',
+        ],
+        [
+            'run_id' => 'run-def456',
+            'agent' => 'test-agent-2',
+            'model' => 'test-model-2',
+            'started_at' => '2026-01-07T11:00:00+00:00',
+            'ended_at' => '2026-01-07T11:10:00+00:00',
+            'exit_code' => 1,
+            'output' => 'Test output 2',
+        ],
+    ];
+
+    file_put_contents($jsonlPath, implode("\n", array_map(fn ($r) => json_encode($r), $runs)));
+
+    // Import runs from JSONL
+    $imported = $this->databaseService->importRunsFromJsonl();
+
+    expect($imported)->toBe(2);
+
+    // Verify runs were imported
+    $importedRuns = $this->runService->getRuns($taskId);
+    expect($importedRuns)->toHaveCount(2);
+    expect($importedRuns[0]['run_id'])->toBe('run-abc123');
+    expect($importedRuns[0]['agent'])->toBe('test-agent-1');
+    expect($importedRuns[0]['model'])->toBe('test-model-1');
+    expect($importedRuns[1]['run_id'])->toBe('run-def456');
+    expect($importedRuns[1]['agent'])->toBe('test-agent-2');
+});
+
+it('skips duplicate runs when importing from JSONL', function (): void {
+    // Create a runs directory with JSONL files
+    $runsDir = $this->tempDir.'/.fuel/runs';
+    mkdir($runsDir, 0755, true);
+
+    // Create a task
+    $taskId = 'f-import2';
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status) VALUES (?, ?, ?)',
+        [$taskId, 'Duplicate Test Task', 'open']
+    );
+
+    // Manually insert a run that will appear in the JSONL
+    $this->databaseService->query(
+        'INSERT INTO runs (id, task_id, agent, model, started_at, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [
+            'run-existing',
+            $this->databaseService->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$taskId])['id'],
+            'existing-agent',
+            'existing-model',
+            '2026-01-07T09:00:00+00:00',
+            'completed',
+        ]
+    );
+
+    // Create JSONL with duplicate run_id and one new run
+    $jsonlPath = $runsDir.'/'.$taskId.'.jsonl';
+    $runs = [
+        [
+            'run_id' => 'run-existing', // Duplicate
+            'agent' => 'existing-agent',
+            'model' => 'existing-model',
+            'started_at' => '2026-01-07T09:00:00+00:00',
+        ],
+        [
+            'run_id' => 'run-new123',
+            'agent' => 'new-agent',
+            'model' => 'new-model',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+        ],
+    ];
+
+    file_put_contents($jsonlPath, implode("\n", array_map(fn ($r) => json_encode($r), $runs)));
+
+    // Import - should skip duplicate and import only the new run
+    $imported = $this->databaseService->importRunsFromJsonl();
+
+    expect($imported)->toBe(1);
+
+    // Verify we have 2 runs total (1 existing + 1 new)
+    $importedRuns = $this->runService->getRuns($taskId);
+    expect($importedRuns)->toHaveCount(2);
+    expect($importedRuns[0]['run_id'])->toBe('run-existing');
+    expect($importedRuns[1]['run_id'])->toBe('run-new123');
+});
+
+it('skips JSONL import when no runs directory exists', function (): void {
+    // Don't create a runs directory
+    $imported = $this->databaseService->importRunsFromJsonl();
+
+    expect($imported)->toBe(0);
+});
+
+it('skips JSONL import for tasks that no longer exist', function (): void {
+    // Create a runs directory with JSONL for a non-existent task
+    $runsDir = $this->tempDir.'/.fuel/runs';
+    mkdir($runsDir, 0755, true);
+
+    $jsonlPath = $runsDir.'/f-deleted.jsonl';
+    $runs = [
+        [
+            'run_id' => 'run-orphan1',
+            'agent' => 'orphan-agent',
+            'model' => 'orphan-model',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+        ],
+    ];
+
+    file_put_contents($jsonlPath, implode("\n", array_map(fn ($r) => json_encode($r), $runs)));
+
+    // Import should skip this file since task doesn't exist
+    $imported = $this->databaseService->importRunsFromJsonl();
+
+    expect($imported)->toBe(0);
 });
