@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\EpicService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -22,7 +23,7 @@ class DoneCommand extends Command
 
     protected $description = 'Mark one or more tasks as done';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, EpicService $epicService): int
     {
         $this->configureCwd($taskService);
 
@@ -46,13 +47,32 @@ class DoneCommand extends Command
             return $this->outputError($errors[0]['error']);
         }
 
+        $epicCompletions = [];
+        foreach ($tasks as $task) {
+            $epicId = $task['epic_id'] ?? null;
+            if ($epicId !== null && is_string($epicId) && ! isset($epicCompletions[$epicId])) {
+                $result = $epicService->checkEpicCompletion($epicId);
+                if ($result['completed']) {
+                    $epicCompletions[$epicId] = $result;
+                }
+            }
+        }
+
         if ($this->option('json')) {
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
-                $this->outputJson($tasks[0]);
+                $output = $tasks[0];
+                if (! empty($epicCompletions)) {
+                    $output['epic_completions'] = array_values($epicCompletions);
+                }
+                $this->outputJson($output);
             } else {
-                // Multiple tasks - return array
-                $this->outputJson($tasks);
+                // Multiple tasks - return array with epic completions
+                $output = ['tasks' => $tasks];
+                if (! empty($epicCompletions)) {
+                    $output['epic_completions'] = array_values($epicCompletions);
+                }
+                $this->outputJson($output);
             }
         } else {
             foreach ($tasks as $task) {
@@ -65,6 +85,11 @@ class DoneCommand extends Command
                 if (isset($task['commit_hash'])) {
                     $this->line('  Commit: '.$task['commit_hash']);
                 }
+            }
+
+            foreach ($epicCompletions as $epicId => $completion) {
+                $this->newLine();
+                $this->info("Epic {$epicId} completed! Review task created: {$completion['review_task_id']}");
             }
         }
 
