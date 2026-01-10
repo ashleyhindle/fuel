@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Process\ProcessOutput;
+use App\Process\Process;
 use App\Process\ProcessStatus;
 use App\Services\ConfigService;
 use App\Services\ProcessManager;
@@ -77,8 +79,8 @@ class ProcessManagerTest extends TestCase
         // Verify output directory and files are created
         $outputDir = getcwd().'/.fuel/processes/f-test01';
         $this->assertTrue(File::exists($outputDir));
-        $this->assertTrue(File::exists("{$outputDir}/stdout.log"));
-        $this->assertTrue(File::exists("{$outputDir}/stderr.log"));
+        $this->assertTrue(File::exists($outputDir . '/stdout.log'));
+        $this->assertTrue(File::exists($outputDir . '/stderr.log'));
 
         // Clean up - kill the process
         $this->processManager->kill('f-test01');
@@ -90,7 +92,7 @@ class ProcessManagerTest extends TestCase
         $this->assertEquals(0, $this->processManager->getRunningCount());
 
         // Spawn first process
-        $process1 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-test01',
             agent: 'claude',
             command: 'sleep 2',
@@ -100,7 +102,7 @@ class ProcessManagerTest extends TestCase
         $this->assertEquals(1, $this->processManager->getRunningCount());
 
         // Spawn second process
-        $process2 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-test02',
             agent: 'claude',
             command: 'sleep 2',
@@ -129,7 +131,7 @@ class ProcessManagerTest extends TestCase
     public function test_kill_terminates_process(): void
     {
         // Spawn a long-running process
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-test01',
             agent: 'claude',
             command: 'sleep 10',
@@ -154,7 +156,7 @@ class ProcessManagerTest extends TestCase
     public function test_is_running_returns_false_after_completion(): void
     {
         // Spawn a quick process
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-test01',
             agent: 'claude',
             command: 'sleep 0.01',
@@ -190,7 +192,7 @@ class ProcessManagerTest extends TestCase
     {
         // For this test, we need a command that produces output
         // Since our mock uses 'sleep', we'll just check that output files are created
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-test01',
             agent: 'claude',
             command: 'sleep 0.01',
@@ -211,7 +213,7 @@ class ProcessManagerTest extends TestCase
         $output = $this->processManager->getOutput('f-test01');
 
         // Verify output - check that we got the ProcessOutput object with paths at least
-        $this->assertInstanceOf(\App\Process\ProcessOutput::class, $output);
+        $this->assertInstanceOf(ProcessOutput::class, $output);
         $this->assertStringContainsString('.fuel/processes/f-test01/stdout.log', $output->stdoutPath);
         $this->assertStringContainsString('.fuel/processes/f-test01/stderr.log', $output->stderrPath);
 
@@ -227,14 +229,14 @@ class ProcessManagerTest extends TestCase
         $this->assertEmpty($this->processManager->getRunningProcesses());
 
         // Spawn two processes
-        $process1 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-test01',
             agent: 'claude',
             command: 'sleep 2',
             cwd: '/tmp'
         );
 
-        $process2 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-test02',
             agent: 'claude',
             command: 'sleep 2',
@@ -245,7 +247,7 @@ class ProcessManagerTest extends TestCase
         $this->assertCount(2, $runningProcesses);
 
         // Verify the processes are the ones we spawned
-        $taskIds = array_map(fn ($p) => $p->taskId, $runningProcesses);
+        $taskIds = array_map(fn (Process $p): string => $p->taskId, $runningProcesses);
         $this->assertContains('f-test01', $taskIds);
         $this->assertContains('f-test02', $taskIds);
 

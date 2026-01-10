@@ -60,17 +60,18 @@ describe('consume command parallel execution logic', function () {
     it('verifies config supports multiple agent limits', function () {
         // Create config with different agent limits
         $config = [
+            'agents' => [
+                'test-agent-1' => ['command' => 'test-agent-1', 'max_concurrent' => 2],
+                'test-agent-2' => ['command' => 'test-agent-2', 'max_concurrent' => 3],
+                'claude' => ['command' => 'claude', 'max_concurrent' => 5],
+            ],
             'complexity' => [
-                'trivial' => ['agent' => 'test-agent-1'],
-                'simple' => ['agent' => 'test-agent-2'],
+                'trivial' => 'test-agent-1',
+                'simple' => 'test-agent-2',
                 'moderate' => ['agent' => 'claude', 'model' => 'sonnet'],
                 'complex' => ['agent' => 'claude', 'model' => 'opus'],
             ],
-            'agents' => [
-                'test-agent-1' => ['max_concurrent' => 2],
-                'test-agent-2' => ['max_concurrent' => 3],
-                'claude' => ['max_concurrent' => 5],
-            ],
+            'primary' => 'claude',
         ];
 
         file_put_contents($this->configPath, Yaml::dump($config));
@@ -92,16 +93,17 @@ describe('consume command parallel execution logic', function () {
     it('supports parallel task selection with different complexities', function () {
         // Create config mapping complexities to different agents
         $config = [
+            'agents' => [
+                'fast-agent' => ['command' => 'fast-agent', 'max_concurrent' => 4],
+                'smart-agent' => ['command' => 'smart-agent', 'max_concurrent' => 2],
+            ],
             'complexity' => [
-                'trivial' => ['agent' => 'fast-agent'],
-                'simple' => ['agent' => 'fast-agent'],
+                'trivial' => 'fast-agent',
+                'simple' => 'fast-agent',
                 'moderate' => ['agent' => 'smart-agent', 'model' => 'sonnet'],
                 'complex' => ['agent' => 'smart-agent', 'model' => 'opus'],
             ],
-            'agents' => [
-                'fast-agent' => ['max_concurrent' => 4],
-                'smart-agent' => ['max_concurrent' => 2],
-            ],
+            'primary' => 'smart-agent',
         ];
 
         file_put_contents($this->configPath, Yaml::dump($config));
@@ -136,19 +138,23 @@ describe('consume command parallel execution logic', function () {
 
         // Verify we can get agent config for each complexity
         $trivialConfig = $this->configService->getAgentConfig('trivial');
-        expect($trivialConfig['agent'])->toBe('fast-agent');
+        expect($trivialConfig['name'])->toBe('fast-agent');
 
         $moderateConfig = $this->configService->getAgentConfig('moderate');
-        expect($moderateConfig['agent'])->toBe('smart-agent');
+        expect($moderateConfig['name'])->toBe('smart-agent');
         expect($moderateConfig['model'])->toBe('sonnet');
     });
 
-    it('uses default agent limit of 2 when not configured', function () {
-        // Create minimal config without agents section
+    it('uses default agent limit of 2 when agent missing max_concurrent', function () {
+        // Create config with agent but no max_concurrent
         $config = [
-            'complexity' => [
-                'simple' => ['agent' => 'test-agent'],
+            'agents' => [
+                'test-agent' => ['command' => 'test-agent'],
             ],
+            'complexity' => [
+                'simple' => 'test-agent',
+            ],
+            'primary' => 'test-agent',
         ];
 
         file_put_contents($this->configPath, Yaml::dump($config));
@@ -156,10 +162,6 @@ describe('consume command parallel execution logic', function () {
         // Verify default limit is 2
         $limit = $this->configService->getAgentLimit('test-agent');
         expect($limit)->toBe(2);
-
-        // Verify unconfigured agent also gets default
-        $limit2 = $this->configService->getAgentLimit('unknown-agent');
-        expect($limit2)->toBe(2);
     });
 });
 
@@ -168,12 +170,13 @@ describe('consume command integration', function () {
         // This test verifies the integration between ConsumeCommand and RunService
         // Create a simple config
         $config = [
-            'complexity' => [
-                'trivial' => ['agent' => 'echo', 'args' => ['Task completed']],
-            ],
             'agents' => [
-                'echo' => ['max_concurrent' => 1],
+                'echo' => ['command' => 'echo', 'args' => ['Task completed'], 'max_concurrent' => 1],
             ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
         ];
 
         file_put_contents($this->configPath, Yaml::dump($config));
@@ -229,12 +232,13 @@ describe('consume command permission-blocked detection', function () {
     it('detects "commands are being rejected" and creates needs-human task', function () {
         // Create config
         $config = [
-            'complexity' => [
-                'trivial' => ['agent' => 'echo', 'args' => []],
-            ],
             'agents' => [
-                'echo' => ['max_concurrent' => 1],
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
             ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
         ];
         file_put_contents($this->configPath, Yaml::dump($config));
 
@@ -304,9 +308,13 @@ describe('consume command permission-blocked detection', function () {
 
     it('detects "terminal commands are being rejected" pattern', function () {
         $config = [
-            'complexity' => [
-                'simple' => ['agent' => 'test-agent'],
+            'agents' => [
+                'test-agent' => ['command' => 'test-agent'],
             ],
+            'complexity' => [
+                'simple' => 'test-agent',
+            ],
+            'primary' => 'test-agent',
         ];
         file_put_contents($this->configPath, Yaml::dump($config));
 
@@ -344,9 +352,13 @@ describe('consume command permission-blocked detection', function () {
 
     it('detects "please manually complete" pattern', function () {
         $config = [
-            'complexity' => [
-                'simple' => ['agent' => 'manual-agent'],
+            'agents' => [
+                'manual-agent' => ['command' => 'manual-agent'],
             ],
+            'complexity' => [
+                'simple' => 'manual-agent',
+            ],
+            'primary' => 'manual-agent',
         ];
         file_put_contents($this->configPath, Yaml::dump($config));
 
@@ -383,9 +395,13 @@ describe('consume command permission-blocked detection', function () {
 
     it('completes normally when no permission errors are detected', function () {
         $config = [
-            'complexity' => [
-                'trivial' => ['agent' => 'echo', 'args' => []],
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => []],
             ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
         ];
         file_put_contents($this->configPath, Yaml::dump($config));
 
@@ -425,9 +441,13 @@ describe('consume command permission-blocked detection', function () {
 
     it('detects permission errors case-insensitively', function () {
         $config = [
-            'complexity' => [
-                'simple' => ['agent' => 'test-agent'],
+            'agents' => [
+                'test-agent' => ['command' => 'test-agent'],
             ],
+            'complexity' => [
+                'simple' => 'test-agent',
+            ],
+            'primary' => 'test-agent',
         ];
         file_put_contents($this->configPath, Yaml::dump($config));
 

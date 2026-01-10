@@ -2,28 +2,32 @@
 
 use App\Services\BacklogService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-backlog-test-'.uniqid();
     mkdir($this->tempDir, 0755, true);
     $this->storagePath = $this->tempDir.'/.fuel/backlog.jsonl';
     $this->backlogService = new BacklogService($this->storagePath);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Clean up temp files
     $fuelDir = dirname($this->storagePath);
     if (file_exists($this->storagePath)) {
         unlink($this->storagePath);
     }
+
     if (file_exists($this->storagePath.'.lock')) {
         unlink($this->storagePath.'.lock');
     }
+
     if (file_exists($this->storagePath.'.tmp')) {
         unlink($this->storagePath.'.tmp');
     }
+
     if (is_dir($fuelDir)) {
         rmdir($fuelDir);
     }
+
     if (is_dir($this->tempDir)) {
         rmdir($this->tempDir);
     }
@@ -33,7 +37,7 @@ afterEach(function () {
 // Initialize Tests
 // =============================================================================
 
-it('initializes storage directory and file', function () {
+it('initializes storage directory and file', function (): void {
     $this->backlogService->initialize();
 
     expect(file_exists($this->storagePath))->toBeTrue();
@@ -44,18 +48,18 @@ it('initializes storage directory and file', function () {
 // Add Tests
 // =============================================================================
 
-it('adds a backlog item with hash-based ID', function () {
+it('adds a backlog item with hash-based ID', function (): void {
     $this->backlogService->initialize();
 
     $item = $this->backlogService->add('Test item');
 
     expect($item['id'])->toStartWith('b-');
-    expect(strlen($item['id']))->toBe(8); // b- + 6 chars
+    expect(strlen((string) $item['id']))->toBe(8); // b- + 6 chars
     expect($item['title'])->toBe('Test item');
     expect($item['created_at'])->not->toBeNull();
 });
 
-it('adds a backlog item with description', function () {
+it('adds a backlog item with description', function (): void {
     $this->backlogService->initialize();
 
     $item = $this->backlogService->add('Test item', 'This is a description');
@@ -64,7 +68,7 @@ it('adds a backlog item with description', function () {
     expect($item['description'])->toBe('This is a description');
 });
 
-it('adds a backlog item without description', function () {
+it('adds a backlog item without description', function (): void {
     $this->backlogService->initialize();
 
     $item = $this->backlogService->add('Test item');
@@ -72,7 +76,7 @@ it('adds a backlog item without description', function () {
     expect($item['description'])->toBeNull();
 });
 
-it('persists backlog items to file', function () {
+it('persists backlog items to file', function (): void {
     $this->backlogService->initialize();
     $item = $this->backlogService->add('Test item');
 
@@ -89,7 +93,7 @@ it('persists backlog items to file', function () {
 // All Tests
 // =============================================================================
 
-it('returns empty collection when no backlog items', function () {
+it('returns empty collection when no backlog items', function (): void {
     $this->backlogService->initialize();
 
     $all = $this->backlogService->all();
@@ -97,7 +101,7 @@ it('returns empty collection when no backlog items', function () {
     expect($all)->toBeEmpty();
 });
 
-it('returns all backlog items', function () {
+it('returns all backlog items', function (): void {
     $this->backlogService->initialize();
     $item1 = $this->backlogService->add('Item 1');
     $item2 = $this->backlogService->add('Item 2');
@@ -115,7 +119,7 @@ it('returns all backlog items', function () {
 // Find Tests
 // =============================================================================
 
-it('finds backlog item by exact ID', function () {
+it('finds backlog item by exact ID', function (): void {
     $this->backlogService->initialize();
     $created = $this->backlogService->add('Test item');
 
@@ -126,12 +130,12 @@ it('finds backlog item by exact ID', function () {
     expect($found['title'])->toBe('Test item');
 });
 
-it('finds backlog item by partial ID', function () {
+it('finds backlog item by partial ID', function (): void {
     $this->backlogService->initialize();
     $created = $this->backlogService->add('Test item');
 
     // Extract just the hash part (after 'b-')
-    $hashPart = substr($created['id'], 2, 2); // Just first 2 chars of hash
+    $hashPart = substr((string) $created['id'], 2, 2); // Just first 2 chars of hash
 
     $found = $this->backlogService->find($hashPart);
 
@@ -139,12 +143,12 @@ it('finds backlog item by partial ID', function () {
     expect($found['id'])->toBe($created['id']);
 });
 
-it('finds backlog item by partial ID without prefix', function () {
+it('finds backlog item by partial ID without prefix', function (): void {
     $this->backlogService->initialize();
     $created = $this->backlogService->add('Test item');
 
     // Extract just the hash part (after 'b-')
-    $hashPart = substr($created['id'], 2, 3); // First 3 chars of hash
+    $hashPart = substr((string) $created['id'], 2, 3); // First 3 chars of hash
 
     $found = $this->backlogService->find($hashPart);
 
@@ -152,7 +156,7 @@ it('finds backlog item by partial ID without prefix', function () {
     expect($found['id'])->toBe($created['id']);
 });
 
-it('throws exception for ambiguous partial ID', function () {
+it('throws exception for ambiguous partial ID', function (): void {
     $this->backlogService->initialize();
     $this->backlogService->add('Item 1');
     $this->backlogService->add('Item 2');
@@ -161,7 +165,7 @@ it('throws exception for ambiguous partial ID', function () {
     $this->backlogService->find('b');
 })->throws(RuntimeException::class, 'Ambiguous backlog ID');
 
-it('returns null for non-existent backlog item', function () {
+it('returns null for non-existent backlog item', function (): void {
     $this->backlogService->initialize();
 
     $found = $this->backlogService->find('b-nonexistent');
@@ -173,7 +177,7 @@ it('returns null for non-existent backlog item', function () {
 // Delete Tests
 // =============================================================================
 
-it('deletes a backlog item by ID', function () {
+it('deletes a backlog item by ID', function (): void {
     $this->backlogService->initialize();
     $item1 = $this->backlogService->add('Item 1');
     $item2 = $this->backlogService->add('Item 2');
@@ -189,10 +193,10 @@ it('deletes a backlog item by ID', function () {
     expect($all->first()['id'])->toBe($item2['id']);
 });
 
-it('deletes a backlog item by partial ID', function () {
+it('deletes a backlog item by partial ID', function (): void {
     $this->backlogService->initialize();
     $item = $this->backlogService->add('Test item');
-    $hashPart = substr($item['id'], 2, 3);
+    $hashPart = substr((string) $item['id'], 2, 3);
 
     $deleted = $this->backlogService->delete($hashPart);
 
@@ -203,7 +207,7 @@ it('deletes a backlog item by partial ID', function () {
     expect($all)->toBeEmpty();
 });
 
-it('throws exception when deleting non-existent backlog item', function () {
+it('throws exception when deleting non-existent backlog item', function (): void {
     $this->backlogService->initialize();
 
     $this->backlogService->delete('b-nonexistent');
@@ -213,25 +217,25 @@ it('throws exception when deleting non-existent backlog item', function () {
 // Generate ID Tests
 // =============================================================================
 
-it('generates unique IDs', function () {
+it('generates unique IDs', function (): void {
     $this->backlogService->initialize();
 
     $ids = [];
     for ($i = 0; $i < 10; $i++) {
-        $item = $this->backlogService->add("Item $i");
+        $item = $this->backlogService->add('Item ' . $i);
         $ids[] = $item['id'];
     }
 
     expect(count(array_unique($ids)))->toBe(10);
 });
 
-it('generates unique IDs with collision detection', function () {
+it('generates unique IDs with collision detection', function (): void {
     $this->backlogService->initialize();
 
     // Create many items to exercise collision detection
     $ids = [];
     for ($i = 0; $i < 100; $i++) {
-        $item = $this->backlogService->add("Item $i");
+        $item = $this->backlogService->add('Item ' . $i);
         $ids[] = $item['id'];
     }
 
@@ -239,42 +243,42 @@ it('generates unique IDs with collision detection', function () {
     expect(count(array_unique($ids)))->toBe(100);
 });
 
-it('generateId works when called directly without parameters', function () {
+it('generateId works when called directly without parameters', function (): void {
     $this->backlogService->initialize();
 
     // Should work without parameters
     $id = $this->backlogService->generateId();
 
     expect($id)->toStartWith('b-');
-    expect(strlen($id))->toBe(8); // b- + 6 chars
+    expect(strlen((string) $id))->toBe(8); // b- + 6 chars
 });
 
-it('generateId works when called with existing items collection', function () {
+it('generateId works when called with existing items collection', function (): void {
     $this->backlogService->initialize();
     $existing = $this->backlogService->all();
 
     $id = $this->backlogService->generateId($existing);
 
     expect($id)->toStartWith('b-');
-    expect(strlen($id))->toBe(8);
+    expect(strlen((string) $id))->toBe(8);
 });
 
 // =============================================================================
 // Storage Path Tests
 // =============================================================================
 
-it('returns storage path', function () {
+it('returns storage path', function (): void {
     expect($this->backlogService->getStoragePath())->toBe($this->storagePath);
 });
 
-it('sets custom storage path', function () {
+it('sets custom storage path', function (): void {
     $newPath = $this->tempDir.'/.fuel/custom-backlog.jsonl';
     $this->backlogService->setStoragePath($newPath);
 
     expect($this->backlogService->getStoragePath())->toBe($newPath);
 });
 
-it('uses custom storage path after setting', function () {
+it('uses custom storage path after setting', function (): void {
     $newPath = $this->tempDir.'/.fuel/custom-backlog.jsonl';
     $this->backlogService->setStoragePath($newPath);
     $this->backlogService->initialize();
@@ -289,7 +293,7 @@ it('uses custom storage path after setting', function () {
 // File Operations Tests
 // =============================================================================
 
-it('sorts backlog items by ID when writing', function () {
+it('sorts backlog items by ID when writing', function (): void {
     $this->backlogService->initialize();
 
     // Create multiple items
@@ -313,7 +317,7 @@ it('sorts backlog items by ID when writing', function () {
     expect($ids)->toBe($sortedIds);
 });
 
-it('handles empty file gracefully', function () {
+it('handles empty file gracefully', function (): void {
     $this->backlogService->initialize();
 
     // File exists but is empty
@@ -322,7 +326,7 @@ it('handles empty file gracefully', function () {
     expect($all)->toBeEmpty();
 });
 
-it('handles file with only whitespace gracefully', function () {
+it('handles file with only whitespace gracefully', function (): void {
     $this->backlogService->initialize();
     file_put_contents($this->storagePath, "\n\n  \n");
 
@@ -331,7 +335,7 @@ it('handles file with only whitespace gracefully', function () {
     expect($all)->toBeEmpty();
 });
 
-it('throws exception on invalid JSON in file', function () {
+it('throws exception on invalid JSON in file', function (): void {
     $this->backlogService->initialize();
     file_put_contents($this->storagePath, '{"invalid": json}\n');
 
@@ -342,7 +346,7 @@ it('throws exception on invalid JSON in file', function () {
 // Concurrency Tests
 // =============================================================================
 
-it('handles concurrent reads', function () {
+it('handles concurrent reads', function (): void {
     $this->backlogService->initialize();
     $this->backlogService->add('Item 1');
     $this->backlogService->add('Item 2');
@@ -355,7 +359,7 @@ it('handles concurrent reads', function () {
     expect($all2->count())->toBe(2);
 });
 
-it('handles concurrent writes atomically', function () {
+it('handles concurrent writes atomically', function (): void {
     $this->backlogService->initialize();
 
     // Create multiple items in sequence
@@ -375,7 +379,7 @@ it('handles concurrent writes atomically', function () {
 // Edge Cases Tests
 // =============================================================================
 
-it('handles backlog item with empty title', function () {
+it('handles backlog item with empty title', function (): void {
     $this->backlogService->initialize();
 
     $item = $this->backlogService->add('');
@@ -384,7 +388,7 @@ it('handles backlog item with empty title', function () {
     expect($item['id'])->toStartWith('b-');
 });
 
-it('handles backlog item with very long title', function () {
+it('handles backlog item with very long title', function (): void {
     $this->backlogService->initialize();
     $longTitle = str_repeat('a', 1000);
 
@@ -393,7 +397,7 @@ it('handles backlog item with very long title', function () {
     expect($item['title'])->toBe($longTitle);
 });
 
-it('handles backlog item with very long description', function () {
+it('handles backlog item with very long description', function (): void {
     $this->backlogService->initialize();
     $longDescription = str_repeat('b', 5000);
 
@@ -402,7 +406,7 @@ it('handles backlog item with very long description', function () {
     expect($item['description'])->toBe($longDescription);
 });
 
-it('handles special characters in title and description', function () {
+it('handles special characters in title and description', function (): void {
     $this->backlogService->initialize();
     $title = 'Test "quotes" & <tags> and \'apostrophes\'';
     $description = 'Description with "quotes" & <tags> and \'apostrophes\'';
@@ -418,7 +422,7 @@ it('handles special characters in title and description', function () {
     expect($found['description'])->toBe($description);
 });
 
-it('handles unicode characters in title and description', function () {
+it('handles unicode characters in title and description', function (): void {
     $this->backlogService->initialize();
     $title = 'Test with 中文 and 🚀 emoji';
     $description = 'Description with 日本語 and 🎉 emoji';

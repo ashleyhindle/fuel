@@ -128,8 +128,7 @@ class ProcessResultTest extends TestCase
             pid: 23456,
             status: ProcessStatus::Running,
             exitCode: null,
-            startedAt: new DateTimeImmutable,
-            completedAt: null
+            startedAt: new DateTimeImmutable
         );
 
         $runningResult = new ProcessResult(
@@ -148,10 +147,7 @@ class ProcessResultTest extends TestCase
             command: 'pending',
             cwd: '/tmp',
             pid: 0,
-            status: ProcessStatus::Pending,
-            exitCode: null,
-            startedAt: null,
-            completedAt: null
+            status: ProcessStatus::Pending
         );
 
         $pendingResult = new ProcessResult(

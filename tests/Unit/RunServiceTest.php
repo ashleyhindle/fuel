@@ -3,7 +3,7 @@
 use App\Services\RunService;
 use RuntimeException;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir, 0755, true);
     $this->storageBasePath = $this->tempDir.'/.fuel/runs';
@@ -11,17 +11,22 @@ beforeEach(function () {
     $this->taskId = 'f-test01';
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir) {
+    $deleteDir = function (string $dir) use (&$deleteDir): void {
         if (! is_dir($dir)) {
             return;
         }
+
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
+            if ($item === '..') {
+                continue;
+            }
+
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -29,13 +34,14 @@ afterEach(function () {
                 unlink($path);
             }
         }
+
         rmdir($dir);
     };
 
     $deleteDir($this->tempDir);
 });
 
-it('creates runs directory on first write', function () {
+it('creates runs directory on first write', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'test-agent',
         'model' => 'test-model',
@@ -45,7 +51,7 @@ it('creates runs directory on first write', function () {
     expect(file_exists($this->storageBasePath.'/'.$this->taskId.'.jsonl'))->toBeTrue();
 });
 
-it('logs a run with hash-based run_id', function () {
+it('logs a run with hash-based run_id', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'test-agent',
         'model' => 'test-model',
@@ -55,12 +61,12 @@ it('logs a run with hash-based run_id', function () {
 
     expect($runs)->toHaveCount(1);
     expect($runs[0]['run_id'])->toStartWith('run-');
-    expect(strlen($runs[0]['run_id']))->toBe(10); // run- + 6 chars
+    expect(strlen((string) $runs[0]['run_id']))->toBe(10); // run- + 6 chars
     expect($runs[0]['agent'])->toBe('test-agent');
     expect($runs[0]['model'])->toBe('test-model');
 });
 
-it('logs a run with all schema fields', function () {
+it('logs a run with all schema fields', function (): void {
     $startedAt = '2026-01-07T10:00:00+00:00';
     $endedAt = '2026-01-07T10:05:00+00:00';
 
@@ -85,7 +91,7 @@ it('logs a run with all schema fields', function () {
     expect($runs[0]['output'])->toBe('Test output');
 });
 
-it('defaults started_at to current time when not provided', function () {
+it('defaults started_at to current time when not provided', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'test-agent',
         'model' => 'test-model',
@@ -97,7 +103,7 @@ it('defaults started_at to current time when not provided', function () {
     expect($runs[0]['started_at'])->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/');
 });
 
-it('allows null values for optional fields', function () {
+it('allows null values for optional fields', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'test-agent',
         'model' => 'test-model',
@@ -110,7 +116,7 @@ it('allows null values for optional fields', function () {
     expect($runs[0]['output'])->toBeNull();
 });
 
-it('truncates output to 10KB', function () {
+it('truncates output to 10KB', function (): void {
     $longOutput = str_repeat('a', 15000); // 15KB
 
     $this->runService->logRun($this->taskId, [
@@ -121,11 +127,11 @@ it('truncates output to 10KB', function () {
 
     $runs = $this->runService->getRuns($this->taskId);
 
-    expect(strlen($runs[0]['output']))->toBe(10240); // Exactly 10KB
+    expect(strlen((string) $runs[0]['output']))->toBe(10240); // Exactly 10KB
     expect($runs[0]['output'])->toBe(substr($longOutput, 0, 10240));
 });
 
-it('does not truncate output under 10KB', function () {
+it('does not truncate output under 10KB', function (): void {
     $shortOutput = str_repeat('a', 5000); // 5KB
 
     $this->runService->logRun($this->taskId, [
@@ -136,17 +142,17 @@ it('does not truncate output under 10KB', function () {
 
     $runs = $this->runService->getRuns($this->taskId);
 
-    expect(strlen($runs[0]['output']))->toBe(5000);
+    expect(strlen((string) $runs[0]['output']))->toBe(5000);
     expect($runs[0]['output'])->toBe($shortOutput);
 });
 
-it('returns empty array when no runs exist', function () {
+it('returns empty array when no runs exist', function (): void {
     $runs = $this->runService->getRuns($this->taskId);
 
     expect($runs)->toBe([]);
 });
 
-it('returns all runs for a task', function () {
+it('returns all runs for a task', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'agent1',
         'model' => 'model1',
@@ -170,13 +176,13 @@ it('returns all runs for a task', function () {
     expect($runs[2]['agent'])->toBe('agent3');
 });
 
-it('returns null for latest run when no runs exist', function () {
+it('returns null for latest run when no runs exist', function (): void {
     $latest = $this->runService->getLatestRun($this->taskId);
 
     expect($latest)->toBeNull();
 });
 
-it('returns the most recent run', function () {
+it('returns the most recent run', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'agent1',
         'model' => 'model1',
@@ -194,7 +200,7 @@ it('returns the most recent run', function () {
     expect($latest['model'])->toBe('model2');
 });
 
-it('generates unique run IDs', function () {
+it('generates unique run IDs', function (): void {
     for ($i = 0; $i < 10; $i++) {
         $this->runService->logRun($this->taskId, [
             'agent' => 'test-agent',
@@ -209,7 +215,7 @@ it('generates unique run IDs', function () {
     expect(count(array_unique($runIds)))->toBe(10);
 });
 
-it('stores runs for different tasks separately', function () {
+it('stores runs for different tasks separately', function (): void {
     $taskId1 = 'f-task1';
     $taskId2 = 'f-task2';
 
@@ -232,7 +238,7 @@ it('stores runs for different tasks separately', function () {
     expect($runs2[0]['agent'])->toBe('agent2');
 });
 
-it('handles empty output string', function () {
+it('handles empty output string', function (): void {
     $this->runService->logRun($this->taskId, [
         'agent' => 'test-agent',
         'model' => 'test-model',
@@ -244,7 +250,7 @@ it('handles empty output string', function () {
     expect($runs[0]['output'])->toBe('');
 });
 
-it('handles non-string output gracefully', function () {
+it('handles non-string output gracefully', function (): void {
     // If output is not a string, it should be stored as-is (no truncation)
     $this->runService->logRun($this->taskId, [
         'agent' => 'test-agent',
@@ -257,7 +263,7 @@ it('handles non-string output gracefully', function () {
     expect($runs[0]['output'])->toBeNull();
 });
 
-it('updates the latest run with completion data', function () {
+it('updates the latest run with completion data', function (): void {
     $startedAt = '2026-01-07T10:00:00+00:00';
     $endedAt = '2026-01-07T10:05:00+00:00';
 
@@ -284,13 +290,13 @@ it('updates the latest run with completion data', function () {
     expect($runs[0]['output'])->toBe('Test output');
 });
 
-it('throws exception when updating non-existent run', function () {
+it('throws exception when updating non-existent run', function (): void {
     expect(fn () => $this->runService->updateLatestRun($this->taskId, [
         'ended_at' => '2026-01-07T10:05:00+00:00',
     ]))->toThrow(RuntimeException::class, 'No runs found');
 });
 
-it('updates only the latest run when multiple runs exist', function () {
+it('updates only the latest run when multiple runs exist', function (): void {
     // Create two runs
     $this->runService->logRun($this->taskId, [
         'agent' => 'agent1',
@@ -314,7 +320,7 @@ it('updates only the latest run when multiple runs exist', function () {
     expect($runs[1]['exit_code'])->toBe(1); // Latest run updated
 });
 
-it('truncates output when updating latest run', function () {
+it('truncates output when updating latest run', function (): void {
     $longOutput = str_repeat('a', 15000); // 15KB
 
     $this->runService->logRun($this->taskId, [
@@ -328,5 +334,5 @@ it('truncates output when updating latest run', function () {
 
     $runs = $this->runService->getRuns($this->taskId);
 
-    expect(strlen($runs[0]['output']))->toBe(10240); // Exactly 10KB
+    expect(strlen((string) $runs[0]['output']))->toBe(10240); // Exactly 10KB
 });

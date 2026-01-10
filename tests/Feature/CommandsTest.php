@@ -1,44 +1,46 @@
 <?php
 
+use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
+use Symfony\Component\Yaml\Yaml;
 use App\Services\BacklogService;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir, 0755, true);
     $this->storagePath = $this->tempDir.'/.fuel/tasks.jsonl';
 
     // Bind our test TaskService instance
-    $this->app->singleton(TaskService::class, function () {
-        return new TaskService($this->storagePath);
-    });
+    $this->app->singleton(TaskService::class, fn(): TaskService => new TaskService($this->storagePath));
 
     // Bind our test RunService instance
-    $this->app->singleton(RunService::class, function () {
-        return new RunService($this->tempDir.'/.fuel/runs');
-    });
+    $this->app->singleton(RunService::class, fn(): RunService => new RunService($this->tempDir.'/.fuel/runs'));
 
     // Bind our test BacklogService instance
-    $this->app->singleton(BacklogService::class, function () {
-        return new BacklogService($this->tempDir.'/.fuel/backlog.jsonl');
-    });
+    $this->app->singleton(BacklogService::class, fn(): BacklogService => new BacklogService($this->tempDir.'/.fuel/backlog.jsonl'));
 
     $this->taskService = $this->app->make(TaskService::class);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir) {
+    $deleteDir = function (string $dir) use (&$deleteDir): void {
         if (! is_dir($dir)) {
             return;
         }
+
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
+            if ($item === '..') {
+                continue;
+            }
+
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -46,6 +48,7 @@ afterEach(function () {
                 unlink($path);
             }
         }
+
         rmdir($dir);
     };
 
@@ -53,8 +56,8 @@ afterEach(function () {
 });
 
 // Add Command Tests
-describe('add command', function () {
-    it('creates a task via CLI', function () {
+describe('add command', function (): void {
+    it('creates a task via CLI', function (): void {
         $this->artisan('add', ['title' => 'My test task', '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Created task: f-')
             ->assertExitCode(0);
@@ -62,7 +65,7 @@ describe('add command', function () {
         expect(file_exists($this->storagePath))->toBeTrue();
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         Artisan::call('add', ['title' => 'JSON task', '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
 
@@ -71,7 +74,7 @@ describe('add command', function () {
         expect($output)->toContain('"id": "f-');
     });
 
-    it('creates task in custom cwd', function () {
+    it('creates task in custom cwd', function (): void {
         $this->artisan('add', ['title' => 'Custom path task', '--cwd' => $this->tempDir])
             ->assertExitCode(0);
 
@@ -81,7 +84,7 @@ describe('add command', function () {
         expect($content)->toContain('Custom path task');
     });
 
-    it('creates task with --description flag', function () {
+    it('creates task with --description flag', function (): void {
         Artisan::call('add', [
             'title' => 'Task with description',
             '--description' => 'This is a detailed description',
@@ -94,7 +97,7 @@ describe('add command', function () {
         expect($task['description'])->toBe('This is a detailed description');
     });
 
-    it('creates task with -d flag (description shortcut)', function () {
+    it('creates task with -d flag (description shortcut)', function (): void {
         Artisan::call('add', [
             'title' => 'Task with -d flag',
             '-d' => 'Short description',
@@ -107,7 +110,7 @@ describe('add command', function () {
         expect($task['description'])->toBe('Short description');
     });
 
-    it('creates task with --type flag', function () {
+    it('creates task with --type flag', function (): void {
         Artisan::call('add', [
             'title' => 'Bug fix',
             '--type' => 'bug',
@@ -120,7 +123,7 @@ describe('add command', function () {
         expect($task['type'])->toBe('bug');
     });
 
-    it('validates --type flag enum', function () {
+    it('validates --type flag enum', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid type',
             '--type' => 'invalid-type',
@@ -130,7 +133,7 @@ describe('add command', function () {
             ->assertExitCode(1);
     });
 
-    it('creates task with --priority flag', function () {
+    it('creates task with --priority flag', function (): void {
         Artisan::call('add', [
             'title' => 'High priority task',
             '--priority' => '4',
@@ -143,7 +146,7 @@ describe('add command', function () {
         expect($task['priority'])->toBe(4);
     });
 
-    it('validates --priority flag range', function () {
+    it('validates --priority flag range', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid priority',
             '--priority' => '5',
@@ -153,7 +156,7 @@ describe('add command', function () {
             ->assertExitCode(1);
     });
 
-    it('validates --priority flag is integer', function () {
+    it('validates --priority flag is integer', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid priority',
             '--priority' => 'high',
@@ -163,7 +166,7 @@ describe('add command', function () {
             ->assertExitCode(1);
     });
 
-    it('creates task with --labels flag', function () {
+    it('creates task with --labels flag', function (): void {
         Artisan::call('add', [
             'title' => 'Labeled task',
             '--labels' => 'frontend,backend,urgent',
@@ -176,7 +179,7 @@ describe('add command', function () {
         expect($task['labels'])->toBe(['frontend', 'backend', 'urgent']);
     });
 
-    it('handles --labels flag with spaces', function () {
+    it('handles --labels flag with spaces', function (): void {
         Artisan::call('add', [
             'title' => 'Labeled task',
             '--labels' => 'frontend, backend, urgent',
@@ -189,7 +192,7 @@ describe('add command', function () {
         expect($task['labels'])->toBe(['frontend', 'backend', 'urgent']);
     });
 
-    it('creates task with all flags together', function () {
+    it('creates task with all flags together', function (): void {
         Artisan::call('add', [
             'title' => 'Complete task',
             '--description' => 'Full featured task',
@@ -213,7 +216,7 @@ describe('add command', function () {
         expect($task['complexity'])->toBe('moderate');
     });
 
-    it('creates task with --size flag', function () {
+    it('creates task with --size flag', function (): void {
         Artisan::call('add', [
             'title' => 'Large task',
             '--size' => 'xl',
@@ -226,7 +229,7 @@ describe('add command', function () {
         expect($task['size'])->toBe('xl');
     });
 
-    it('validates --size flag enum', function () {
+    it('validates --size flag enum', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid size',
             '--size' => 'invalid-size',
@@ -236,7 +239,7 @@ describe('add command', function () {
             ->assertExitCode(1);
     });
 
-    it('creates task with --complexity flag', function () {
+    it('creates task with --complexity flag', function (): void {
         Artisan::call('add', [
             'title' => 'Complex task',
             '--complexity' => 'complex',
@@ -249,7 +252,7 @@ describe('add command', function () {
         expect($task['complexity'])->toBe('complex');
     });
 
-    it('defaults complexity to simple when not specified', function () {
+    it('defaults complexity to simple when not specified', function (): void {
         Artisan::call('add', [
             'title' => 'Task without complexity',
             '--cwd' => $this->tempDir,
@@ -261,7 +264,7 @@ describe('add command', function () {
         expect($task['complexity'])->toBe('simple');
     });
 
-    it('validates --complexity flag enum', function () {
+    it('validates --complexity flag enum', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid complexity',
             '--complexity' => 'invalid-complexity',
@@ -271,7 +274,7 @@ describe('add command', function () {
             ->assertExitCode(1);
     });
 
-    it('creates task with --blocked-by flag (single blocker)', function () {
+    it('creates task with --blocked-by flag (single blocker)', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
@@ -288,7 +291,7 @@ describe('add command', function () {
         expect($task['blocked_by'])->toContain($blocker['id']);
     });
 
-    it('creates task with --blocked-by flag (multiple blockers)', function () {
+    it('creates task with --blocked-by flag (multiple blockers)', function (): void {
         $this->taskService->initialize();
         $blocker1 = $this->taskService->create(['title' => 'Blocker 1']);
         $blocker2 = $this->taskService->create(['title' => 'Blocker 2']);
@@ -307,7 +310,7 @@ describe('add command', function () {
         expect($task['blocked_by'])->toContain($blocker2['id']);
     });
 
-    it('creates task with --blocked-by flag (with spaces)', function () {
+    it('creates task with --blocked-by flag (with spaces)', function (): void {
         $this->taskService->initialize();
         $blocker1 = $this->taskService->create(['title' => 'Blocker 1']);
         $blocker2 = $this->taskService->create(['title' => 'Blocker 2']);
@@ -326,7 +329,7 @@ describe('add command', function () {
         expect($task['blocked_by'])->toContain($blocker2['id']);
     });
 
-    it('displays blocked-by info in non-JSON output', function () {
+    it('displays blocked-by info in non-JSON output', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
@@ -342,7 +345,7 @@ describe('add command', function () {
         expect($output)->toContain($blocker['id']);
     });
 
-    it('creates task with --blocked-by and other flags', function () {
+    it('creates task with --blocked-by and other flags', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
@@ -368,10 +371,10 @@ describe('add command', function () {
         expect($task['blocked_by'])->toContain($blocker['id']);
     });
 
-    it('supports partial IDs in --blocked-by flag', function () {
+    it('supports partial IDs in --blocked-by flag', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
-        $partialId = substr($blocker['id'], 2, 3); // Just hash part
+        $partialId = substr((string) $blocker['id'], 2, 3); // Just hash part
 
         Artisan::call('add', [
             'title' => 'Blocked task',
@@ -388,7 +391,7 @@ describe('add command', function () {
         expect($task['blocked_by'])->toContain($partialId);
     });
 
-    it('adds item to backlog with --someday flag', function () {
+    it('adds item to backlog with --someday flag', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
 
         Artisan::call('add', [
@@ -413,7 +416,7 @@ describe('add command', function () {
         expect($tasks->count())->toBe(0);
     });
 
-    it('adds item to backlog with --someday and --description flags', function () {
+    it('adds item to backlog with --someday and --description flags', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
 
         Artisan::call('add', [
@@ -434,7 +437,7 @@ describe('add command', function () {
         expect($item)->not->toHaveKey('type');
     });
 
-    it('ignores task-specific flags when --someday is used', function () {
+    it('ignores task-specific flags when --someday is used', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
 
         Artisan::call('add', [
@@ -460,7 +463,7 @@ describe('add command', function () {
         expect($item)->not->toHaveKey('status');
     });
 
-    it('outputs JSON when --json flag is used with --someday', function () {
+    it('outputs JSON when --json flag is used with --someday', function (): void {
         Artisan::call('add', [
             'title' => 'JSON backlog item',
             '--someday' => true,
@@ -477,8 +480,8 @@ describe('add command', function () {
 });
 
 // Backlog Command Tests
-describe('backlog command', function () {
-    it('shows no backlog items when empty', function () {
+describe('backlog command', function (): void {
+    it('shows no backlog items when empty', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
 
@@ -487,9 +490,10 @@ describe('backlog command', function () {
             ->assertExitCode(0);
     });
 
-    it('lists backlog items', function () {
+    it('lists backlog items', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item1 = $backlogService->add('Item 1');
         $item2 = $backlogService->add('Item 2', 'Description');
 
@@ -503,9 +507,10 @@ describe('backlog command', function () {
         expect($output)->toContain('Item 2');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item1 = $backlogService->add('Item 1');
         $item2 = $backlogService->add('Item 2');
 
@@ -521,10 +526,11 @@ describe('backlog command', function () {
 });
 
 // Promote Command Tests
-describe('promote command', function () {
-    it('promotes backlog item to task', function () {
+describe('promote command', function (): void {
+    it('promotes backlog item to task', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('Future feature', 'Description');
 
         Artisan::call('promote', [
@@ -554,9 +560,10 @@ describe('promote command', function () {
         expect($task['type'])->toBe('feature');
     });
 
-    it('promotes backlog item with all task options', function () {
+    it('promotes backlog item with all task options', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('Complete feature', 'Full description');
 
         Artisan::call('promote', [
@@ -581,11 +588,12 @@ describe('promote command', function () {
         expect($task['size'])->toBe('l');
     });
 
-    it('promotes backlog item with partial ID', function () {
+    it('promotes backlog item with partial ID', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('Feature to promote');
-        $partialId = substr($item['id'], 2, 3);
+        $partialId = substr((string) $item['id'], 2, 3);
 
         Artisan::call('promote', [
             'id' => $partialId,
@@ -598,9 +606,10 @@ describe('promote command', function () {
         expect($output)->toContain('to task: f-');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('JSON feature');
 
         Artisan::call('promote', [
@@ -617,7 +626,7 @@ describe('promote command', function () {
         expect($task['priority'])->toBe(2);
     });
 
-    it('returns error when backlog item not found', function () {
+    it('returns error when backlog item not found', function (): void {
         $this->artisan('promote', [
             'id' => 'b-nonexistent',
             '--priority' => '1',
@@ -627,7 +636,7 @@ describe('promote command', function () {
             ->assertExitCode(1);
     });
 
-    it('returns error when ID is not a backlog item', function () {
+    it('returns error when ID is not a backlog item', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -642,8 +651,8 @@ describe('promote command', function () {
 });
 
 // Defer Command Tests
-describe('defer command', function () {
-    it('defers task to backlog', function () {
+describe('defer command', function (): void {
+    it('defers task to backlog', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $this->taskService->initialize();
         $task = $this->taskService->create([
@@ -677,11 +686,11 @@ describe('defer command', function () {
         expect($backlogItem)->not->toHaveKey('priority');
     });
 
-    it('defers task with partial ID', function () {
+    it('defers task with partial ID', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to defer']);
-        $partialId = substr($task['id'], 2, 3);
+        $partialId = substr((string) $task['id'], 2, 3);
 
         Artisan::call('defer', [
             'id' => $partialId,
@@ -696,7 +705,7 @@ describe('defer command', function () {
         expect($this->taskService->find($task['id']))->toBeNull();
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON task']);
@@ -714,7 +723,7 @@ describe('defer command', function () {
         expect($result['backlog_item']['title'])->toBe('JSON task');
     });
 
-    it('returns error when task not found', function () {
+    it('returns error when task not found', function (): void {
         $this->artisan('defer', [
             'id' => 'f-nonexistent',
             '--cwd' => $this->tempDir,
@@ -723,9 +732,10 @@ describe('defer command', function () {
             ->assertExitCode(1);
     });
 
-    it('returns error when ID is not a task', function () {
+    it('returns error when ID is not a task', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('Backlog item');
 
         // When deferring a backlog item ID, it first tries to find it as a task
@@ -734,14 +744,14 @@ describe('defer command', function () {
             'id' => $item['id'],
             '--cwd' => $this->tempDir,
         ])
-            ->expectsOutputToContain("Task '{$item['id']}' not found")
+            ->expectsOutputToContain(sprintf("Task '%s' not found", $item['id']))
             ->assertExitCode(1);
     });
 });
 
 // Ready Command Tests
-describe('ready command', function () {
-    it('shows no tasks when empty', function () {
+describe('ready command', function (): void {
+    it('shows no tasks when empty', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('ready', ['--cwd' => $this->tempDir])
@@ -749,7 +759,7 @@ describe('ready command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows open tasks', function () {
+    it('shows open tasks', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task one']);
         $this->taskService->create(['title' => 'Task two']);
@@ -760,9 +770,10 @@ describe('ready command', function () {
             ->assertExitCode(0);
     });
 
-    it('excludes closed tasks', function () {
+    it('excludes closed tasks', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open task']);
+
         $closed = $this->taskService->create(['title' => 'Closed task']);
         $this->taskService->done($closed['id']);
 
@@ -772,7 +783,7 @@ describe('ready command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'JSON task']);
 
@@ -781,7 +792,7 @@ describe('ready command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs empty array as JSON when no tasks', function () {
+    it('outputs empty array as JSON when no tasks', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('ready', ['--cwd' => $this->tempDir, '--json' => true])
@@ -789,7 +800,7 @@ describe('ready command', function () {
             ->assertExitCode(0);
     });
 
-    it('filters by --size flag', function () {
+    it('filters by --size flag', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Small task', 'size' => 's']);
         $this->taskService->create(['title' => 'Large task', 'size' => 'xl']);
@@ -802,8 +813,8 @@ describe('ready command', function () {
 });
 
 // Available Command Tests
-describe('available command', function () {
-    it('outputs count of ready tasks', function () {
+describe('available command', function (): void {
+    it('outputs count of ready tasks', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
         $this->taskService->create(['title' => 'Task 2']);
@@ -814,7 +825,7 @@ describe('available command', function () {
         expect(trim($output))->toBe('2');
     });
 
-    it('exits with code 0 when tasks are available', function () {
+    it('exits with code 0 when tasks are available', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
 
@@ -822,7 +833,7 @@ describe('available command', function () {
             ->assertExitCode(0);
     });
 
-    it('exits with code 1 when no tasks are available', function () {
+    it('exits with code 1 when no tasks are available', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('available', ['--cwd' => $this->tempDir])
@@ -830,7 +841,7 @@ describe('available command', function () {
             ->assertExitCode(1);
     });
 
-    it('outputs 0 when no tasks are available', function () {
+    it('outputs 0 when no tasks are available', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('available', ['--cwd' => $this->tempDir]);
@@ -839,7 +850,7 @@ describe('available command', function () {
         expect(trim($output))->toBe('0');
     });
 
-    it('excludes in_progress tasks from count', function () {
+    it('excludes in_progress tasks from count', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -852,7 +863,7 @@ describe('available command', function () {
         expect(trim($output))->toBe('1');
     });
 
-    it('excludes blocked tasks from count', function () {
+    it('excludes blocked tasks from count', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker']);
         $blocked = $this->taskService->create(['title' => 'Blocked']);
@@ -865,7 +876,7 @@ describe('available command', function () {
         expect(trim($output))->toBe('1');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
 
@@ -878,7 +889,7 @@ describe('available command', function () {
         expect($result['available'])->toBeTrue();
     });
 
-    it('outputs JSON with available false when no tasks', function () {
+    it('outputs JSON with available false when no tasks', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('available', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -890,7 +901,7 @@ describe('available command', function () {
         expect($result['available'])->toBeFalse();
     });
 
-    it('supports --cwd flag', function () {
+    it('supports --cwd flag', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
 
@@ -902,8 +913,8 @@ describe('available command', function () {
 });
 
 // Start Command Tests
-describe('start command', function () {
-    it('sets status to in_progress', function () {
+describe('start command', function (): void {
+    it('sets status to in_progress', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to start']);
 
@@ -915,7 +926,7 @@ describe('start command', function () {
         expect($updated['status'])->toBe('in_progress');
     });
 
-    it('excludes task from ready() output', function () {
+    it('excludes task from ready() output', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -931,10 +942,10 @@ describe('start command', function () {
             ->assertExitCode(0);
     });
 
-    it('supports partial ID matching', function () {
+    it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
+        $partialId = substr((string) $task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('start', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Started task:')
@@ -944,7 +955,7 @@ describe('start command', function () {
         expect($updated['status'])->toBe('in_progress');
     });
 
-    it('returns JSON when --json flag used', function () {
+    it('returns JSON when --json flag used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON start task']);
 
@@ -958,7 +969,7 @@ describe('start command', function () {
         expect($result['title'])->toBe('JSON start task');
     });
 
-    it('handles invalid IDs gracefully', function () {
+    it('handles invalid IDs gracefully', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
@@ -966,7 +977,7 @@ describe('start command', function () {
             ->assertExitCode(1);
     });
 
-    it('outputs JSON error for invalid ID with --json flag', function () {
+    it('outputs JSON error for invalid ID with --json flag', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir, '--json' => true]);
@@ -980,8 +991,8 @@ describe('start command', function () {
 });
 
 // Done Command Tests
-describe('done command', function () {
-    it('marks a task as done', function () {
+describe('done command', function (): void {
+    it('marks a task as done', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'To complete']);
 
@@ -993,10 +1004,10 @@ describe('done command', function () {
         expect($updated['status'])->toBe('closed');
     });
 
-    it('supports partial ID matching', function () {
+    it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
+        $partialId = substr((string) $task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('done', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Completed task:')
@@ -1006,7 +1017,7 @@ describe('done command', function () {
         expect($updated['status'])->toBe('closed');
     });
 
-    it('shows error for non-existent task', function () {
+    it('shows error for non-existent task', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('done', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
@@ -1014,7 +1025,7 @@ describe('done command', function () {
             ->assertExitCode(1);
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON done task']);
 
@@ -1023,7 +1034,7 @@ describe('done command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs JSON error for non-existent task with --json flag', function () {
+    it('outputs JSON error for non-existent task with --json flag', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('done', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir, '--json' => true])
@@ -1031,7 +1042,7 @@ describe('done command', function () {
             ->assertExitCode(1);
     });
 
-    it('marks task as done with --reason flag', function () {
+    it('marks task as done with --reason flag', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with reason']);
 
@@ -1049,7 +1060,7 @@ describe('done command', function () {
         expect($updated['reason'])->toBe('Fixed the bug');
     });
 
-    it('outputs reason in JSON when --reason flag is used with --json', function () {
+    it('outputs reason in JSON when --reason flag is used with --json', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON task with reason']);
 
@@ -1066,7 +1077,7 @@ describe('done command', function () {
         expect($result['reason'])->toBe('Completed successfully');
     });
 
-    it('does not add reason field when --reason is not provided', function () {
+    it('does not add reason field when --reason is not provided', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task without reason']);
 
@@ -1078,7 +1089,7 @@ describe('done command', function () {
         expect($updated)->not->toHaveKey('reason');
     });
 
-    it('marks task as done with --commit flag', function () {
+    it('marks task as done with --commit flag', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with commit']);
         $commitHash = 'abc123def456';
@@ -1089,7 +1100,7 @@ describe('done command', function () {
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Completed task:')
-            ->expectsOutputToContain("Commit: {$commitHash}")
+            ->expectsOutputToContain('Commit: ' . $commitHash)
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task['id']);
@@ -1097,7 +1108,7 @@ describe('done command', function () {
         expect($updated['commit_hash'])->toBe($commitHash);
     });
 
-    it('outputs commit hash in JSON when --commit flag is used with --json', function () {
+    it('outputs commit hash in JSON when --commit flag is used with --json', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON task with commit']);
         $commitHash = 'xyz789abc123';
@@ -1115,7 +1126,7 @@ describe('done command', function () {
         expect($result['commit_hash'])->toBe($commitHash);
     });
 
-    it('does not add commit_hash field when --commit is not provided', function () {
+    it('does not add commit_hash field when --commit is not provided', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task without commit']);
 
@@ -1127,7 +1138,7 @@ describe('done command', function () {
         expect($updated)->not->toHaveKey('commit_hash');
     });
 
-    it('can use both --reason and --commit flags together', function () {
+    it('can use both --reason and --commit flags together', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with both flags']);
         $commitHash = 'def456ghi789';
@@ -1140,7 +1151,7 @@ describe('done command', function () {
         ])
             ->expectsOutputToContain('Completed task:')
             ->expectsOutputToContain('Reason: Fixed the bug')
-            ->expectsOutputToContain("Commit: {$commitHash}")
+            ->expectsOutputToContain('Commit: ' . $commitHash)
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task['id']);
@@ -1149,7 +1160,7 @@ describe('done command', function () {
         expect($updated['commit_hash'])->toBe($commitHash);
     });
 
-    it('marks multiple tasks as done', function () {
+    it('marks multiple tasks as done', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1167,7 +1178,7 @@ describe('done command', function () {
         expect($this->taskService->find($task3['id'])['status'])->toBe('closed');
     });
 
-    it('outputs multiple tasks as JSON array when multiple IDs provided', function () {
+    it('outputs multiple tasks as JSON array when multiple IDs provided', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1187,7 +1198,7 @@ describe('done command', function () {
         expect(collect($result)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
     });
 
-    it('outputs single task as object when one ID provided with --json', function () {
+    it('outputs single task as object when one ID provided with --json', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Single task']);
 
@@ -1205,7 +1216,7 @@ describe('done command', function () {
         expect($result['status'])->toBe('closed');
     });
 
-    it('handles partial failures when marking multiple tasks', function () {
+    it('handles partial failures when marking multiple tasks', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1224,7 +1235,7 @@ describe('done command', function () {
         expect($this->taskService->find($task2['id'])['status'])->toBe('closed');
     });
 
-    it('applies same reason to all tasks when --reason provided', function () {
+    it('applies same reason to all tasks when --reason provided', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1240,12 +1251,12 @@ describe('done command', function () {
         expect($this->taskService->find($task2['id'])['reason'])->toBe('Batch completion');
     });
 
-    it('supports partial IDs when marking multiple tasks', function () {
+    it('supports partial IDs when marking multiple tasks', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
-        $partialId1 = substr($task1['id'], 2, 3);
-        $partialId2 = substr($task2['id'], 2, 3);
+        $partialId1 = substr((string) $task1['id'], 2, 3);
+        $partialId2 = substr((string) $task2['id'], 2, 3);
 
         $this->artisan('done', [
             'ids' => [$partialId1, $partialId2],
@@ -1262,8 +1273,8 @@ describe('done command', function () {
 // reopen Command Tests
 // =============================================================================
 
-describe('reopen command', function () {
-    it('reopens a closed task', function () {
+describe('reopen command', function (): void {
+    it('reopens a closed task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'To reopen']);
         $this->taskService->done($task['id']);
@@ -1276,11 +1287,11 @@ describe('reopen command', function () {
         expect($updated['status'])->toBe('open');
     });
 
-    it('supports partial ID matching', function () {
+    it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
         $this->taskService->done($task['id']);
-        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
+        $partialId = substr((string) $task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('reopen', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Reopened task:')
@@ -1290,7 +1301,7 @@ describe('reopen command', function () {
         expect($updated['status'])->toBe('open');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON reopen task']);
         $this->taskService->done($task['id']);
@@ -1309,7 +1320,7 @@ describe('reopen command', function () {
         expect($result['title'])->toBe('JSON reopen task');
     });
 
-    it('removes reason when reopening a task', function () {
+    it('removes reason when reopening a task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with reason']);
         $this->taskService->done($task['id'], 'Fixed the bug');
@@ -1325,7 +1336,7 @@ describe('reopen command', function () {
         expect($reopenedTask)->not->toHaveKey('reason');
     });
 
-    it('clears consumed fields when reopening a task', function () {
+    it('clears consumed fields when reopening a task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with consumed fields']);
         $this->taskService->done($task['id']);
@@ -1355,7 +1366,7 @@ describe('reopen command', function () {
         expect($reopenedTask)->not->toHaveKey('consumed_output');
     });
 
-    it('fails when task is not found', function () {
+    it('fails when task is not found', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('reopen', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
@@ -1363,7 +1374,7 @@ describe('reopen command', function () {
             ->assertExitCode(1);
     });
 
-    it('fails when task is open', function () {
+    it('fails when task is open', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Open task']);
 
@@ -1375,7 +1386,7 @@ describe('reopen command', function () {
         expect($updated['status'])->toBe('open');
     });
 
-    it('reopens an in_progress task', function () {
+    it('reopens an in_progress task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task['id']);
@@ -1388,7 +1399,7 @@ describe('reopen command', function () {
         expect($updated['status'])->toBe('open');
     });
 
-    it('reopens multiple tasks', function () {
+    it('reopens multiple tasks', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1409,7 +1420,7 @@ describe('reopen command', function () {
         expect($this->taskService->find($task3['id'])['status'])->toBe('open');
     });
 
-    it('outputs multiple tasks as JSON array when multiple IDs provided', function () {
+    it('outputs multiple tasks as JSON array when multiple IDs provided', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1431,7 +1442,7 @@ describe('reopen command', function () {
         expect(collect($result)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
     });
 
-    it('handles partial failures when reopening multiple tasks', function () {
+    it('handles partial failures when reopening multiple tasks', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1452,14 +1463,15 @@ describe('reopen command', function () {
         expect($this->taskService->find($task2['id'])['status'])->toBe('open');
     });
 
-    it('supports partial IDs when reopening multiple tasks', function () {
+    it('supports partial IDs when reopening multiple tasks', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
         $this->taskService->done($task1['id']);
         $this->taskService->done($task2['id']);
-        $partialId1 = substr($task1['id'], 2, 3);
-        $partialId2 = substr($task2['id'], 2, 3);
+
+        $partialId1 = substr((string) $task1['id'], 2, 3);
+        $partialId2 = substr((string) $task2['id'], 2, 3);
 
         $this->artisan('reopen', [
             'ids' => [$partialId1, $partialId2],
@@ -1477,8 +1489,8 @@ describe('reopen command', function () {
 // retry Command Tests
 // =============================================================================
 
-describe('retry command', function () {
-    it('retries a stuck task', function () {
+describe('retry command', function (): void {
+    it('retries a stuck task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Stuck task']);
         $this->taskService->start($task['id']);
@@ -1503,7 +1515,7 @@ describe('retry command', function () {
         expect($updated)->not->toHaveKey('consumed_output');
     });
 
-    it('supports partial ID matching', function () {
+    it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID stuck task']);
         $this->taskService->start($task['id']);
@@ -1513,7 +1525,7 @@ describe('retry command', function () {
             'consumed_exit_code' => 1,
         ]);
 
-        $partialId = substr($task['id'], 2, 3); // Just 3 chars of the hash
+        $partialId = substr((string) $task['id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('retry', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Retried task:')
@@ -1523,7 +1535,7 @@ describe('retry command', function () {
         expect($updated['status'])->toBe('open');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON retry task']);
         $this->taskService->start($task['id']);
@@ -1547,7 +1559,7 @@ describe('retry command', function () {
         expect($result['title'])->toBe('JSON retry task');
     });
 
-    it('clears consumed fields when retrying a task', function () {
+    it('clears consumed fields when retrying a task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with consumed fields']);
         $this->taskService->start($task['id']);
@@ -1576,7 +1588,7 @@ describe('retry command', function () {
         expect($retriedTask)->not->toHaveKey('consumed_output');
     });
 
-    it('fails when task is not found', function () {
+    it('fails when task is not found', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('retry', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
@@ -1584,7 +1596,7 @@ describe('retry command', function () {
             ->assertExitCode(1);
     });
 
-    it('fails when task is not consumed', function () {
+    it('fails when task is not consumed', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Not consumed task']);
         $this->taskService->start($task['id']);
@@ -1597,7 +1609,7 @@ describe('retry command', function () {
         expect($updated['status'])->toBe('in_progress');
     });
 
-    it('retries task with zero exit code if still in_progress', function () {
+    it('retries task with zero exit code if still in_progress', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with zero exit code']);
         $this->taskService->start($task['id']);
@@ -1613,7 +1625,7 @@ describe('retry command', function () {
             ->assertExitCode(0);
     });
 
-    it('retries multiple stuck tasks', function () {
+    it('retries multiple stuck tasks', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
@@ -1639,7 +1651,7 @@ describe('retry command', function () {
         expect($this->taskService->find($task3['id'])['status'])->toBe('open');
     });
 
-    it('outputs multiple tasks as JSON array when multiple IDs provided', function () {
+    it('outputs multiple tasks as JSON array when multiple IDs provided', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
@@ -1665,7 +1677,7 @@ describe('retry command', function () {
         expect(collect($result)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
     });
 
-    it('handles partial failures when retrying multiple tasks', function () {
+    it('handles partial failures when retrying multiple tasks', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
@@ -1695,8 +1707,8 @@ describe('retry command', function () {
 // dep:add Command Tests
 // =============================================================================
 
-describe('dep:add command', function () {
-    it('adds dependency via CLI', function () {
+describe('dep:add command', function (): void {
+    it('adds dependency via CLI', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1715,7 +1727,7 @@ describe('dep:add command', function () {
         expect($updated['blocked_by'])->toContain($blocker['id']);
     });
 
-    it('dep:add outputs JSON when --json flag is used', function () {
+    it('dep:add outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1732,7 +1744,7 @@ describe('dep:add command', function () {
         expect($output)->toContain('blocked_by');
     });
 
-    it('dep:add shows error for non-existent task', function () {
+    it('dep:add shows error for non-existent task', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
@@ -1745,7 +1757,7 @@ describe('dep:add command', function () {
             ->assertExitCode(1);
     });
 
-    it('dep:add shows error for cycle detection', function () {
+    it('dep:add shows error for cycle detection', function (): void {
         $this->taskService->initialize();
         $taskA = $this->taskService->create(['title' => 'Task A']);
         $taskB = $this->taskService->create(['title' => 'Task B']);
@@ -1763,14 +1775,14 @@ describe('dep:add command', function () {
             ->assertExitCode(1);
     });
 
-    it('dep:add supports partial ID matching', function () {
+    it('dep:add supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Use partial IDs (just the hash part)
-        $blockerPartial = substr($blocker['id'], 2, 3);
-        $blockedPartial = substr($blocked['id'], 2, 3);
+        $blockerPartial = substr((string) $blocker['id'], 2, 3);
+        $blockedPartial = substr((string) $blocked['id'], 2, 3);
 
         $this->artisan('dep:add', [
             'from' => $blockedPartial,
@@ -1790,8 +1802,8 @@ describe('dep:add command', function () {
 // dep:remove Command Tests
 // =============================================================================
 
-describe('dep:remove command', function () {
-    it('removes dependency via CLI', function () {
+describe('dep:remove command', function (): void {
+    it('removes dependency via CLI', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1813,7 +1825,7 @@ describe('dep:remove command', function () {
         expect($updated['blocked_by'] ?? [])->toBeEmpty();
     });
 
-    it('dep:remove outputs JSON when --json flag is used', function () {
+    it('dep:remove outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1833,7 +1845,7 @@ describe('dep:remove command', function () {
         expect($output)->toContain('blocked_by');
     });
 
-    it('dep:remove shows error for non-existent task', function () {
+    it('dep:remove shows error for non-existent task', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
@@ -1846,7 +1858,7 @@ describe('dep:remove command', function () {
             ->assertExitCode(1);
     });
 
-    it('dep:remove shows error when no dependency exists', function () {
+    it('dep:remove shows error when no dependency exists', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -1861,7 +1873,7 @@ describe('dep:remove command', function () {
             ->assertExitCode(1);
     });
 
-    it('dep:remove supports partial ID matching', function () {
+    it('dep:remove supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1870,8 +1882,8 @@ describe('dep:remove command', function () {
         $this->taskService->addDependency($blocked['id'], $blocker['id']);
 
         // Use partial IDs (just the hash part)
-        $blockerPartial = substr($blocker['id'], 2, 3);
-        $blockedPartial = substr($blocked['id'], 2, 3);
+        $blockerPartial = substr((string) $blocker['id'], 2, 3);
+        $blockedPartial = substr((string) $blocked['id'], 2, 3);
 
         $this->artisan('dep:remove', [
             'from' => $blockedPartial,
@@ -1891,8 +1903,8 @@ describe('dep:remove command', function () {
 // remove Command Tests
 // =============================================================================
 
-describe('remove command', function () {
-    it('outputs JSON when --json flag is used for task deletion', function () {
+describe('remove command', function (): void {
+    it('outputs JSON when --json flag is used for task deletion', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
@@ -1912,9 +1924,10 @@ describe('remove command', function () {
         expect($result['deleted']['id'])->toBe($task['id']);
     });
 
-    it('outputs JSON when --json flag is used for backlog deletion', function () {
+    it('outputs JSON when --json flag is used for backlog deletion', function (): void {
         $backlogService = new BacklogService($this->tempDir.'/.fuel/backlog.jsonl');
         $backlogService->initialize();
+
         $item = $backlogService->add('Backlog item to delete', 'Description');
 
         Artisan::call('remove', [
@@ -1938,8 +1951,8 @@ describe('remove command', function () {
 // ready Command with Dependencies Tests
 // =============================================================================
 
-describe('ready command with dependencies', function () {
-    it('ready excludes tasks with open blockers', function () {
+describe('ready command with dependencies', function (): void {
+    it('ready excludes tasks with open blockers', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1953,7 +1966,7 @@ describe('ready command with dependencies', function () {
             ->assertExitCode(0);
     });
 
-    it('ready includes tasks when blocker is closed', function () {
+    it('ready includes tasks when blocker is closed', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1975,8 +1988,8 @@ describe('ready command with dependencies', function () {
 // blocked Command Tests
 // =============================================================================
 
-describe('blocked command', function () {
-    it('shows empty when no blocked tasks', function () {
+describe('blocked command', function (): void {
+    it('shows empty when no blocked tasks', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Unblocked task']);
 
@@ -1985,7 +1998,7 @@ describe('blocked command', function () {
             ->assertExitCode(0);
     });
 
-    it('blocked includes tasks with open blockers', function () {
+    it('blocked includes tasks with open blockers', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -1999,7 +2012,7 @@ describe('blocked command', function () {
             ->assertExitCode(0);
     });
 
-    it('blocked excludes tasks when blocker is closed', function () {
+    it('blocked excludes tasks when blocker is closed', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -2016,7 +2029,7 @@ describe('blocked command', function () {
             ->assertExitCode(0);
     });
 
-    it('blocked outputs JSON when --json flag is provided', function () {
+    it('blocked outputs JSON when --json flag is provided', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -2032,7 +2045,7 @@ describe('blocked command', function () {
         expect($output)->not->toContain('Blocker task');
     });
 
-    it('blocked filters by size when --size option is provided', function () {
+    it('blocked filters by size when --size option is provided', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blockedSmall = $this->taskService->create(['title' => 'Small blocked task', 'size' => 's']);
@@ -2053,8 +2066,8 @@ describe('blocked command', function () {
 // board Command Tests
 // =============================================================================
 
-describe('board command', function () {
-    it('shows empty board when no tasks', function () {
+describe('board command', function (): void {
+    it('shows empty board when no tasks', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
@@ -2066,7 +2079,7 @@ describe('board command', function () {
         expect($output)->toContain('No tasks');
     });
 
-    it('shows ready tasks in Ready column', function () {
+    it('shows ready tasks in Ready column', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Ready task']);
 
@@ -2076,7 +2089,7 @@ describe('board command', function () {
         expect($output)->toContain('Ready task');
     });
 
-    it('shows blocked tasks in Blocked column', function () {
+    it('shows blocked tasks in Blocked column', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -2086,13 +2099,13 @@ describe('board command', function () {
         $output = Artisan::output();
 
         // Titles may be truncated, so check for short IDs with complexity char
-        $blockerShortId = substr($blocker['id'], 2, 6);
-        $blockedShortId = substr($blocked['id'], 2, 6);
-        expect($output)->toContain("[{$blockerShortId} ·s]");
-        expect($output)->toContain("[{$blockedShortId} ·s]");
+        $blockerShortId = substr((string) $blocker['id'], 2, 6);
+        $blockedShortId = substr((string) $blocked['id'], 2, 6);
+        expect($output)->toContain(sprintf('[%s ·s]', $blockerShortId));
+        expect($output)->toContain(sprintf('[%s ·s]', $blockedShortId));
     });
 
-    it('shows in progress tasks in In Progress column', function () {
+    it('shows in progress tasks in In Progress column', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task['id']);
@@ -2101,11 +2114,11 @@ describe('board command', function () {
         $output = Artisan::output();
 
         // Title may be truncated, so check for short ID with complexity char
-        $shortId = substr($task['id'], 2, 6);
-        expect($output)->toContain("[{$shortId} ·s]");
+        $shortId = substr((string) $task['id'], 2, 6);
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
     });
 
-    it('shows done tasks in Done column', function () {
+    it('shows done tasks in Done column', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task['id']);
@@ -2114,12 +2127,12 @@ describe('board command', function () {
         $output = Artisan::output();
 
         // Done tasks appear in "Done" column
-        $shortId = substr($task['id'], 2, 6);
+        $shortId = substr((string) $task['id'], 2, 6);
         expect($output)->toContain('Done (1)');
-        expect($output)->toContain("[{$shortId} ·s]");
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Test task']);
 
@@ -2134,12 +2147,12 @@ describe('board command', function () {
         expect($output)->toContain('Test task');
     });
 
-    it('returns all done tasks in JSON output', function () {
+    it('returns all done tasks in JSON output', function (): void {
         $this->taskService->initialize();
 
         // Create and close 12 tasks
         for ($i = 1; $i <= 12; $i++) {
-            $task = $this->taskService->create(['title' => "Done task {$i}"]);
+            $task = $this->taskService->create(['title' => 'Done task ' . $i]);
             $this->taskService->done($task['id']);
         }
 
@@ -2151,7 +2164,7 @@ describe('board command', function () {
         expect($data['done'])->toHaveCount(12);
     });
 
-    it('shows failed icon for consumed tasks with non-zero exit code', function () {
+    it('shows failed icon for consumed tasks with non-zero exit code', function (): void {
         $this->taskService->initialize();
         $stuckTask = $this->taskService->create(['title' => 'Stuck task']);
         $this->taskService->update($stuckTask['id'], [
@@ -2162,12 +2175,12 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($stuckTask['id'], 2, 6);
+        $shortId = substr((string) $stuckTask['id'], 2, 6);
         expect($output)->toContain('🪫');
-        expect($output)->toContain("[{$shortId} ·s]");
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
     });
 
-    it('does not show failed icon for consumed tasks with zero exit code', function () {
+    it('does not show failed icon for consumed tasks with zero exit code', function (): void {
         $this->taskService->initialize();
         $successTask = $this->taskService->create(['title' => 'Success task']);
         $this->taskService->update($successTask['id'], [
@@ -2178,12 +2191,12 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($successTask['id'], 2, 6);
-        expect($output)->toContain("[{$shortId} ·s]");
+        $shortId = substr((string) $successTask['id'], 2, 6);
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
         expect($output)->not->toContain('🪫');
     });
 
-    it('shows stuck emoji for in_progress tasks with non-running PID', function () {
+    it('shows stuck emoji for in_progress tasks with non-running PID', function (): void {
         $this->taskService->initialize();
         $stuckTask = $this->taskService->create(['title' => 'Stuck PID task']);
         $this->taskService->update($stuckTask['id'], [
@@ -2194,12 +2207,12 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($stuckTask['id'], 2, 6);
+        $shortId = substr((string) $stuckTask['id'], 2, 6);
         expect($output)->toContain('🪫');
-        expect($output)->toContain("[{$shortId} ·s]");
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
     });
 
-    it('does not show stuck emoji for in_progress tasks with running PID', function () {
+    it('does not show stuck emoji for in_progress tasks with running PID', function (): void {
         $this->taskService->initialize();
         $runningTask = $this->taskService->create(['title' => 'Running task']);
         // Use current process PID which should be running
@@ -2212,12 +2225,12 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($runningTask['id'], 2, 6);
-        expect($output)->toContain("[{$shortId} ·s]");
+        $shortId = substr((string) $runningTask['id'], 2, 6);
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
         expect($output)->not->toContain('🪫');
     });
 
-    it('shows complexity character in task display', function () {
+    it('shows complexity character in task display', function (): void {
         $this->taskService->initialize();
         $trivialTask = $this->taskService->create(['title' => 'Trivial task', 'complexity' => 'trivial']);
         $simpleTask = $this->taskService->create(['title' => 'Simple task', 'complexity' => 'simple']);
@@ -2227,26 +2240,26 @@ describe('board command', function () {
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $trivialShortId = substr($trivialTask['id'], 2, 6);
-        $simpleShortId = substr($simpleTask['id'], 2, 6);
-        $moderateShortId = substr($moderateTask['id'], 2, 6);
-        $complexShortId = substr($complexTask['id'], 2, 6);
+        $trivialShortId = substr((string) $trivialTask['id'], 2, 6);
+        $simpleShortId = substr((string) $simpleTask['id'], 2, 6);
+        $moderateShortId = substr((string) $moderateTask['id'], 2, 6);
+        $complexShortId = substr((string) $complexTask['id'], 2, 6);
 
-        expect($output)->toContain("[{$trivialShortId} ·t]");
-        expect($output)->toContain("[{$simpleShortId} ·s]");
-        expect($output)->toContain("[{$moderateShortId} ·m]");
-        expect($output)->toContain("[{$complexShortId} ·c]");
+        expect($output)->toContain(sprintf('[%s ·t]', $trivialShortId));
+        expect($output)->toContain(sprintf('[%s ·s]', $simpleShortId));
+        expect($output)->toContain(sprintf('[%s ·m]', $moderateShortId));
+        expect($output)->toContain(sprintf('[%s ·c]', $complexShortId));
     });
 
-    it('defaults to simple complexity when complexity is missing', function () {
+    it('defaults to simple complexity when complexity is missing', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task without complexity']);
 
         Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr($task['id'], 2, 6);
-        expect($output)->toContain("[{$shortId} ·s]");
+        $shortId = substr((string) $task['id'], 2, 6);
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
     });
 });
 
@@ -2254,8 +2267,8 @@ describe('board command', function () {
 // show Command Tests
 // =============================================================================
 
-describe('show command', function () {
-    it('shows task details with all fields', function () {
+describe('show command', function (): void {
+    it('shows task details with all fields', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'Test task',
@@ -2276,7 +2289,7 @@ describe('show command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows task with blockers in blocked_by array', function () {
+    it('shows task with blockers in blocked_by array', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker']);
         $task = $this->taskService->create(['title' => 'Blocked task']);
@@ -2287,7 +2300,7 @@ describe('show command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows task size', function () {
+    it('shows task size', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'size' => 'xl']);
 
@@ -2296,7 +2309,7 @@ describe('show command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows task with reason if present', function () {
+    it('shows task with reason if present', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task['id'], 'Fixed the issue');
@@ -2306,7 +2319,7 @@ describe('show command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'JSON task',
@@ -2328,7 +2341,7 @@ describe('show command', function () {
         expect($result['labels'])->toBe(['critical']);
     });
 
-    it('shows error for non-existent task', function () {
+    it('shows error for non-existent task', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('show', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
@@ -2336,10 +2349,10 @@ describe('show command', function () {
             ->assertExitCode(1);
     });
 
-    it('supports partial ID matching', function () {
+    it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr($task['id'], 2, 3);
+        $partialId = substr((string) $task['id'], 2, 3);
 
         $this->artisan('show', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Task: '.$task['id'])
@@ -2351,8 +2364,8 @@ describe('show command', function () {
 // tasks Command Tests
 // =============================================================================
 
-describe('tasks command', function () {
-    it('lists all tasks', function () {
+describe('tasks command', function (): void {
+    it('lists all tasks', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
         $this->taskService->create(['title' => 'Task 2']);
@@ -2363,7 +2376,7 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
@@ -2376,7 +2389,7 @@ describe('tasks command', function () {
         expect(collect($tasks)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
     });
 
-    it('filters by --status flag', function () {
+    it('filters by --status flag', function (): void {
         $this->taskService->initialize();
         $open = $this->taskService->create(['title' => 'Open task']);
         $closed = $this->taskService->create(['title' => 'Closed task']);
@@ -2388,7 +2401,7 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('filters by --type flag', function () {
+    it('filters by --type flag', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Bug task', 'type' => 'bug']);
         $this->taskService->create(['title' => 'Feature task', 'type' => 'feature']);
@@ -2399,7 +2412,7 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('filters by --priority flag', function () {
+    it('filters by --priority flag', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'High priority', 'priority' => 4]);
         $this->taskService->create(['title' => 'Low priority', 'priority' => 1]);
@@ -2410,7 +2423,7 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('filters by --labels flag', function () {
+    it('filters by --labels flag', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Frontend task', 'labels' => ['frontend', 'ui']]);
         $this->taskService->create(['title' => 'Backend task', 'labels' => ['backend', 'api']]);
@@ -2423,7 +2436,7 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('filters by multiple labels (comma-separated)', function () {
+    it('filters by multiple labels (comma-separated)', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task with frontend', 'labels' => ['frontend']]);
         $this->taskService->create(['title' => 'Task with backend', 'labels' => ['backend']]);
@@ -2436,9 +2449,10 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('applies multiple filters together', function () {
+    it('applies multiple filters together', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open bug', 'type' => 'bug']);
+
         $closedBug = $this->taskService->create(['title' => 'Closed bug', 'type' => 'bug']);
         $this->taskService->done($closedBug['id']);
         $this->taskService->create(['title' => 'Open feature', 'type' => 'feature']);
@@ -2454,7 +2468,7 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows empty message when no tasks match filters', function () {
+    it('shows empty message when no tasks match filters', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open task']);
 
@@ -2463,7 +2477,7 @@ describe('tasks command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs all schema fields in JSON', function () {
+    it('outputs all schema fields in JSON', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'Complete task',
@@ -2487,7 +2501,7 @@ describe('tasks command', function () {
         expect($tasks[0]['size'])->toBe('l');
     });
 
-    it('filters by --size flag', function () {
+    it('filters by --size flag', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Small task', 'size' => 'xs']);
         $this->taskService->create(['title' => 'Medium task', 'size' => 'm']);
@@ -2505,8 +2519,8 @@ describe('tasks command', function () {
 // update Command Tests
 // =============================================================================
 
-describe('update command', function () {
-    it('updates task title', function () {
+describe('update command', function (): void {
+    it('updates task title', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Original title']);
 
@@ -2523,7 +2537,7 @@ describe('update command', function () {
         expect($updated['id'])->toBe($task['id']);
     });
 
-    it('updates task description', function () {
+    it('updates task description', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -2539,7 +2553,7 @@ describe('update command', function () {
         expect($updated['description'])->toBe('New description');
     });
 
-    it('clears task description when empty string provided', function () {
+    it('clears task description when empty string provided', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'description' => 'Old description']);
 
@@ -2555,7 +2569,7 @@ describe('update command', function () {
         expect($updated['description'])->toBeNull();
     });
 
-    it('updates task type', function () {
+    it('updates task type', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'type' => 'task']);
 
@@ -2571,7 +2585,7 @@ describe('update command', function () {
         expect($updated['type'])->toBe('bug');
     });
 
-    it('validates task type enum', function () {
+    it('validates task type enum', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -2584,7 +2598,7 @@ describe('update command', function () {
             ->assertExitCode(1);
     });
 
-    it('updates task priority', function () {
+    it('updates task priority', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'priority' => 2]);
 
@@ -2600,7 +2614,7 @@ describe('update command', function () {
         expect($updated['priority'])->toBe(4);
     });
 
-    it('validates priority range', function () {
+    it('validates priority range', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -2613,7 +2627,7 @@ describe('update command', function () {
             ->assertExitCode(1);
     });
 
-    it('updates task status', function () {
+    it('updates task status', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -2629,7 +2643,7 @@ describe('update command', function () {
         expect($updated['status'])->toBe('closed');
     });
 
-    it('adds labels with --add-labels flag', function () {
+    it('adds labels with --add-labels flag', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['existing']]);
 
@@ -2645,7 +2659,7 @@ describe('update command', function () {
         expect($updated['labels'])->toContain('existing', 'new1', 'new2');
     });
 
-    it('removes labels with --remove-labels flag', function () {
+    it('removes labels with --remove-labels flag', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['keep', 'remove1', 'remove2']]);
 
@@ -2661,7 +2675,7 @@ describe('update command', function () {
         expect($updated['labels'])->toBe(['keep']);
     });
 
-    it('adds and removes labels in same update', function () {
+    it('adds and removes labels in same update', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['old1', 'old2']]);
 
@@ -2679,7 +2693,7 @@ describe('update command', function () {
         expect($updated['labels'])->not->toContain('old1');
     });
 
-    it('updates multiple fields at once', function () {
+    it('updates multiple fields at once', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Original', 'type' => 'task', 'priority' => 2]);
 
@@ -2703,7 +2717,7 @@ describe('update command', function () {
         expect($updated['size'])->toBe('l');
     });
 
-    it('updates task size', function () {
+    it('updates task size', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'size' => 'm']);
 
@@ -2719,7 +2733,7 @@ describe('update command', function () {
         expect($updated['size'])->toBe('xl');
     });
 
-    it('validates task size enum in update', function () {
+    it('validates task size enum in update', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -2732,7 +2746,7 @@ describe('update command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error when no update fields provided', function () {
+    it('shows error when no update fields provided', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -2744,7 +2758,7 @@ describe('update command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error for non-existent task', function () {
+    it('shows error for non-existent task', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('update', [
@@ -2756,10 +2770,10 @@ describe('update command', function () {
             ->assertExitCode(1);
     });
 
-    it('supports partial ID matching', function () {
+    it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
-        $partialId = substr($task['id'], 2, 3);
+        $partialId = substr((string) $task['id'], 2, 3);
 
         Artisan::call('update', [
             'id' => $partialId,
@@ -2774,7 +2788,7 @@ describe('update command', function () {
         expect($updated['id'])->toBe($task['id']);
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
@@ -2797,8 +2811,8 @@ describe('update command', function () {
 // q Command Tests (Quick Capture)
 // =============================================================================
 
-describe('q command', function () {
-    it('creates task and outputs only the ID', function () {
+describe('q command', function (): void {
+    it('creates task and outputs only the ID', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('q', ['title' => 'Quick task', '--cwd' => $this->tempDir]);
@@ -2813,14 +2827,14 @@ describe('q command', function () {
         expect($task['title'])->toBe('Quick task');
     });
 
-    it('returns exit code 0 on success', function () {
+    it('returns exit code 0 on success', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('q', ['title' => 'Quick task', '--cwd' => $this->tempDir])
             ->assertExitCode(0);
     });
 
-    it('handles RuntimeException from TaskService::create()', function () {
+    it('handles RuntimeException from TaskService::create()', function (): void {
         // Create a mock TaskService that throws RuntimeException
         $mockTaskService = \Mockery::mock(TaskService::class);
         $mockTaskService->shouldReceive('setStoragePath')
@@ -2832,15 +2846,13 @@ describe('q command', function () {
             ->andThrow(new \RuntimeException('Failed to create task'));
 
         // Bind the mock to the service container
-        $this->app->singleton(TaskService::class, function () use ($mockTaskService) {
-            return $mockTaskService;
-        });
+        $this->app->singleton(TaskService::class, fn() => $mockTaskService);
 
         $exitCode = Artisan::call('q', ['title' => 'Test task', '--cwd' => $this->tempDir]);
         $output = trim(Artisan::output());
 
         expect($output)->toContain('Failed to create task');
-        expect($exitCode)->toBe(\Illuminate\Console\Command::FAILURE);
+        expect($exitCode)->toBe(Command::FAILURE);
     });
 });
 
@@ -2848,8 +2860,8 @@ describe('q command', function () {
 // status Command Tests
 // =============================================================================
 
-describe('status command', function () {
-    it('shows zero counts when no tasks exist', function () {
+describe('status command', function (): void {
+    it('shows zero counts when no tasks exist', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('status', ['--cwd' => $this->tempDir])
@@ -2861,7 +2873,7 @@ describe('status command', function () {
             ->assertExitCode(0);
     });
 
-    it('counts tasks by status correctly', function () {
+    it('counts tasks by status correctly', function (): void {
         $this->taskService->initialize();
         $open1 = $this->taskService->create(['title' => 'Open task 1']);
         $open2 = $this->taskService->create(['title' => 'Open task 2']);
@@ -2880,7 +2892,7 @@ describe('status command', function () {
             ->assertExitCode(0);
     });
 
-    it('counts blocked tasks correctly', function () {
+    it('counts blocked tasks correctly', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked1 = $this->taskService->create(['title' => 'Blocked task 1']);
@@ -2895,7 +2907,7 @@ describe('status command', function () {
             ->assertExitCode(0);
     });
 
-    it('does not count tasks as blocked when blocker is closed', function () {
+    it('does not count tasks as blocked when blocker is closed', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -2913,9 +2925,10 @@ describe('status command', function () {
         expect($result['blocked'])->toBe(0);
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open task']);
+
         $inProgress = $this->taskService->create(['title' => 'In progress task']);
         $closed = $this->taskService->create(['title' => 'Closed task']);
 
@@ -2935,7 +2948,7 @@ describe('status command', function () {
         expect($result['total'])->toBe(3);
     });
 
-    it('shows correct total count', function () {
+    it('shows correct total count', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
         $this->taskService->create(['title' => 'Task 2']);
@@ -2949,7 +2962,7 @@ describe('status command', function () {
         expect($result['open'])->toBe(3);
     });
 
-    it('handles empty state with JSON output', function () {
+    it('handles empty state with JSON output', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -2964,7 +2977,7 @@ describe('status command', function () {
         expect($result['total'])->toBe(0);
     });
 
-    it('counts only open tasks as blocked', function () {
+    it('counts only open tasks as blocked', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blockedOpen = $this->taskService->create(['title' => 'Blocked open task']);
@@ -2990,14 +3003,14 @@ describe('status command', function () {
 // completed Command Tests
 // =============================================================================
 
-describe('completed command', function () {
-    it('shows no completed tasks when empty', function () {
+describe('completed command', function (): void {
+    it('shows no completed tasks when empty', function (): void {
         Artisan::call('completed', ['--cwd' => $this->tempDir]);
 
         expect(Artisan::output())->toContain('No completed tasks found');
     });
 
-    it('shows completed tasks in reverse chronological order', function () {
+    it('shows completed tasks in reverse chronological order', function (): void {
         // Create and close some tasks
         $task1 = $this->taskService->create(['title' => 'First task']);
         $task2 = $this->taskService->create(['title' => 'Second task']);
@@ -3019,7 +3032,7 @@ describe('completed command', function () {
         expect($output)->toContain('First task');
     });
 
-    it('excludes open and in_progress tasks', function () {
+    it('excludes open and in_progress tasks', function (): void {
         $open = $this->taskService->create(['title' => 'Open task']);
         $inProgress = $this->taskService->create(['title' => 'In progress task']);
         $closed = $this->taskService->create(['title' => 'Closed task']);
@@ -3035,21 +3048,21 @@ describe('completed command', function () {
         expect($output)->not->toContain('In progress task');
     });
 
-    it('respects --limit option', function () {
+    it('respects --limit option', function (): void {
         // Use explicit timestamps to ensure reliable ordering
-        $baseTime = \Illuminate\Support\Carbon::parse('2024-01-01 12:00:00');
-        \Illuminate\Support\Carbon::setTestNow($baseTime);
+        $baseTime = Carbon::parse('2024-01-01 12:00:00');
+        Carbon::setTestNow($baseTime);
 
         try {
             // Create and close 5 tasks with explicit timestamps
             $taskIds = [];
             for ($i = 1; $i <= 5; $i++) {
                 // Set time for this task (each task gets a different timestamp)
-                \Illuminate\Support\Carbon::setTestNow($baseTime->copy()->addSeconds($i));
-                $task = $this->taskService->create(['title' => "Task {$i}"]);
+                Carbon::setTestNow($baseTime->copy()->addSeconds($i));
+                $task = $this->taskService->create(['title' => 'Task ' . $i]);
                 $taskIds[] = $task['id'];
                 // Increment time slightly for done() call to ensure updated_at differs
-                \Illuminate\Support\Carbon::setTestNow($baseTime->copy()->addSeconds($i)->addMilliseconds(100));
+                Carbon::setTestNow($baseTime->copy()->addSeconds($i)->addMilliseconds(100));
                 $this->taskService->done($task['id']);
             }
 
@@ -3066,11 +3079,11 @@ describe('completed command', function () {
             expect($titles)->toContain('Task 5');
         } finally {
             // Always restore real time
-            \Illuminate\Support\Carbon::setTestNow();
+            Carbon::setTestNow();
         }
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task['id']);
 
@@ -3084,7 +3097,7 @@ describe('completed command', function () {
         expect($data[0]['status'])->toBe('closed');
     });
 
-    it('outputs empty array as JSON when no completed tasks', function () {
+    it('outputs empty array as JSON when no completed tasks', function (): void {
         Artisan::call('completed', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
 
@@ -3093,7 +3106,7 @@ describe('completed command', function () {
         expect($data)->toBeEmpty();
     });
 
-    it('displays task details in table format', function () {
+    it('displays task details in table format', function (): void {
         $task = $this->taskService->create([
             'title' => 'Test completed task',
             'type' => 'feature',
@@ -3120,8 +3133,8 @@ describe('completed command', function () {
 // human Command Tests
 // =============================================================================
 
-describe('human command', function () {
-    it('shows empty when no tasks with needs-human label', function () {
+describe('human command', function (): void {
+    it('shows empty when no tasks with needs-human label', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Regular task']);
 
@@ -3130,7 +3143,7 @@ describe('human command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows open tasks with needs-human label', function () {
+    it('shows open tasks with needs-human label', function (): void {
         $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Needs human task',
@@ -3146,7 +3159,7 @@ describe('human command', function () {
         expect($output)->not->toContain('Regular task');
     });
 
-    it('excludes closed tasks with needs-human label', function () {
+    it('excludes closed tasks with needs-human label', function (): void {
         $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Closed human task',
@@ -3160,7 +3173,7 @@ describe('human command', function () {
             ->assertExitCode(0);
     });
 
-    it('excludes in_progress tasks with needs-human label', function () {
+    it('excludes in_progress tasks with needs-human label', function (): void {
         $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'In progress human task',
@@ -3174,7 +3187,7 @@ describe('human command', function () {
             ->assertExitCode(0);
     });
 
-    it('excludes tasks without needs-human label', function () {
+    it('excludes tasks without needs-human label', function (): void {
         $this->taskService->initialize();
         $this->taskService->create([
             'title' => 'Task with other labels',
@@ -3189,7 +3202,7 @@ describe('human command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs JSON when --json flag is provided', function () {
+    it('outputs JSON when --json flag is provided', function (): void {
         $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Needs human task',
@@ -3209,7 +3222,7 @@ describe('human command', function () {
         expect($data[0]['labels'])->toContain('needs-human');
     });
 
-    it('outputs empty array as JSON when no human tasks', function () {
+    it('outputs empty array as JSON when no human tasks', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Regular task']);
 
@@ -3221,7 +3234,7 @@ describe('human command', function () {
         expect($data)->toBeEmpty();
     });
 
-    it('displays task description when present', function () {
+    it('displays task description when present', function (): void {
         $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Needs human task',
@@ -3237,7 +3250,7 @@ describe('human command', function () {
         expect($output)->toContain($humanTask['id']);
     });
 
-    it('shows count of human tasks', function () {
+    it('shows count of human tasks', function (): void {
         $this->taskService->initialize();
         $this->taskService->create([
             'title' => 'First human task',
@@ -3254,7 +3267,7 @@ describe('human command', function () {
         expect($output)->toContain('Tasks needing human attention (2):');
     });
 
-    it('sorts tasks by created_at', function () {
+    it('sorts tasks by created_at', function (): void {
         $this->taskService->initialize();
         $task1 = $this->taskService->create([
             'title' => 'First task',
@@ -3280,14 +3293,14 @@ describe('human command', function () {
 // stuck Command Tests
 // =============================================================================
 
-describe('stuck command', function () {
-    it('shows no stuck tasks when empty', function () {
+describe('stuck command', function (): void {
+    it('shows no stuck tasks when empty', function (): void {
         Artisan::call('stuck', ['--cwd' => $this->tempDir]);
 
         expect(Artisan::output())->toContain('No stuck tasks found');
     });
 
-    it('shows only consumed tasks with non-zero exit codes', function () {
+    it('shows only consumed tasks with non-zero exit codes', function (): void {
         $this->taskService->initialize();
 
         // Create tasks with different consumed states
@@ -3316,7 +3329,7 @@ describe('stuck command', function () {
         expect($output)->not->toContain('Not consumed task');
     });
 
-    it('shows exit code and output for stuck tasks', function () {
+    it('shows exit code and output for stuck tasks', function (): void {
         $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Stuck task']);
@@ -3335,7 +3348,7 @@ describe('stuck command', function () {
         expect($output)->toContain('Error message here');
     });
 
-    it('truncates long output', function () {
+    it('truncates long output', function (): void {
         $this->taskService->initialize();
 
         $longOutput = str_repeat('x', 600); // 600 characters
@@ -3356,7 +3369,7 @@ describe('stuck command', function () {
         expect(strlen($output))->toBeLessThan(700);
     });
 
-    it('excludes tasks with zero exit code', function () {
+    it('excludes tasks with zero exit code', function (): void {
         $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Successful task']);
@@ -3373,7 +3386,7 @@ describe('stuck command', function () {
         expect($output)->toContain('No stuck tasks found');
     });
 
-    it('excludes tasks without consumed flag', function () {
+    it('excludes tasks without consumed flag', function (): void {
         $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Unconsumed task']);
@@ -3387,7 +3400,7 @@ describe('stuck command', function () {
         expect($output)->not->toContain('Unconsumed task');
     });
 
-    it('excludes tasks without exit code', function () {
+    it('excludes tasks without exit code', function (): void {
         $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Task without exit code']);
@@ -3402,7 +3415,7 @@ describe('stuck command', function () {
         expect($output)->not->toContain('Task without exit code');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Stuck task']);
@@ -3425,7 +3438,7 @@ describe('stuck command', function () {
         expect($data[0]['consumed_output'])->toBe('Error output');
     });
 
-    it('outputs empty array as JSON when no stuck tasks', function () {
+    it('outputs empty array as JSON when no stuck tasks', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('stuck', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -3436,7 +3449,7 @@ describe('stuck command', function () {
         expect($data)->toBeEmpty();
     });
 
-    it('sorts stuck tasks by consumed_at descending', function () {
+    it('sorts stuck tasks by consumed_at descending', function (): void {
         $this->taskService->initialize();
 
         $task1 = $this->taskService->create(['title' => 'First stuck task']);
@@ -3469,8 +3482,8 @@ describe('stuck command', function () {
 // init Command Tests
 // =============================================================================
 
-describe('init command', function () {
-    it('creates .fuel directory', function () {
+describe('init command', function (): void {
+    it('creates .fuel directory', function (): void {
         $fuelDir = $this->tempDir.'/.fuel';
 
         // Ensure it doesn't exist first
@@ -3483,13 +3496,13 @@ describe('init command', function () {
         expect(is_dir($fuelDir))->toBeTrue();
     });
 
-    it('creates tasks.jsonl file', function () {
+    it('creates tasks.jsonl file', function (): void {
         Artisan::call('init', ['--cwd' => $this->tempDir]);
 
         expect(file_exists($this->storagePath))->toBeTrue();
     });
 
-    it('creates a starter task', function () {
+    it('creates a starter task', function (): void {
         Artisan::call('init', ['--cwd' => $this->tempDir]);
 
         // Verify task file was created with content
@@ -3499,7 +3512,7 @@ describe('init command', function () {
         expect($content)->toContain('f-');
     });
 
-    it('does not create duplicate starter tasks when run multiple times', function () {
+    it('does not create duplicate starter tasks when run multiple times', function (): void {
         // First init
         Artisan::call('init', ['--cwd' => $this->tempDir]);
         $firstContent = file_get_contents($this->storagePath);
@@ -3515,7 +3528,7 @@ describe('init command', function () {
         expect($firstTaskCount)->toBe(1);
     });
 
-    it('creates AGENTS.md with fuel guidelines', function () {
+    it('creates AGENTS.md with fuel guidelines', function (): void {
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
 
         // Remove if exists
@@ -3536,8 +3549,8 @@ describe('init command', function () {
 // guidelines Command Tests
 // =============================================================================
 
-describe('guidelines command', function () {
-    beforeEach(function () {
+describe('guidelines command', function (): void {
+    beforeEach(function (): void {
         // Clean up AGENTS.md in tempDir before each test
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
         if (file_exists($agentsMdPath)) {
@@ -3545,7 +3558,7 @@ describe('guidelines command', function () {
         }
     });
 
-    it('outputs guidelines content when --add flag is not used', function () {
+    it('outputs guidelines content when --add flag is not used', function (): void {
         Artisan::call('guidelines');
         $output = Artisan::output();
 
@@ -3553,7 +3566,7 @@ describe('guidelines command', function () {
         expect($output)->toContain('Quick Reference');
     });
 
-    it('creates AGENTS.md when it does not exist with --add flag', function () {
+    it('creates AGENTS.md when it does not exist with --add flag', function (): void {
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
 
         expect(file_exists($agentsMdPath))->toBeFalse();
@@ -3570,7 +3583,7 @@ describe('guidelines command', function () {
         expect($content)->toContain('</fuel>');
     });
 
-    it('replaces existing <fuel> section in AGENTS.md with --add flag', function () {
+    it('replaces existing <fuel> section in AGENTS.md with --add flag', function (): void {
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
         $oldContent = "# Agent Instructions\n\n<fuel>\nOld content here\n</fuel>\n\nSome other content";
         file_put_contents($agentsMdPath, $oldContent);
@@ -3589,7 +3602,7 @@ describe('guidelines command', function () {
         expect($content)->toContain('Fuel Task Management');
     });
 
-    it('appends <fuel> section when AGENTS.md exists but has no fuel section with --add flag', function () {
+    it('appends <fuel> section when AGENTS.md exists but has no fuel section with --add flag', function (): void {
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
         $existingContent = "# Agent Instructions\n\nSome existing content here";
         file_put_contents($agentsMdPath, $existingContent);
@@ -3607,7 +3620,7 @@ describe('guidelines command', function () {
         expect($content)->toContain("content here\n\n<fuel>");
     });
 
-    it('uses custom --cwd option with --add flag', function () {
+    it('uses custom --cwd option with --add flag', function (): void {
         $customDir = sys_get_temp_dir().'/fuel-test-custom-'.uniqid();
         mkdir($customDir, 0755, true);
         $agentsMdPath = $customDir.'/AGENTS.md';
@@ -3624,6 +3637,7 @@ describe('guidelines command', function () {
             if (file_exists($agentsMdPath)) {
                 unlink($agentsMdPath);
             }
+
             if (is_dir($customDir)) {
                 rmdir($customDir);
             }
@@ -3633,8 +3647,8 @@ describe('guidelines command', function () {
 });
 
 // Archive Command Tests
-describe('archive command', function () {
-    it('archives closed tasks older than specified days', function () {
+describe('archive command', function (): void {
+    it('archives closed tasks older than specified days', function (): void {
         $this->taskService->initialize();
 
         // Create a closed task from 35 days ago
@@ -3661,7 +3675,7 @@ describe('archive command', function () {
         expect($this->taskService->find($recentTask['id']))->not->toBeNull();
     });
 
-    it('archives all closed tasks when --all flag is used', function () {
+    it('archives all closed tasks when --all flag is used', function (): void {
         $this->taskService->initialize();
 
         // Create closed tasks with different ages
@@ -3687,7 +3701,7 @@ describe('archive command', function () {
         expect($this->taskService->find($openTask['id']))->not->toBeNull();
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Closed task']);
@@ -3705,7 +3719,7 @@ describe('archive command', function () {
         expect($result['archived_tasks'][0]['id'])->toBe($task['id']);
     });
 
-    it('shows message when no tasks to archive', function () {
+    it('shows message when no tasks to archive', function (): void {
         $this->taskService->initialize();
 
         // Create only open tasks
@@ -3717,7 +3731,7 @@ describe('archive command', function () {
         expect($output)->toContain('No tasks to archive');
     });
 
-    it('validates days option must be positive integer', function () {
+    it('validates days option must be positive integer', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('archive', ['--days' => 0, '--cwd' => $this->tempDir]);
@@ -3726,7 +3740,7 @@ describe('archive command', function () {
         expect($output)->toContain('Days must be a positive integer');
     });
 
-    it('uses default 30 days when --days not specified', function () {
+    it('uses default 30 days when --days not specified', function (): void {
         $this->taskService->initialize();
 
         // Create a closed task from 35 days ago
@@ -3746,8 +3760,8 @@ describe('archive command', function () {
 // tree Command Tests
 // =============================================================================
 
-describe('tree command', function () {
-    it('shows empty message when no pending tasks', function () {
+describe('tree command', function (): void {
+    it('shows empty message when no pending tasks', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('tree', ['--cwd' => $this->tempDir])
@@ -3755,7 +3769,7 @@ describe('tree command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows tasks without dependencies as flat list', function () {
+    it('shows tasks without dependencies as flat list', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task one', 'priority' => 1]);
         $this->taskService->create(['title' => 'Task two', 'priority' => 2]);
@@ -3766,7 +3780,7 @@ describe('tree command', function () {
             ->assertExitCode(0);
     });
 
-    it('shows blocking tasks with blocked tasks indented underneath', function () {
+    it('shows blocking tasks with blocked tasks indented underneath', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -3780,7 +3794,7 @@ describe('tree command', function () {
         expect($output)->toContain('blocked by this');
     });
 
-    it('shows task with multiple blockers', function () {
+    it('shows task with multiple blockers', function (): void {
         $this->taskService->initialize();
         $blocker1 = $this->taskService->create(['title' => 'First blocker']);
         $blocker2 = $this->taskService->create(['title' => 'Second blocker']);
@@ -3795,7 +3809,7 @@ describe('tree command', function () {
             ->assertExitCode(0);
     });
 
-    it('excludes closed tasks from tree', function () {
+    it('excludes closed tasks from tree', function (): void {
         $this->taskService->initialize();
         $openTask = $this->taskService->create(['title' => 'Open task']);
         $closedTask = $this->taskService->create(['title' => 'Closed task']);
@@ -3807,7 +3821,7 @@ describe('tree command', function () {
             ->assertExitCode(0);
     });
 
-    it('outputs JSON when --json flag is provided', function () {
+    it('outputs JSON when --json flag is provided', function (): void {
         $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -3821,13 +3835,13 @@ describe('tree command', function () {
         expect($data)->toHaveCount(2);
 
         // Find the blocker task entry - it should have the blocked task in its 'blocks' array
-        $blockerEntry = collect($data)->first(fn ($item) => $item['task']['title'] === 'Blocker task');
+        $blockerEntry = collect($data)->first(fn ($item): bool => $item['task']['title'] === 'Blocker task');
         expect($blockerEntry)->not->toBeNull();
         expect($blockerEntry['blocks'])->toHaveCount(1);
         expect($blockerEntry['blocks'][0]['title'])->toBe('Blocked task');
     });
 
-    it('returns empty array in JSON when no tasks', function () {
+    it('returns empty array in JSON when no tasks', function (): void {
         $this->taskService->initialize();
 
         Artisan::call('tree', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -3838,7 +3852,7 @@ describe('tree command', function () {
         expect($data)->toBeEmpty();
     });
 
-    it('sorts tasks by priority then created_at', function () {
+    it('sorts tasks by priority then created_at', function (): void {
         $this->taskService->initialize();
         $lowPriority = $this->taskService->create(['title' => 'Low priority', 'priority' => 3]);
         $highPriority = $this->taskService->create(['title' => 'High priority', 'priority' => 0]);
@@ -3851,7 +3865,7 @@ describe('tree command', function () {
         expect($data[1]['task']['title'])->toBe('Low priority');
     });
 
-    it('shows needs-human label with special indicator', function () {
+    it('shows needs-human label with special indicator', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Human task', 'labels' => ['needs-human']]);
         $this->taskService->create(['title' => 'Normal task']);
@@ -3869,8 +3883,8 @@ describe('tree command', function () {
 // runs Command Tests
 // =============================================================================
 
-describe('runs command', function () {
-    it('shows error when task not found', function () {
+describe('runs command', function (): void {
+    it('shows error when task not found', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('runs', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
@@ -3878,7 +3892,7 @@ describe('runs command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error when no runs exist for task', function () {
+    it('shows error when no runs exist for task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -3887,7 +3901,7 @@ describe('runs command', function () {
             ->assertExitCode(1);
     });
 
-    it('displays runs for a task', function () {
+    it('displays runs for a task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -3908,7 +3922,7 @@ describe('runs command', function () {
         expect($output)->toContain('test-model');
     });
 
-    it('displays multiple runs in table format', function () {
+    it('displays multiple runs in table format', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -3939,7 +3953,7 @@ describe('runs command', function () {
         expect($output)->toContain('model2');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -3963,7 +3977,7 @@ describe('runs command', function () {
         expect($data[0]['model'])->toBe('test-model');
     });
 
-    it('shows latest run with --last flag', function () {
+    it('shows latest run with --last flag', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -3995,7 +4009,7 @@ describe('runs command', function () {
         expect($output)->not->toContain('agent1');
     });
 
-    it('shows latest run with full output in JSON format', function () {
+    it('shows latest run with full output in JSON format', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4023,7 +4037,7 @@ describe('runs command', function () {
         expect($data)->toHaveKey('duration');
     });
 
-    it('calculates duration correctly', function () {
+    it('calculates duration correctly', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4043,7 +4057,7 @@ describe('runs command', function () {
         expect($data[0]['duration'])->toContain('30s');
     });
 
-    it('handles running tasks with no end time', function () {
+    it('handles running tasks with no end time', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4063,7 +4077,7 @@ describe('runs command', function () {
         expect($data[0]['exit_code'])->toBeNull();
     });
 
-    it('supports partial task ID matching', function () {
+    it('supports partial task ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4074,7 +4088,7 @@ describe('runs command', function () {
         ]);
 
         // Use partial ID (last 6 chars)
-        $partialId = substr($task['id'], -6);
+        $partialId = substr((string) $task['id'], -6);
 
         $this->artisan('runs', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Runs for task')
@@ -4083,14 +4097,14 @@ describe('runs command', function () {
 });
 
 // Resume Command Tests
-describe('resume command', function () {
-    it('shows error when task not found', function () {
+describe('resume command', function (): void {
+    it('shows error when task not found', function (): void {
         $this->artisan('resume', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
     });
 
-    it('shows error when no runs exist for task', function () {
+    it('shows error when no runs exist for task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4099,7 +4113,7 @@ describe('resume command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error when run has no session_id', function () {
+    it('shows error when run has no session_id', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4115,7 +4129,7 @@ describe('resume command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error when run has no agent', function () {
+    it('shows error when run has no agent', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4131,9 +4145,21 @@ describe('resume command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error when agent is unknown', function () {
+    it('shows error when agent is unknown', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
+
+        // Create config file so ConfigService can load
+        $configPath = $this->tempDir.'/.fuel/config.yaml';
+        file_put_contents($configPath, Yaml::dump([
+            'agents' => [
+                'claude' => ['command' => 'claude'],
+            ],
+            'complexity' => [
+                'simple' => 'claude',
+            ],
+            'primary' => 'claude',
+        ]));
 
         $runService = $this->app->make(RunService::class);
         $runService->logRun($task['id'], [
@@ -4147,7 +4173,7 @@ describe('resume command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error when specific run not found', function () {
+    it('shows error when specific run not found', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4167,7 +4193,7 @@ describe('resume command', function () {
             ->assertExitCode(1);
     });
 
-    it('supports partial run ID matching', function () {
+    it('supports partial run ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4192,7 +4218,7 @@ describe('resume command', function () {
             ->assertExitCode(1); // Will fail at exec(), but validation should pass
     });
 
-    it('outputs JSON error when --json flag is used', function () {
+    it('outputs JSON error when --json flag is used', function (): void {
         Artisan::call('resume', [
             'id' => 'f-nonexistent',
             '--cwd' => $this->tempDir,
@@ -4205,7 +4231,7 @@ describe('resume command', function () {
         expect($data['error'])->toContain("Task 'f-nonexistent' not found");
     });
 
-    it('supports partial task ID matching', function () {
+    it('supports partial task ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4217,7 +4243,7 @@ describe('resume command', function () {
         ]);
 
         // Use partial ID (last 6 chars)
-        $partialId = substr($task['id'], -6);
+        $partialId = substr((string) $task['id'], -6);
 
         $this->artisan('resume', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->assertExitCode(1); // Will fail at exec(), but task should be found
@@ -4228,8 +4254,8 @@ describe('resume command', function () {
 // summary Command Tests
 // =============================================================================
 
-describe('summary command', function () {
-    it('shows error when task not found', function () {
+describe('summary command', function (): void {
+    it('shows error when task not found', function (): void {
         $this->taskService->initialize();
 
         $this->artisan('summary', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
@@ -4237,7 +4263,7 @@ describe('summary command', function () {
             ->assertExitCode(1);
     });
 
-    it('shows error when no runs exist for task', function () {
+    it('shows error when no runs exist for task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4246,7 +4272,7 @@ describe('summary command', function () {
             ->assertExitCode(1);
     });
 
-    it('displays summary for task with single run', function () {
+    it('displays summary for task with single run', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
         $this->taskService->done($task['id']);
@@ -4277,7 +4303,7 @@ describe('summary command', function () {
         expect($output)->toContain('claude --resume');
     });
 
-    it('parses file operations from output', function () {
+    it('parses file operations from output', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4298,7 +4324,7 @@ describe('summary command', function () {
         expect($output)->toContain('Deleted file: old/LegacyAuth.php');
     });
 
-    it('parses test results from output', function () {
+    it('parses test results from output', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4318,7 +4344,7 @@ describe('summary command', function () {
         expect($output)->toContain('15 assertions passed');
     });
 
-    it('parses git commits from output', function () {
+    it('parses git commits from output', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4337,7 +4363,7 @@ describe('summary command', function () {
         expect($output)->toContain('Git commit: abc1234');
     });
 
-    it('shows all runs when --all flag is used', function () {
+    it('shows all runs when --all flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4365,7 +4391,7 @@ describe('summary command', function () {
         expect($output)->toContain('1 (failed)');
     });
 
-    it('outputs JSON when --json flag is used', function () {
+    it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4391,7 +4417,7 @@ describe('summary command', function () {
         expect($data['runs'][0]['parsed_summary'])->toContain('Created file: app/Test.php');
     });
 
-    it('shows no actionable items when output has no parseable content', function () {
+    it('shows no actionable items when output has no parseable content', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4410,7 +4436,7 @@ describe('summary command', function () {
         expect($output)->toContain('No actionable items detected');
     });
 
-    it('supports partial task ID matching', function () {
+    it('supports partial task ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4423,14 +4449,14 @@ describe('summary command', function () {
         ]);
 
         // Use partial ID (first 5 chars after f-)
-        $partialId = substr($task['id'], 2, 5);
+        $partialId = substr((string) $task['id'], 2, 5);
 
         $this->artisan('summary', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Test task')
             ->assertExitCode(0);
     });
 
-    it('parses fuel task operations from output', function () {
+    it('parses fuel task operations from output', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4450,7 +4476,7 @@ describe('summary command', function () {
         expect($output)->toContain('Completed task: f-abc123');
     });
 
-    it('displays status with color coding', function () {
+    it('displays status with color coding', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
@@ -4471,8 +4497,8 @@ describe('summary command', function () {
     });
 });
 
-describe('remove command', function () {
-    it('deletes a task with --force flag', function () {
+describe('remove command', function (): void {
+    it('deletes a task with --force flag', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
@@ -4486,9 +4512,10 @@ describe('remove command', function () {
         expect($this->taskService->find($task['id']))->toBeNull();
     });
 
-    it('deletes a backlog item with --force flag', function () {
+    it('deletes a backlog item with --force flag', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('Backlog item to delete', 'Description');
 
         Artisan::call('remove', ['id' => $item['id'], '--force' => true, '--cwd' => $this->tempDir]);
@@ -4501,7 +4528,7 @@ describe('remove command', function () {
         expect($backlogService->find($item['id']))->toBeNull();
     });
 
-    it('outputs JSON when --json flag is used for task', function () {
+    it('outputs JSON when --json flag is used for task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
@@ -4518,9 +4545,10 @@ describe('remove command', function () {
         expect($output)->toContain('"deleted"');
     });
 
-    it('outputs JSON when --json flag is used for backlog item', function () {
+    it('outputs JSON when --json flag is used for backlog item', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('Backlog item to delete', 'Description');
 
         Artisan::call('remove', [
@@ -4536,24 +4564,24 @@ describe('remove command', function () {
         expect($output)->toContain('"deleted"');
     });
 
-    it('returns error when task not found', function () {
+    it('returns error when task not found', function (): void {
         $this->artisan('remove', ['id' => 'f-nonexistent', '--force' => true, '--cwd' => $this->tempDir])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
     });
 
-    it('returns error when backlog item not found', function () {
+    it('returns error when backlog item not found', function (): void {
         $this->artisan('remove', ['id' => 'b-nonexistent', '--force' => true, '--cwd' => $this->tempDir])
             ->expectsOutputToContain("Backlog item 'b-nonexistent' not found")
             ->assertExitCode(1);
     });
 
-    it('supports partial ID matching for tasks', function () {
+    it('supports partial ID matching for tasks', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
         // Use partial ID (first 5 chars after f-)
-        $partialId = substr($task['id'], 2, 5);
+        $partialId = substr((string) $task['id'], 2, 5);
 
         $this->artisan('remove', ['id' => $partialId, '--force' => true, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Deleted task:')
@@ -4563,13 +4591,14 @@ describe('remove command', function () {
         expect($this->taskService->find($task['id']))->toBeNull();
     });
 
-    it('supports partial ID matching for backlog items', function () {
+    it('supports partial ID matching for backlog items', function (): void {
         $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
+
         $item = $backlogService->add('Backlog item to delete', 'Description');
 
         // Use partial ID (first 5 chars after b-)
-        $partialId = substr($item['id'], 2, 5);
+        $partialId = substr((string) $item['id'], 2, 5);
 
         Artisan::call('remove', ['id' => $partialId, '--force' => true, '--cwd' => $this->tempDir]);
         $output = Artisan::output();

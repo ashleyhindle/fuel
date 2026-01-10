@@ -22,8 +22,7 @@ class ProcessTest extends TestCase
             pid: 12345,
             status: ProcessStatus::Running,
             exitCode: null,
-            startedAt: new DateTimeImmutable,
-            completedAt: null
+            startedAt: new DateTimeImmutable
         );
 
         $this->assertEquals(ProcessStatus::Running, $process->status);
@@ -81,8 +80,7 @@ class ProcessTest extends TestCase
             pid: 23456,
             status: ProcessStatus::Running,
             exitCode: null,
-            startedAt: new DateTimeImmutable('-5 seconds'),
-            completedAt: null
+            startedAt: new DateTimeImmutable('-5 seconds')
         );
 
         $duration = $runningProcess->getDurationSeconds();
@@ -97,10 +95,7 @@ class ProcessTest extends TestCase
             command: 'echo pending',
             cwd: '/tmp',
             pid: 0,
-            status: ProcessStatus::Pending,
-            exitCode: null,
-            startedAt: null,
-            completedAt: null
+            status: ProcessStatus::Pending
         );
 
         $this->assertNull($pendingProcess->getDurationSeconds());
@@ -133,7 +128,7 @@ class ProcessTest extends TestCase
             $this->assertEquals(
                 $expectedRunning,
                 $process->isRunning(),
-                "Process with status {$status->value} should ".($expectedRunning ? '' : 'not ').'be running'
+                sprintf('Process with status %s should ', $status->value).($expectedRunning ? '' : 'not ').'be running'
             );
         }
     }
