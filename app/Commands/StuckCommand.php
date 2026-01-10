@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\ProcessManager;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -16,24 +17,13 @@ class StuckCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
-    protected $description = 'List consumed tasks with non-zero exit codes';
+    protected $description = 'List failed/stuck tasks (dead processes or non-zero exit codes)';
 
     public function handle(TaskService $taskService): int
     {
         $this->configureCwd($taskService);
 
-        $tasks = $taskService->all();
-
-        // Filter for tasks where consumed=true AND consumed_exit_code != 0
-        $stuckTasks = $tasks
-            ->filter(function (array $t): bool {
-                $consumed = $t['consumed'] ?? false;
-                $exitCode = $t['consumed_exit_code'] ?? null;
-
-                return $consumed === true && $exitCode !== null && $exitCode !== 0;
-            })
-            ->sortByDesc('consumed_at')
-            ->values();
+        $stuckTasks = $taskService->failed()->sortByDesc('consumed_at')->values();
 
         if ($this->option('json')) {
             $this->outputJson($stuckTasks->toArray());
@@ -48,12 +38,20 @@ class StuckCommand extends Command
             $this->newLine();
 
             foreach ($stuckTasks as $task) {
-                $exitCode = $task['consumed_exit_code'] ?? 0;
-                $exitColor = 'red';
+                $exitCode = $task['consumed_exit_code'] ?? null;
+                $pid = $task['consume_pid'] ?? null;
                 $output = $task['consumed_output'] ?? '';
 
                 $this->line(sprintf('<info>%s</info> - %s', $task['id'], $task['title']));
-                $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $exitCode));
+
+                // Show reason for being stuck
+                if ($exitCode !== null && $exitCode !== 0) {
+                    $this->line(sprintf('  Reason: <fg=red>Exit code %d</>', $exitCode));
+                } elseif ($pid !== null && ! ProcessManager::isProcessAlive((int) $pid)) {
+                    $this->line(sprintf('  Reason: <fg=red>Dead process</> (PID %d)', $pid));
+                } else {
+                    $this->line('  Reason: <fg=red>Lost process</> (no PID)');
+                }
 
                 if ($output !== '') {
                     // Truncate output to a reasonable length for display (e.g., 500 chars)

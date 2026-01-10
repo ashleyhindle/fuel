@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\ProcessManager;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -121,8 +122,14 @@ class RetryCommand extends Command
             return 'exit code '.$exitCode;
         }
 
-        if (($task['status'] ?? '') === 'in_progress' && ! empty($task['consumed']) && ($task['consume_pid'] ?? null) === null) {
-            return 'spawn failed / PID lost';
+        $pid = $task['consume_pid'] ?? null;
+        if (($task['status'] ?? '') === 'in_progress' && ! empty($task['consumed'])) {
+            if ($pid === null) {
+                return 'spawn failed / PID lost';
+            }
+            if (! ProcessManager::isProcessAlive((int) $pid)) {
+                return 'dead process (PID '.$pid.')';
+            }
         }
 
         return 'unknown';

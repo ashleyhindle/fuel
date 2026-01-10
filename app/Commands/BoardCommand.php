@@ -399,8 +399,7 @@ class BoardCommand extends Command
                 $consumeIcon = empty($task['consumed']) ? '' : '⚡';
 
                 // Show icon for failed tasks
-                $isPidDead = fn (int $pid): bool => ! $this->isPidRunning($pid);
-                $failedIcon = $this->taskService->isFailed($task, $isPidDead) ? '🪫' : '';
+                $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
 
                 // Show icon for auto-closed tasks (only in done column)
                 $autoClosedIcon = '';
@@ -522,35 +521,6 @@ class BoardCommand extends Command
         }
 
         return $truncated;
-    }
-
-    /**
-     * Check if a process with the given PID is running.
-     */
-    private function isPidRunning(int $pid): bool
-    {
-        // Use posix_kill with signal 0 to check if process exists
-        // Returns true if process exists, false otherwise
-        if (function_exists('posix_kill')) {
-            return @posix_kill($pid, 0);
-        }
-
-        // Fallback: check /proc on Linux
-        if (PHP_OS_FAMILY === 'Linux' && is_dir('/proc')) {
-            return is_dir('/proc/'.$pid);
-        }
-
-        // Fallback: use ps command on Unix-like systems
-        if (PHP_OS_FAMILY !== 'Windows') {
-            $output = @shell_exec(sprintf('ps -p %d -o pid= 2>/dev/null', $pid));
-
-            return ! in_array(trim($output ?? ''), ['', '0'], true);
-        }
-
-        // Windows fallback: use tasklist
-        $output = @shell_exec(sprintf('tasklist /FI "PID eq %d" 2>NUL', $pid));
-
-        return str_contains($output ?? '', (string) $pid);
     }
 
     /**
