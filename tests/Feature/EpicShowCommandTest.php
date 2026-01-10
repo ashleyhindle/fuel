@@ -201,4 +201,102 @@ describe('epic:show command', function (): void {
         expect($output)->toContain('Epic: '.$epic['id']);
         expect($output)->toContain('Title: Partial ID Epic');
     });
+
+    it('sorts tasks by ready order: unblocked first, then priority, then created_at', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        $epic = $epicService->createEpic('Epic with Sorting');
+
+        // Create blocker task (not in epic)
+        $blocker = $taskService->create([
+            'title' => 'Blocker Task',
+            'status' => 'open',
+        ]);
+
+        // Create tasks with different priorities and blocked statuses
+        // Task 1: Unblocked, priority 0
+        $task1 = $taskService->create([
+            'title' => 'Unblocked P0',
+            'priority' => 0,
+            'epic_id' => $epic['id'],
+        ]);
+
+        // Task 2: Blocked, priority 0 (should appear after all unblocked tasks)
+        $task2 = $taskService->create([
+            'title' => 'Blocked P0',
+            'priority' => 0,
+            'epic_id' => $epic['id'],
+            'blocked_by' => [$blocker['id']],
+        ]);
+
+        // Task 3: Unblocked, priority 1 (should appear after P0 tasks)
+        $task3 = $taskService->create([
+            'title' => 'Unblocked P1',
+            'priority' => 1,
+            'epic_id' => $epic['id'],
+        ]);
+
+        // Task 4: Unblocked, priority 0, created later (add small delay to ensure different timestamp)
+        usleep(10000); // 10ms delay to ensure different created_at timestamp
+        $task4 = $taskService->create([
+            'title' => 'Unblocked P0 Later',
+            'priority' => 0,
+            'epic_id' => $epic['id'],
+        ]);
+
+        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        $tasks = $data['tasks'];
+        expect($tasks)->toHaveCount(4);
+
+        // Find positions of each task
+        $task1Pos = array_search($task1['id'], array_column($tasks, 'id'), true);
+        $task2Pos = array_search($task2['id'], array_column($tasks, 'id'), true);
+        $task3Pos = array_search($task3['id'], array_column($tasks, 'id'), true);
+        $task4Pos = array_search($task4['id'], array_column($tasks, 'id'), true);
+
+        // Verify blocked task comes after all unblocked tasks
+        expect($task2Pos)->toBeGreaterThan($task1Pos);
+        expect($task2Pos)->toBeGreaterThan($task3Pos);
+        expect($task2Pos)->toBeGreaterThan($task4Pos);
+
+        // Verify unblocked tasks are sorted by priority (P0 before P1)
+        expect($task3Pos)->toBeGreaterThan($task1Pos);
+        expect($task3Pos)->toBeGreaterThan($task4Pos);
+
+        // Verify P0 tasks are sorted by created_at (task1 before task4, since task1 was created first)
+        expect($task1Pos)->toBeLessThan($task4Pos);
+    });
+
+    it('shows blocked indicator for blocked tasks', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        $epic = $epicService->createEpic('Epic with Blocked Task');
+
+        // Create blocker task (not in epic)
+        $blocker = $taskService->create([
+            'title' => 'Blocker Task',
+            'status' => 'open',
+        ]);
+
+        // Create blocked task
+        $blockedTask = $taskService->create([
+            'title' => 'Blocked Task',
+            'status' => 'open',
+            'epic_id' => $epic['id'],
+            'blocked_by' => [$blocker['id']],
+        ]);
+
+        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        // Check that blocked indicator appears (yellow "blocked" text)
+        expect($output)->toContain('blocked');
+        expect($output)->toContain($blockedTask['id']);
+        expect($output)->toContain('Blocked Task');
+    });
 });

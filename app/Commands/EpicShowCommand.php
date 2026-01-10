@@ -44,10 +44,38 @@ class EpicShowCommand extends Command
 
             $tasks = $epicService->getTasksForEpic($epic['id']);
 
+            // Sort tasks: unblocked first, then blocked; within each group by priority ASC, then created_at ASC
+            $tasksCollection = collect($tasks);
+            $allTasks = $taskService->all(); // Need all tasks to determine blocked status
+            $blockedIds = $taskService->getBlockedIds($allTasks);
+
+            // Partition tasks into unblocked and blocked groups
+            [$unblockedTasks, $blockedTasks] = $tasksCollection->partition(function (array $task) use ($blockedIds): bool {
+                return ! in_array($task['id'] ?? '', $blockedIds, true);
+            });
+
+            // Sort each group by priority ASC, then created_at ASC
+            $sortedUnblocked = $unblockedTasks
+                ->sortBy([
+                    ['priority', 'asc'],
+                    ['created_at', 'asc'],
+                ])
+                ->values();
+
+            $sortedBlocked = $blockedTasks
+                ->sortBy([
+                    ['priority', 'asc'],
+                    ['created_at', 'asc'],
+                ])
+                ->values();
+
+            // Combine: unblocked first, then blocked
+            $sortedTasks = $sortedUnblocked->concat($sortedBlocked)->toArray();
+
             if ($this->option('json')) {
-                $totalCount = count($tasks);
-                $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
-                $epic['tasks'] = $tasks;
+                $totalCount = count($sortedTasks);
+                $completedCount = count(array_filter($sortedTasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
+                $epic['tasks'] = $sortedTasks;
                 $epic['task_count'] = $totalCount;
                 $epic['completed_count'] = $completedCount;
                 $this->outputJson($epic);
@@ -56,8 +84,8 @@ class EpicShowCommand extends Command
             }
 
             // Calculate progress
-            $totalCount = count($tasks);
-            $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
+            $totalCount = count($sortedTasks);
+            $completedCount = count(array_filter($sortedTasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
             $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
             // Display epic details
@@ -74,22 +102,30 @@ class EpicShowCommand extends Command
 
             // Display linked tasks in table format
             $this->newLine();
-            if (empty($tasks)) {
+            if (empty($sortedTasks)) {
                 $this->line('  <fg=yellow>No tasks linked to this epic.</>');
             } else {
-                $this->line(sprintf('  Linked Tasks (%d):', count($tasks)));
+                $this->line(sprintf('  Linked Tasks (%d):', count($sortedTasks)));
                 $this->newLine();
 
                 $headers = ['ID', 'Title', 'Status', 'Type', 'Priority'];
-                $rows = array_map(function (array $task): array {
+                $rows = array_map(function (array $task) use ($blockedIds): array {
+                    $status = $task['status'] ?? 'open';
+                    $isBlocked = in_array($task['id'] ?? '', $blockedIds, true);
+
+                    // Add visual indicator for blocked tasks (like tree command)
+                    if ($isBlocked && $status === 'open') {
+                        $status = '<fg=yellow>blocked</>';
+                    }
+
                     return [
                         $task['id'] ?? '',
                         $task['title'] ?? '',
-                        $task['status'] ?? 'open',
+                        $status,
                         $task['type'] ?? '',
                         isset($task['priority']) ? (string) $task['priority'] : '',
                     ];
-                }, $tasks);
+                }, $sortedTasks);
 
                 $this->table($headers, $rows);
             }
