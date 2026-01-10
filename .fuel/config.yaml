@@ -1,46 +1,48 @@
 # Fuel Agent Configuration
-# Routes tasks to different agents based on complexity
-# All agents use: -p for prompt, --model for model
+# Define agents once, reference by name in complexity mappings
 
-complexity:
-  trivial:
-    agent: cursor-agent
+# Primary agent for orchestration/decision-making (required)
+primary: claude-opus
+
+agents:
+  cursor-composer:
+    command: cursor-agent
+    prompt_args: ["-p"]
     model: composer-1
     args:
       - "--force"
       - "--output-format"
       - "stream-json"
+    max_concurrent: 2
+    resume_args: ["--resume="]
 
-  simple:
-    agent: cursor-agent
-    model: composer-1
-    args:
-      - "--force"
-      - "--output-format"
-      - "stream-json"
-
-  moderate:
-    agent: claude
+  claude-sonnet:
+    command: claude
+    prompt_args: ["-p"]
     model: sonnet
     args:
       - "--dangerously-skip-permissions"
       - "--output-format"
       - "stream-json"
       - "--verbose"
+    max_concurrent: 2
+    resume_args: ["--resume"]
 
-  complex:
-    agent: claude
+  claude-opus:
+    command: claude
+    prompt_args: ["-p"]
     model: opus
     args:
       - "--dangerously-skip-permissions"
       - "--output-format"
       - "stream-json"
       - "--verbose"
+    max_concurrent: 2
+    resume_args: ["--resume"]
 
-# Agent concurrency limits
-# Controls how many instances of each agent can run simultaneously
-agents:
-  cursor-agent:
-    max_concurrent: 2
-  claude:
-    max_concurrent: 2
+# Map complexity levels to agents
+complexity:
+  trivial: cursor-composer
+  simple: claude-opus
+  moderate: claude-opus
+  complex: claude-opus
