@@ -160,22 +160,6 @@ it('computes epic status as review_pending when all tasks are closed', function 
     expect($epic['status'])->toBe('review_pending');
 });
 
-it('computes epic status as approved when approved_at is set', function () {
-    $epic = $this->service->createEpic('Title');
-    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
-
-    // Set approved_at directly in DB
-    $this->db->initialize();
-    $this->db->query(
-        'UPDATE epics SET approved_at = ? WHERE id = ?',
-        [\Carbon\Carbon::now('UTC')->toIso8601String(), $epic['id']]
-    );
-
-    $epic = $this->service->getEpic($epic['id']);
-
-    expect($epic['status'])->toBe('approved');
-});
-
 it('computes epic status as reviewed when reviewed_at is set', function () {
     $epic = $this->service->createEpic('Title');
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
@@ -188,7 +172,7 @@ it('computes epic status as reviewed when reviewed_at is set', function () {
     // Set reviewed_at directly in DB
     $this->db->initialize();
     $this->db->query(
-        'UPDATE epics SET reviewed_at = ? WHERE id = ?',
+        'UPDATE epics SET reviewed_at = ? WHERE short_id = ?',
         [\Carbon\Carbon::now('UTC')->toIso8601String(), $epic['id']]
     );
 

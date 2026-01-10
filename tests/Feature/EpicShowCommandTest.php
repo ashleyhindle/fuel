@@ -237,8 +237,8 @@ describe('epic:show command', function (): void {
             'epic_id' => $epic['id'],
         ]);
 
-        // Task 4: Unblocked, priority 0, created later (add small delay to ensure different timestamp)
-        usleep(10000); // 10ms delay to ensure different created_at timestamp
+        // Task 4: Unblocked, priority 0, created later (add delay to ensure different timestamp)
+        usleep(1100000); // 1.1s delay to ensure different created_at timestamp (ISO8601 has second precision)
         $task4 = $taskService->create([
             'title' => 'Unblocked P0 Later',
             'priority' => 0,

@@ -26,27 +26,26 @@ class EpicService
     {
         $this->db->initialize();
 
-        $id = $this->generateId();
+        $shortId = $this->generateId();
         $now = Carbon::now('UTC')->toIso8601String();
 
         $this->db->query(
-            'INSERT INTO epics (id, title, description, status, created_at) VALUES (?, ?, ?, ?, ?)',
-            [$id, $title, $description, 'planning', $now]
+            'INSERT INTO epics (short_id, title, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [$shortId, $title, $description, 'planning', $now, $now]
         );
 
         $epic = [
-            'id' => $id,
+            'id' => $shortId,
             'title' => $title,
             'description' => $description,
             'status' => 'planning', // New epics have no tasks, so status is 'planning'
             'created_at' => $now,
+            'updated_at' => $now,
             'reviewed_at' => null,
-            'approved_at' => null,
-            'approved_by' => null,
         ];
 
         // Compute status (will be 'planning' for new epic with no tasks)
-        $epic['status'] = $this->getEpicStatus($id);
+        $epic['status'] = $this->getEpicStatus($shortId);
 
         return $epic;
     }
@@ -60,11 +59,13 @@ class EpicService
             return null;
         }
 
-        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
             return null;
         }
 
+        // Map short_id to id for public interface compatibility
+        $epic['id'] = $epic['short_id'];
         $epic['status'] = $this->getEpicStatus($resolvedId);
 
         return $epic;
@@ -77,7 +78,9 @@ class EpicService
         $epics = $this->db->fetchAll('SELECT * FROM epics ORDER BY created_at DESC');
 
         return array_map(function (array $epic): array {
-            $epic['status'] = $this->getEpicStatus($epic['id']);
+            // Map short_id to id for public interface compatibility
+            $epic['id'] = $epic['short_id'];
+            $epic['status'] = $this->getEpicStatus($epic['short_id']);
 
             return $epic;
         }, $epics);
@@ -92,13 +95,13 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
-        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
-        $updates = [];
-        $params = [];
+        $updates = ['updated_at = ?'];
+        $params = [Carbon::now('UTC')->toIso8601String()];
 
         if (isset($data['title'])) {
             $updates[] = 'title = ?';
@@ -112,14 +115,14 @@ class EpicService
             $epic['description'] = $data['description'];
         }
 
-        if ($updates !== []) {
-            $params[] = $resolvedId;
-            $this->db->query(
-                'UPDATE epics SET '.implode(', ', $updates).' WHERE id = ?',
-                $params
-            );
-        }
+        $params[] = $resolvedId;
+        $this->db->query(
+            'UPDATE epics SET '.implode(', ', $updates).' WHERE short_id = ?',
+            $params
+        );
 
+        // Map short_id to id for public interface compatibility
+        $epic['id'] = $epic['short_id'];
         // Compute status from task states
         $epic['status'] = $this->getEpicStatus($resolvedId);
 
@@ -135,14 +138,16 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
-        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
         $now = Carbon::now('UTC')->toIso8601String();
-        $this->db->query('UPDATE epics SET reviewed_at = ? WHERE id = ?', [$now, $resolvedId]);
+        $this->db->query('UPDATE epics SET reviewed_at = ?, updated_at = ? WHERE short_id = ?', [$now, $now, $resolvedId]);
 
+        // Map short_id to id for public interface compatibility
+        $epic['id'] = $epic['short_id'];
         $epic['reviewed_at'] = $now;
         $epic['status'] = $this->getEpicStatus($resolvedId);
 
@@ -158,15 +163,17 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
-        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
+        // Map short_id to id for public interface compatibility
+        $epic['id'] = $epic['short_id'];
         // Compute status before deleting
         $epic['status'] = $this->getEpicStatus($resolvedId);
 
-        $this->db->query('DELETE FROM epics WHERE id = ?', [$resolvedId]);
+        $this->db->query('DELETE FROM epics WHERE short_id = ?', [$resolvedId]);
 
         return $epic;
     }
@@ -195,14 +202,9 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
-        $epic = $this->db->fetchOne('SELECT approved_at, reviewed_at FROM epics WHERE id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT reviewed_at FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
-        }
-
-        // If approved_at is set, epic is approved regardless of task states
-        if ($epic['approved_at'] !== null) {
-            return 'approved';
         }
 
         $tasks = $this->getTasksForEpic($resolvedId);
@@ -268,22 +270,22 @@ class EpicService
     private function resolveId(string $id): ?string
     {
         if (str_starts_with($id, 'e-') && strlen($id) === 8) {
-            $epic = $this->db->fetchOne('SELECT id FROM epics WHERE id = ?', [$id]);
+            $epic = $this->db->fetchOne('SELECT short_id FROM epics WHERE short_id = ?', [$id]);
 
             return $epic !== null ? $id : null;
         }
 
         $epics = $this->db->fetchAll(
-            'SELECT id FROM epics WHERE id LIKE ? OR id LIKE ?',
+            'SELECT short_id FROM epics WHERE short_id LIKE ? OR short_id LIKE ?',
             [$id.'%', 'e-'.$id.'%']
         );
 
         if (count($epics) === 1) {
-            return $epics[0]['id'];
+            return $epics[0]['short_id'];
         }
 
         if (count($epics) > 1) {
-            $ids = array_column($epics, 'id');
+            $ids = array_column($epics, 'short_id');
             throw new RuntimeException(
                 sprintf("Ambiguous epic ID '%s'. Matches: ", $id).implode(', ', $ids)
             );
@@ -307,7 +309,7 @@ class EpicService
             return ['completed' => false, 'review_task_id' => null];
         }
 
-        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
             return ['completed' => false, 'review_task_id' => null];
         }
@@ -539,7 +541,8 @@ class EpicService
      */
     private function createEpicReviewTask(array $epic, string $summary): array
     {
-        $title = "Review completed epic: {$epic['title']} ({$epic['id']})";
+        $epicId = $epic['short_id'] ?? $epic['id'];
+        $title = "Review completed epic: {$epic['title']} ({$epicId})";
 
         return $this->taskService->create([
             'title' => $title,

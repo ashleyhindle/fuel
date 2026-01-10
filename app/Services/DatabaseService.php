@@ -154,7 +154,7 @@ class DatabaseService
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_id)');
             },
             2 => function (PDO $pdo): void {
-                // v2: epics table
+                // v2: epics table (original TEXT id schema - superseded by v3)
                 $pdo->exec('
                     CREATE TABLE IF NOT EXISTS epics (
                         id TEXT PRIMARY KEY,
@@ -168,6 +168,61 @@ class DatabaseService
                     )
                 ');
 
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_status ON epics(status)');
+            },
+            3 => function (PDO $pdo): void {
+                // v3: Migrate epics to integer PK with short_id column
+                // Check if epics table exists and has old schema (id as TEXT primary key)
+                $tableInfo = $pdo->query('PRAGMA table_info(epics)')->fetchAll();
+                $hasOldSchema = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'id' && strtoupper($column['type']) === 'TEXT') {
+                        $hasOldSchema = true;
+                        break;
+                    }
+                }
+
+                if ($hasOldSchema) {
+                    // Migrate existing data
+                    $pdo->exec('
+                        CREATE TABLE epics_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            short_id TEXT UNIQUE NOT NULL,
+                            title TEXT NOT NULL,
+                            description TEXT,
+                            status TEXT DEFAULT \'planning\',
+                            reviewed_at TEXT,
+                            created_at TEXT,
+                            updated_at TEXT
+                        )
+                    ');
+
+                    // Copy data from old table (old id becomes short_id)
+                    $pdo->exec('
+                        INSERT INTO epics_new (short_id, title, description, status, reviewed_at, created_at, updated_at)
+                        SELECT id, title, description, status, reviewed_at, created_at, created_at
+                        FROM epics
+                    ');
+
+                    $pdo->exec('DROP TABLE epics');
+                    $pdo->exec('ALTER TABLE epics_new RENAME TO epics');
+                } else {
+                    // Fresh install or already migrated - create with new schema
+                    $pdo->exec('
+                        CREATE TABLE IF NOT EXISTS epics (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            short_id TEXT UNIQUE NOT NULL,
+                            title TEXT NOT NULL,
+                            description TEXT,
+                            status TEXT DEFAULT \'planning\',
+                            reviewed_at TEXT,
+                            created_at TEXT,
+                            updated_at TEXT
+                        )
+                    ');
+                }
+
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_short_id ON epics(short_id)');
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_status ON epics(status)');
             },
         ];
@@ -267,21 +322,22 @@ class DatabaseService
         // Create indexes for reviews table
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_id)');
 
-        // Create epics table
+        // Create epics table (new schema with integer PK and short_id)
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS epics (
-                id TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                short_id TEXT UNIQUE NOT NULL,
                 title TEXT NOT NULL,
                 description TEXT,
                 status TEXT DEFAULT \'planning\',
-                created_at TEXT,
                 reviewed_at TEXT,
-                approved_at TEXT,
-                approved_by TEXT
+                created_at TEXT,
+                updated_at TEXT
             )
         ');
 
-        // Create index for epics table
+        // Create indexes for epics table
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_short_id ON epics(short_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_status ON epics(status)');
     }
 

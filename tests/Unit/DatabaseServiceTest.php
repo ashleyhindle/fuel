@@ -163,13 +163,13 @@ it('creates epics table with correct schema', function () {
     expect($columns)->toHaveCount(8);
     expect(array_column($columns, 'name'))->toBe([
         'id',
+        'short_id',
         'title',
         'description',
         'status',
-        'created_at',
         'reviewed_at',
-        'approved_at',
-        'approved_by',
+        'created_at',
+        'updated_at',
     ]);
 });
 
@@ -188,7 +188,7 @@ it('auto-migrates on first getConnection call', function () {
 
     // Verify schema_version table exists and has correct version
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(2);
+    expect($version['version'])->toBe(3);
 
     // Verify tables were created
     $tables = $this->service->fetchAll(
@@ -230,16 +230,16 @@ it('runs only pending migrations when upgrading', function () {
     $connection->exec('DELETE FROM schema_version');
     $connection->exec('INSERT INTO schema_version (version) VALUES (1)');
 
-    // Drop epics table (v2 migration)
+    // Drop epics table (v2/v3 migration)
     $connection->exec('DROP TABLE IF EXISTS epics');
 
     // Create new service to trigger migration check
     $newService = new DatabaseService($this->dbPath);
     $newService->getConnection();
 
-    // Version should be updated to 2
+    // Version should be updated to 3
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(2);
+    expect($version['version'])->toBe(3);
 
     // Epics table should be recreated
     $tables = $newService->fetchAll(
@@ -260,5 +260,5 @@ it('handles fresh database with no schema_version table', function () {
 
     // Should have all tables now
     $version = $newService->fetchOne('SELECT version FROM schema_version LIMIT 1');
-    expect($version['version'])->toBe(2);
+    expect($version['version'])->toBe(3);
 });
