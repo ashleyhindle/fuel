@@ -477,6 +477,31 @@ describe('add command', function (): void {
         expect($item['id'])->toStartWith('b-');
         expect($item['title'])->toBe('JSON backlog item');
     });
+
+    it('adds item to backlog with --backlog flag (alias for --someday)', function (): void {
+        $backlogService = $this->app->make(BacklogService::class);
+
+        Artisan::call('add', [
+            'title' => 'Future idea via backlog',
+            '--backlog' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Added to backlog: b-');
+        expect($output)->toContain('Title: Future idea via backlog');
+
+        // Verify it's in backlog, not tasks
+        $backlogService->initialize();
+        $all = $backlogService->all();
+        expect($all->count())->toBe(1);
+        expect($all->first()['title'])->toBe('Future idea via backlog');
+
+        // Verify it's NOT in tasks
+        $this->taskService->initialize();
+        $tasks = $this->taskService->all();
+        expect($tasks->count())->toBe(0);
+    });
 });
 
 // Backlog Command Tests
