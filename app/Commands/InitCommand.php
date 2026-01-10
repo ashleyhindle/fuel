@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Services\ConfigService;
+use App\Services\DatabaseService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -20,7 +21,7 @@ class InitCommand extends Command
 
     protected $description = 'Initialize Fuel in the current project';
 
-    public function handle(TaskService $taskService, ConfigService $configService): int
+    public function handle(TaskService $taskService, ConfigService $configService, DatabaseService $databaseService): int
     {
         $cwd = $this->option('cwd') ?: getcwd();
 
@@ -40,6 +41,14 @@ class InitCommand extends Command
         // Initialize TaskService (creates tasks.jsonl if needed)
         $taskService->setStoragePath($fuelDir.'/tasks.jsonl');
         $taskService->initialize();
+
+        // Initialize database (creates agent.db with schema if needed)
+        $dbPath = $fuelDir.'/agent.db';
+        $databaseService->setDatabasePath($dbPath);
+        $databaseService->initialize();
+        if (! file_exists($dbPath)) {
+            $this->info('Created agent.db with schema');
+        }
 
         // Handle agent/model configuration
         $configPath = $fuelDir.'/config.yaml';
@@ -72,7 +81,7 @@ class InitCommand extends Command
                 'priority' => 2,
             ]);
 
-            $this->info('Created starter task: ' . $task['id']);
+            $this->info('Created starter task: '.$task['id']);
         }
 
         $this->newLine();
@@ -109,7 +118,7 @@ class InitCommand extends Command
 
         $content = file_get_contents($configPath);
         if ($content === false) {
-            throw new RuntimeException('Failed to read config file: ' . $configPath);
+            throw new RuntimeException('Failed to read config file: '.$configPath);
         }
 
         $config = Yaml::parse($content);
@@ -143,18 +152,18 @@ class InitCommand extends Command
     }
 
     /**
-     * Ensure .fuel/runs/ and .fuel/processes/ are in .gitignore.
+     * Ensure .fuel/runs/, .fuel/processes/, and .fuel/agent.db are in .gitignore.
      */
     private function ensureGitignoreEntry(string $cwd): void
     {
         $gitignorePath = $cwd.'/.gitignore';
-        $entries = ['.fuel/runs/', '.fuel/processes/'];
+        $entries = ['.fuel/runs/', '.fuel/processes/', '.fuel/agent.db'];
 
         // Check if .gitignore exists
         if (file_exists($gitignorePath)) {
             $content = file_get_contents($gitignorePath);
             if ($content === false) {
-                throw new RuntimeException('Failed to read .gitignore file: ' . $gitignorePath);
+                throw new RuntimeException('Failed to read .gitignore file: '.$gitignorePath);
             }
 
             $added = [];
@@ -167,12 +176,12 @@ class InitCommand extends Command
 
             if (! empty($added)) {
                 file_put_contents($gitignorePath, $content);
-                $this->info('Added ' . implode(', ', $added) . ' to .gitignore');
+                $this->info('Added '.implode(', ', $added).' to .gitignore');
             }
         } else {
             // Create new .gitignore with entries
             file_put_contents($gitignorePath, implode("\n", $entries)."\n");
-            $this->info('Created .gitignore with ' . implode(', ', $entries));
+            $this->info('Created .gitignore with '.implode(', ', $entries));
         }
     }
 }
