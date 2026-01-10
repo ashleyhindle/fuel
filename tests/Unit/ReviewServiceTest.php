@@ -502,7 +502,7 @@ it('detects follow-up tasks created by reviewer', function (): void {
     expect($result)->not->toBeNull();
     expect($result->passed)->toBeFalse();
     expect($result->followUpTaskIds)->toContain($followUpTask['id']);
-    expect($result->issues)->toContain('tests_failing');
+    expect($result->issues)->toContain('review_issues_found');
 });
 
 it('returns null for getReviewResult when review not complete', function (): void {
@@ -573,14 +573,14 @@ it('generates review prompt via getReviewPrompt', function (): void {
     expect($prompt)->toContain('M file.txt');
 });
 
-it('detects uncommitted changes issue from output', function (): void {
+it('detects issues when follow-up task exists', function (): void {
     // Create main task
-    $task = $this->taskService->create(['title' => 'Uncommitted changes test']);
+    $task = $this->taskService->create(['title' => 'Task with issues']);
     $taskId = $task['id'];
 
-    // Create follow-up task
+    // Create follow-up task (this is how issues are detected now)
     $this->taskService->create([
-        'title' => 'Commit uncommitted changes',
+        'title' => 'Fix issues from review',
         'labels' => ['review-fix'],
         'blocked_by' => [$taskId],
     ]);
@@ -610,7 +610,7 @@ it('detects uncommitted changes issue from output', function (): void {
         ->shouldReceive('getOutput')
         ->with('review-'.$taskId)
         ->andReturn(new ProcessOutput(
-            stdout: 'Found uncommitted changes in working directory',
+            stdout: 'Review completed with issues',
             stderr: '',
             stdoutPath: '/tmp/stdout.log',
             stderrPath: '/tmp/stderr.log'
@@ -629,7 +629,8 @@ it('detects uncommitted changes issue from output', function (): void {
 
     $result = $reviewService->getReviewResult($taskId);
 
-    expect($result->issues)->toContain('uncommitted_changes');
+    expect($result->passed)->toBeFalse();
+    expect($result->issues)->toContain('review_issues_found');
 });
 
 it('recovers stuck reviews for tasks in review status with no active process', function (): void {
