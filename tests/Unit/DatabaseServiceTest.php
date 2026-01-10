@@ -181,3 +181,84 @@ it('creates index on epics status', function () {
 
     expect($indexNames)->toContain('idx_epics_status');
 });
+
+it('auto-migrates on first getConnection call', function () {
+    // Just calling getConnection should trigger auto-migration
+    $connection = $this->service->getConnection();
+
+    // Verify schema_version table exists and has correct version
+    $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
+    expect($version['version'])->toBe(2);
+
+    // Verify tables were created
+    $tables = $this->service->fetchAll(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    );
+    $tableNames = array_column($tables, 'name');
+
+    expect($tableNames)->toContain('runs');
+    expect($tableNames)->toContain('agent_health');
+    expect($tableNames)->toContain('reviews');
+    expect($tableNames)->toContain('epics');
+    expect($tableNames)->toContain('schema_version');
+});
+
+it('does not re-run migrations on subsequent connections', function () {
+    // First connection triggers migration
+    $this->service->getConnection();
+
+    // Insert test data
+    $this->service->query(
+        'INSERT INTO runs (id, task_id, agent) VALUES (?, ?, ?)',
+        ['run-test', 'f-123456', 'claude']
+    );
+
+    // Create new service pointing to same DB
+    $newService = new DatabaseService($this->dbPath);
+    $newService->getConnection();
+
+    // Data should still exist (migrations didn't wipe it)
+    $result = $newService->fetchOne('SELECT * FROM runs WHERE id = ?', ['run-test']);
+    expect($result)->not->toBeNull();
+    expect($result['id'])->toBe('run-test');
+});
+
+it('runs only pending migrations when upgrading', function () {
+    $connection = $this->service->getConnection();
+
+    // Manually set version to 1 (simulating older DB)
+    $connection->exec('DELETE FROM schema_version');
+    $connection->exec('INSERT INTO schema_version (version) VALUES (1)');
+
+    // Drop epics table (v2 migration)
+    $connection->exec('DROP TABLE IF EXISTS epics');
+
+    // Create new service to trigger migration check
+    $newService = new DatabaseService($this->dbPath);
+    $newService->getConnection();
+
+    // Version should be updated to 2
+    $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
+    expect($version['version'])->toBe(2);
+
+    // Epics table should be recreated
+    $tables = $newService->fetchAll(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='epics'"
+    );
+    expect($tables)->toHaveCount(1);
+});
+
+it('handles fresh database with no schema_version table', function () {
+    // Create a raw SQLite DB with no tables
+    $rawPdo = new PDO('sqlite:'.$this->dbPath);
+    $rawPdo->exec('CREATE TABLE dummy (id TEXT)');
+    $rawPdo = null;
+
+    // New service should migrate from version 0
+    $newService = new DatabaseService($this->dbPath);
+    $newService->getConnection();
+
+    // Should have all tables now
+    $version = $newService->fetchOne('SELECT version FROM schema_version LIMIT 1');
+    expect($version['version'])->toBe(2);
+});

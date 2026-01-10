@@ -15,6 +15,8 @@ class DatabaseService
 
     private string $dbPath;
 
+    private bool $migrated = false;
+
     public function __construct(?string $dbPath = null)
     {
         $this->dbPath = $dbPath ?? getcwd().'/.fuel/agent.db';
@@ -26,11 +28,13 @@ class DatabaseService
     public function setDatabasePath(string $path): void
     {
         $this->dbPath = $path;
-        $this->connection = null; // Reset connection
+        $this->connection = null;
+        $this->migrated = false;
     }
 
     /**
      * Get PDO connection, creating it if needed.
+     * Automatically runs pending migrations on first connection.
      */
     public function getConnection(): PDO
     {
@@ -50,7 +54,158 @@ class DatabaseService
             }
         }
 
+        if (! $this->migrated) {
+            $this->runMigrations();
+            $this->migrated = true;
+        }
+
         return $this->connection;
+    }
+
+    /**
+     * Get the current schema version from the database.
+     */
+    private function getCurrentSchemaVersion(): int
+    {
+        // Check if schema_version table exists
+        $result = $this->connection->query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
+        )->fetch();
+
+        if (! $result) {
+            return 0;
+        }
+
+        $row = $this->connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
+
+        return $row ? (int) $row['version'] : 0;
+    }
+
+    /**
+     * Update the schema version in the database.
+     */
+    private function setSchemaVersion(int $version): void
+    {
+        // Ensure schema_version table exists
+        $this->connection->exec('
+            CREATE TABLE IF NOT EXISTS schema_version (
+                version INTEGER NOT NULL
+            )
+        ');
+
+        // Delete any existing row and insert the new version
+        $this->connection->exec('DELETE FROM schema_version');
+        $stmt = $this->connection->prepare('INSERT INTO schema_version (version) VALUES (?)');
+        $stmt->execute([$version]);
+    }
+
+    /**
+     * Get all available migrations as [version => callable].
+     */
+    private function getMigrations(): array
+    {
+        return [
+            1 => function (PDO $pdo): void {
+                // v1: runs, agent_health, reviews tables with indexes
+                $pdo->exec('
+                    CREATE TABLE IF NOT EXISTS runs (
+                        id TEXT PRIMARY KEY,
+                        task_id TEXT NOT NULL,
+                        agent TEXT NOT NULL,
+                        status TEXT DEFAULT \'running\',
+                        exit_code INTEGER,
+                        started_at TEXT,
+                        completed_at TEXT,
+                        duration_seconds INTEGER,
+                        session_id TEXT,
+                        error_type TEXT
+                    )
+                ');
+
+                $pdo->exec('
+                    CREATE TABLE IF NOT EXISTS agent_health (
+                        agent TEXT PRIMARY KEY,
+                        last_success_at TEXT,
+                        last_failure_at TEXT,
+                        consecutive_failures INTEGER DEFAULT 0,
+                        backoff_until TEXT,
+                        total_runs INTEGER DEFAULT 0,
+                        total_successes INTEGER DEFAULT 0
+                    )
+                ');
+
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id)');
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
+
+                $pdo->exec('
+                    CREATE TABLE IF NOT EXISTS reviews (
+                        id TEXT PRIMARY KEY,
+                        task_id TEXT NOT NULL,
+                        agent TEXT NOT NULL,
+                        status TEXT DEFAULT \'pending\',
+                        issues TEXT,
+                        followup_task_ids TEXT,
+                        started_at TEXT,
+                        completed_at TEXT,
+                        FOREIGN KEY (task_id) REFERENCES tasks(id)
+                    )
+                ');
+
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_id)');
+            },
+            2 => function (PDO $pdo): void {
+                // v2: epics table
+                $pdo->exec('
+                    CREATE TABLE IF NOT EXISTS epics (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        status TEXT DEFAULT \'planning\',
+                        created_at TEXT,
+                        reviewed_at TEXT,
+                        approved_at TEXT,
+                        approved_by TEXT
+                    )
+                ');
+
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_status ON epics(status)');
+            },
+        ];
+    }
+
+    /**
+     * Run any pending migrations.
+     */
+    private function runMigrations(): void
+    {
+        $currentVersion = $this->getCurrentSchemaVersion();
+        $migrations = $this->getMigrations();
+
+        $pendingMigrations = array_filter(
+            $migrations,
+            fn (int $version) => $version > $currentVersion,
+            ARRAY_FILTER_USE_KEY
+        );
+
+        if (empty($pendingMigrations)) {
+            return;
+        }
+
+        ksort($pendingMigrations);
+
+        $this->connection->beginTransaction();
+        try {
+            $maxVersion = $currentVersion;
+            foreach ($pendingMigrations as $version => $migration) {
+                $migration($this->connection);
+                $maxVersion = $version;
+            }
+            $this->setSchemaVersion($maxVersion);
+            $this->connection->commit();
+        } catch (PDOException $e) {
+            $this->connection->rollBack();
+            throw new RuntimeException('Migration failed: '.$e->getMessage(), 0, $e);
+        }
     }
 
     /**
