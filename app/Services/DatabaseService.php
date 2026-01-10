@@ -39,6 +39,12 @@ class DatabaseService
                 $this->connection = new PDO('sqlite:'.$this->dbPath);
                 $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                 $this->connection->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+                // Production SQLite settings for concurrent access
+                // WAL mode: allows concurrent reads while writing
+                $this->connection->exec('PRAGMA journal_mode = WAL');
+                // Wait up to 10 seconds for locks instead of failing immediately
+                $this->connection->exec('PRAGMA busy_timeout = 10000');
             } catch (PDOException $e) {
                 throw new RuntimeException('Failed to connect to SQLite database: '.$e->getMessage(), 0, $e);
             }
@@ -282,7 +288,14 @@ class DatabaseService
     private function decodeReviewJsonFields(array $review): array
     {
         $review['issues'] = $review['issues'] !== null ? json_decode($review['issues'], true) : [];
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Failed to decode issues JSON: '.json_last_error_msg());
+        }
+
         $review['followup_task_ids'] = $review['followup_task_ids'] !== null ? json_decode($review['followup_task_ids'], true) : [];
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new RuntimeException('Failed to decode followup_task_ids JSON: '.json_last_error_msg());
+        }
 
         return $review;
     }
