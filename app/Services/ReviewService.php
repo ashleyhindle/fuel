@@ -113,7 +113,7 @@ class ReviewService implements ReviewServiceInterface
         $reviewId = $this->databaseService->recordReviewStarted($taskId, $reviewAgent);
 
         // 9. Track pending review with review ID
-        $this->pendingReviews[$taskId] = ['reviewId' => $reviewId, 'timestamp' => time()];
+        $this->pendingReviews[$taskId] = ['reviewId' => $reviewId, 'timestamp' => Carbon::now('UTC')->timestamp];
     }
 
     /**
