@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Contracts\AgentHealthTrackerInterface;
+use App\Contracts\ReviewServiceInterface;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
@@ -51,6 +52,7 @@ class ConsumeCommand extends Command
         private RunService $runService,
         private ProcessManager $processManager,
         private ?AgentHealthTrackerInterface $healthTracker = null,
+        private ?ReviewServiceInterface $reviewService = null,
     ) {
         parent::__construct();
     }
@@ -167,7 +169,10 @@ class ConsumeCommand extends Command
                 // Step 2: Poll all running processes
                 $this->pollAndHandleCompletions($statusLines);
 
-                // Step 3: Check if we have any work or should wait
+                // Step 3: Check for completed reviews
+                $this->checkCompletedReviews($statusLines);
+
+                // Step 4: Check if we have any work or should wait
                 if (! $this->processManager->hasActiveProcesses() && $readyTasks->isEmpty()) {
                     // Only add waiting message if not already the last status
                     $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
@@ -444,6 +449,50 @@ PROMPT;
     }
 
     /**
+     * Check for completed reviews and process their results.
+     *
+     * @param  array<string>  $statusLines
+     */
+    private function checkCompletedReviews(array &$statusLines): void
+    {
+        if ($this->reviewService === null) {
+            return;
+        }
+
+        foreach ($this->reviewService->getPendingReviews() as $taskId) {
+            if ($this->reviewService->isReviewComplete($taskId)) {
+                $result = $this->reviewService->getReviewResult($taskId);
+                if ($result === null) {
+                    continue;
+                }
+
+                if ($result->passed) {
+                    // Review passed - mark task as done
+                    Artisan::call('done', [
+                        'ids' => [$taskId],
+                        '--reason' => 'Review passed',
+                    ]);
+                    $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
+                } else {
+                    // Review found issues - task stays in 'review' status
+                    $issuesSummary = empty($result->issues) ? 'issues found' : implode(', ', $result->issues);
+                    $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
+
+                    // If follow-up tasks were created, show them
+                    if (! empty($result->followUpTaskIds)) {
+                        $statusLines[] = $this->formatStatus('📝', sprintf('Follow-up tasks created: %s', implode(', ', $result->followUpTaskIds)), 'cyan');
+                    }
+                }
+
+                $this->invalidateTaskCache();
+            }
+        }
+
+        // Trim status lines after processing reviews
+        $statusLines = $this->trimStatusLines($statusLines);
+    }
+
+    /**
      * Handle a completed process result.
      *
      * @param  array<string>  $statusLines
@@ -506,24 +555,53 @@ PROMPT;
         // Clear retry attempts on success
         unset($this->taskRetryAttempts[$taskId]);
 
-        // Auto-complete task if agent didn't run `fuel done`
+        // Check task status
         $task = $this->taskService->find($taskId);
-        if ($task && $task['status'] === 'in_progress') {
-            // Add 'auto-closed' label to indicate it wasn't self-reported
-            $this->taskService->update($taskId, [
-                'add_labels' => ['auto-closed'],
-            ]);
-
-            // Use DoneCommand logic so future done enhancements apply automatically
-            Artisan::call('done', [
-                'ids' => [$taskId],
-                '--reason' => 'Auto-completed by consume (agent exit 0)',
-            ]);
-
-            $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
-        } else {
+        if (! $task || $task['status'] !== 'in_progress') {
+            // Task was already closed by agent via 'fuel done'
             $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green');
+
+            return;
         }
+
+        // Task still in_progress - agent didn't call 'fuel done'
+        // Trigger review if ReviewService is available
+        if ($this->reviewService !== null) {
+            try {
+                $this->reviewService->triggerReview($taskId, $completion->agentName);
+                $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan');
+            } catch (\RuntimeException $e) {
+                // Review failed to trigger - fall back to auto-complete
+                $this->fallbackAutoComplete($taskId, $statusLines, $durationStr);
+            }
+        } else {
+            // No ReviewService - fall back to auto-complete
+            $this->fallbackAutoComplete($taskId, $statusLines, $durationStr);
+        }
+    }
+
+    /**
+     * Fall back to auto-completing the task when review is not available.
+     *
+     * @param  array<string>  $statusLines
+     */
+    private function fallbackAutoComplete(
+        string $taskId,
+        array &$statusLines,
+        string $durationStr
+    ): void {
+        // Add 'auto-closed' label to indicate it wasn't self-reported
+        $this->taskService->update($taskId, [
+            'add_labels' => ['auto-closed'],
+        ]);
+
+        // Use DoneCommand logic so future done enhancements apply automatically
+        Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Auto-completed by consume (agent exit 0)',
+        ]);
+
+        $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
     }
 
     /**

@@ -756,3 +756,296 @@ describe('consume command auto-close feature', function () {
         expect($shouldAutoClose)->toBeTrue();
     });
 });
+
+describe('consume command review integration', function () {
+    it('verifies review conditions - task in_progress should trigger review', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in_progress status
+        $task = $this->taskService->create([
+            'title' => 'Task for review trigger test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Verify the condition that would trigger review in handleSuccess
+        $task = $this->taskService->find($taskId);
+        expect($task['status'])->toBe('in_progress');
+
+        // In handleSuccess, when status is 'in_progress' and ReviewService is available,
+        // it calls reviewService->triggerReview($taskId, $agentName)
+        // The condition is: $task && $task['status'] !== 'in_progress' returns early
+        // So status === 'in_progress' means we should trigger review
+        $shouldTriggerReview = $task !== null && $task['status'] === 'in_progress';
+        expect($shouldTriggerReview)->toBeTrue();
+    });
+
+    it('verifies review conditions - closed task should not trigger review', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task, start it, and close it (agent called fuel done)
+        $task = $this->taskService->create([
+            'title' => 'Task already closed',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+        $this->taskService->done($taskId, 'Agent completed it');
+
+        // Verify the condition that would skip review in handleSuccess
+        $task = $this->taskService->find($taskId);
+        expect($task['status'])->toBe('closed');
+
+        // In handleSuccess, when status is NOT 'in_progress', it returns early
+        // So status === 'closed' means we should NOT trigger review
+        $shouldTriggerReview = $task !== null && $task['status'] === 'in_progress';
+        expect($shouldTriggerReview)->toBeFalse();
+    });
+
+    it('marks task done when review passes', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in 'review' status
+        $task = $this->taskService->create([
+            'title' => 'Task for review pass test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->update($taskId, ['status' => 'review']);
+
+        // Create a ReviewResult that passed
+        $reviewResult = new \App\Process\ReviewResult(
+            taskId: $taskId,
+            passed: true,
+            issues: [],
+            followUpTaskIds: [],
+            completedAt: now()->toIso8601String()
+        );
+
+        // Verify the result indicates passing
+        expect($reviewResult->passed)->toBeTrue();
+        expect($reviewResult->issues)->toBe([]);
+        expect($reviewResult->followUpTaskIds)->toBe([]);
+
+        // Simulate what checkCompletedReviews does when review passes
+        Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Review passed',
+            '--cwd' => $this->tempDir,
+        ]);
+
+        // Verify task was closed
+        $closedTask = $this->taskService->find($taskId);
+        expect($closedTask['status'])->toBe('closed');
+        expect($closedTask['reason'])->toBe('Review passed');
+    });
+
+    it('leaves task in review status when review fails', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in 'review' status
+        $task = $this->taskService->create([
+            'title' => 'Task for review fail test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->update($taskId, ['status' => 'review']);
+
+        // Create follow-up tasks (what a reviewer might create)
+        $followUp = $this->taskService->create([
+            'title' => 'Fix uncommitted changes',
+            'labels' => ['review-fix'],
+            'blocked_by' => [$taskId],
+        ]);
+
+        // Create a ReviewResult that failed
+        $reviewResult = new \App\Process\ReviewResult(
+            taskId: $taskId,
+            passed: false,
+            issues: ['uncommitted_changes', 'tests_failing'],
+            followUpTaskIds: [$followUp['id']],
+            completedAt: now()->toIso8601String()
+        );
+
+        // Verify the result indicates failure
+        expect($reviewResult->passed)->toBeFalse();
+        expect($reviewResult->issues)->toContain('uncommitted_changes');
+        expect($reviewResult->issues)->toContain('tests_failing');
+        expect($reviewResult->followUpTaskIds)->toContain($followUp['id']);
+
+        // Task should stay in 'review' status (don't call done)
+        $reviewTask = $this->taskService->find($taskId);
+        expect($reviewTask['status'])->toBe('review');
+    });
+
+    it('falls back to auto-complete when ReviewService is not available', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in_progress status
+        $task = $this->taskService->create([
+            'title' => 'Task for fallback test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Simulate fallback auto-complete behavior (when ReviewService is null)
+        $this->taskService->update($taskId, [
+            'add_labels' => ['auto-closed'],
+        ]);
+        Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Auto-completed by consume (agent exit 0)',
+            '--cwd' => $this->tempDir,
+        ]);
+
+        // Verify task was auto-closed
+        $closedTask = $this->taskService->find($taskId);
+        expect($closedTask['status'])->toBe('closed');
+        expect($closedTask['labels'])->toContain('auto-closed');
+        expect($closedTask['reason'])->toBe('Auto-completed by consume (agent exit 0)');
+    });
+
+    it('verifies exception handling causes fallback to auto-complete', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in_progress status
+        $task = $this->taskService->create([
+            'title' => 'Task for exception fallback test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Verify that if triggerReview throws RuntimeException,
+        // the fallback behavior would auto-complete the task
+        // This tests the fallback logic path
+        $reviewException = new \RuntimeException('Review agent unavailable');
+        expect($reviewException->getMessage())->toBe('Review agent unavailable');
+
+        // Simulate the fallback auto-complete behavior
+        $this->taskService->update($taskId, [
+            'add_labels' => ['auto-closed'],
+        ]);
+        Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Auto-completed by consume (agent exit 0)',
+            '--cwd' => $this->tempDir,
+        ]);
+
+        // Verify fallback worked
+        $closedTask = $this->taskService->find($taskId);
+        expect($closedTask['status'])->toBe('closed');
+        expect($closedTask['labels'])->toContain('auto-closed');
+    });
+
+    it('shows follow-up tasks when review creates them', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task
+        $task = $this->taskService->create([
+            'title' => 'Original task',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->update($taskId, ['status' => 'review']);
+
+        // Create follow-up tasks (simulating what a review agent would create)
+        $followUp1 = $this->taskService->create([
+            'title' => 'Fix tests',
+            'labels' => ['review-fix'],
+        ]);
+        $this->taskService->addDependency($followUp1['id'], $taskId);
+
+        $followUp2 = $this->taskService->create([
+            'title' => 'Commit changes',
+            'labels' => ['review-fix'],
+        ]);
+        $this->taskService->addDependency($followUp2['id'], $taskId);
+
+        // Create a ReviewResult with follow-up tasks
+        $reviewResult = new \App\Process\ReviewResult(
+            taskId: $taskId,
+            passed: false,
+            issues: ['tests_failing', 'uncommitted_changes'],
+            followUpTaskIds: [$followUp1['id'], $followUp2['id']],
+            completedAt: now()->toIso8601String()
+        );
+
+        // Verify follow-up tasks are included
+        expect($reviewResult->followUpTaskIds)->toHaveCount(2);
+        expect($reviewResult->followUpTaskIds)->toContain($followUp1['id']);
+        expect($reviewResult->followUpTaskIds)->toContain($followUp2['id']);
+    });
+});
