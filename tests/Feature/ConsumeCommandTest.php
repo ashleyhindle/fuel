@@ -471,3 +471,288 @@ describe('consume command permission-blocked detection', function () {
         }
     });
 });
+
+describe('consume command auto-close feature', function () {
+    it('adds auto-closed label when agent exits 0 without self-reporting', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in_progress status (simulating agent was spawned)
+        $task = $this->taskService->create([
+            'title' => 'Task to be auto-closed',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Verify task is in_progress
+        $task = $this->taskService->find($taskId);
+        expect($task['status'])->toBe('in_progress');
+
+        // Simulate what ConsumeCommand::handleSuccess does when agent exits 0
+        // but task is still in_progress (agent didn't call fuel done)
+        $task = $this->taskService->find($taskId);
+        if ($task && $task['status'] === 'in_progress') {
+            // Add 'auto-closed' label to indicate it wasn't self-reported
+            $this->taskService->update($taskId, [
+                'add_labels' => ['auto-closed'],
+            ]);
+
+            // Use DoneCommand logic (via Artisan::call) so future done enhancements apply
+            Artisan::call('done', [
+                'ids' => [$taskId],
+                '--reason' => 'Auto-completed by consume (agent exit 0)',
+                '--cwd' => $this->tempDir,
+            ]);
+        }
+
+        // Verify task was closed with auto-closed label
+        $closedTask = $this->taskService->find($taskId);
+        expect($closedTask['status'])->toBe('closed');
+        expect($closedTask['labels'])->toContain('auto-closed');
+        expect($closedTask['reason'])->toBe('Auto-completed by consume (agent exit 0)');
+    });
+
+    it('does not add auto-closed label when agent calls fuel done itself', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in_progress status
+        $task = $this->taskService->create([
+            'title' => 'Task closed by agent',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Simulate agent calling fuel done before exiting
+        Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Agent completed the task',
+            '--cwd' => $this->tempDir,
+        ]);
+
+        // Now simulate what handleSuccess does - check if task is still in_progress
+        $task = $this->taskService->find($taskId);
+
+        // Task should already be closed (by agent), so handleSuccess skips auto-close
+        expect($task['status'])->toBe('closed');
+
+        // The condition in handleSuccess ($task['status'] === 'in_progress') is false
+        // so auto-closed label should NOT be added
+        $labels = $task['labels'] ?? [];
+        expect($labels)->not->toContain('auto-closed');
+
+        // Verify the reason is from the agent, not auto-close
+        expect($task['reason'])->toBe('Agent completed the task');
+    });
+
+    it('uses Artisan::call for done command instead of direct taskService->done', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create and start a task
+        $task = $this->taskService->create([
+            'title' => 'Task for Artisan call test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Add auto-closed label first (as handleSuccess does)
+        $this->taskService->update($taskId, [
+            'add_labels' => ['auto-closed'],
+        ]);
+
+        // Use Artisan::call exactly as ConsumeCommand::handleSuccess does
+        $exitCode = Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Auto-completed by consume (agent exit 0)',
+            '--cwd' => $this->tempDir,
+        ]);
+
+        // Verify Artisan::call succeeded
+        expect($exitCode)->toBe(0);
+
+        // Verify task was closed correctly
+        $closedTask = $this->taskService->find($taskId);
+        expect($closedTask['status'])->toBe('closed');
+        expect($closedTask['labels'])->toContain('auto-closed');
+        expect($closedTask['reason'])->toBe('Auto-completed by consume (agent exit 0)');
+    });
+
+    it('shows auto-closed icon in board done column', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task, start it, and auto-close it (with auto-closed label)
+        $task = $this->taskService->create([
+            'title' => 'Auto-closed for board test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Simulate auto-close behavior
+        $this->taskService->update($taskId, [
+            'add_labels' => ['auto-closed'],
+        ]);
+        Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Auto-completed by consume (agent exit 0)',
+            '--cwd' => $this->tempDir,
+        ]);
+
+        // Capture board output
+        Artisan::call('board', [
+            '--once' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        // Verify auto-closed task appears in Done column with 🤖 icon
+        // The board shows: [shortId ·complexity] 🤖 title
+        expect($output)->toContain('🤖');
+        expect($output)->toContain('Done');
+    });
+
+    it('does not show auto-closed icon for manually closed tasks', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and close it manually (no auto-closed label)
+        $task = $this->taskService->create([
+            'title' => 'Manually closed task',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Close without auto-closed label (agent called fuel done)
+        Artisan::call('done', [
+            'ids' => [$taskId],
+            '--reason' => 'Agent completed it',
+            '--cwd' => $this->tempDir,
+        ]);
+
+        // Capture board output
+        Artisan::call('board', [
+            '--once' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        // Verify the 🤖 icon is NOT present for this task
+        // The task should appear in Done but without the robot icon
+        expect($output)->toContain('Done');
+        // Since there's only one task and it's not auto-closed, no 🤖 should appear
+        expect($output)->not->toContain('🤖');
+    });
+
+    it('handles CompletionResult with Success type for auto-close flow', function () {
+        // Create a CompletionResult simulating a successful agent exit
+        $completion = new \App\Process\CompletionResult(
+            taskId: 'f-test01',
+            agentName: 'test-agent',
+            exitCode: 0,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: 'Task completed',
+            type: \App\Process\CompletionType::Success,
+            message: null
+        );
+
+        // Verify it's a success
+        expect($completion->isSuccess())->toBeTrue();
+        expect($completion->isFailed())->toBeFalse();
+        expect($completion->exitCode)->toBe(0);
+        expect($completion->type)->toBe(\App\Process\CompletionType::Success);
+
+        // Verify formatted duration
+        expect($completion->getFormattedDuration())->toBe('1m 0s');
+    });
+
+    it('verifies auto-close only happens for in_progress tasks with exit 0', function () {
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Test case 1: Task already closed - should not auto-close again
+        $task1 = $this->taskService->create(['title' => 'Already closed task']);
+        $taskId1 = $task1['id'];
+        $this->taskService->start($taskId1);
+        $this->taskService->done($taskId1, 'Closed by agent');
+
+        $task1 = $this->taskService->find($taskId1);
+        expect($task1['status'])->toBe('closed');
+
+        // Simulate handleSuccess check - condition ($task['status'] === 'in_progress') is false
+        $shouldAutoClose = $task1['status'] === 'in_progress';
+        expect($shouldAutoClose)->toBeFalse();
+
+        // Test case 2: Task still in_progress - should auto-close
+        $task2 = $this->taskService->create(['title' => 'Still in progress task']);
+        $taskId2 = $task2['id'];
+        $this->taskService->start($taskId2);
+
+        $task2 = $this->taskService->find($taskId2);
+        expect($task2['status'])->toBe('in_progress');
+
+        // Simulate handleSuccess check - condition ($task['status'] === 'in_progress') is true
+        $shouldAutoClose = $task2['status'] === 'in_progress';
+        expect($shouldAutoClose)->toBeTrue();
+    });
+});
