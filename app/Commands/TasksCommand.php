@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -23,9 +25,13 @@ class TasksCommand extends Command
 
     protected $description = 'List tasks with optional filters';
 
-    public function handle(TaskService $taskService): int
+    public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($context);
+
+        if ($this->option('cwd')) {
+            $dbService->setDatabasePath($context->getDatabasePath());
+        }
 
         $tasks = $taskService->all();
 

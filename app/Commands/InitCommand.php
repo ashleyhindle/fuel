@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -21,38 +22,37 @@ class InitCommand extends Command
 
     protected $description = 'Initialize Fuel in the current project';
 
-    public function handle(TaskService $taskService, ConfigService $configService, DatabaseService $databaseService): int
+    public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService): int
     {
         $cwd = $this->option('cwd') ?: getcwd();
 
+        // Configure FuelContext with the working directory
+        $context->basePath = $cwd.'/.fuel';
+
         // Create .fuel directory and subdirectories
-        $fuelDir = $cwd.'/.fuel';
+        $fuelDir = $context->basePath;
         if (! is_dir($fuelDir)) {
             mkdir($fuelDir, 0755, true);
             $this->info('Created .fuel/ directory');
         }
 
         // Create processes directory for agent output capture
-        $processesDir = $fuelDir.'/processes';
+        $processesDir = $context->getProcessesPath();
         if (! is_dir($processesDir)) {
             mkdir($processesDir, 0755, true);
         }
 
-        // Initialize TaskService (creates tasks.jsonl if needed)
-        $taskService->setStoragePath($fuelDir.'/tasks.jsonl');
+        // Initialize TaskService (creates database schema if needed)
+        // DatabaseService needs to be reconfigured since FuelContext changed
+        $databaseService->setDatabasePath($context->getDatabasePath());
         $taskService->initialize();
 
         // Initialize database (creates agent.db with schema if needed)
-        $dbPath = $fuelDir.'/agent.db';
-        $databaseService->setDatabasePath($dbPath);
+        $dbPath = $context->getDatabasePath();
         $databaseService->initialize();
         if (! file_exists($dbPath)) {
             $this->info('Created agent.db with schema');
         }
-
-        // Handle agent/model configuration
-        $configPath = $fuelDir.'/config.yaml';
-        $configService->setConfigPath($configPath);
 
         // Determine agent and model (from flags or defaults)
         $agent = $this->getAgent();
@@ -63,7 +63,7 @@ class InitCommand extends Command
 
         // Update config with provided agent/model if specified
         if ($agent !== null || $model !== null) {
-            $this->updateConfig($configPath, $agent, $model);
+            $this->updateConfig($context->getConfigPath(), $agent, $model);
         }
 
         // Ensure .fuel/runs/ is in .gitignore

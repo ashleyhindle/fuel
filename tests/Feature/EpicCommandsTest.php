@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-epic-cmd-test-'.uniqid();
     mkdir($this->tempDir.'/.fuel', 0755, true);
-    $this->dbPath = $this->tempDir.'/.fuel/agent.db';
-    $this->tasksPath = $this->tempDir.'/.fuel/tasks.jsonl';
 
-    $this->db = new DatabaseService($this->dbPath);
-    $this->taskService = new TaskService($this->tasksPath);
+    // Create FuelContext pointing to test directory
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn () => $context);
+
+    $this->db = new DatabaseService($context->getDatabasePath());
+    $this->taskService = new TaskService($this->db);
     $this->epicService = new EpicService($this->db, $this->taskService);
 
     $this->app->singleton(TaskService::class, fn (): TaskService => $this->taskService);

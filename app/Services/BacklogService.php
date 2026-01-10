@@ -10,15 +10,15 @@ use RuntimeException;
 
 class BacklogService
 {
-    private string $storagePath;
-
     private int $lockRetries = 10;
 
     private int $lockRetryDelayMs = 100;
 
-    public function __construct(?string $storagePath = null)
+    private FuelContext $context;
+
+    public function __construct(FuelContext $context)
     {
-        $this->storagePath = $storagePath ?? getcwd().'/.fuel/backlog.jsonl';
+        $this->context = $context;
     }
 
     /**
@@ -26,17 +26,7 @@ class BacklogService
      */
     public function getStoragePath(): string
     {
-        return $this->storagePath;
-    }
-
-    /**
-     * Set custom storage path.
-     */
-    public function setStoragePath(string $path): self
-    {
-        $this->storagePath = $path;
-
-        return $this;
+        return $this->context->getBacklogPath();
     }
 
     /**
@@ -174,14 +164,14 @@ class BacklogService
      */
     public function initialize(): void
     {
-        $dir = dirname($this->storagePath);
+        $dir = dirname($this->getStoragePath());
 
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        if (! file_exists($this->storagePath)) {
-            file_put_contents($this->storagePath, '');
+        if (! file_exists($this->getStoragePath())) {
+            file_put_contents($this->getStoragePath(), '');
         }
     }
 
@@ -192,11 +182,11 @@ class BacklogService
      */
     private function readBacklog(): Collection
     {
-        if (! file_exists($this->storagePath)) {
+        if (! file_exists($this->getStoragePath())) {
             return collect();
         }
 
-        $content = file_get_contents($this->storagePath);
+        $content = file_get_contents($this->getStoragePath());
         if ($content === false || trim($content) === '') {
             return collect();
         }
@@ -229,7 +219,7 @@ class BacklogService
      */
     private function writeBacklog(Collection $items): void
     {
-        $dir = dirname($this->storagePath);
+        $dir = dirname($this->getStoragePath());
 
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
@@ -247,9 +237,9 @@ class BacklogService
         }
 
         // Atomic write: temp file + rename
-        $tempPath = $this->storagePath.'.tmp';
+        $tempPath = $this->getStoragePath().'.tmp';
         file_put_contents($tempPath, $content);
-        rename($tempPath, $this->storagePath);
+        rename($tempPath, $this->getStoragePath());
     }
 
     /**
@@ -326,7 +316,7 @@ class BacklogService
      */
     private function withLock(int $lockType, Closure $callback): mixed
     {
-        $lockPath = $this->storagePath.'.lock';
+        $lockPath = $this->getStoragePath().'.lock';
         $dir = dirname($lockPath);
 
         if (! is_dir($dir)) {

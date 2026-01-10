@@ -3,16 +3,31 @@
 declare(strict_types=1);
 
 use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use Illuminate\Support\Facades\Artisan;
+
+/**
+ * Helper to create a task in the database for reviews tests.
+ */
+function createTaskForReview(DatabaseService $service, string $shortId): void
+{
+    $service->query(
+        'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [$shortId, 'Test Task '.$shortId, 'open', now()->toIso8601String(), now()->toIso8601String()]
+    );
+}
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->dbPath = $this->tempDir.'/.fuel/agent.db';
-    mkdir(dirname($this->dbPath), 0755, true);
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+
+    // Create FuelContext pointing to test directory
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn () => $context);
 
     // Bind our test DatabaseService instance
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => new DatabaseService($this->dbPath));
+    $databaseService = new DatabaseService($context->getDatabasePath());
+    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
 
     $this->databaseService = $this->app->make(DatabaseService::class);
     $this->databaseService->initialize();
@@ -53,6 +68,11 @@ it('shows no reviews message when no reviews exist', function (): void {
 });
 
 it('shows recent reviews with correct format', function (): void {
+    // Create tasks first (required for FK relationship)
+    createTaskForReview($this->databaseService, 'f-abc123');
+    createTaskForReview($this->databaseService, 'f-def456');
+    createTaskForReview($this->databaseService, 'f-ghi789');
+
     // Create reviews with different statuses
     $now = new \DateTime;
     $twoMinutesAgo = (clone $now)->modify('-2 minutes');
@@ -62,7 +82,7 @@ it('shows recent reviews with correct format', function (): void {
     // Create passed review
     $reviewId1 = $this->databaseService->recordReviewStarted('f-abc123', 'claude-sonnet');
     $this->databaseService->query(
-        'UPDATE reviews SET status = ?, completed_at = ?, started_at = ? WHERE id = ?',
+        'UPDATE reviews SET status = ?, completed_at = ?, started_at = ? WHERE short_id = ?',
         ['passed', $now->format('c'), $twoMinutesAgo->format('c'), $reviewId1]
     );
 
@@ -70,14 +90,14 @@ it('shows recent reviews with correct format', function (): void {
     $reviewId2 = $this->databaseService->recordReviewStarted('f-def456', 'claude-opus');
     $this->databaseService->recordReviewCompleted($reviewId2, false, ['uncommitted_changes', 'tests_failing'], []);
     $this->databaseService->query(
-        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$fiveMinutesAgo->format('c'), $reviewId2]
     );
 
     // Create pending review
     $reviewId3 = $this->databaseService->recordReviewStarted('f-ghi789', 'amp-free');
     $this->databaseService->query(
-        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$oneMinuteAgo->format('c'), $reviewId3]
     );
 
@@ -99,8 +119,9 @@ it('shows recent reviews with correct format', function (): void {
 });
 
 it('shows only last 10 reviews by default', function (): void {
-    // Create 15 reviews
+    // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
+        createTaskForReview($this->databaseService, "f-task{$i}");
         $reviewId = $this->databaseService->recordReviewStarted("f-task{$i}", 'claude');
         $this->databaseService->recordReviewCompleted($reviewId, true, [], []);
     }
@@ -114,8 +135,9 @@ it('shows only last 10 reviews by default', function (): void {
 });
 
 it('shows all reviews with --all option', function (): void {
-    // Create 15 reviews
+    // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
+        createTaskForReview($this->databaseService, "f-task{$i}");
         $reviewId = $this->databaseService->recordReviewStarted("f-task{$i}", 'claude');
         $this->databaseService->recordReviewCompleted($reviewId, true, [], []);
     }
@@ -129,6 +151,12 @@ it('shows all reviews with --all option', function (): void {
 });
 
 it('filters to pending reviews only with --pending option', function (): void {
+    // Create tasks first
+    createTaskForReview($this->databaseService, 'f-task1');
+    createTaskForReview($this->databaseService, 'f-task2');
+    createTaskForReview($this->databaseService, 'f-task3');
+    createTaskForReview($this->databaseService, 'f-task4');
+
     // Create reviews with different statuses
     $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
     $this->databaseService->recordReviewCompleted($reviewId1, true, [], []);
@@ -153,6 +181,12 @@ it('filters to pending reviews only with --pending option', function (): void {
 });
 
 it('filters to failed reviews only with --failed option', function (): void {
+    // Create tasks first
+    createTaskForReview($this->databaseService, 'f-task1');
+    createTaskForReview($this->databaseService, 'f-task2');
+    createTaskForReview($this->databaseService, 'f-task3');
+    createTaskForReview($this->databaseService, 'f-task4');
+
     // Create reviews with different statuses
     $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
     $this->databaseService->recordReviewCompleted($reviewId1, true, [], []);
@@ -177,6 +211,9 @@ it('filters to failed reviews only with --failed option', function (): void {
 });
 
 it('outputs JSON format with --json option', function (): void {
+    // Create task first
+    createTaskForReview($this->databaseService, 'f-abc123');
+
     // Create a review
     $reviewId = $this->databaseService->recordReviewStarted('f-abc123', 'claude-sonnet');
     $this->databaseService->recordReviewCompleted($reviewId, false, ['tests_failing'], ['f-follow1']);
@@ -196,6 +233,10 @@ it('outputs JSON format with --json option', function (): void {
 });
 
 it('outputs JSON format with --json and --pending options', function (): void {
+    // Create tasks first
+    createTaskForReview($this->databaseService, 'f-task1');
+    createTaskForReview($this->databaseService, 'f-task2');
+
     // Create reviews with different statuses
     $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
     $this->databaseService->recordReviewCompleted($reviewId1, true, [], []);
@@ -214,6 +255,10 @@ it('outputs JSON format with --json and --pending options', function (): void {
 });
 
 it('outputs JSON format with --json and --failed options', function (): void {
+    // Create tasks first
+    createTaskForReview($this->databaseService, 'f-task1');
+    createTaskForReview($this->databaseService, 'f-task2');
+
     // Create reviews with different statuses
     $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
     $this->databaseService->recordReviewCompleted($reviewId1, true, [], []);
@@ -232,6 +277,7 @@ it('outputs JSON format with --json and --failed options', function (): void {
 });
 
 it('shows issues for failed reviews in formatted output', function (): void {
+    createTaskForReview($this->databaseService, 'f-abc123');
     $reviewId = $this->databaseService->recordReviewStarted('f-abc123', 'claude');
     $this->databaseService->recordReviewCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing'], []);
 
@@ -242,6 +288,7 @@ it('shows issues for failed reviews in formatted output', function (): void {
 });
 
 it('does not show issues for passed reviews in formatted output', function (): void {
+    createTaskForReview($this->databaseService, 'f-abc123');
     $reviewId = $this->databaseService->recordReviewStarted('f-abc123', 'claude');
     $this->databaseService->recordReviewCompleted($reviewId, true, [], []);
 
@@ -253,6 +300,11 @@ it('does not show issues for passed reviews in formatted output', function (): v
 });
 
 it('orders reviews by started_at descending', function (): void {
+    // Create tasks first
+    createTaskForReview($this->databaseService, 'f-task1');
+    createTaskForReview($this->databaseService, 'f-task2');
+    createTaskForReview($this->databaseService, 'f-task3');
+
     $now = new \DateTime;
     $oneMinuteAgo = (clone $now)->modify('-1 minute');
     $twoMinutesAgo = (clone $now)->modify('-2 minutes');
@@ -260,19 +312,19 @@ it('orders reviews by started_at descending', function (): void {
 
     $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
     $this->databaseService->query(
-        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$threeMinutesAgo->format('c'), $reviewId1]
     );
 
     $reviewId2 = $this->databaseService->recordReviewStarted('f-task2', 'claude');
     $this->databaseService->query(
-        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$oneMinuteAgo->format('c'), $reviewId2]
     );
 
     $reviewId3 = $this->databaseService->recordReviewStarted('f-task3', 'claude');
     $this->databaseService->query(
-        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$twoMinutesAgo->format('c'), $reviewId3]
     );
 

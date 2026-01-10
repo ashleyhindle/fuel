@@ -9,6 +9,7 @@ use App\Process\ProcessStatus;
 use App\Prompts\ReviewPrompt;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\ReviewService;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -17,12 +18,11 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function (): void {
-    // Create tasks file in test directory
-    $this->tasksPath = $this->testDir.'/.fuel/tasks.jsonl';
-    file_put_contents($this->tasksPath, '');
+    // Create FuelContext for test directory
+    $this->context = new FuelContext($this->testDir.'/.fuel');
 
     // Create config file in test directory
-    $this->configPath = $this->testDir.'/.fuel/config.yaml';
+    $this->configPath = $this->context->getConfigPath();
     $configContent = <<<'YAML'
 primary: test-agent
 
@@ -57,15 +57,15 @@ review_agent: review-agent
 YAML;
     file_put_contents($this->configPath, $configContent);
 
-    $this->taskService = new TaskService($this->tasksPath);
-    $this->configService = new ConfigService($this->configPath);
+    // Create database service for test directory and initialize it
+    $this->databaseService = new DatabaseService($this->context->getDatabasePath());
+    $this->databaseService->initialize();
+
+    $this->taskService = new TaskService($this->databaseService);
+    $this->configService = new ConfigService($this->context);
     $this->reviewPrompt = new ReviewPrompt;
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);
-    $this->runService = new RunService($this->testDir.'/.fuel/runs');
-
-    // Create database service for test directory and initialize it
-    $this->databaseService = new DatabaseService($this->testDir.'/.fuel/agent.db');
-    $this->databaseService->initialize();
+    $this->runService = new RunService($this->context->getRunsPath());
 });
 
 afterEach(function (): void {
@@ -331,7 +331,7 @@ complexity:
   complex: test-agent
 YAML;
     file_put_contents($this->configPath, $configContent);
-    $configService = new ConfigService($this->configPath);
+    $configService = new ConfigService($this->context);
 
     // Create a task
     $task = $this->taskService->create(['title' => 'No review agent test']);

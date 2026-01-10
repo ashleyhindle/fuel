@@ -7,6 +7,8 @@ namespace App\Commands;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -25,9 +27,13 @@ class SummaryCommand extends Command
 
     protected $description = 'View task outcome summary with intelligent output parsing';
 
-    public function handle(TaskService $taskService, RunService $runService): int
+    public function handle(FuelContext $context, TaskService $taskService, RunService $runService, DatabaseService $dbService): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($context);
+
+        if ($this->option('cwd')) {
+            $dbService->setDatabasePath($context->getDatabasePath());
+        }
 
         try {
             // Validate task exists

@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -20,15 +21,14 @@ class EpicsCommand extends Command
 
     protected $description = 'List all epics';
 
-    public function handle(): int
+    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
     {
-        // Configure services with --cwd if provided
-        if ($cwd = $this->option('cwd')) {
-            $dbService = new DatabaseService($cwd.'/.fuel/agent.db');
-            $taskService = new TaskService($dbService);
-        } else {
-            $dbService = $this->app->make(DatabaseService::class);
-            $taskService = $this->app->make(TaskService::class);
+        // Configure context with --cwd if provided
+        $this->configureCwd($context);
+
+        // Reconfigure DatabaseService if context path changed
+        if ($this->option('cwd')) {
+            $dbService->setDatabasePath($context->getDatabasePath());
         }
 
         $epicService = new EpicService($dbService, $taskService);

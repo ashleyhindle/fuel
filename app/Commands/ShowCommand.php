@@ -12,6 +12,7 @@ use App\Services\TaskService;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 class ShowCommand extends Command
 {
@@ -129,7 +130,7 @@ class ShowCommand extends Command
                         // Indent each line of output
                         $outputLines = explode("\n", (string) $task['consumed_output']);
                         foreach ($outputLines as $line) {
-                            $this->line('  '.$line);
+                            $this->line('  '.OutputFormatter::escape($line));
                         }
                     }
                 }
@@ -189,7 +190,7 @@ class ShowCommand extends Command
                                 // Indent each line of output
                                 $outputLines = explode("\n", $liveOutput);
                                 foreach ($outputLines as $line) {
-                                    $this->line('    '.$line);
+                                    $this->line('    '.OutputFormatter::escape($line));
                                 }
                             } elseif (isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
                                 $this->newLine();
@@ -197,7 +198,7 @@ class ShowCommand extends Command
                                 // Indent each line of output
                                 $outputLines = explode("\n", (string) $run['output']);
                                 foreach ($outputLines as $line) {
-                                    $this->line('    '.$line);
+                                    $this->line('    '.OutputFormatter::escape($line));
                                 }
                             }
                         }
@@ -214,7 +215,7 @@ class ShowCommand extends Command
                     // Indent each line of output
                     $outputLines = explode("\n", $liveOutput);
                     foreach ($outputLines as $line) {
-                        $this->line('  '.$line);
+                        $this->line('  '.OutputFormatter::escape($line));
                     }
                 }
 

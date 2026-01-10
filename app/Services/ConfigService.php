@@ -19,14 +19,22 @@ class ConfigService
 
     private const DEFAULT_MAX_RETRIES = 5;
 
-    private string $configPath;
-
     /** @var array<string, mixed>|null */
     private ?array $config = null;
 
-    public function __construct(?string $configPath = null)
+    private FuelContext $context;
+
+    public function __construct(FuelContext $context)
     {
-        $this->configPath = $configPath ?? getcwd().'/.fuel/config.yaml';
+        $this->context = $context;
+    }
+
+    /**
+     * Get the config file path.
+     */
+    public function getConfigPath(): string
+    {
+        return $this->context->getConfigPath();
     }
 
     /**
@@ -40,13 +48,13 @@ class ConfigService
             return $this->config;
         }
 
-        if (! file_exists($this->configPath)) {
-            throw new RuntimeException('Config file not found: '.$this->configPath);
+        if (! file_exists($this->getConfigPath())) {
+            throw new RuntimeException('Config file not found: '.$this->getConfigPath());
         }
 
-        $content = file_get_contents($this->configPath);
+        $content = file_get_contents($this->getConfigPath());
         if ($content === false) {
-            throw new RuntimeException('Failed to read config file: '.$this->configPath);
+            throw new RuntimeException('Failed to read config file: '.$this->getConfigPath());
         }
 
         try {
@@ -389,25 +397,6 @@ class ConfigService
     }
 
     /**
-     * Get the config file path.
-     */
-    public function getConfigPath(): string
-    {
-        return $this->configPath;
-    }
-
-    /**
-     * Set custom config path.
-     */
-    public function setConfigPath(string $path): self
-    {
-        $this->configPath = $path;
-        $this->config = null; // Reset cached config
-
-        return $this;
-    }
-
-    /**
      * Get max_concurrent limit for a specific agent.
      * Returns default of 2 if agent is not configured.
      */
@@ -517,11 +506,11 @@ class ConfigService
      */
     public function createDefaultConfig(): void
     {
-        if (file_exists($this->configPath)) {
+        if (file_exists($this->getConfigPath())) {
             return; // Don't overwrite existing config
         }
 
-        $dir = dirname($this->configPath);
+        $dir = dirname($this->getConfigPath());
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
@@ -628,6 +617,6 @@ complexity:
   #   model: opus  # override the agent's default model
 YAML;
 
-        file_put_contents($this->configPath, $yaml);
+        file_put_contents($this->getConfigPath(), $yaml);
     }
 }

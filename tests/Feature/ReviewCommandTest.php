@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Contracts\ReviewServiceInterface;
 use App\Services\ConfigService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -11,25 +13,32 @@ use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->storagePath = $this->tempDir.'/.fuel/tasks.jsonl';
-    $this->configPath = $this->tempDir.'/.fuel/config.yaml';
-    $this->runsPath = $this->tempDir.'/.fuel/runs';
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+
+    // Create FuelContext pointing to test directory
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn () => $context);
+
+    $this->configPath = $context->getConfigPath();
+    $this->runsPath = $context->getRunsPath();
 
     // Create runs directory
     mkdir($this->runsPath, 0755, true);
 
     // Bind test services
-    $this->app->singleton(TaskService::class, function () {
-        return new TaskService($this->storagePath);
+    $databaseService = new DatabaseService($context->getDatabasePath());
+    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
+
+    $this->app->singleton(TaskService::class, function () use ($databaseService) {
+        return new TaskService($databaseService);
     });
 
-    $this->app->singleton(RunService::class, function () {
-        return new RunService($this->runsPath);
+    $this->app->singleton(RunService::class, function () use ($context) {
+        return new RunService($context->getRunsPath());
     });
 
-    $this->app->singleton(ConfigService::class, function () {
-        return new ConfigService($this->configPath);
+    $this->app->singleton(ConfigService::class, function () use ($context) {
+        return new ConfigService($context);
     });
 
     // Create a mock ReviewServiceInterface
@@ -174,9 +183,10 @@ it('uses config review agent when no run exists', function (): void {
     ];
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    // Reload config service
-    $this->app->singleton(ConfigService::class, function () {
-        return new ConfigService($this->configPath);
+    // Reload config service (create new instance to clear cache)
+    $context = $this->app->make(FuelContext::class);
+    $this->app->singleton(ConfigService::class, function () use ($context) {
+        return new ConfigService($context);
     });
     $this->configService = $this->app->make(ConfigService::class);
 

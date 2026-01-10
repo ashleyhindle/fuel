@@ -1,12 +1,14 @@
 <?php
 
 use App\Services\BacklogService;
+use App\Services\FuelContext;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-backlog-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->storagePath = $this->tempDir.'/.fuel/backlog.jsonl';
-    $this->backlogService = new BacklogService($this->storagePath);
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+    $this->context = new FuelContext($this->tempDir.'/.fuel');
+    $this->storagePath = $this->context->getBacklogPath();
+    $this->backlogService = new BacklogService($this->context);
 });
 
 afterEach(function (): void {
@@ -81,7 +83,7 @@ it('persists backlog items to file', function (): void {
     $item = $this->backlogService->add('Test item');
 
     // Create new service instance to verify persistence
-    $newService = new BacklogService($this->storagePath);
+    $newService = new BacklogService($this->context);
     $all = $newService->all();
 
     expect($all->count())->toBe(1);
@@ -267,26 +269,8 @@ it('generateId works when called with existing items collection', function (): v
 // Storage Path Tests
 // =============================================================================
 
-it('returns storage path', function (): void {
+it('returns storage path from context', function (): void {
     expect($this->backlogService->getStoragePath())->toBe($this->storagePath);
-});
-
-it('sets custom storage path', function (): void {
-    $newPath = $this->tempDir.'/.fuel/custom-backlog.jsonl';
-    $this->backlogService->setStoragePath($newPath);
-
-    expect($this->backlogService->getStoragePath())->toBe($newPath);
-});
-
-it('uses custom storage path after setting', function (): void {
-    $newPath = $this->tempDir.'/.fuel/custom-backlog.jsonl';
-    $this->backlogService->setStoragePath($newPath);
-    $this->backlogService->initialize();
-
-    $item = $this->backlogService->add('Test item');
-
-    expect(file_exists($newPath))->toBeTrue();
-    expect(file_exists($this->storagePath))->toBeFalse();
 });
 
 // =============================================================================

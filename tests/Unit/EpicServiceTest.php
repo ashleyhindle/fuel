@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 
 beforeEach(function () {
     $this->tempDir = sys_get_temp_dir().'/fuel-epic-test-'.uniqid();
     mkdir($this->tempDir.'/.fuel', 0755, true);
-    $this->dbPath = $this->tempDir.'/.fuel/agent.db';
-    $this->tasksPath = $this->tempDir.'/.fuel/tasks.jsonl';
+    $this->context = new FuelContext($this->tempDir.'/.fuel');
 
-    $this->db = new DatabaseService($this->dbPath);
-    $this->taskService = new TaskService($this->tasksPath);
+    $this->db = new DatabaseService($this->context->getDatabasePath());
+    $this->taskService = new TaskService($this->db);
     $this->service = new EpicService($this->db, $this->taskService);
 });
 

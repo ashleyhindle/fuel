@@ -16,10 +16,10 @@ class EpicService
 
     private TaskService $taskService;
 
-    public function __construct(?DatabaseService $db = null, ?TaskService $taskService = null)
+    public function __construct(DatabaseService $db, ?TaskService $taskService = null)
     {
-        $this->db = $db ?? new DatabaseService;
-        $this->taskService = $taskService ?? new TaskService;
+        $this->db = $db;
+        $this->taskService = $taskService ?? new TaskService($db);
     }
 
     public function createEpic(string $title, ?string $description = null): array

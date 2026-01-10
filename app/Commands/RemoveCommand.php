@@ -6,6 +6,8 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -28,13 +30,14 @@ class RemoveCommand extends Command
         $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip confirmation prompt');
     }
 
-    public function handle(TaskService $taskService, BacklogService $backlogService): int
+    public function handle(FuelContext $context, TaskService $taskService, BacklogService $backlogService, DatabaseService $dbService): int
     {
-        $this->configureCwd($taskService);
+        // Configure context with --cwd if provided
+        $this->configureCwd($context);
 
-        // Also configure backlog service with same cwd if provided
-        if ($cwd = $this->option('cwd')) {
-            $backlogService->setStoragePath($cwd.'/.fuel/backlog.jsonl');
+        // Reconfigure DatabaseService if context path changed
+        if ($this->option('cwd')) {
+            $dbService->setDatabasePath($context->getDatabasePath());
         }
 
         $id = $this->argument('id');

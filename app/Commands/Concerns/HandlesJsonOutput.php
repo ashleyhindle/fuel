@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands\Concerns;
 
 use App\Services\ConfigService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 
 /**
@@ -17,16 +18,19 @@ use App\Services\TaskService;
 trait HandlesJsonOutput
 {
     /**
-     * Configure the TaskService with --cwd option if provided.
+     * Configure services with --cwd option if provided.
+     *
+     * Accepts either FuelContext (new pattern) or TaskService (legacy pattern).
+     * The new pattern should be preferred for all new code.
      */
-    protected function configureCwd(TaskService $taskService, ?ConfigService $configService = null): void
+    protected function configureCwd(FuelContext|TaskService $contextOrService, ?ConfigService $configService = null): void
     {
         if ($cwd = $this->option('cwd')) {
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
-
-            if ($configService instanceof ConfigService) {
-                $configService->setConfigPath($cwd.'/.fuel/config.yaml');
+            if ($contextOrService instanceof FuelContext) {
+                $contextOrService->basePath = $cwd.'/.fuel';
             }
+            // Legacy TaskService pattern - TaskService now uses SQLite via DI, no direct path setting needed
+            // The database service will be reconfigured by commands that need it
         }
     }
 

@@ -12,6 +12,7 @@ use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 class RunCommand extends Command
 {
@@ -153,7 +154,7 @@ class RunCommand extends Command
                 $stdout = file_get_contents($stdoutPath);
                 if (strlen($stdout) > $lastStdoutPos) {
                     $newOutput = substr($stdout, $lastStdoutPos);
-                    $this->getOutput()->write($newOutput);
+                    $this->getOutput()->write(OutputFormatter::escape($newOutput));
                     $lastStdoutPos = strlen($stdout);
                 }
             }
@@ -163,7 +164,7 @@ class RunCommand extends Command
                 $stderr = file_get_contents($stderrPath);
                 if (strlen($stderr) > $lastStderrPos) {
                     $newOutput = substr($stderr, $lastStderrPos);
-                    $this->getOutput()->write('<fg=red>'.$newOutput.'</>');
+                    $this->getOutput()->write('<fg=red>'.OutputFormatter::escape($newOutput).'</>');
                     $lastStderrPos = strlen($stderr);
                 }
             }
@@ -175,14 +176,14 @@ class RunCommand extends Command
         if (file_exists($stdoutPath)) {
             $stdout = file_get_contents($stdoutPath);
             if (strlen($stdout) > $lastStdoutPos) {
-                $this->getOutput()->write(substr($stdout, $lastStdoutPos));
+                $this->getOutput()->write(OutputFormatter::escape(substr($stdout, $lastStdoutPos)));
             }
         }
 
         if (file_exists($stderrPath)) {
             $stderr = file_get_contents($stderrPath);
             if (strlen($stderr) > $lastStderrPos) {
-                $this->getOutput()->write('<fg=red>'.substr($stderr, $lastStderrPos).'</>');
+                $this->getOutput()->write('<fg=red>'.OutputFormatter::escape(substr($stderr, $lastStderrPos)).'</>');
             }
         }
 

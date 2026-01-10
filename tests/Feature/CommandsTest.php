@@ -3,6 +3,7 @@
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Console\Command;
@@ -12,17 +13,27 @@ use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->storagePath = $this->tempDir.'/.fuel/tasks.jsonl';
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+
+    // Create FuelContext pointing to test directory
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn () => $context);
+
+    // Store the database path for tests that check file existence
+    $this->dbPath = $context->getDatabasePath();
+
+    // Bind our test DatabaseService instance
+    $databaseService = new DatabaseService($context->getDatabasePath());
+    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
 
     // Bind our test TaskService instance
-    $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($this->storagePath));
+    $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
     // Bind our test RunService instance
-    $this->app->singleton(RunService::class, fn (): RunService => new RunService($this->tempDir.'/.fuel/runs'));
+    $this->app->singleton(RunService::class, fn (): RunService => new RunService($context->getRunsPath()));
 
     // Bind our test BacklogService instance
-    $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($this->tempDir.'/.fuel/backlog.jsonl'));
+    $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
     $this->taskService = $this->app->make(TaskService::class);
 });
@@ -64,7 +75,7 @@ describe('add command', function (): void {
             ->expectsOutputToContain('Created task: f-')
             ->assertExitCode(0);
 
-        expect(file_exists($this->storagePath))->toBeTrue();
+        expect(file_exists($this->dbPath))->toBeTrue();
     });
 
     it('outputs JSON when --json flag is used', function (): void {
@@ -80,10 +91,11 @@ describe('add command', function (): void {
         $this->artisan('add', ['title' => 'Custom path task', '--cwd' => $this->tempDir])
             ->assertExitCode(0);
 
-        expect(file_exists($this->storagePath))->toBeTrue();
+        expect(file_exists($this->dbPath))->toBeTrue();
 
-        $content = file_get_contents($this->storagePath);
-        expect($content)->toContain('Custom path task');
+        // Verify task was created in the database
+        $tasks = $this->taskService->all();
+        expect($tasks->pluck('title')->toArray())->toContain('Custom path task');
     });
 
     it('creates task with --description flag', function (): void {
@@ -394,9 +406,8 @@ describe('add command', function (): void {
     });
 
     it('creates task with --epic flag', function (): void {
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-        $dbPath = $this->tempDir.'/.fuel/agent.db';
-        $databaseService = new DatabaseService($dbPath);
+        $databaseService = $this->app->make(DatabaseService::class);
+        $databaseService->initialize();
         $epicService = new EpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
 
@@ -413,9 +424,8 @@ describe('add command', function (): void {
     });
 
     it('creates task with -e flag (epic shortcut)', function (): void {
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-        $dbPath = $this->tempDir.'/.fuel/agent.db';
-        $databaseService = new DatabaseService($dbPath);
+        $databaseService = $this->app->make(DatabaseService::class);
+        $databaseService->initialize();
         $epicService = new EpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
 
@@ -442,9 +452,8 @@ describe('add command', function (): void {
     });
 
     it('creates task with --epic and other flags', function (): void {
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-        $dbPath = $this->tempDir.'/.fuel/agent.db';
-        $databaseService = new DatabaseService($dbPath);
+        $databaseService = $this->app->make(DatabaseService::class);
+        $databaseService->initialize();
         $epicService = new EpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
 
@@ -470,9 +479,8 @@ describe('add command', function (): void {
     });
 
     it('supports partial epic IDs in --epic flag', function (): void {
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-        $dbPath = $this->tempDir.'/.fuel/agent.db';
-        $databaseService = new DatabaseService($dbPath);
+        $databaseService = $this->app->make(DatabaseService::class);
+        $databaseService->initialize();
         $epicService = new EpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
         $partialId = substr($epic['id'], 2, 3); // Just hash part
@@ -2139,7 +2147,7 @@ describe('remove command', function (): void {
     });
 
     it('outputs JSON when --json flag is used for backlog deletion', function (): void {
-        $backlogService = new BacklogService($this->tempDir.'/.fuel/backlog.jsonl');
+        $backlogService = $this->app->make(BacklogService::class);
         $backlogService->initialize();
 
         $item = $backlogService->add('Backlog item to delete', 'Description');
@@ -3244,9 +3252,6 @@ describe('q command', function (): void {
     it('handles RuntimeException from TaskService::create()', function (): void {
         // Create a mock TaskService that throws RuntimeException
         $mockTaskService = \Mockery::mock(TaskService::class);
-        $mockTaskService->shouldReceive('setStoragePath')
-            ->once()
-            ->andReturnSelf();
         $mockTaskService->shouldReceive('initialize')->once();
         $mockTaskService->shouldReceive('create')
             ->once()
@@ -3904,32 +3909,29 @@ describe('init command', function (): void {
         expect(is_dir($fuelDir))->toBeTrue();
     });
 
-    it('creates tasks.jsonl file', function (): void {
+    it('creates agent.db database file', function (): void {
         Artisan::call('init', ['--cwd' => $this->tempDir]);
 
-        expect(file_exists($this->storagePath))->toBeTrue();
+        expect(file_exists($this->dbPath))->toBeTrue();
     });
 
     it('creates a starter task', function (): void {
         Artisan::call('init', ['--cwd' => $this->tempDir]);
 
-        // Verify task file was created with content
-        expect(file_exists($this->storagePath))->toBeTrue();
-        $content = file_get_contents($this->storagePath);
-        expect($content)->toContain('README');
-        expect($content)->toContain('f-');
+        // Verify database was created with a starter task
+        expect(file_exists($this->dbPath))->toBeTrue();
+        $tasks = $this->taskService->all();
+        expect($tasks->pluck('title')->filter(fn ($t) => str_contains($t, 'README'))->count())->toBe(1);
     });
 
     it('does not create duplicate starter tasks when run multiple times', function (): void {
         // First init
         Artisan::call('init', ['--cwd' => $this->tempDir]);
-        $firstContent = file_get_contents($this->storagePath);
-        $firstTaskCount = substr_count($firstContent, 'README');
+        $firstTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t) => str_contains($t, 'README'))->count();
 
         // Second init
         Artisan::call('init', ['--cwd' => $this->tempDir]);
-        $secondContent = file_get_contents($this->storagePath);
-        $secondTaskCount = substr_count($secondContent, 'README');
+        $secondTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t) => str_contains($t, 'README'))->count();
 
         // Should have same number of starter tasks
         expect($secondTaskCount)->toBe($firstTaskCount);

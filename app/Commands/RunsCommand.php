@@ -11,6 +11,7 @@ use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 class RunsCommand extends Command
 {
@@ -181,7 +182,7 @@ class RunsCommand extends Command
             // Indent each line of output
             $outputLines = explode("\n", (string) $run['output']);
             foreach ($outputLines as $line) {
-                $this->line('  '.$line);
+                $this->line('  '.OutputFormatter::escape($line));
             }
         }
     }

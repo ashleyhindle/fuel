@@ -1,19 +1,16 @@
 <?php
 
 use App\Services\ConfigService;
+use App\Services\FuelContext;
 use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->configPath = $this->tempDir.'/.fuel/config.yaml';
-    // Ensure .fuel directory exists
-    $fuelDir = dirname($this->configPath);
-    if (! is_dir($fuelDir)) {
-        mkdir($fuelDir, 0755, true);
-    }
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+    $this->context = new FuelContext($this->tempDir.'/.fuel');
+    $this->configPath = $this->context->getConfigPath();
 
-    $this->configService = new ConfigService($this->configPath);
+    $this->configService = new ConfigService($this->context);
 });
 
 afterEach(function (): void {
@@ -311,11 +308,8 @@ it('does not overwrite existing config file', function (): void {
     expect($config['complexity']['simple'])->toBe('custom-agent');
 });
 
-it('allows setting custom config path', function (): void {
-    $customPath = $this->tempDir.'/custom-config.yaml';
-    $this->configService->setConfigPath($customPath);
-
-    expect($this->configService->getConfigPath())->toBe($customPath);
+it('returns config path from context', function (): void {
+    expect($this->configService->getConfigPath())->toBe($this->configPath);
 });
 
 it('supports custom agent names', function (): void {
@@ -420,11 +414,11 @@ it('caches config after first load', function (): void {
     $command2 = $this->configService->getAgentCommand('simple', 'test prompt');
     expect($command2)->toBe(['cursor-agent', '-p', 'test prompt']);
 
-    // Reset cache by setting new path
-    $this->configService->setConfigPath($this->configPath);
+    // Create new ConfigService instance to reload config
+    $newConfigService = new ConfigService($this->context);
 
     // Now should load new config
-    $command3 = $this->configService->getAgentCommand('simple', 'test prompt');
+    $command3 = $newConfigService->getAgentCommand('simple', 'test prompt');
     expect($command3)->toBe(['claude', '-p', 'test prompt']);
 });
 

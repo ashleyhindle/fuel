@@ -1,27 +1,37 @@
 <?php
 
 use App\Services\ConfigService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function () {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->storagePath = $this->tempDir.'/.fuel/tasks.jsonl';
-    $this->configPath = $this->tempDir.'/.fuel/config.yaml';
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+
+    // Create FuelContext pointing to test directory
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn () => $context);
+
+    // Store config path for tests that need to write config files
+    $this->configPath = $context->getConfigPath();
 
     // Bind test services
-    $this->app->singleton(TaskService::class, function () {
-        return new TaskService($this->storagePath);
+    $databaseService = new DatabaseService($context->getDatabasePath());
+    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
+
+    $this->app->singleton(TaskService::class, function () use ($databaseService) {
+        return new TaskService($databaseService);
     });
 
-    $this->app->singleton(RunService::class, function () {
-        return new RunService($this->tempDir.'/.fuel/runs');
+    $this->app->singleton(RunService::class, function () use ($context) {
+        return new RunService($context->getRunsPath());
     });
 
-    $this->app->singleton(ConfigService::class, function () {
-        return new ConfigService($this->configPath);
+    $this->app->singleton(ConfigService::class, function () use ($context) {
+        return new ConfigService($context);
     });
 
     $this->taskService = $this->app->make(TaskService::class);

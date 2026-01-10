@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -33,15 +34,18 @@ class AddCommand extends Command
 
     protected $description = 'Add a new task';
 
-    public function handle(TaskService $taskService, BacklogService $backlogService, EpicService $epicService): int
+    public function handle(FuelContext $context, TaskService $taskService, BacklogService $backlogService, DatabaseService $dbService, EpicService $epicService): int
     {
+        // Configure context with --cwd if provided
+        $this->configureCwd($context);
+
+        // Reconfigure DatabaseService if context path changed
+        if ($this->option('cwd')) {
+            $dbService->setDatabasePath($context->getDatabasePath());
+        }
+
         // Handle --someday or --backlog flag: add to backlog instead of tasks
         if ($this->option('backlog') || $this->option('someday')) {
-            // Configure cwd for BacklogService
-            if ($cwd = $this->option('cwd')) {
-                $backlogService->setStoragePath($cwd.'/.fuel/backlog.jsonl');
-            }
-
             $backlogService->initialize();
 
             $title = $this->argument('title');
@@ -64,14 +68,6 @@ class AddCommand extends Command
         }
 
         // Existing task creation logic
-        $this->configureCwd($taskService);
-
-        // Configure EpicService database path if --cwd is provided
-        if ($cwd = $this->option('cwd')) {
-            $databaseService = new DatabaseService($cwd.'/.fuel/agent.db');
-            $epicService = new EpicService($databaseService);
-        }
-
         $taskService->initialize();
 
         $data = [

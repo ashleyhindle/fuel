@@ -6,6 +6,8 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -27,10 +29,15 @@ class PromoteCommand extends Command
 
     protected $description = 'Promote one or more backlog items to tasks';
 
-    public function handle(TaskService $taskService, BacklogService $backlogService): int
+    public function handle(FuelContext $context, TaskService $taskService, BacklogService $backlogService, DatabaseService $dbService): int
     {
-        $this->configureCwd($taskService);
-        $this->configureBacklogCwd($backlogService);
+        // Configure context with --cwd if provided
+        $this->configureCwd($context);
+
+        // Reconfigure DatabaseService if context path changed
+        if ($this->option('cwd')) {
+            $dbService->setDatabasePath($context->getDatabasePath());
+        }
 
         $ids = $this->argument('ids');
         $results = [];
@@ -158,15 +165,5 @@ class PromoteCommand extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Configure the BacklogService with --cwd option if provided.
-     */
-    protected function configureBacklogCwd(BacklogService $backlogService): void
-    {
-        if ($cwd = $this->option('cwd')) {
-            $backlogService->setStoragePath($cwd.'/.fuel/backlog.jsonl');
-        }
     }
 }
