@@ -75,7 +75,7 @@ class EpicsCommand extends Command
                     $epic['title'] ?? '',
                     $epic['status'] ?? 'planning',
                     $progress,
-                    $epic['created_at'] ?? '',
+                    $this->formatDate($epic['created_at'] ?? ''),
                 ];
             }, $epics);
 
@@ -84,6 +84,55 @@ class EpicsCommand extends Command
             return self::SUCCESS;
         } catch (\Exception $e) {
             return $this->outputError('Failed to fetch epics: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Format a date string into a human-readable format.
+     */
+    private function formatDate(string $dateString): string
+    {
+        try {
+            $date = new \DateTime($dateString);
+            $now = new \DateTime;
+            $diff = $now->diff($date);
+
+            // If less than 1 minute ago
+            if ($diff->days === 0 && $diff->h === 0 && $diff->i === 0) {
+                return 'just now';
+            }
+
+            // If less than 1 hour ago
+            if ($diff->days === 0 && $diff->h === 0) {
+                $minutes = $diff->i;
+
+                return $minutes.'m ago';
+            }
+
+            // If less than 24 hours ago
+            if ($diff->days === 0) {
+                $hours = $diff->h;
+
+                return $hours.'h ago';
+            }
+
+            // If less than 7 days ago
+            if ($diff->days < 7) {
+                $days = $diff->days;
+
+                return $days.'d ago';
+            }
+
+            // If same year, show "Mon Day" (e.g., "Jan 7")
+            if ($date->format('Y') === $now->format('Y')) {
+                return $date->format('M j');
+            }
+
+            // Different year, show "Mon Day, Year" (e.g., "Jan 7, 2025")
+            return $date->format('M j, Y');
+        } catch (\Exception) {
+            // Fallback to original if parsing fails
+            return $dateString;
         }
     }
 }
