@@ -18,24 +18,29 @@ beforeEach(function () {
 });
 
 afterEach(function () {
-    if (file_exists($this->dbPath)) {
-        @unlink($this->dbPath);
-    }
-    if (file_exists($this->dbPath.'-wal')) {
-        @unlink($this->dbPath.'-wal');
-    }
-    if (file_exists($this->dbPath.'-shm')) {
-        @unlink($this->dbPath.'-shm');
-    }
-    if (file_exists($this->tasksPath)) {
-        @unlink($this->tasksPath);
-    }
-    if (is_dir($this->tempDir.'/.fuel')) {
-        @rmdir($this->tempDir.'/.fuel');
-    }
-    if (is_dir($this->tempDir)) {
-        @rmdir($this->tempDir);
-    }
+    $deleteDir = function (string $dir) use (&$deleteDir): void {
+        if (! is_dir($dir)) {
+            return;
+        }
+
+        $items = scandir($dir);
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $dir.'/'.$item;
+            if (is_dir($path)) {
+                $deleteDir($path);
+            } else {
+                @unlink($path);
+            }
+        }
+
+        @rmdir($dir);
+    };
+
+    $deleteDir($this->tempDir);
 });
 
 it('creates an epic with title and description', function () {
@@ -236,4 +241,117 @@ it('generates unique IDs in e-xxxxxx format', function () {
     expect($epic1['id'])->toMatch('/^e-[a-f0-9]{6}$/');
     expect($epic2['id'])->toMatch('/^e-[a-f0-9]{6}$/');
     expect($epic1['id'])->not->toBe($epic2['id']);
+});
+
+it('returns not completed when epic has no tasks', function () {
+    $epic = $this->service->createEpic('Empty Epic');
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeFalse();
+    expect($result['review_task_id'])->toBeNull();
+});
+
+it('returns not completed when epic has open tasks', function () {
+    $epic = $this->service->createEpic('Epic with open tasks');
+
+    $this->taskService->create([
+        'title' => 'Open task',
+        'epic_id' => $epic['id'],
+    ]);
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeFalse();
+    expect($result['review_task_id'])->toBeNull();
+});
+
+it('returns not completed when epic has in_progress tasks', function () {
+    $epic = $this->service->createEpic('Epic with in_progress tasks');
+
+    $task = $this->taskService->create([
+        'title' => 'In progress task',
+        'epic_id' => $epic['id'],
+    ]);
+    $this->taskService->start($task['id']);
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeFalse();
+    expect($result['review_task_id'])->toBeNull();
+});
+
+it('triggers completion when all tasks are closed', function () {
+    $epic = $this->service->createEpic('Epic with all closed tasks', 'Test epic description');
+
+    $task1 = $this->taskService->create([
+        'title' => 'Task 1',
+        'epic_id' => $epic['id'],
+    ]);
+    $task2 = $this->taskService->create([
+        'title' => 'Task 2',
+        'epic_id' => $epic['id'],
+    ]);
+
+    $this->taskService->done($task1['id']);
+    $this->taskService->done($task2['id']);
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeTrue();
+    expect($result['review_task_id'])->toStartWith('f-');
+
+    $reviewTask = $this->taskService->find($result['review_task_id']);
+    expect($reviewTask)->not->toBeNull();
+    expect($reviewTask['title'])->toContain('Review completed epic:');
+    expect($reviewTask['labels'])->toContain('needs-human');
+    expect($reviewTask['labels'])->toContain('epic-review');
+
+    $updatedEpic = $this->service->getEpic($epic['id']);
+    expect($updatedEpic['status'])->toBe('review_pending');
+});
+
+it('triggers completion when tasks are closed or cancelled', function () {
+    $epic = $this->service->createEpic('Epic with mixed closed/cancelled');
+
+    $task1 = $this->taskService->create([
+        'title' => 'Task 1',
+        'epic_id' => $epic['id'],
+    ]);
+    $task2 = $this->taskService->create([
+        'title' => 'Task 2',
+        'epic_id' => $epic['id'],
+    ]);
+
+    $this->taskService->done($task1['id']);
+    $this->taskService->update($task2['id'], ['status' => 'cancelled']);
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeTrue();
+});
+
+it('returns false for non-existent epic', function () {
+    $result = $this->service->checkEpicCompletion('e-000000');
+
+    expect($result['completed'])->toBeFalse();
+    expect($result['review_task_id'])->toBeNull();
+});
+
+it('includes task commit hashes in summary when available', function () {
+    $epic = $this->service->createEpic('Epic with commits');
+
+    $task = $this->taskService->create([
+        'title' => 'Task with commit',
+        'epic_id' => $epic['id'],
+    ]);
+
+    $this->taskService->done($task['id'], null, 'abc1234');
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeTrue();
+
+    $reviewTask = $this->taskService->find($result['review_task_id']);
+    expect($reviewTask['description'])->toContain('abc1234');
 });
