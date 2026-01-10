@@ -45,16 +45,26 @@ class EpicShowCommand extends Command
             $tasks = $epicService->getTasksForEpic($epic['id']);
 
             if ($this->option('json')) {
+                $totalCount = count($tasks);
+                $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
                 $epic['tasks'] = $tasks;
+                $epic['task_count'] = $totalCount;
+                $epic['completed_count'] = $completedCount;
                 $this->outputJson($epic);
 
                 return self::SUCCESS;
             }
 
+            // Calculate progress
+            $totalCount = count($tasks);
+            $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
+            $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
+
             // Display epic details
             $this->info('Epic: '.$epic['id']);
             $this->line('  Title: '.($epic['title'] ?? ''));
             $this->line('  Status: '.($epic['status'] ?? 'planning'));
+            $this->line('  Progress: '.$progress);
 
             if (isset($epic['description']) && $epic['description'] !== null) {
                 $this->line('  Description: '.$epic['description']);

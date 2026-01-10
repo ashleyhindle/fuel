@@ -74,6 +74,7 @@ describe('epic:show command', function (): void {
         expect($output)->toContain('Title: Test Epic');
         expect($output)->toContain('Description: Test Description');
         expect($output)->toContain('Status: planning');
+        expect($output)->toContain('Progress: 0/0 complete');
         expect($output)->toContain('Created:');
         expect($output)->toContain('No tasks linked to this epic.');
     });
@@ -85,18 +86,18 @@ describe('epic:show command', function (): void {
         $epic = $epicService->createEpic('Epic with Tasks', 'Epic Description');
         $task1 = $taskService->create([
             'title' => 'Task 1',
-            'status' => 'open',
             'type' => 'feature',
             'priority' => 1,
             'epic_id' => $epic['id'],
         ]);
         $task2 = $taskService->create([
             'title' => 'Task 2',
-            'status' => 'closed',
             'type' => 'bug',
             'priority' => 2,
             'epic_id' => $epic['id'],
         ]);
+        // Update task2 to closed status
+        $taskService->update($task2['id'], ['status' => 'closed']);
 
         Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -118,6 +119,42 @@ describe('epic:show command', function (): void {
         // Verify both task statuses are in the output (checking for status values)
         expect($output)->toContain('open');
         // Note: "closed" may be formatted differently in table output, so we verify task2 exists instead
+        expect($output)->toContain('Progress: 1/2 complete'); // 1 completed out of 2 total
+    });
+
+    it('shows correct progress tracking for epic with completed tasks', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        $epic = $epicService->createEpic('Epic with Progress');
+        $task1 = $taskService->create([
+            'title' => 'Task 1',
+            'epic_id' => $epic['id'],
+        ]);
+        $task2 = $taskService->create([
+            'title' => 'Task 2',
+            'epic_id' => $epic['id'],
+        ]);
+        $task3 = $taskService->create([
+            'title' => 'Task 3',
+            'epic_id' => $epic['id'],
+        ]);
+        // Update tasks to closed status
+        $taskService->update($task1['id'], ['status' => 'closed']);
+        $taskService->update($task2['id'], ['status' => 'closed']);
+
+        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Progress: 2/3 complete'); // 2 completed out of 3 total
+
+        // Check JSON output
+        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        expect($data['task_count'])->toBe(3);
+        expect($data['completed_count'])->toBe(2);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
@@ -145,6 +182,10 @@ describe('epic:show command', function (): void {
         expect($data['tasks'])->toHaveCount(1);
         expect($data['tasks'][0]['id'])->toBe($task['id']);
         expect($data['tasks'][0]['title'])->toBe('JSON Task');
+        expect($data)->toHaveKey('task_count');
+        expect($data['task_count'])->toBe(1);
+        expect($data)->toHaveKey('completed_count');
+        expect($data['completed_count'])->toBe(0);
     });
 
     it('supports partial ID matching', function (): void {

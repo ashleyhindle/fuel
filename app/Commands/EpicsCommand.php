@@ -37,15 +37,18 @@ class EpicsCommand extends Command
             $epics = $epicService->getAllEpics();
 
             if ($this->option('json')) {
-                // For JSON output, include task count for each epic
-                $epicsWithTaskCount = array_map(function (array $epic) use ($epicService): array {
+                // For JSON output, include task count and completed count for each epic
+                $epicsWithProgress = array_map(function (array $epic) use ($epicService): array {
                     $tasks = $epicService->getTasksForEpic($epic['id']);
-                    $epic['task_count'] = count($tasks);
+                    $totalCount = count($tasks);
+                    $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
+                    $epic['task_count'] = $totalCount;
+                    $epic['completed_count'] = $completedCount;
 
                     return $epic;
                 }, $epics);
 
-                $this->outputJson($epicsWithTaskCount);
+                $this->outputJson($epicsWithProgress);
 
                 return self::SUCCESS;
             }
@@ -59,17 +62,19 @@ class EpicsCommand extends Command
             $this->info(sprintf('Epics (%d):', count($epics)));
             $this->newLine();
 
-            // Build table rows with task counts
-            $headers = ['ID', 'Title', 'Status', 'Task Count', 'Created'];
+            // Build table rows with progress tracking
+            $headers = ['ID', 'Title', 'Status', 'Progress', 'Created'];
             $rows = array_map(function (array $epic) use ($epicService): array {
                 $tasks = $epicService->getTasksForEpic($epic['id']);
-                $taskCount = count($tasks);
+                $totalCount = count($tasks);
+                $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
+                $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
                 return [
                     $epic['id'],
                     $epic['title'] ?? '',
                     $epic['status'] ?? 'planning',
-                    (string) $taskCount,
+                    $progress,
                     $epic['created_at'] ?? '',
                 ];
             }, $epics);

@@ -77,7 +77,7 @@ describe('epics command', function (): void {
         expect($output)->toContain($epic1['id']);
         expect($output)->toContain($epic2['id']);
         expect($output)->toContain('planning');
-        expect($output)->toContain('Task Count');
+        expect($output)->toContain('Progress');
     });
 
     it('outputs JSON when --json flag is used', function (): void {
@@ -95,6 +95,8 @@ describe('epics command', function (): void {
         expect($epics[0]['status'])->toBe('planning');
         expect($epics[0])->toHaveKey('task_count');
         expect($epics[0]['task_count'])->toBe(0);
+        expect($epics[0])->toHaveKey('completed_count');
+        expect($epics[0]['completed_count'])->toBe(0);
     });
 
     it('shows correct task count for epics with tasks', function (): void {
@@ -115,7 +117,7 @@ describe('epics command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Epic with Tasks');
-        expect($output)->toContain('2'); // Task count should be 2
+        expect($output)->toContain('0/2 complete'); // Progress should show 0/2 complete
     });
 
     it('shows correct status based on task states', function (): void {
@@ -154,5 +156,42 @@ describe('epics command', function (): void {
         expect($planningEpic['status'])->toBe('planning');
         expect($inProgressEpic['status'])->toBe('in_progress');
         expect($reviewPendingEpic['status'])->toBe('review_pending');
+    });
+
+    it('shows correct progress tracking for epics with completed tasks', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        $epic = $epicService->createEpic('Epic with Mixed Tasks');
+        $task1 = $taskService->create([
+            'title' => 'Open Task',
+            'epic_id' => $epic['id'],
+        ]);
+        $task2 = $taskService->create([
+            'title' => 'Closed Task',
+            'epic_id' => $epic['id'],
+        ]);
+        $task3 = $taskService->create([
+            'title' => 'Another Closed Task',
+            'epic_id' => $epic['id'],
+        ]);
+        // Update tasks to closed status
+        $taskService->update($task2['id'], ['status' => 'closed']);
+        $taskService->update($task3['id'], ['status' => 'closed']);
+
+        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Epic with Mixed Tasks');
+        expect($output)->toContain('2/3 complete'); // 2 completed out of 3 total
+
+        // Check JSON output
+        Artisan::call('epics', ['--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $epics = json_decode($output, true);
+        $foundEpic = collect($epics)->firstWhere('title', 'Epic with Mixed Tasks');
+
+        expect($foundEpic['task_count'])->toBe(3);
+        expect($foundEpic['completed_count'])->toBe(2);
     });
 });
