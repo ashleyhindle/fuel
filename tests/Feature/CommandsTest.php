@@ -2167,6 +2167,66 @@ describe('remove command', function (): void {
         expect($result['deleted'])->toBeArray();
         expect($result['deleted']['id'])->toBe($item['id']);
     });
+
+    it('skips confirmation for task deletion in non-interactive mode', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task to delete']);
+
+        // Create command instance and set input to non-interactive
+        $command = $this->app->make(\App\Commands\RemoveCommand::class);
+        $command->setLaravel($this->app);
+        $input = new \Symfony\Component\Console\Input\ArrayInput([
+            'id' => $task['id'],
+            '--cwd' => $this->tempDir,
+        ], $command->getDefinition());
+        $input->setInteractive(false);
+        $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput;
+        $output = new \Illuminate\Console\OutputStyle($input, $bufferedOutput);
+        $command->setInput($input);
+        $command->setOutput($output);
+
+        $exitCode = $command->handle(
+            $this->app->make(\App\Services\FuelContext::class),
+            $this->taskService,
+            $this->app->make(\App\Services\BacklogService::class),
+            $this->app->make(\App\Services\DatabaseService::class)
+        );
+
+        expect($exitCode)->toBe(0);
+        // Verify task was deleted (should not exist anymore)
+        expect($this->taskService->find($task['id']))->toBeNull();
+    });
+
+    it('skips confirmation for backlog deletion in non-interactive mode', function (): void {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+
+        $item = $backlogService->add('Backlog item to delete', 'Description');
+
+        // Create command instance and set input to non-interactive
+        $command = $this->app->make(\App\Commands\RemoveCommand::class);
+        $command->setLaravel($this->app);
+        $input = new \Symfony\Component\Console\Input\ArrayInput([
+            'id' => $item['id'],
+            '--cwd' => $this->tempDir,
+        ], $command->getDefinition());
+        $input->setInteractive(false);
+        $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput;
+        $output = new \Illuminate\Console\OutputStyle($input, $bufferedOutput);
+        $command->setInput($input);
+        $command->setOutput($output);
+
+        $exitCode = $command->handle(
+            $this->app->make(\App\Services\FuelContext::class),
+            $this->app->make(\App\Services\TaskService::class),
+            $backlogService,
+            $this->app->make(\App\Services\DatabaseService::class)
+        );
+
+        expect($exitCode)->toBe(0);
+        // Verify backlog item was deleted (should not exist anymore)
+        expect($backlogService->find($item['id']))->toBeNull();
+    });
 });
 
 // =============================================================================

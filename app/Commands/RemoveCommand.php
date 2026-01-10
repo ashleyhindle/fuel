@@ -62,8 +62,8 @@ class RemoveCommand extends Command
                 $resolvedId = $item['id'];
                 $title = $item['title'] ?? '';
 
-                // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
+                // Confirm deletion unless --force is set, --json is set, or non-interactive shell
+                if (! $this->option('force') && ! $this->option('json') && $this->input->isInteractive() && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
 
                     return self::SUCCESS;
@@ -101,8 +101,8 @@ class RemoveCommand extends Command
                     return $this->outputError(sprintf("ID '%s' is not a task (must have f- prefix)", $id));
                 }
 
-                // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
+                // Confirm deletion unless --force is set, --json is set, or non-interactive shell
+                if (! $this->option('force') && ! $this->option('json') && $this->input->isInteractive() && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
 
                     return self::SUCCESS;
@@ -138,8 +138,8 @@ class RemoveCommand extends Command
                 $resolvedId = $backlogItem['id'];
                 $title = $backlogItem['title'] ?? '';
 
-                // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
+                // Confirm deletion unless --force is set, --json is set, or non-interactive shell
+                if (! $this->option('force') && ! $this->option('json') && $this->input->isInteractive() && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
 
                     return self::SUCCESS;
@@ -171,8 +171,8 @@ class RemoveCommand extends Command
                     return $this->outputError(sprintf("ID '%s' is not a task (must have f- prefix)", $id));
                 }
 
-                // Confirm deletion unless --force is set
-                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
+                // Confirm deletion unless --force is set, --json is set, or non-interactive shell
+                if (! $this->option('force') && ! $this->option('json') && $this->input->isInteractive() && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
 
                     return self::SUCCESS;
