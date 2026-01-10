@@ -526,6 +526,7 @@ class DatabaseService
         ksort($pendingMigrations);
 
         $ranMigrationV4 = false;
+        $ranMigrationV10 = false;
 
         $this->connection->beginTransaction();
         try {
@@ -535,6 +536,9 @@ class DatabaseService
                 $maxVersion = $version;
                 if ($version === 4) {
                     $ranMigrationV4 = true;
+                }
+                if ($version === 10) {
+                    $ranMigrationV10 = true;
                 }
             }
             $this->setSchemaVersion($maxVersion);
@@ -547,6 +551,11 @@ class DatabaseService
         // Auto-import tasks from JSONL after migration v4 creates the tasks table
         if ($ranMigrationV4) {
             $this->importTasksFromJsonl();
+        }
+
+        // Auto-import runs from JSONL after migration v10 updates runs table schema
+        if ($ranMigrationV10) {
+            $this->importRunsFromJsonl();
         }
     }
 
@@ -781,6 +790,134 @@ class DatabaseService
             throw $e;
         } finally {
             fclose($handle);
+        }
+
+        return $imported;
+    }
+
+    /**
+     * Import runs from JSONL files into SQLite runs table.
+     * Only imports if .fuel/runs/ directory exists with .jsonl files.
+     *
+     * @return int Number of runs imported
+     */
+    public function importRunsFromJsonl(): int
+    {
+        // Derive runs directory path from database path
+        $runsDir = dirname($this->dbPath).'/runs';
+
+        // Check if runs directory exists
+        if (! is_dir($runsDir)) {
+            return 0;
+        }
+
+        // Get all .jsonl files in runs directory
+        $jsonlFiles = glob($runsDir.'/*.jsonl');
+        if ($jsonlFiles === false || empty($jsonlFiles)) {
+            return 0;
+        }
+
+        // Build task short_id -> integer id lookup
+        $taskLookup = [];
+        $tasks = $this->fetchAll('SELECT id, short_id FROM tasks');
+        foreach ($tasks as $task) {
+            $taskLookup[$task['short_id']] = (int) $task['id'];
+        }
+
+        $imported = 0;
+        $this->beginTransaction();
+        try {
+            foreach ($jsonlFiles as $jsonlPath) {
+                // Extract task short_id from filename (e.g., "f-xxxxxx.jsonl" -> "f-xxxxxx")
+                $filename = basename($jsonlPath);
+                $taskShortId = str_replace('.jsonl', '', $filename);
+
+                // Resolve task short_id to integer id
+                $taskIntId = $taskLookup[$taskShortId] ?? null;
+                if ($taskIntId === null) {
+                    // Task no longer exists, skip this run file
+                    continue;
+                }
+
+                // Read and import runs from this JSONL file
+                $handle = fopen($jsonlPath, 'r');
+                if ($handle === false) {
+                    continue;
+                }
+
+                while (($line = fgets($handle)) !== false) {
+                    $line = trim($line);
+                    if ($line === '') {
+                        continue;
+                    }
+
+                    $run = json_decode($line, true);
+                    if (! is_array($run) || ! isset($run['run_id'])) {
+                        continue;
+                    }
+
+                    // Check if run already exists (skip duplicates)
+                    $existing = $this->fetchOne('SELECT id FROM runs WHERE id = ?', [$run['run_id']]);
+                    if ($existing !== null) {
+                        continue;
+                    }
+
+                    // Calculate duration_seconds if we have both timestamps
+                    $durationSeconds = null;
+                    if (isset($run['started_at'], $run['ended_at'])) {
+                        $start = strtotime($run['started_at']);
+                        $end = strtotime($run['ended_at']);
+                        if ($start !== false && $end !== false) {
+                            $durationSeconds = $end - $start;
+                        }
+                    }
+
+                    // Determine status based on ended_at
+                    $status = isset($run['ended_at']) ? 'completed' : 'running';
+
+                    // Insert run into database
+                    $this->query(
+                        'INSERT INTO runs (id, task_id, agent, status, exit_code, started_at, ended_at, duration_seconds, session_id, error_type, model, output, cost_usd)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [
+                            $run['run_id'],
+                            $taskIntId,
+                            $run['agent'] ?? null,
+                            $status,
+                            $run['exit_code'] ?? null,
+                            $run['started_at'] ?? null,
+                            $run['ended_at'] ?? null,
+                            $durationSeconds,
+                            $run['session_id'] ?? null,
+                            null, // error_type (not present in old JSONL format)
+                            $run['model'] ?? null,
+                            $run['output'] ?? null,
+                            $run['cost_usd'] ?? null,
+                        ]
+                    );
+                    $imported++;
+                }
+
+                fclose($handle);
+
+                // After successful import, delete the .jsonl file and its .lock file
+                unlink($jsonlPath);
+                $lockPath = $jsonlPath.'.lock';
+                if (file_exists($lockPath)) {
+                    unlink($lockPath);
+                }
+            }
+
+            $this->commit();
+
+            // Delete runs directory if it's now empty
+            $remainingFiles = glob($runsDir.'/*');
+            if ($remainingFiles === false || empty($remainingFiles)) {
+                rmdir($runsDir);
+            }
+        } catch (\Throwable $e) {
+            $this->rollback();
+            throw $e;
         }
 
         return $imported;
