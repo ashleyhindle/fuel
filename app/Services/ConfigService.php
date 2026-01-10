@@ -37,18 +37,18 @@ class ConfigService
         }
 
         if (! file_exists($this->configPath)) {
-            throw new RuntimeException('Config file not found: ' . $this->configPath);
+            throw new RuntimeException('Config file not found: '.$this->configPath);
         }
 
         $content = file_get_contents($this->configPath);
         if ($content === false) {
-            throw new RuntimeException('Failed to read config file: ' . $this->configPath);
+            throw new RuntimeException('Failed to read config file: '.$this->configPath);
         }
 
         try {
             $parsed = Yaml::parse($content);
         } catch (\Exception $exception) {
-            throw new RuntimeException('Failed to parse YAML config: ' . $exception->getMessage(), $exception->getCode(), $exception);
+            throw new RuntimeException('Failed to parse YAML config: '.$exception->getMessage(), $exception->getCode(), $exception);
         }
 
         if (! is_array($parsed)) {
@@ -522,6 +522,19 @@ agents:
   #     OPENCODE_PERMISSION: '{"permission":"allow"}'
   #   max_concurrent: 3
   #   resume_args: ["--session"]
+
+  amp-free:
+    command: amp
+    prompt_args: ["--execute"]
+    model: null  # mode controls model
+    args:
+      - "--stream-json"
+      - "-m"
+      - "free"
+      - "--dangerously-allow-all"
+      - "--no-notifications"
+    max_concurrent: 2
+    resume_args: []  # amp uses threads - TBD if resume supported
 
 # Map complexity levels to agents (just reference agent names)
 complexity:

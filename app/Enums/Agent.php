@@ -9,6 +9,7 @@ enum Agent: string
     case Claude = 'claude';
     case CursorAgent = 'cursor-agent';
     case OpenCode = 'opencode';
+    case Amp = 'amp';
 
     /**
      * Get the command to resume a session interactively.
@@ -18,9 +19,10 @@ enum Agent: string
         $escapedSessionId = escapeshellarg($sessionId);
 
         return match ($this) {
-            self::Claude => 'claude --resume ' . $escapedSessionId,
-            self::CursorAgent => 'cursor-agent --resume=' . $escapedSessionId,
-            self::OpenCode => 'opencode --session ' . $escapedSessionId,
+            self::Claude => 'claude --resume '.$escapedSessionId,
+            self::CursorAgent => 'cursor-agent --resume='.$escapedSessionId,
+            self::OpenCode => 'opencode --session '.$escapedSessionId,
+            self::Amp => 'amp threads continue '.$escapedSessionId,
         };
     }
 
@@ -36,6 +38,7 @@ enum Agent: string
             self::Claude => sprintf('claude --resume %s -p %s', $escapedSessionId, $escapedPrompt),
             self::CursorAgent => sprintf('cursor-agent --resume %s -p %s', $escapedSessionId, $escapedPrompt),
             self::OpenCode => sprintf('opencode run %s --session %s', $escapedPrompt, $escapedSessionId),
+            self::Amp => sprintf('amp threads continue %s --execute %s', $escapedSessionId, $escapedPrompt),
         };
     }
 
@@ -48,6 +51,7 @@ enum Agent: string
             self::Claude => 'Claude',
             self::CursorAgent => 'Cursor Agent',
             self::OpenCode => 'OpenCode',
+            self::Amp => 'Amp',
         };
     }
 
@@ -60,6 +64,7 @@ enum Agent: string
             self::Claude => 'claude',
             self::CursorAgent => 'cursor-agent',
             self::OpenCode => 'opencode',
+            self::Amp => 'amp',
         };
     }
 
@@ -74,6 +79,7 @@ enum Agent: string
             self::Claude => ['--resume', $sessionId],
             self::CursorAgent => ['--resume='.$sessionId],
             self::OpenCode => ['--session', $sessionId],
+            self::Amp => ['threads', 'continue', $sessionId],
         };
     }
 
@@ -94,6 +100,7 @@ enum Agent: string
             'claude' => self::Claude,
             'cursor-agent' => self::CursorAgent,
             'opencode' => self::OpenCode,
+            'amp' => self::Amp,
             default => null,
         };
     }
@@ -130,6 +137,10 @@ enum Agent: string
 
         if (str_contains($agentName, 'opencode')) {
             return self::OpenCode;
+        }
+
+        if (str_contains($agentName, 'amp')) {
+            return self::Amp;
         }
 
         return null;

@@ -16,6 +16,17 @@ agents:
     max_concurrent: 2
     resume_args: ["--resume="]
 
+  cursor-opus:
+    command: cursor-agent
+    prompt_args: ["-p"]
+    model: opus-4.5
+    args:
+      - "--force"
+      - "--output-format"
+      - "stream-json"
+    max_concurrent: 2
+    resume_args: ["--resume="]
+
   claude-sonnet:
     command: claude
     prompt_args: ["-p"]
@@ -40,9 +51,32 @@ agents:
     max_concurrent: 2
     resume_args: ["--resume"]
 
+  opencode-glm:
+    command: opencode
+    prompt_args: ["run"]
+    model: opencode/glm-4.7-free
+    args: []
+    env:
+      OPENCODE_PERMISSION: '{"permission":"allow"}'
+    max_concurrent: 2
+    resume_args: ["--session"]
+
+  amp-free:
+    command: amp
+    prompt_args: ["--execute"]
+    model: null  # mode controls model
+    args:
+      - "--stream-json"
+      - "-m"
+      - "free"
+      - "--dangerously-allow-all"
+      - "--no-notifications"
+    max_concurrent: 2
+    resume_args: []  # amp uses threads - TBD if resume supported
+
 # Map complexity levels to agents
 complexity:
-  trivial: cursor-composer
-  simple: claude-opus
-  moderate: claude-opus
-  complex: claude-opus
+  trivial: opencode-glm
+  simple: cursor-composer
+  moderate: cursor-opus
+  complex: cursor-opus
