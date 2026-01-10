@@ -80,9 +80,23 @@ agents:
     max_attempts: 3
     resume_args: []  # amp uses threads - TBD if resume supported
 
+  amp-smart:
+    command: amp
+    prompt_args: ["--execute"]
+    model: null  # mode controls model
+    args:
+      - "--stream-json"
+      - "-m"
+      - "smart"
+      - "--dangerously-allow-all"
+      - "--no-notifications"
+    max_concurrent: 2
+    max_attempts: 3
+    resume_args: []
+
 # Map complexity levels to agents
 complexity:
-  trivial: opencode-glm
+  trivial: cursor-composer
   simple: cursor-composer
-  moderate: cursor-opus
-  complex: cursor-opus
+  moderate: amp-smart
+  complex: claude-opus

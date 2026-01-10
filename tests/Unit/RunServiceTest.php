@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\RunService;
-use RuntimeException;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
