@@ -19,6 +19,9 @@ class ProcessManagerTest extends TestCase
     {
         parent::setUp();
 
+        // Create processes subdirectory in the test directory (provided by Pest.php)
+        mkdir($this->testDir.'/.fuel/processes', 0755, true);
+
         // Create a mock ConfigService for testing with real commands
         $mockConfig = Mockery::mock(ConfigService::class);
         $mockConfig->shouldReceive('getAgentDefinition')
@@ -33,25 +36,13 @@ class ProcessManagerTest extends TestCase
         $mockConfig->shouldReceive('getAgentLimit')
             ->andReturn(10); // Higher limit for feature tests
 
-        $this->processManager = new ProcessManager($mockConfig);
-
-        // Clean up any existing process files
-        $processDir = getcwd().'/.fuel/processes';
-        if (File::exists($processDir)) {
-            File::deleteDirectory($processDir);
-        }
+        $this->processManager = new ProcessManager($mockConfig, $this->testDir);
     }
 
     protected function tearDown(): void
     {
         // Ensure all processes are killed
         $this->processManager->shutdown();
-
-        // Clean up process files
-        $processDir = getcwd().'/.fuel/processes';
-        if (File::exists($processDir)) {
-            File::deleteDirectory($processDir);
-        }
 
         parent::tearDown();
     }
@@ -90,7 +81,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNotNull($result);
 
         // Verify stdout file content
-        $stdoutPath = getcwd().'/.fuel/processes/f-stdout/stdout.log';
+        $stdoutPath = $this->testDir.'/.fuel/processes/f-stdout/stdout.log';
         $this->assertTrue(File::exists($stdoutPath));
         $content = File::get($stdoutPath);
         $this->assertStringContainsString('stdout content', $content);
@@ -111,7 +102,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNotNull($result);
 
         // Verify stderr file content
-        $stderrPath = getcwd().'/.fuel/processes/f-stderr/stderr.log';
+        $stderrPath = $this->testDir.'/.fuel/processes/f-stderr/stderr.log';
         $this->assertTrue(File::exists($stderrPath));
         $content = File::get($stderrPath);
         $this->assertStringContainsString('error', $content);

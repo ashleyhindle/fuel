@@ -172,6 +172,18 @@ When parallel tasks share an interface, define it in a parent task's description
 
 ## Testing Patterns
 
+**Tests must NEVER modify the real workspace.** Always use isolated temp directories:
+
+```php
+// CORRECT - use isolated temp directory
+$this->testDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
+mkdir($this->testDir.'/.fuel', 0755, true);
+
+// INCORRECT - will delete real files when agents run tests!
+$processDir = getcwd().'/.fuel/processes';
+File::deleteDirectory($processDir);  // NEVER DO THIS
+```
+
 For command tests checking JSON output, use `Artisan::call()` + `Artisan::output()`:
 
 ```php

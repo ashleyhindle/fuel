@@ -37,8 +37,30 @@ class ProcessManager implements ProcessManagerInterface
     /** Number of times SIGTERM/SIGINT has been received */
     private int $shutdownSignalCount = 0;
 
-    public function __construct(private readonly ?ConfigService $configService = new ConfigService)
+    /** The working directory where .fuel is located */
+    private ?string $cwd = null;
+
+    public function __construct(
+        private readonly ?ConfigService $configService = new ConfigService,
+        ?string $cwd = null
+    ) {
+        $this->cwd = $cwd;
+    }
+
+    /**
+     * Set the working directory for process output.
+     */
+    public function setCwd(string $cwd): void
     {
+        $this->cwd = $cwd;
+    }
+
+    /**
+     * Get the working directory, defaulting to getcwd() if not set.
+     */
+    public function getCwd(): string
+    {
+        return $this->cwd ?? getcwd();
     }
 
     /**
@@ -94,9 +116,9 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function getOutput(string $taskId): ProcessOutput
     {
-        $outputDir = getcwd().('/.fuel/processes/' . $taskId);
-        $stdoutPath = $outputDir . '/stdout.log';
-        $stderrPath = $outputDir . '/stderr.log';
+        $outputDir = $this->getCwd().'/.fuel/processes/'.$taskId;
+        $stdoutPath = $outputDir.'/stdout.log';
+        $stderrPath = $outputDir.'/stderr.log';
 
         $stdout = '';
         $stderr = '';
@@ -446,19 +468,15 @@ class ProcessManager implements ProcessManagerInterface
      */
     private function createOutputDirectory(string $taskId): array
     {
-        $outputDir = getcwd().'/.fuel/processes/'.$taskId;
+        $outputDir = $this->getCwd().'/.fuel/processes/'.$taskId;
 
-        // Always try to create directory (mkdir is idempotent with recursive=true)
-        if (! is_dir($outputDir)) {
-            if (! mkdir($outputDir, 0755, true)) {
-                throw new \RuntimeException('Failed to create output directory: '.$outputDir);
-            }
+        if (! is_dir($outputDir) && ! mkdir($outputDir, 0755, true)) {
+            throw new \RuntimeException('Failed to create output directory: '.$outputDir);
         }
 
         $stdoutPath = $outputDir.'/stdout.log';
         $stderrPath = $outputDir.'/stderr.log';
 
-        // Create files using native PHP (File facade might have issues)
         if (file_put_contents($stdoutPath, '') === false) {
             throw new \RuntimeException('Failed to create stdout file: '.$stdoutPath);
         }
@@ -467,7 +485,6 @@ class ProcessManager implements ProcessManagerInterface
             throw new \RuntimeException('Failed to create stderr file: '.$stderrPath);
         }
 
-        // Verify files actually exist
         if (! file_exists($stdoutPath) || ! file_exists($stderrPath)) {
             throw new \RuntimeException('Output files not found after creation: '.$outputDir);
         }
@@ -513,8 +530,15 @@ class ProcessManager implements ProcessManagerInterface
     {
         $process->start(function ($type, $buffer) use ($stdoutPath, $stderrPath): void {
             $path = $type === SymfonyProcess::ERR ? $stderrPath : $stdoutPath;
-            // Use native file_put_contents with APPEND flag
-            file_put_contents($path, $buffer, FILE_APPEND);
+
+            // Recreate directory if it was deleted (e.g., by git clean -X)
+            $dir = dirname($path);
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+
+            // Silently ignore write failures - output capture is best-effort
+            @file_put_contents($path, $buffer, FILE_APPEND);
         });
     }
 
@@ -790,12 +814,12 @@ class ProcessManager implements ProcessManagerInterface
 
         // Fallback: check /proc on Linux
         if (PHP_OS_FAMILY === 'Linux') {
-            return file_exists('/proc/' . $pid);
+            return file_exists('/proc/'.$pid);
         }
 
         // Fallback: use ps command
         $output = shell_exec(sprintf('ps -p %d -o pid=', $pid));
 
-        return !in_array(trim($output ?? ''), ['', '0'], true);
+        return ! in_array(trim($output ?? ''), ['', '0'], true);
     }
 }

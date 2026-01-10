@@ -54,8 +54,12 @@ class ConsumeCommand extends Command
         $this->configureCwd($this->taskService, $this->configService);
         $this->taskService->initialize();
 
+        // Set the cwd on ProcessManager so it uses the correct directory for output
+        $cwd = $this->option('cwd') ?: getcwd();
+        $this->processManager->setCwd($cwd);
+
         // Ensure processes directory exists for output capture
-        $processesDir = getcwd().'/.fuel/processes';
+        $processesDir = $cwd.'/.fuel/processes';
         if (! is_dir($processesDir)) {
             mkdir($processesDir, 0755, true);
         }

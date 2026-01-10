@@ -11,6 +11,9 @@ use Tests\TestCase;
 | case class. By default, that class is "PHPUnit\Framework\TestCase". Of course, you may
 | need to change it using the "uses()" function to bind a different classes or traits.
 |
+| Note: TestCase provides $this->testDir - an isolated temp directory for each test.
+| Tests must NEVER modify the real workspace.
+|
 */
 
 uses(TestCase::class)->in('Feature');

@@ -21,6 +21,9 @@ class ProcessManagerTest extends TestCase
     {
         parent::setUp();
 
+        // Create processes subdirectory in the test directory (provided by Pest.php)
+        mkdir($this->testDir.'/.fuel/processes', 0755, true);
+
         // Create a mock ConfigService for testing
         $mockConfig = Mockery::mock(ConfigService::class);
         $mockConfig->shouldReceive('getAgentDefinition')
@@ -35,24 +38,7 @@ class ProcessManagerTest extends TestCase
         $mockConfig->shouldReceive('getAgentLimit')
             ->andReturn(2);
 
-        $this->processManager = new ProcessManager($mockConfig);
-
-        // Clean up any existing process files
-        $processDir = storage_path('.fuel/processes');
-        if (File::exists($processDir)) {
-            File::deleteDirectory($processDir);
-        }
-    }
-
-    protected function tearDown(): void
-    {
-        // Clean up process files
-        $processDir = storage_path('.fuel/processes');
-        if (File::exists($processDir)) {
-            File::deleteDirectory($processDir);
-        }
-
-        parent::tearDown();
+        $this->processManager = new ProcessManager($mockConfig, $this->testDir);
     }
 
     public function test_spawn_creates_process_with_correct_properties(): void
@@ -77,7 +63,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNull($process->completedAt);
 
         // Verify output directory and files are created
-        $outputDir = getcwd().'/.fuel/processes/f-test01';
+        $outputDir = $this->testDir.'/.fuel/processes/f-test01';
         $this->assertTrue(File::exists($outputDir));
         $this->assertTrue(File::exists($outputDir . '/stdout.log'));
         $this->assertTrue(File::exists($outputDir . '/stderr.log'));
