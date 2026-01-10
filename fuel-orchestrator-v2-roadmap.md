@@ -200,49 +200,32 @@ interface AgentHealthTrackerInterface {
 
 ---
 
-### Phase 4: Epics ⬅️ NEXT
+### Phase 4: Epics ✅ COMPLETE
 **Goal:** Group related tasks, track aggregate progress, enable delegation
 
-- [ ] Epic SQLite schema in `agent.db` (bypass JSONL - heading there anyway)
-- [ ] `fuel epic:add "Title"` → creates epic
-- [ ] `fuel add "..." --epic=e-xxxx` or `-e e-xxxx` → links task to epic (must be easy!)
-- [ ] `fuel epics` → list all epics with status
-- [ ] `fuel epic:show e-xxxx` → shows epic details + linked tasks
-- [ ] Tasks get `epic_id` field
-- [ ] Epic status derived from task states (in_progress → review_pending → ready_for_human → approved)
-- [ ] Epic-level review triggers when all tasks closed
+- [x] Epic SQLite schema in `agent.db`
+- [x] `fuel epic:add "Title"` → creates epic
+- [x] `fuel add "..." --epic=e-xxxx` or `-e e-xxxx` → links task to epic
+- [x] `fuel epics` → list all epics with status
+- [x] `fuel epic:show e-xxxx` → shows epic details + linked tasks
+- [x] Tasks get `epic_id` field
+- [x] Epic status derived from task states (planning → in_progress → review_pending → reviewed)
+- [x] `fuel epic:review e-xxxx` → shows commits, diffs, and stats for human review
+- [x] `fuel epic:reviewed e-xxxx` → marks epic as human-reviewed
+- [x] Include epic context in consume prompts for tasks with epic_id
 
-**Decomposition:** Human does this for now using `prompts/breakdown.md`. Future: dedicated decomposition agent in config.
-
-**Config additions (future):**
-```yaml
-agents:
-  decomposition: claude-opus  # breaks down epics
-  review: claude-sonnet       # reviews tasks and epics
-```
-
-**SQLite schema:**
-```sql
-CREATE TABLE epics (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT DEFAULT 'planning',
-    created_at TEXT,
-    reviewed_at TEXT,
-    approved_at TEXT,
-    approved_by TEXT
-);
-```
+**Completed epics:**
+- e-666e54: Migrate tasks from JSONL to SQLite (9 tasks)
+- e-ee402e: Add epic:review command (3 tasks)
 
 ---
 
-### Phase 5: Human Inbox
+### Phase 5: Human Inbox ⬅️ NEXT
 **Goal:** Consolidated view for human review and messages
 
 - [ ] Inbox table in SQLite (type, title, body, related_epic_id, created_at, read_at, actioned_at)
 - [ ] Integrate with existing `fuel human` command
-- [ ] Show epics ready for review
+- [ ] Show epics ready for review (review_pending status)
 - [ ] Show arbitrary messages (agents can post updates)
 - [ ] `fuel human` → unified view of needs-human tasks + inbox
 - [ ] `fuel inbox:approve e-xxxx` → marks epic approved
@@ -314,6 +297,8 @@ Once Phase 3-4 are done, Fuel can build itself:
 | 2026-01-10 | Epics in SQLite from start | Heading to SQLite anyway, bypass JSONL complexity. Easier cross-task queries. |
 | 2026-01-10 | Human decomposition for now | Keep it simple. Use prompts/breakdown.md. Future: dedicated decomposition agent in config. |
 | 2026-01-10 | Integrate inbox with fuel human | Don't fragment commands. One place for human attention needed. |
+| 2026-01-10 | Tasks migrated to SQLite | Completed - eliminates file locking, enables joins with epics/reviews |
+| 2026-01-10 | Runs migration to SQLite pending | RunService still uses JSONL; migrate for consistency and run↔review linking |
 
 ### Run Scoring (Phase 5+)
 - Score/rate task runs to track agent quality
