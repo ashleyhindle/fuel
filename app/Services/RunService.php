@@ -10,6 +10,14 @@ class RunService
 {
     private const OUTPUT_MAX_LENGTH = 10240; // 10KB
 
+    // Run status constants
+    // Lifecycle: running -> completed (via updateLatestRun) or failed (via cleanupOrphanedRuns)
+    public const STATUS_RUNNING = 'running';
+
+    public const STATUS_COMPLETED = 'completed';
+
+    public const STATUS_FAILED = 'failed';
+
     public function __construct(
         private readonly DatabaseService $databaseService
     ) {}
@@ -37,7 +45,7 @@ class RunService
             $output = substr($output, 0, self::OUTPUT_MAX_LENGTH);
         }
 
-        // Insert into runs table
+        // Insert into runs table - all runs start as STATUS_RUNNING
         $this->databaseService->query(
             'INSERT INTO runs (id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -52,7 +60,7 @@ class RunService
                 $output,
                 $data['session_id'] ?? null,
                 $data['cost_usd'] ?? null,
-                ($data['ended_at'] ?? null) === null ? 'running' : 'completed',
+                self::STATUS_RUNNING,
             ]
         );
     }
@@ -113,7 +121,7 @@ class RunService
             'SELECT id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd
              FROM runs
              WHERE task_id = ?
-             ORDER BY ROWID DESC
+             ORDER BY started_at DESC, ROWID DESC
              LIMIT 1',
             [$taskIntId]
         );
@@ -152,7 +160,7 @@ class RunService
 
         // Get the latest run ID
         $latestRun = $this->databaseService->fetchOne(
-            'SELECT id FROM runs WHERE task_id = ? ORDER BY ROWID DESC LIMIT 1',
+            'SELECT id FROM runs WHERE task_id = ? ORDER BY started_at DESC, ROWID DESC LIMIT 1',
             [$taskIntId]
         );
 
@@ -175,7 +183,7 @@ class RunService
             $params[] = $data['ended_at'];
             // Also update status to completed when ended_at is set
             $updateFields[] = 'status = ?';
-            $params[] = 'completed';
+            $params[] = self::STATUS_COMPLETED;
         }
 
         if (isset($data['exit_code'])) {
@@ -223,7 +231,7 @@ class RunService
         // Find all runs with status='running' and ended_at IS NULL
         $orphanedRuns = $this->databaseService->fetchAll(
             'SELECT id FROM runs WHERE status = ? AND ended_at IS NULL',
-            ['running']
+            [self::STATUS_RUNNING]
         );
 
         if (empty($orphanedRuns)) {
@@ -238,7 +246,7 @@ class RunService
             $this->databaseService->query(
                 'UPDATE runs SET status = ?, ended_at = ?, exit_code = ?, output = ? WHERE id = ?',
                 [
-                    'failed',
+                    self::STATUS_FAILED,
                     $endedAt,
                     -1,
                     '[Run orphaned - consume process died before completion]',

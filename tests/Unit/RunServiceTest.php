@@ -494,7 +494,7 @@ it('skips duplicate runs when importing from JSONL', function (): void {
             'existing-agent',
             'existing-model',
             '2026-01-07T09:00:00+00:00',
-            'completed',
+            RunService::STATUS_COMPLETED,
         ]
     );
 
