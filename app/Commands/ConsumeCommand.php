@@ -107,7 +107,7 @@ class ConsumeCommand extends Command
                 }
 
                 // Step 1: Fill available slots across all agents (but not if shutting down)
-                $readyTasks = $this->getCachedReadyTasks($taskService);
+                $readyTasks = $this->getCachedReadyTasks();
 
                 if ($readyTasks->isNotEmpty() && ! $this->processManager->isShuttingDown()) {
                     // Score and sort tasks by priority, complexity, and size
@@ -144,7 +144,7 @@ class ConsumeCommand extends Command
                 }
 
                 // Step 2: Poll all running processes
-                $this->pollAndHandleCompletions($processManager, $taskService, $runService, $statusLines);
+                $this->pollAndHandleCompletions($statusLines);
 
                 // Step 3: Check if we have any work or should wait
                 if (! $this->processManager->hasActiveProcesses() && $readyTasks->isEmpty()) {
@@ -371,9 +371,6 @@ PROMPT;
      * @param  array<string>  $statusLines
      */
     private function pollAndHandleCompletions(
-        ProcessManager $processManager,
-        TaskService $taskService,
-        RunService $runService,
         array &$statusLines
     ): void {
         // Also update session_id in run service as processes are polled
@@ -388,7 +385,7 @@ PROMPT;
         $completions = $this->processManager->poll();
 
         foreach ($completions as $completion) {
-            $this->handleCompletion($completion, $taskService, $runService, $statusLines);
+            $this->handleCompletion($completion, $statusLines);
         }
 
         // Keep only last 5 status lines
@@ -402,8 +399,6 @@ PROMPT;
      */
     private function handleCompletion(
         CompletionResult $completion,
-        TaskService $taskService,
-        RunService $runService,
         array &$statusLines
     ): void {
         $taskId = $completion->taskId;
@@ -431,10 +426,10 @@ PROMPT;
 
         // Handle by completion type
         match ($completion->type) {
-            CompletionType::Success => $this->handleSuccess($completion, $taskService, $statusLines, $durationStr),
+            CompletionType::Success => $this->handleSuccess($completion, $statusLines, $durationStr),
             CompletionType::Failed => $this->handleFailure($completion, $statusLines, $durationStr),
-            CompletionType::NetworkError => $this->handleNetworkError($completion, $taskService, $statusLines, $durationStr),
-            CompletionType::PermissionBlocked => $this->handlePermissionBlocked($completion, $taskService, $statusLines, $agentName),
+            CompletionType::NetworkError => $this->handleNetworkError($completion, $statusLines, $durationStr),
+            CompletionType::PermissionBlocked => $this->handlePermissionBlocked($completion, $statusLines, $agentName),
         };
 
         $this->invalidateTaskCache();
@@ -445,7 +440,6 @@ PROMPT;
      */
     private function handleSuccess(
         CompletionResult $completion,
-        TaskService $taskService,
         array &$statusLines,
         string $durationStr
     ): void {
@@ -477,7 +471,6 @@ PROMPT;
      */
     private function handleNetworkError(
         CompletionResult $completion,
-        TaskService $taskService,
         array &$statusLines,
         string $durationStr
     ): void {
@@ -491,7 +484,6 @@ PROMPT;
      */
     private function handlePermissionBlocked(
         CompletionResult $completion,
-        TaskService $taskService,
         array &$statusLines,
         string $agentName
     ): void {
@@ -657,7 +649,7 @@ PROMPT;
      *
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
-    private function getCachedReadyTasks(TaskService $taskService): \Illuminate\Support\Collection
+    private function getCachedReadyTasks(): \Illuminate\Support\Collection
     {
         $now = time();
         if ($this->taskCache['ready'] === null || ($now - $this->taskCache['timestamp']) >= self::TASK_CACHE_TTL) {
