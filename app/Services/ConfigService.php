@@ -17,6 +17,8 @@ class ConfigService
 
     private const DEFAULT_MAX_ATTEMPTS = 3;
 
+    private const DEFAULT_MAX_RETRIES = 5;
+
     private string $configPath;
 
     /** @var array<string, mixed>|null */
@@ -113,6 +115,10 @@ class ConfigService
             if (isset($agentConfig['max_attempts']) && ! is_int($agentConfig['max_attempts'])) {
                 throw new RuntimeException(sprintf("Agent '%s' max_attempts must be an integer", $agentName));
             }
+
+            if (isset($agentConfig['max_retries']) && ! is_int($agentConfig['max_retries'])) {
+                throw new RuntimeException(sprintf("Agent '%s' max_retries must be an integer", $agentName));
+            }
         }
 
         // Validate complexity section
@@ -204,7 +210,7 @@ class ConfigService
     /**
      * Get full agent definition by name.
      *
-     * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int, max_attempts: int}
+     * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int, max_attempts: int, max_retries: int}
      */
     public function getAgentDefinition(string $agentName): array
     {
@@ -225,6 +231,7 @@ class ConfigService
             'resume_args' => $agentConfig['resume_args'] ?? [],
             'max_concurrent' => $agentConfig['max_concurrent'] ?? self::DEFAULT_MAX_CONCURRENT,
             'max_attempts' => $agentConfig['max_attempts'] ?? self::DEFAULT_MAX_ATTEMPTS,
+            'max_retries' => $agentConfig['max_retries'] ?? self::DEFAULT_MAX_RETRIES,
         ];
     }
 
@@ -435,6 +442,23 @@ class ConfigService
     }
 
     /**
+     * Get max_retries for a specific agent.
+     * Returns default of 5 if agent is not configured.
+     */
+    public function getAgentMaxRetries(string $agentName): int
+    {
+        $config = $this->loadConfig();
+
+        if (! isset($config['agents'][$agentName])) {
+            return self::DEFAULT_MAX_RETRIES;
+        }
+
+        $agentConfig = $config['agents'][$agentName];
+
+        return $agentConfig['max_retries'] ?? self::DEFAULT_MAX_RETRIES;
+    }
+
+    /**
      * Get all agent -> limit mappings.
      * Returns array with agent name as key and max_concurrent as value.
      *
@@ -576,6 +600,20 @@ agents:
     max_concurrent: 2
     max_attempts: 3
     resume_args: []  # amp uses threads - TBD if resume supported
+
+  amp-smart:
+    command: amp
+    prompt_args: ["--execute"]
+    model: null  # mode controls model
+    args:
+      - "--stream-json"
+      - "-m"
+      - "smart"
+      - "--dangerously-allow-all"
+      - "--no-notifications"
+    max_concurrent: 2
+    max_attempts: 3
+    resume_args: []
 
 # Map complexity levels to agents (just reference agent names)
 complexity:

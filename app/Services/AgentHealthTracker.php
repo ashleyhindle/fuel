@@ -212,6 +212,23 @@ class AgentHealthTracker implements AgentHealthTrackerInterface
     }
 
     /**
+     * Check if an agent is dead (exceeded max_retries consecutive failures).
+     */
+    public function isDead(string $agent, int $maxRetries): bool
+    {
+        $row = $this->database->fetchOne(
+            'SELECT consecutive_failures FROM agent_health WHERE agent = ?',
+            [$agent]
+        );
+
+        if ($row === null) {
+            return false;
+        }
+
+        return (int) $row['consecutive_failures'] >= $maxRetries;
+    }
+
+    /**
      * Calculate the backoff time based on consecutive failures.
      */
     private function calculateBackoff(

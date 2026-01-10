@@ -68,4 +68,14 @@ interface AgentHealthTrackerInterface
      * @param  string  $agent  The agent name
      */
     public function clearHealth(string $agent): void;
+
+    /**
+     * Check if an agent is dead (exceeded max_retries consecutive failures).
+     * Dead agents should not receive new work until manually reset or success on another task.
+     *
+     * @param  string  $agent  The agent name
+     * @param  int  $maxRetries  Maximum consecutive failures before agent is considered dead
+     * @return bool True if agent is dead, false otherwise
+     */
+    public function isDead(string $agent, int $maxRetries): bool;
 }
