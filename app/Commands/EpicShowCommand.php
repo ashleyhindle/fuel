@@ -25,12 +25,12 @@ class EpicShowCommand extends Command
     public function handle(): int
     {
         // Configure services with --cwd if provided
-        $dbService = new DatabaseService;
-        $taskService = new TaskService;
-
         if ($cwd = $this->option('cwd')) {
-            $dbService->setDatabasePath($cwd.'/.fuel/agent.db');
-            $taskService->setStoragePath($cwd.'/.fuel/tasks.jsonl');
+            $dbService = new DatabaseService($cwd.'/.fuel/agent.db');
+            $taskService = new TaskService($dbService);
+        } else {
+            $dbService = $this->app->make(DatabaseService::class);
+            $taskService = $this->app->make(TaskService::class);
         }
 
         $epicService = new EpicService($dbService, $taskService);
