@@ -202,25 +202,10 @@ class ReviewService implements ReviewServiceInterface
         // Review passes if no follow-up tasks were created
         $passed = empty($followUpTaskIds);
 
-        // Detect issues from output
+        // Derive issues from follow-up task titles (simple, reliable approach)
+        // The review agent creates follow-up tasks with descriptive titles - use those
         $issues = [];
-        $combinedOutput = $output->stdout.$output->stderr;
-
-        if (preg_match('/uncommitted.*change/i', $combinedOutput)) {
-            $issues[] = 'uncommitted_changes';
-        }
-        if (preg_match('/(test.*fail|fail.*test)/i', $combinedOutput)) {
-            $issues[] = 'tests_failing';
-        }
-        if (preg_match('/(task.*incomplete|incomplete.*task|missing.*work)/i', $combinedOutput)) {
-            $issues[] = 'task_incomplete';
-        }
-        if (preg_match('/task.*mismatch/i', $combinedOutput)) {
-            $issues[] = 'task_mismatch';
-        }
-
-        // If there are follow-up tasks but no specific issues detected, mark as generic issue
-        if (! $passed && empty($issues)) {
+        if (! $passed) {
             $issues[] = 'review_issues_found';
         }
 

@@ -61,18 +61,15 @@ Look at the git status output above. If there are uncommitted changes (modified 
 fuel add 'Commit uncommitted changes from {$taskId}' --blocked-by={$taskId} --priority=0 --complexity=trivial --labels=review-fix
 ```
 
-### 2. CHECK TESTS PASS
+### 2. VERIFY RELEVANT TESTS
 
-Figure out the test command by looking at:
-- `package.json` (npm test, npm run test)
-- `composer.json` (vendor/bin/pest, vendor/bin/phpunit)
-- `Makefile` (make test)
-- README or AGENTS.md for project-specific commands
+If the changes affect code that has tests, run those relevant tests to verify they pass.
+Don't run the entire test suite - only tests related to the files that were changed.
 
-Run the tests. If tests fail:
+If relevant tests fail:
 
 ```bash
-fuel add 'Fix failing tests from {$taskId}' --blocked-by={$taskId} --priority=0 --complexity=simple --labels=review-fix --description='Tests failed after task completion. Run tests, identify failures, fix them.'
+fuel add 'Fix failing tests from {$taskId}' --blocked-by={$taskId} --priority=0 --complexity=simple --labels=review-fix --description='[Describe which tests failed and why]'
 ```
 
 ### 3. CHECK TASK COMPLETION

@@ -13,7 +13,7 @@ agents:
       - "--force"
       - "--output-format"
       - "stream-json"
-    max_concurrent: 2
+    max_concurrent: 3
     max_attempts: 3
     resume_args: ["--resume="]
 
@@ -51,7 +51,7 @@ agents:
       - "--output-format"
       - "stream-json"
       - "--verbose"
-    max_concurrent: 2
+    max_concurrent: 3
     max_attempts: 5
     resume_args: ["--resume"]
 
@@ -59,6 +59,17 @@ agents:
     command: opencode
     prompt_args: ["run"]
     model: opencode/glm-4.7-free
+    args: []
+    env:
+      OPENCODE_PERMISSION: '{"permission":"allow"}'
+    max_concurrent: 2
+    max_attempts: 3
+    resume_args: ["--session"]
+
+  opencode-minimax:
+    command: opencode
+    prompt_args: ["run"]
+    model: opencode/minimax-m2.1-free
     args: []
     env:
       OPENCODE_PERMISSION: '{"permission":"allow"}'
@@ -90,7 +101,7 @@ agents:
       - "smart"
       - "--dangerously-allow-all"
       - "--no-notifications"
-    max_concurrent: 2
+    max_concurrent: 3
     max_attempts: 3
     resume_args: []
 
@@ -98,5 +109,5 @@ agents:
 complexity:
   trivial: cursor-composer
   simple: cursor-composer
-  moderate: amp-smart
+  moderate: claude-sonnet
   complex: claude-opus

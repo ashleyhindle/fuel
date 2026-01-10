@@ -1103,3 +1103,123 @@ describe('consume command review integration', function () {
         expect($reviewResult->followUpTaskIds)->toContain($followUp2['id']);
     });
 });
+
+describe('consume command epic context in prompt', function () {
+    it('includes epic context in prompt when task is part of an epic', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'simple' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create an epic
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic(
+            'Test Epic',
+            'This is a test epic description'
+        );
+
+        // Create a task linked to the epic
+        $task = $this->taskService->create([
+            'title' => 'Task in epic',
+            'complexity' => 'simple',
+            'epic_id' => $epic['id'],
+        ]);
+        $taskId = $task['id'];
+
+        // Run consume with --dryrun to see the prompt
+        Artisan::call('consume', [
+            '--dryrun' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+
+        $output = Artisan::output();
+
+        // Verify epic context is included in the prompt
+        expect($output)->toContain('== EPIC CONTEXT ==');
+        expect($output)->toContain('This task is part of a larger epic:');
+        expect($output)->toContain('Epic: '.$epic['id']);
+        expect($output)->toContain('Epic Title: '.$epic['title']);
+        expect($output)->toContain('Epic Description: '.$epic['description']);
+        expect($output)->toContain('You are working on a small part of this larger epic');
+    });
+
+    it('does not include epic context when task is not part of an epic', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'simple' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task without an epic
+        $task = $this->taskService->create([
+            'title' => 'Task without epic',
+            'complexity' => 'simple',
+        ]);
+        $taskId = $task['id'];
+
+        // Run consume with --dryrun to see the prompt
+        Artisan::call('consume', [
+            '--dryrun' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+
+        $output = Artisan::output();
+
+        // Verify epic context is NOT included in the prompt
+        expect($output)->not->toContain('== EPIC CONTEXT ==');
+        expect($output)->not->toContain('This task is part of a larger epic:');
+    });
+
+    it('includes epic context without description when epic has no description', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'simple' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create an epic without description
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic('Epic Without Description');
+
+        // Create a task linked to the epic
+        $task = $this->taskService->create([
+            'title' => 'Task in epic',
+            'complexity' => 'simple',
+            'epic_id' => $epic['id'],
+        ]);
+        $taskId = $task['id'];
+
+        // Run consume with --dryrun to see the prompt
+        Artisan::call('consume', [
+            '--dryrun' => true,
+            '--cwd' => $this->tempDir,
+        ]);
+
+        $output = Artisan::output();
+
+        // Verify epic context is included but without description line
+        expect($output)->toContain('== EPIC CONTEXT ==');
+        expect($output)->toContain('Epic: '.$epic['id']);
+        expect($output)->toContain('Epic Title: '.$epic['title']);
+        expect($output)->not->toContain('Epic Description:');
+    });
+});
