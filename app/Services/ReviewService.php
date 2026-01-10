@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Prompts\ReviewPrompt;
 use Carbon\Carbon;
@@ -101,7 +102,8 @@ class ReviewService implements ReviewServiceInterface
             $reviewTaskId,
             $reviewAgent,
             $command,
-            getcwd()
+            getcwd(),
+            ProcessType::Review
         );
 
         // 7. Update task status to 'review'
@@ -137,15 +139,6 @@ class ReviewService implements ReviewServiceInterface
      */
     public function getPendingReviews(): array
     {
-        // Prune completed reviews
-        foreach (array_keys($this->pendingReviews) as $taskId) {
-            $reviewTaskId = 'review-'.$taskId;
-            if (! $this->processManager->isRunning($reviewTaskId)) {
-                // Review process finished - could still be pending if we haven't processed the result
-                // Keep in pending reviews until getReviewResult is called
-            }
-        }
-
         return array_keys($this->pendingReviews);
     }
 
