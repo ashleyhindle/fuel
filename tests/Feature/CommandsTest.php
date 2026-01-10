@@ -534,7 +534,7 @@ describe('promote command', function (): void {
         $item = $backlogService->add('Future feature', 'Description');
 
         Artisan::call('promote', [
-            'id' => $item['id'],
+            'ids' => [$item['id']],
             '--priority' => '2',
             '--type' => 'feature',
             '--cwd' => $this->tempDir,
@@ -567,7 +567,7 @@ describe('promote command', function (): void {
         $item = $backlogService->add('Complete feature', 'Full description');
 
         Artisan::call('promote', [
-            'id' => $item['id'],
+            'ids' => [$item['id']],
             '--priority' => '3',
             '--type' => 'feature',
             '--complexity' => 'moderate',
@@ -596,7 +596,7 @@ describe('promote command', function (): void {
         $partialId = substr((string) $item['id'], 2, 3);
 
         Artisan::call('promote', [
-            'id' => $partialId,
+            'ids' => [$partialId],
             '--priority' => '1',
             '--cwd' => $this->tempDir,
         ]);
@@ -613,7 +613,7 @@ describe('promote command', function (): void {
         $item = $backlogService->add('JSON feature');
 
         Artisan::call('promote', [
-            'id' => $item['id'],
+            'ids' => [$item['id']],
             '--priority' => '2',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -628,7 +628,7 @@ describe('promote command', function (): void {
 
     it('returns error when backlog item not found', function (): void {
         $this->artisan('promote', [
-            'id' => 'b-nonexistent',
+            'ids' => ['b-nonexistent'],
             '--priority' => '1',
             '--cwd' => $this->tempDir,
         ])
@@ -641,12 +641,103 @@ describe('promote command', function (): void {
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('promote', [
-            'id' => $task['id'],
+            'ids' => [$task['id']],
             '--priority' => '1',
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('is not a backlog item')
             ->assertExitCode(1);
+    });
+
+    it('promotes multiple backlog items to tasks', function (): void {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+
+        $item1 = $backlogService->add('First feature', 'First description');
+        $item2 = $backlogService->add('Second feature', 'Second description');
+        $item3 = $backlogService->add('Third feature', 'Third description');
+
+        Artisan::call('promote', [
+            'ids' => [$item1['id'], $item2['id'], $item3['id']],
+            '--priority' => '2',
+            '--type' => 'feature',
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Promoted backlog item');
+        expect($output)->toContain($item1['id']);
+        expect($output)->toContain($item2['id']);
+        expect($output)->toContain($item3['id']);
+        expect($output)->toContain('First feature');
+        expect($output)->toContain('Second feature');
+        expect($output)->toContain('Third feature');
+
+        // Verify items removed from backlog
+        expect($backlogService->find($item1['id']))->toBeNull();
+        expect($backlogService->find($item2['id']))->toBeNull();
+        expect($backlogService->find($item3['id']))->toBeNull();
+
+        // Verify tasks created
+        $this->taskService->initialize();
+        $tasks = $this->taskService->all();
+        expect($tasks->count())->toBe(3);
+        $taskTitles = $tasks->pluck('title')->toArray();
+        expect($taskTitles)->toContain('First feature');
+        expect($taskTitles)->toContain('Second feature');
+        expect($taskTitles)->toContain('Third feature');
+    });
+
+    it('promotes multiple backlog items with JSON output', function (): void {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+
+        $item1 = $backlogService->add('JSON feature 1');
+        $item2 = $backlogService->add('JSON feature 2');
+
+        Artisan::call('promote', [
+            'ids' => [$item1['id'], $item2['id']],
+            '--priority' => '1',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $tasks = json_decode($output, true);
+
+        expect($tasks)->toBeArray();
+        expect(count($tasks))->toBe(2);
+        expect($tasks[0]['title'])->toBe('JSON feature 1');
+        expect($tasks[1]['title'])->toBe('JSON feature 2');
+        expect($tasks[0]['id'])->toStartWith('f-');
+        expect($tasks[1]['id'])->toStartWith('f-');
+    });
+
+    it('handles partial failures when promoting multiple items', function (): void {
+        $backlogService = $this->app->make(BacklogService::class);
+        $backlogService->initialize();
+
+        $item1 = $backlogService->add('Valid feature');
+        $item2 = $backlogService->add('Another valid feature');
+
+        Artisan::call('promote', [
+            'ids' => [$item1['id'], 'b-nonexistent', $item2['id']],
+            '--priority' => '2',
+            '--cwd' => $this->tempDir,
+        ]);
+        $output = Artisan::output();
+
+        // Should show success for valid items
+        expect($output)->toContain('Promoted backlog item');
+        expect($output)->toContain('Valid feature');
+        expect($output)->toContain('Another valid feature');
+
+        // Should show error for invalid item
+        expect($output)->toContain("Backlog item 'b-nonexistent' not found");
+
+        // Verify valid items were promoted
+        $this->taskService->initialize();
+        $tasks = $this->taskService->all();
+        expect($tasks->count())->toBe(2);
     });
 });
 

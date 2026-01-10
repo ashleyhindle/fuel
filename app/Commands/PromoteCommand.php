@@ -15,7 +15,7 @@ class PromoteCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'promote
-        {id : The backlog ID (b-xxx format)}
+        {ids* : The backlog ID(s) (b-xxx format, supports partial matching, accepts multiple IDs)}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--priority= : Task priority (0-4)}
@@ -25,86 +25,118 @@ class PromoteCommand extends Command
         {--size= : Task size (xs|s|m|l|xl)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}';
 
-    protected $description = 'Promote a backlog item to a task';
+    protected $description = 'Promote one or more backlog items to tasks';
 
     public function handle(TaskService $taskService, BacklogService $backlogService): int
     {
         $this->configureCwd($taskService);
         $this->configureBacklogCwd($backlogService);
 
-        $id = $this->argument('id');
+        $ids = $this->argument('ids');
+        $results = [];
+        $errors = [];
 
-        // Validate that ID is a backlog ID (b- prefix)
-        if (! str_starts_with($id, 'b-') && ! str_starts_with($id, 'b')) {
-            // Try to find if it's a partial match that would resolve to b-xxx
-            $backlogItem = $backlogService->find($id);
-            if ($backlogItem === null || ! str_starts_with($backlogItem['id'] ?? '', 'b-')) {
-                return $this->outputError(sprintf("ID '%s' is not a backlog item. Backlog items must have 'b-' prefix.", $id));
-            }
+        foreach ($ids as $id) {
+            try {
+                // Validate that ID is a backlog ID (b- prefix)
+                $resolvedId = $id;
+                if (! str_starts_with($id, 'b-') && ! str_starts_with($id, 'b')) {
+                    // Try to find if it's a partial match that would resolve to b-xxx
+                    $backlogItem = $backlogService->find($id);
+                    if ($backlogItem === null || ! str_starts_with($backlogItem['id'] ?? '', 'b-')) {
+                        $errors[] = ['id' => $id, 'error' => sprintf("ID '%s' is not a backlog item. Backlog items must have 'b-' prefix.", $id)];
 
-            // Use the resolved ID
-            $id = $backlogItem['id'];
-        }
+                        continue;
+                    }
 
-        try {
-            // Find the backlog item
-            $backlogItem = $backlogService->find($id);
-            if ($backlogItem === null) {
-                return $this->outputError(sprintf("Backlog item '%s' not found", $id));
-            }
-
-            // Ensure we have the full ID with b- prefix
-            $resolvedId = $backlogItem['id'];
-            if (! str_starts_with((string) $resolvedId, 'b-')) {
-                return $this->outputError(sprintf("Backlog item '%s' does not have 'b-' prefix", $resolvedId));
-            }
-
-            // Delete from backlog
-            $deletedItem = $backlogService->delete($resolvedId);
-
-            // Prepare task data from backlog item
-            $taskData = [
-                'title' => $deletedItem['title'] ?? throw new RuntimeException('Backlog item missing title'),
-                'description' => $deletedItem['description'] ?? null,
-            ];
-
-            // Add options if provided
-            if ($priority = $this->option('priority')) {
-                if (! is_numeric($priority)) {
-                    return $this->outputError(sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority));
+                    // Use the resolved ID
+                    $resolvedId = $backlogItem['id'];
                 }
 
-                $taskData['priority'] = (int) $priority;
+                // Find the backlog item
+                $backlogItem = $backlogService->find($resolvedId);
+                if ($backlogItem === null) {
+                    $errors[] = ['id' => $id, 'error' => sprintf("Backlog item '%s' not found", $resolvedId)];
+
+                    continue;
+                }
+
+                // Ensure we have the full ID with b- prefix
+                $finalId = $backlogItem['id'];
+                if (! str_starts_with((string) $finalId, 'b-')) {
+                    $errors[] = ['id' => $id, 'error' => sprintf("Backlog item '%s' does not have 'b-' prefix", $finalId)];
+
+                    continue;
+                }
+
+                // Delete from backlog
+                $deletedItem = $backlogService->delete($finalId);
+
+                // Prepare task data from backlog item
+                $taskData = [
+                    'title' => $deletedItem['title'] ?? throw new RuntimeException('Backlog item missing title'),
+                    'description' => $deletedItem['description'] ?? null,
+                ];
+
+                // Add options if provided
+                if ($priority = $this->option('priority')) {
+                    if (! is_numeric($priority)) {
+                        $errors[] = ['id' => $id, 'error' => sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)];
+
+                        continue;
+                    }
+
+                    $taskData['priority'] = (int) $priority;
+                }
+
+                if ($type = $this->option('type')) {
+                    $taskData['type'] = $type;
+                }
+
+                if ($complexity = $this->option('complexity')) {
+                    $taskData['complexity'] = $complexity;
+                }
+
+                if ($labels = $this->option('labels')) {
+                    $taskData['labels'] = array_map(trim(...), explode(',', $labels));
+                }
+
+                if ($size = $this->option('size')) {
+                    $taskData['size'] = $size;
+                }
+
+                if ($blockedBy = $this->option('blocked-by')) {
+                    $taskData['blocked_by'] = array_map(trim(...), explode(',', $blockedBy));
+                }
+
+                // Create the task
+                $taskService->initialize();
+                $task = $taskService->create($taskData);
+                $results[] = ['backlog_id' => $finalId, 'task' => $task];
+            } catch (RuntimeException $runtimeException) {
+                $errors[] = ['id' => $id, 'error' => $runtimeException->getMessage()];
             }
+        }
 
-            if ($type = $this->option('type')) {
-                $taskData['type'] = $type;
-            }
+        if ($results === [] && $errors !== []) {
+            // All failed
+            return $this->outputError($errors[0]['error']);
+        }
 
-            if ($complexity = $this->option('complexity')) {
-                $taskData['complexity'] = $complexity;
-            }
-
-            if ($labels = $this->option('labels')) {
-                $taskData['labels'] = array_map(trim(...), explode(',', $labels));
-            }
-
-            if ($size = $this->option('size')) {
-                $taskData['size'] = $size;
-            }
-
-            if ($blockedBy = $this->option('blocked-by')) {
-                $taskData['blocked_by'] = array_map(trim(...), explode(',', $blockedBy));
-            }
-
-            // Create the task
-            $taskService->initialize();
-            $task = $taskService->create($taskData);
-
-            if ($this->option('json')) {
-                $this->outputJson($task);
+        if ($this->option('json')) {
+            $tasks = array_map(fn ($result) => $result['task'], $results);
+            if (count($tasks) === 1) {
+                // Single task - return object for backward compatibility
+                $this->outputJson($tasks[0]);
             } else {
-                $this->info(sprintf('Promoted backlog item %s to task: %s', $resolvedId, $task['id']));
+                // Multiple tasks - return array
+                $this->outputJson($tasks);
+            }
+        } else {
+            foreach ($results as $result) {
+                $backlogId = $result['backlog_id'];
+                $task = $result['task'];
+                $this->info(sprintf('Promoted backlog item %s to task: %s', $backlogId, $task['id']));
                 $this->line('  Title: '.$task['title']);
 
                 if (! empty($task['blocked_by'])) {
@@ -114,11 +146,18 @@ class PromoteCommand extends Command
                     }
                 }
             }
-
-            return self::SUCCESS;
-        } catch (RuntimeException $runtimeException) {
-            return $this->outputError($runtimeException->getMessage());
         }
+
+        // If there were any errors, return failure even if some succeeded
+        if ($errors !== []) {
+            foreach ($errors as $error) {
+                $this->outputError(sprintf("Backlog item '%s': %s", $error['id'], $error['error']));
+            }
+
+            return self::FAILURE;
+        }
+
+        return self::SUCCESS;
     }
 
     /**
