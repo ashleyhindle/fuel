@@ -88,6 +88,14 @@ class ConsumeCommand extends Command
         // Clean up orphaned runs from previous consume crashes
         $this->runService->cleanupOrphanedRuns(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid));
 
+        // Recover stuck reviews (tasks in 'review' status with no active review process)
+        if ($this->reviewService !== null) {
+            $recoveredReviews = $this->reviewService->recoverStuckReviews();
+            foreach ($recoveredReviews as $taskId) {
+                $this->info(sprintf('Recovered stuck review for task %s', $taskId));
+            }
+        }
+
         $interval = max(1, (int) $this->option('interval'));
         $agentOverride = $this->option('agent');
         $dryrun = $this->option('dryrun');

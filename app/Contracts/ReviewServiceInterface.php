@@ -64,4 +64,15 @@ interface ReviewServiceInterface
      * @return ReviewResult|null The review result, or null if review not complete
      */
     public function getReviewResult(string $taskId): ?ReviewResult;
+
+    /**
+     * Recover stuck reviews by re-triggering reviews for tasks stuck in 'review' status.
+     *
+     * Tasks can get stuck in 'review' status if consume crashes after spawning a review,
+     * or if 'fuel review' is run manually and exits. This method detects such tasks
+     * and re-triggers their reviews.
+     *
+     * @return array<string> Array of task IDs that were recovered
+     */
+    public function recoverStuckReviews(): array;
 }

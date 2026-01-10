@@ -631,3 +631,124 @@ it('detects uncommitted changes issue from output', function (): void {
 
     expect($result->issues)->toContain('uncommitted_changes');
 });
+
+it('recovers stuck reviews for tasks in review status with no active process', function (): void {
+    // Create a task and set it to review status manually (simulating crash)
+    $task = $this->taskService->create(['title' => 'Stuck review task']);
+    $taskId = $task['id'];
+
+    // Set status to 'review' to simulate a stuck task
+    $this->taskService->update($taskId, ['status' => 'review']);
+
+    // Create a run record for this task so we have agent info
+    $this->runService->logRun($taskId, [
+        'agent' => 'test-agent',
+        'started_at' => date('c'),
+    ]);
+
+    // Mock: no active review process running for this task
+    $this->processManager
+        ->shouldReceive('isRunning')
+        ->with('review-'.$taskId)
+        ->andReturn(false);
+
+    // Mock: spawn will be called to re-trigger review
+    $this->processManager
+        ->shouldReceive('spawn')
+        ->once()
+        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd) use ($taskId) {
+            return $reviewTaskId === 'review-'.$taskId;
+        })
+        ->andReturn(new Process(
+            id: 'p-recover',
+            taskId: 'review-'.$taskId,
+            agent: 'review-agent',
+            command: 'echo test',
+            cwd: getcwd(),
+            pid: 99999,
+            status: ProcessStatus::Running,
+            exitCode: null,
+            startedAt: new DateTimeImmutable
+        ));
+
+    $reviewService = new ReviewService(
+        $this->processManager,
+        $this->taskService,
+        $this->configService,
+        $this->reviewPrompt,
+        $this->databaseService,
+        $this->runService
+    );
+
+    $recovered = $reviewService->recoverStuckReviews();
+
+    expect($recovered)->toContain($taskId);
+});
+
+it('does not recover reviews for tasks with active review process', function (): void {
+    // Create a task in review status
+    $task = $this->taskService->create(['title' => 'Active review task']);
+    $taskId = $task['id'];
+
+    $this->taskService->update($taskId, ['status' => 'review']);
+
+    // Create a run record
+    $this->runService->logRun($taskId, [
+        'agent' => 'test-agent',
+        'started_at' => date('c'),
+    ]);
+
+    // Mock: review process IS running
+    $this->processManager
+        ->shouldReceive('isRunning')
+        ->with('review-'.$taskId)
+        ->andReturn(true);
+
+    // spawn should NOT be called
+    $this->processManager
+        ->shouldNotReceive('spawn');
+
+    $reviewService = new ReviewService(
+        $this->processManager,
+        $this->taskService,
+        $this->configService,
+        $this->reviewPrompt,
+        $this->databaseService,
+        $this->runService
+    );
+
+    $recovered = $reviewService->recoverStuckReviews();
+
+    expect($recovered)->toBeEmpty();
+});
+
+it('skips stuck review tasks with no run history', function (): void {
+    // Create a task in review status but with no run history
+    $task = $this->taskService->create(['title' => 'No history task']);
+    $taskId = $task['id'];
+
+    $this->taskService->update($taskId, ['status' => 'review']);
+
+    // Mock: no active review process
+    $this->processManager
+        ->shouldReceive('isRunning')
+        ->with('review-'.$taskId)
+        ->andReturn(false);
+
+    // spawn should NOT be called (no agent info available)
+    $this->processManager
+        ->shouldNotReceive('spawn');
+
+    $reviewService = new ReviewService(
+        $this->processManager,
+        $this->taskService,
+        $this->configService,
+        $this->reviewPrompt,
+        $this->databaseService,
+        $this->runService
+    );
+
+    $recovered = $reviewService->recoverStuckReviews();
+
+    expect($recovered)->toBeEmpty();
+});
