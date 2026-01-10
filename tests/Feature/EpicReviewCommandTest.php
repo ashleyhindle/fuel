@@ -243,4 +243,46 @@ describe('epic:review command', function (): void {
 
         expect($data)->toHaveKey('git_diff');
     });
+
+    it('shows diff stats in text output when tasks have commits', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        $epic = $epicService->createEpic('Stats Text Epic');
+
+        $task = $taskService->create([
+            'title' => 'Task with commit',
+            'type' => 'feature',
+            'priority' => 1,
+            'epic_id' => $epic['id'],
+        ]);
+
+        $taskService->done($task['id'], null, 'abc1234567890123456789012345678901234567');
+
+        Artisan::call('epic:review', ['epicId' => $epic['id'], '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Diff Stats:');
+    });
+
+    it('shows full diff in text output when --diff flag is used', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+
+        $epic = $epicService->createEpic('Diff Text Epic');
+
+        $task = $taskService->create([
+            'title' => 'Task with commit',
+            'type' => 'feature',
+            'priority' => 1,
+            'epic_id' => $epic['id'],
+        ]);
+
+        $taskService->done($task['id'], null, 'def1234567890123456789012345678901234567');
+
+        Artisan::call('epic:review', ['epicId' => $epic['id'], '--cwd' => $this->tempDir, '--no-prompt' => true, '--diff' => true]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Full Diff:');
+    });
 });
