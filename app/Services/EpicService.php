@@ -362,23 +362,106 @@ class EpicService
         }
 
         $diffOutput = '';
+        $errors = [];
+
         foreach ($commits as $commit) {
             try {
+                // Check if git is available
+                $gitCheckProcess = new Process(['git', '--version']);
+                $gitCheckProcess->run();
+                if (! $gitCheckProcess->isSuccessful()) {
+                    $errors[] = [
+                        'commit' => $commit,
+                        'reason' => 'Git is not available',
+                        'details' => $gitCheckProcess->getErrorOutput() ?: 'Git command failed',
+                    ];
+
+                    continue;
+                }
+
+                // Try to get the commit diff
                 $process = new Process(['git', 'show', '--stat', $commit]);
                 $process->run();
+
                 if ($process->isSuccessful()) {
                     $diffOutput .= "=== Commit: {$commit} ===\n";
                     $diffOutput .= $process->getOutput()."\n";
+                } else {
+                    // Process failed - analyze the error
+                    $errorOutput = $process->getErrorOutput();
+                    $reason = $this->classifyGitError($errorOutput, $commit);
+                    $errors[] = [
+                        'commit' => $commit,
+                        'reason' => $reason,
+                        'details' => trim($errorOutput) ?: 'Unknown error',
+                    ];
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                // Exception occurred - determine the cause
+                $reason = 'Exception occurred';
+                $details = $e->getMessage();
+
+                // Check if it's a "command not found" type error
+                if (str_contains($details, 'not found') || str_contains($details, 'No such file')) {
+                    $reason = 'Git is not available';
+                }
+
+                $errors[] = [
+                    'commit' => $commit,
+                    'reason' => $reason,
+                    'details' => $details,
+                ];
             }
         }
 
-        if ($diffOutput === '') {
+        // Build the output with error information
+        if ($diffOutput === '' && empty($errors)) {
             return 'Unable to retrieve git diffs for commits: '.implode(', ', $commits);
         }
 
+        if (! empty($errors)) {
+            $diffOutput .= "\n=== Errors retrieving commits ===\n";
+            foreach ($errors as $error) {
+                $diffOutput .= sprintf(
+                    "Commit %s: %s (%s)\n",
+                    $error['commit'],
+                    $error['reason'],
+                    $error['details']
+                );
+            }
+        }
+
         return $diffOutput;
+    }
+
+    /**
+     * Classify git error output to determine the specific failure reason.
+     *
+     * @param  string  $errorOutput  The error output from git command
+     * @param  string  $commit  The commit hash that was being processed
+     * @return string A human-readable reason for the failure
+     */
+    private function classifyGitError(string $errorOutput, string $commit): string
+    {
+        $errorLower = strtolower($errorOutput);
+
+        // Check for invalid hash format
+        if (preg_match('/ambiguous argument|bad object|not a valid object name/i', $errorLower)) {
+            return 'Invalid commit hash';
+        }
+
+        // Check for commit not found in repository
+        if (preg_match('/unknown revision|not found|does not exist/i', $errorLower)) {
+            return 'Commit not found in repository';
+        }
+
+        // Check for git not available
+        if (preg_match('/command not found|not found|no such file/i', $errorLower)) {
+            return 'Git is not available';
+        }
+
+        // Generic failure
+        return 'Failed to retrieve commit';
     }
 
     /**

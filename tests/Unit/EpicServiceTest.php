@@ -439,3 +439,73 @@ it('does not create duplicate review tasks when checkEpicCompletion is called mu
     expect($reviewTasks->count())->toBe(1);
     expect($reviewTasks->first()['id'])->toBe($firstReviewTaskId);
 });
+
+it('includes error details in summary when commit hash is invalid', function () {
+    $epic = $this->service->createEpic('Epic with invalid commit');
+
+    $task = $this->taskService->create([
+        'title' => 'Task with invalid commit',
+        'epic_id' => $epic['id'],
+    ]);
+
+    // Use an invalid commit hash
+    $this->taskService->done($task['id'], null, 'invalid123');
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeTrue();
+
+    $reviewTask = $this->taskService->find($result['review_task_id']);
+    expect($reviewTask['description'])->toContain('invalid123');
+    // Should contain error information
+    expect($reviewTask['description'])->toContain('Errors retrieving commits');
+    expect($reviewTask['description'])->toContain('Invalid commit hash');
+});
+
+it('includes error details in summary when commit is not found in repository', function () {
+    $epic = $this->service->createEpic('Epic with non-existent commit');
+
+    $task = $this->taskService->create([
+        'title' => 'Task with non-existent commit',
+        'epic_id' => $epic['id'],
+    ]);
+
+    // Use a valid-looking but non-existent commit hash (40 hex chars)
+    $this->taskService->done($task['id'], null, 'a1b2c3d4e5f6789012345678901234567890abcd');
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeTrue();
+
+    $reviewTask = $this->taskService->find($result['review_task_id']);
+    expect($reviewTask['description'])->toContain('a1b2c3d4e5f6789012345678901234567890abcd');
+    // Should contain error information
+    expect($reviewTask['description'])->toContain('Errors retrieving commits');
+});
+
+it('handles mixed valid and invalid commits gracefully', function () {
+    $epic = $this->service->createEpic('Epic with mixed commits');
+
+    $task1 = $this->taskService->create([
+        'title' => 'Task with invalid commit',
+        'epic_id' => $epic['id'],
+    ]);
+    $task2 = $this->taskService->create([
+        'title' => 'Task without commit',
+        'epic_id' => $epic['id'],
+    ]);
+
+    // One task with invalid commit, one without
+    $this->taskService->done($task1['id'], null, 'invalid123');
+    $this->taskService->done($task2['id']);
+
+    $result = $this->service->checkEpicCompletion($epic['id']);
+
+    expect($result['completed'])->toBeTrue();
+
+    $reviewTask = $this->taskService->find($result['review_task_id']);
+    // Should still create the review task even with errors
+    expect($reviewTask)->not->toBeNull();
+    // Should mention the error
+    expect($reviewTask['description'])->toContain('Errors retrieving commits');
+});
