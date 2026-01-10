@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Contracts\ProcessManagerInterface;
 use App\Services\ConfigService;
+use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\ServiceProvider;
@@ -33,5 +35,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RunService::class, function () {
             return new RunService(getcwd().'/.fuel/runs');
         });
+
+        $this->app->singleton(ProcessManagerInterface::class, ProcessManager::class);
     }
 }
