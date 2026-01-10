@@ -91,7 +91,7 @@ class BoardCommand extends Command
         $this->newLine();
 
         // Middle row: Review (show up to 10, but header shows total count)
-        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count());
+        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count(), 'review');
         foreach ($reviewColumn as $line) {
             $this->line($line);
         }
@@ -334,7 +334,7 @@ class BoardCommand extends Command
         $this->newLine();
 
         // Middle row: Review (show up to 10, but header shows total count)
-        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count());
+        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count(), 'review');
         foreach ($reviewColumn as $line) {
             $this->line($line);
         }
@@ -421,10 +421,15 @@ class BoardCommand extends Command
                 $idColor = match ($style) {
                     'blocked' => 'fg=#b36666',  // Dimmer reddish for blocked
                     'done' => 'fg=#888888',     // Gray for done
+                    'review' => 'fg=yellow',    // Yellow/warning for review
                     default => 'fg=cyan',
                 };
-                $titleColor = $style === 'done' ? '<fg=#888888>' : '';
-                $titleEnd = $style === 'done' ? '</>' : '';
+                $titleColor = match ($style) {
+                    'done' => '<fg=#888888>',
+                    'review' => '<fg=yellow>',
+                    default => '',
+                };
+                $titleEnd = ($style === 'done' || $style === 'review') ? '</>' : '';
 
                 if ($iconString !== '') {
                     $lines[] = $this->padLine(sprintf('<%s>[%s ·%s]</> %s %s%s%s', $idColor, $shortId, $complexityChar, $iconString, $titleColor, $truncatedTitle, $titleEnd), $width);

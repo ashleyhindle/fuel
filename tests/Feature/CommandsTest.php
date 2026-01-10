@@ -2191,6 +2191,7 @@ describe('board command', function (): void {
 
         expect($output)->toContain('Ready');
         expect($output)->toContain('In Progress');
+        expect($output)->toContain('Review');
         expect($output)->toContain('Blocked');
         expect($output)->toContain('No tasks');
     });
@@ -2248,6 +2249,43 @@ describe('board command', function (): void {
         expect($output)->toContain(sprintf('[%s ·s]', $shortId));
     });
 
+    it('shows review tasks in Review column', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Review task']);
+        $this->taskService->update($task['id'], ['status' => 'review']);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        $output = Artisan::output();
+
+        // Review tasks appear in "Review" column
+        $shortId = substr((string) $task['id'], 2, 6);
+        expect($output)->toContain('Review (1)');
+        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+    });
+
+    it('does not show review tasks in other columns', function (): void {
+        $this->taskService->initialize();
+        $reviewTask = $this->taskService->create(['title' => 'Review task']);
+        $this->taskService->update($reviewTask['id'], ['status' => 'review']);
+
+        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        $output = Artisan::output();
+
+        $reviewShortId = substr((string) $reviewTask['id'], 2, 6);
+
+        // Review task should appear in Review column
+        expect($output)->toContain('Review (1)');
+        expect($output)->toContain(sprintf('[%s ·s]', $reviewShortId));
+
+        // Review task should NOT appear in other columns
+        // Check that it doesn't appear in Ready, In Progress, Blocked, or Done sections
+        // We'll check by ensuring the count for those columns is 0
+        expect($output)->toContain('Ready (0)');
+        expect($output)->toContain('In Progress (0)');
+        expect($output)->toContain('Blocked (0)');
+        expect($output)->toContain('Done (0)');
+    });
+
     it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $this->taskService->create(['title' => 'Test task']);
@@ -2257,6 +2295,7 @@ describe('board command', function (): void {
 
         expect($output)->toContain('"ready":');
         expect($output)->toContain('"in_progress":');
+        expect($output)->toContain('"review":');
         expect($output)->toContain('"blocked":');
         expect($output)->toContain('"human":');
         expect($output)->toContain('"done":');
