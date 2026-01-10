@@ -58,7 +58,9 @@ afterEach(function (): void {
             if (is_dir($path)) {
                 $deleteDir($path);
             } else {
-                unlink($path);
+                if (file_exists($path)) {
+                    unlink($path);
+                }
             }
         }
 
