@@ -558,3 +558,94 @@ it('skips JSONL import for tasks that no longer exist', function (): void {
 
     expect($imported)->toBe(0);
 });
+
+it('calculates duration_seconds when logging run with both timestamps', function (): void {
+    $startedAt = '2026-01-07T10:00:00+00:00';
+    $endedAt = '2026-01-07T10:05:00+00:00';
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+        'started_at' => $startedAt,
+        'ended_at' => $endedAt,
+    ]);
+
+    $runs = $this->runService->getRuns($this->taskId);
+
+    expect($runs)->toHaveCount(1);
+    expect($runs[0]['duration_seconds'])->toBe(300); // 5 minutes = 300 seconds
+});
+
+it('does not calculate duration_seconds when logging run with only started_at', function (): void {
+    $startedAt = '2026-01-07T10:00:00+00:00';
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+        'started_at' => $startedAt,
+    ]);
+
+    $runs = $this->runService->getRuns($this->taskId);
+
+    expect($runs)->toHaveCount(1);
+    expect($runs[0]['duration_seconds'])->toBeNull();
+});
+
+it('calculates duration_seconds when updating latest run with ended_at', function (): void {
+    $startedAt = '2026-01-07T10:00:00+00:00';
+    $endedAt = '2026-01-07T10:10:00+00:00';
+
+    // Create initial run
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+        'started_at' => $startedAt,
+    ]);
+
+    // Update with ended_at
+    $this->runService->updateLatestRun($this->taskId, [
+        'ended_at' => $endedAt,
+        'exit_code' => 0,
+    ]);
+
+    $runs = $this->runService->getRuns($this->taskId);
+
+    expect($runs)->toHaveCount(1);
+    expect($runs[0]['duration_seconds'])->toBe(600); // 10 minutes = 600 seconds
+});
+
+it('includes duration_seconds in getRuns response', function (): void {
+    $startedAt = '2026-01-07T10:00:00+00:00';
+    $endedAt = '2026-01-07T10:02:30+00:00';
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+        'started_at' => $startedAt,
+        'ended_at' => $endedAt,
+    ]);
+
+    $runs = $this->runService->getRuns($this->taskId);
+
+    expect($runs)->toHaveCount(1);
+    expect($runs[0])->toHaveKey('duration_seconds');
+    expect($runs[0]['duration_seconds'])->toBe(150); // 2.5 minutes = 150 seconds
+});
+
+it('includes duration_seconds in getLatestRun response', function (): void {
+    $startedAt = '2026-01-07T10:00:00+00:00';
+    $endedAt = '2026-01-07T10:07:00+00:00';
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+        'started_at' => $startedAt,
+        'ended_at' => $endedAt,
+    ]);
+
+    $latestRun = $this->runService->getLatestRun($this->taskId);
+
+    expect($latestRun)->not->toBeNull();
+    expect($latestRun)->toHaveKey('duration_seconds');
+    expect($latestRun['duration_seconds'])->toBe(420); // 7 minutes = 420 seconds
+});

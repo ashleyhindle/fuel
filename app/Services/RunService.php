@@ -45,10 +45,20 @@ class RunService
             $output = substr($output, 0, self::OUTPUT_MAX_LENGTH);
         }
 
+        // Calculate duration_seconds if both timestamps are provided
+        $durationSeconds = null;
+        if (isset($data['started_at'], $data['ended_at'])) {
+            $start = strtotime($data['started_at']);
+            $end = strtotime($data['ended_at']);
+            if ($start !== false && $end !== false) {
+                $durationSeconds = $end - $start;
+            }
+        }
+
         // Insert into runs table - all runs start as STATUS_RUNNING
         $this->databaseService->query(
-            'INSERT INTO runs (id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO runs (id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status, duration_seconds)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $runId,
                 $taskIntId,
@@ -61,6 +71,7 @@ class RunService
                 $data['session_id'] ?? null,
                 $data['cost_usd'] ?? null,
                 self::STATUS_RUNNING,
+                $durationSeconds,
             ]
         );
     }
@@ -80,7 +91,7 @@ class RunService
         }
 
         $runs = $this->databaseService->fetchAll(
-            'SELECT id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd
+            'SELECT id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
              FROM runs
              WHERE task_id = ?
              ORDER BY started_at ASC',
@@ -99,6 +110,7 @@ class RunService
                 'output' => $run['output'],
                 'session_id' => $run['session_id'],
                 'cost_usd' => $run['cost_usd'],
+                'duration_seconds' => $run['duration_seconds'],
             ];
         }, $runs);
     }
@@ -118,7 +130,7 @@ class RunService
         }
 
         $run = $this->databaseService->fetchOne(
-            'SELECT id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd
+            'SELECT id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
              FROM runs
              WHERE task_id = ?
              ORDER BY started_at DESC, ROWID DESC
@@ -141,6 +153,7 @@ class RunService
             'output' => $run['output'],
             'session_id' => $run['session_id'],
             'cost_usd' => $run['cost_usd'],
+            'duration_seconds' => $run['duration_seconds'],
         ];
     }
 
@@ -158,9 +171,9 @@ class RunService
             throw new RuntimeException(sprintf('Task %s not found', $taskId));
         }
 
-        // Get the latest run ID
+        // Get the latest run ID and started_at (needed for duration calculation)
         $latestRun = $this->databaseService->fetchOne(
-            'SELECT id FROM runs WHERE task_id = ? ORDER BY started_at DESC, ROWID DESC LIMIT 1',
+            'SELECT id, started_at FROM runs WHERE task_id = ? ORDER BY started_at DESC, ROWID DESC LIMIT 1',
             [$taskIntId]
         );
 
@@ -184,6 +197,16 @@ class RunService
             // Also update status to completed when ended_at is set
             $updateFields[] = 'status = ?';
             $params[] = self::STATUS_COMPLETED;
+
+            // Calculate and set duration_seconds
+            if ($latestRun['started_at'] !== null) {
+                $start = strtotime($latestRun['started_at']);
+                $end = strtotime($data['ended_at']);
+                if ($start !== false && $end !== false) {
+                    $updateFields[] = 'duration_seconds = ?';
+                    $params[] = $end - $start;
+                }
+            }
         }
 
         if (isset($data['exit_code'])) {
