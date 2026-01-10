@@ -55,6 +55,7 @@ class BoardCommand extends Command
         $boardData = $this->getBoardData($taskService);
         $readyTasks = $boardData['ready'];
         $inProgressTasks = $boardData['in_progress'];
+        $reviewTasks = $boardData['review'];
         $blockedTasks = $boardData['blocked'];
         $humanTasks = $boardData['human'];
         $doneTasks = $boardData['done'];
@@ -63,6 +64,7 @@ class BoardCommand extends Command
             $this->outputJson([
                 'ready' => $readyTasks->values()->toArray(),
                 'in_progress' => $inProgressTasks->toArray(),
+                'review' => $reviewTasks->toArray(),
                 'blocked' => $blockedTasks->toArray(),
                 'human' => $humanTasks->toArray(),
                 'done' => $doneTasks->toArray(),
@@ -84,6 +86,14 @@ class BoardCommand extends Command
         $topRows = array_map(null, $readyColumn, $inProgressColumn);
         foreach ($topRows as $row) {
             $this->line(implode('  ', $row));
+        }
+
+        $this->newLine();
+
+        // Middle row: Review (show up to 10, but header shows total count)
+        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count());
+        foreach ($reviewColumn as $line) {
+            $this->line($line);
         }
 
         $this->newLine();
@@ -218,7 +228,7 @@ class BoardCommand extends Command
     /**
      * Get all board data from a single snapshot (prevents race conditions).
      *
-     * @return array{ready: Collection, in_progress: Collection, blocked: Collection, human: Collection, done: Collection}
+     * @return array{ready: Collection, in_progress: Collection, review: Collection, blocked: Collection, human: Collection, done: Collection}
      */
     private function getBoardData(TaskService $taskService): array
     {
@@ -230,6 +240,11 @@ class BoardCommand extends Command
 
         $inProgressTasks = $allTasks
             ->filter(fn (array $t): bool => $t['status'] === 'in_progress')
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $reviewTasks = $allTasks
+            ->filter(fn (array $t): bool => $t['status'] === 'review')
             ->sortByDesc('updated_at')
             ->values();
 
@@ -253,6 +268,7 @@ class BoardCommand extends Command
         return [
             'ready' => $readyTasks,
             'in_progress' => $inProgressTasks,
+            'review' => $reviewTasks,
             'blocked' => $blockedTasks,
             'human' => $humanTasks,
             'done' => $doneTasks,
@@ -269,6 +285,7 @@ class BoardCommand extends Command
         return $this->hashBoardContent([
             'ready' => $boardData['ready']->pluck('id')->toArray(),
             'in_progress' => $boardData['in_progress']->pluck('id')->toArray(),
+            'review' => $boardData['review']->pluck('id')->toArray(),
             'blocked' => $boardData['blocked']->pluck('id')->toArray(),
             'human' => $boardData['human']->pluck('id')->toArray(),
             'done' => $boardData['done']->pluck('id')->toArray(),
@@ -294,6 +311,7 @@ class BoardCommand extends Command
         $boardData = $this->getBoardData($taskService);
         $readyTasks = $boardData['ready'];
         $inProgressTasks = $boardData['in_progress'];
+        $reviewTasks = $boardData['review'];
         $blockedTasks = $boardData['blocked'];
         $humanTasks = $boardData['human'];
         $doneTasks = $boardData['done'];
@@ -311,6 +329,14 @@ class BoardCommand extends Command
         $topRows = array_map(null, $readyColumn, $inProgressColumn);
         foreach ($topRows as $row) {
             $this->line(implode('  ', $row));
+        }
+
+        $this->newLine();
+
+        // Middle row: Review (show up to 10, but header shows total count)
+        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count());
+        foreach ($reviewColumn as $line) {
+            $this->line($line);
         }
 
         $this->newLine();

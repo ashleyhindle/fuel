@@ -87,7 +87,9 @@ class SummaryCommand extends Command
         $statusLabel = match ($task['status']) {
             'open' => '<fg=yellow>open</>',
             'in_progress' => '<fg=blue>in progress</>',
+            'review' => '<fg=magenta>review</>',
             'closed' => '<fg=green>closed</>',
+            'cancelled' => '<fg=gray>cancelled</>',
             default => $task['status'],
         };
 

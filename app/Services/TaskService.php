@@ -17,7 +17,7 @@ class TaskService
 
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
 
-    private const VALID_STATUSES = ['open', 'in_progress', 'closed'];
+    private const VALID_STATUSES = ['open', 'in_progress', 'review', 'closed', 'cancelled'];
 
     private string $storagePath;
 

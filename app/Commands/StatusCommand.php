@@ -27,6 +27,7 @@ class StatusCommand extends Command
         // Group by status
         $open = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open');
         $inProgress = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'in_progress');
+        $review = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'review');
         $closed = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'closed');
 
         // Calculate blocked count (open tasks with open blockers)
@@ -49,6 +50,7 @@ class StatusCommand extends Command
         $stats = [
             'open' => $open->count(),
             'in_progress' => $inProgress->count(),
+            'review' => $review->count(),
             'closed' => $closed->count(),
             'blocked' => $blockedCount,
             'total' => $tasks->count(),
@@ -64,6 +66,7 @@ class StatusCommand extends Command
                 [
                     ['Open', $stats['open']],
                     ['In Progress', $stats['in_progress']],
+                    ['Review', $stats['review']],
                     ['Closed', $stats['closed']],
                     ['Blocked', $stats['blocked']],
                     ['Total', $stats['total']],

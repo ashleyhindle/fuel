@@ -171,6 +171,21 @@ it('validates task complexity enum', function (): void {
     $this->taskService->create(['title' => 'Test', 'complexity' => 'invalid']);
 })->throws(RuntimeException::class, 'Invalid task complexity');
 
+it('validates task status enum', function (): void {
+    $this->taskService->initialize();
+    $task = $this->taskService->create(['title' => 'Test task']);
+
+    // Valid statuses
+    $validStatuses = ['open', 'in_progress', 'review', 'closed', 'cancelled'];
+    foreach ($validStatuses as $status) {
+        $updated = $this->taskService->update($task['id'], ['status' => $status]);
+        expect($updated['status'])->toBe($status);
+    }
+
+    // Invalid status
+    $this->taskService->update($task['id'], ['status' => 'invalid']);
+})->throws(RuntimeException::class, 'Invalid status');
+
 it('defaults complexity to simple when not provided', function (): void {
     $this->taskService->initialize();
 
