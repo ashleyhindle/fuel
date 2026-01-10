@@ -134,6 +134,17 @@ fuel add "Implement API" --blocked-by=f-xxxx
 
 Blocked tasks won't appear in `fuel ready` until blockers are closed.
 
+### Epics
+
+Epics group related tasks and trigger a combined review when all tasks complete.
+
+```bash
+fuel epic:add "Epic title"              # Create a new epic
+fuel add "Task" --epic=e-xxxx           # Link task to epic (or use -e)
+fuel epics                               # List all epics
+fuel epic:show <e-id>                   # View epic details and tasks
+```
+
 ### Backlog Management
 
 The backlog (`.fuel/backlog.jsonl`) is for **rough ideas and future work** that isn't ready to implement yet. Tasks are for **work ready to implement now**.
