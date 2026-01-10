@@ -247,6 +247,35 @@ class DatabaseService
     }
 
     /**
+     * Get all reviews, optionally filtered by status.
+     *
+     * @param  string|null  $status  Filter by status ('pending', 'passed', 'failed') or null for all
+     * @param  int|null  $limit  Limit the number of results (null for no limit)
+     * @return array Array of review records with issues and followup_task_ids decoded from JSON
+     */
+    public function getAllReviews(?string $status = null, ?int $limit = null): array
+    {
+        $sql = 'SELECT * FROM reviews';
+        $params = [];
+
+        if ($status !== null) {
+            $sql .= ' WHERE status = ?';
+            $params[] = $status;
+        }
+
+        $sql .= ' ORDER BY started_at DESC';
+
+        if ($limit !== null) {
+            $sql .= ' LIMIT ?';
+            $params[] = $limit;
+        }
+
+        $reviews = $this->fetchAll($sql, $params);
+
+        return array_map([$this, 'decodeReviewJsonFields'], $reviews);
+    }
+
+    /**
      * Decode JSON fields in a review record.
      */
     private function decodeReviewJsonFields(array $review): array

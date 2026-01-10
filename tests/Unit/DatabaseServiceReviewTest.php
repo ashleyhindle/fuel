@@ -179,3 +179,88 @@ it('decodes json fields correctly for null values', function () {
     expect($reviews[0]['issues'])->toBe([]);
     expect($reviews[0]['followup_task_ids'])->toBe([]);
 });
+
+it('gets all reviews returns all reviews ordered by started_at descending', function () {
+    $now = new \DateTime;
+    $oneMinuteAgo = (clone $now)->modify('-1 minute');
+    $twoMinutesAgo = (clone $now)->modify('-2 minutes');
+    $threeMinutesAgo = (clone $now)->modify('-3 minutes');
+
+    $reviewId1 = $this->service->recordReviewStarted('f-task1', 'claude');
+    $this->service->query(
+        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        [$threeMinutesAgo->format('c'), $reviewId1]
+    );
+
+    $reviewId2 = $this->service->recordReviewStarted('f-task2', 'gemini');
+    $this->service->query(
+        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        [$oneMinuteAgo->format('c'), $reviewId2]
+    );
+
+    $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
+    $this->service->query(
+        'UPDATE reviews SET started_at = ? WHERE id = ?',
+        [$twoMinutesAgo->format('c'), $reviewId3]
+    );
+
+    $reviews = $this->service->getAllReviews();
+
+    expect($reviews)->toHaveCount(3);
+    // Should be ordered by started_at DESC, so newest first
+    expect($reviews[0]['id'])->toBe($reviewId2); // 1 minute ago (newest)
+    expect($reviews[1]['id'])->toBe($reviewId3); // 2 minutes ago
+    expect($reviews[2]['id'])->toBe($reviewId1); // 3 minutes ago (oldest)
+});
+
+it('gets all reviews filters by status', function () {
+    $reviewId1 = $this->service->recordReviewStarted('f-task1', 'claude');
+    $this->service->recordReviewCompleted($reviewId1, true, [], []);
+
+    $reviewId2 = $this->service->recordReviewStarted('f-task2', 'gemini');
+    // Leave as pending
+
+    $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
+    $this->service->recordReviewCompleted($reviewId3, false, ['tests_failing'], []);
+
+    $failedReviews = $this->service->getAllReviews('failed');
+    expect($failedReviews)->toHaveCount(1);
+    expect($failedReviews[0]['id'])->toBe($reviewId3);
+
+    $pendingReviews = $this->service->getAllReviews('pending');
+    expect($pendingReviews)->toHaveCount(1);
+    expect($pendingReviews[0]['id'])->toBe($reviewId2);
+
+    $passedReviews = $this->service->getAllReviews('passed');
+    expect($passedReviews)->toHaveCount(1);
+    expect($passedReviews[0]['id'])->toBe($reviewId1);
+});
+
+it('gets all reviews respects limit', function () {
+    // Create 15 reviews
+    for ($i = 1; $i <= 15; $i++) {
+        $this->service->recordReviewStarted("f-task{$i}", 'claude');
+    }
+
+    $reviews = $this->service->getAllReviews(null, 10);
+    expect($reviews)->toHaveCount(10);
+
+    $reviews = $this->service->getAllReviews(null, 5);
+    expect($reviews)->toHaveCount(5);
+});
+
+it('gets all reviews with status and limit', function () {
+    // Create 10 passed and 10 failed reviews
+    for ($i = 1; $i <= 10; $i++) {
+        $reviewId = $this->service->recordReviewStarted("f-passed{$i}", 'claude');
+        $this->service->recordReviewCompleted($reviewId, true, [], []);
+    }
+    for ($i = 1; $i <= 10; $i++) {
+        $reviewId = $this->service->recordReviewStarted("f-failed{$i}", 'claude');
+        $this->service->recordReviewCompleted($reviewId, false, ['tests_failing'], []);
+    }
+
+    $failedReviews = $this->service->getAllReviews('failed', 5);
+    expect($failedReviews)->toHaveCount(5);
+    expect($failedReviews[0]['status'])->toBe('failed');
+});
