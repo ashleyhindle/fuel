@@ -112,13 +112,6 @@ class EpicService
             $epic['description'] = $data['description'];
         }
 
-        if (isset($data['status'])) {
-            $this->validateStatus($data['status']);
-            $updates[] = 'status = ?';
-            $params[] = $data['status'];
-            $epic['status'] = $data['status'];
-        }
-
         if ($updates !== []) {
             $params[] = $resolvedId;
             $this->db->query(
@@ -128,6 +121,29 @@ class EpicService
         }
 
         // Compute status from task states
+        $epic['status'] = $this->getEpicStatus($resolvedId);
+
+        return $epic;
+    }
+
+    public function markAsReviewed(string $id): array
+    {
+        $this->db->initialize();
+
+        $resolvedId = $this->resolveId($id);
+        if ($resolvedId === null) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE id = ?', [$resolvedId]);
+        if ($epic === null) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $now = Carbon::now('UTC')->toIso8601String();
+        $this->db->query('UPDATE epics SET reviewed_at = ? WHERE id = ?', [$now, $resolvedId]);
+
+        $epic['reviewed_at'] = $now;
         $epic['status'] = $this->getEpicStatus($resolvedId);
 
         return $epic;
@@ -179,7 +195,7 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
-        $epic = $this->db->fetchOne('SELECT approved_at FROM epics WHERE id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT approved_at, reviewed_at FROM epics WHERE id = ?', [$resolvedId]);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
@@ -193,39 +209,46 @@ class EpicService
 
         // If no tasks, epic is in planning
         if (count($tasks) === 0) {
-            return 'planning';
-        }
+            $computedStatus = 'planning';
+        } else {
+            // Check if any task is open or in_progress
+            $hasActiveTask = false;
+            foreach ($tasks as $task) {
+                $status = $task['status'] ?? '';
+                if ($status === 'open' || $status === 'in_progress') {
+                    $hasActiveTask = true;
+                    break;
+                }
+            }
 
-        // Check if any task is open or in_progress
-        $hasActiveTask = false;
-        foreach ($tasks as $task) {
-            $status = $task['status'] ?? '';
-            if ($status === 'open' || $status === 'in_progress') {
-                $hasActiveTask = true;
-                break;
+            if ($hasActiveTask) {
+                $computedStatus = 'in_progress';
+            } else {
+                // Check if all tasks are closed
+                $allClosed = true;
+                foreach ($tasks as $task) {
+                    $status = $task['status'] ?? '';
+                    if ($status !== 'closed') {
+                        $allClosed = false;
+                        break;
+                    }
+                }
+
+                if ($allClosed) {
+                    $computedStatus = 'review_pending';
+                } else {
+                    // Fallback: if tasks exist but not all closed and none active, still in_progress
+                    $computedStatus = 'in_progress';
+                }
             }
         }
 
-        if ($hasActiveTask) {
-            return 'in_progress';
+        // If reviewed_at is set, epic is reviewed regardless of computed status
+        if ($epic['reviewed_at'] !== null) {
+            return 'reviewed';
         }
 
-        // Check if all tasks are closed
-        $allClosed = true;
-        foreach ($tasks as $task) {
-            $status = $task['status'] ?? '';
-            if ($status !== 'closed') {
-                $allClosed = false;
-                break;
-            }
-        }
-
-        if ($allClosed) {
-            return 'review_pending';
-        }
-
-        // Fallback: if tasks exist but not all closed and none active, still in_progress
-        return 'in_progress';
+        return $computedStatus;
     }
 
     private function generateId(): string
