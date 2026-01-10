@@ -225,6 +225,38 @@ class DatabaseService
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_short_id ON epics(short_id)');
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_status ON epics(status)');
             },
+            4 => function (PDO $pdo): void {
+                // v4: tasks table (migrated from JSONL storage)
+                $pdo->exec('
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        short_id TEXT UNIQUE NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        status TEXT NOT NULL DEFAULT \'open\',
+                        type TEXT DEFAULT \'task\',
+                        priority INTEGER DEFAULT 2,
+                        size TEXT DEFAULT \'m\',
+                        complexity TEXT DEFAULT \'moderate\',
+                        labels TEXT,
+                        blocked_by TEXT,
+                        epic_id INTEGER REFERENCES epics(id) ON DELETE SET NULL,
+                        commit_hash TEXT,
+                        reason TEXT,
+                        consumed INTEGER DEFAULT 0,
+                        consumed_at TEXT,
+                        consumed_exit_code INTEGER,
+                        consumed_output TEXT,
+                        consume_pid INTEGER,
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                ');
+
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)');
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tasks_epic_id ON tasks(epic_id)');
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tasks_short_id ON tasks(short_id)');
+            },
         ];
     }
 
@@ -248,18 +280,28 @@ class DatabaseService
 
         ksort($pendingMigrations);
 
+        $ranMigrationV4 = false;
+
         $this->connection->beginTransaction();
         try {
             $maxVersion = $currentVersion;
             foreach ($pendingMigrations as $version => $migration) {
                 $migration($this->connection);
                 $maxVersion = $version;
+                if ($version === 4) {
+                    $ranMigrationV4 = true;
+                }
             }
             $this->setSchemaVersion($maxVersion);
             $this->connection->commit();
         } catch (PDOException $e) {
             $this->connection->rollBack();
             throw new RuntimeException('Migration failed: '.$e->getMessage(), 0, $e);
+        }
+
+        // Auto-import tasks from JSONL after migration v4 creates the tasks table
+        if ($ranMigrationV4) {
+            $this->importTasksFromJsonl();
         }
     }
 
@@ -339,6 +381,38 @@ class DatabaseService
         // Create indexes for epics table
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_short_id ON epics(short_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_status ON epics(status)');
+
+        // Create tasks table (new schema with integer PK and short_id)
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                short_id TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                status TEXT NOT NULL DEFAULT \'open\',
+                type TEXT DEFAULT \'task\',
+                priority INTEGER DEFAULT 2,
+                size TEXT DEFAULT \'m\',
+                complexity TEXT DEFAULT \'moderate\',
+                labels TEXT,
+                blocked_by TEXT,
+                epic_id INTEGER REFERENCES epics(id) ON DELETE SET NULL,
+                commit_hash TEXT,
+                reason TEXT,
+                consumed INTEGER DEFAULT 0,
+                consumed_at TEXT,
+                consumed_exit_code INTEGER,
+                consumed_output TEXT,
+                consume_pid INTEGER,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        ');
+
+        // Create indexes for tasks table
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tasks_epic_id ON tasks(epic_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tasks_short_id ON tasks(short_id)');
     }
 
     /**
@@ -355,6 +429,108 @@ class DatabaseService
     public function getPath(): string
     {
         return $this->dbPath;
+    }
+
+    /**
+     * Import tasks from JSONL file into SQLite table.
+     * Only imports if tasks.jsonl exists and tasks table is empty.
+     *
+     * @return int Number of tasks imported
+     */
+    public function importTasksFromJsonl(): int
+    {
+        // Derive tasks.jsonl path from database path
+        $tasksJsonlPath = dirname($this->dbPath).'/tasks.jsonl';
+
+        // Check if file exists
+        if (! file_exists($tasksJsonlPath)) {
+            return 0;
+        }
+
+        // Check if tasks table is empty
+        $count = $this->fetchOne('SELECT COUNT(*) as count FROM tasks');
+        if ($count !== null && (int) $count['count'] > 0) {
+            return 0;
+        }
+
+        // Build epic short_id -> integer id lookup
+        $epicLookup = [];
+        $epics = $this->fetchAll('SELECT id, short_id FROM epics');
+        foreach ($epics as $epic) {
+            $epicLookup[$epic['short_id']] = (int) $epic['id'];
+        }
+
+        // Read and import tasks
+        $imported = 0;
+        $handle = fopen($tasksJsonlPath, 'r');
+        if ($handle === false) {
+            return 0;
+        }
+
+        $this->beginTransaction();
+        try {
+            while (($line = fgets($handle)) !== false) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+
+                $task = json_decode($line, true);
+                if (! is_array($task) || ! isset($task['id'], $task['title'])) {
+                    continue;
+                }
+
+                // Map epic_id string to integer if epic exists
+                $epicId = null;
+                if (isset($task['epic_id']) && $task['epic_id'] !== null) {
+                    $epicId = $epicLookup[$task['epic_id']] ?? null;
+                }
+
+                // Encode arrays as JSON
+                $labels = isset($task['labels']) && is_array($task['labels'])
+                    ? json_encode($task['labels'])
+                    : null;
+                $blockedBy = isset($task['blocked_by']) && is_array($task['blocked_by'])
+                    ? json_encode($task['blocked_by'])
+                    : null;
+
+                $this->query(
+                    'INSERT INTO tasks (short_id, title, description, status, type, priority, size, complexity, labels, blocked_by, epic_id, commit_hash, reason, consumed, consumed_at, consumed_exit_code, consumed_output, consume_pid, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        $task['id'],                                    // short_id
+                        $task['title'],
+                        $task['description'] ?? null,
+                        $task['status'] ?? 'open',
+                        $task['type'] ?? 'task',
+                        $task['priority'] ?? 2,
+                        $task['size'] ?? 'm',
+                        $task['complexity'] ?? 'moderate',
+                        $labels,
+                        $blockedBy,
+                        $epicId,
+                        $task['commit_hash'] ?? null,
+                        $task['reason'] ?? null,
+                        $task['consumed'] ?? 0,
+                        $task['consumed_at'] ?? null,
+                        $task['consumed_exit_code'] ?? null,
+                        $task['consumed_output'] ?? null,
+                        $task['consume_pid'] ?? null,
+                        $task['created_at'] ?? null,
+                        $task['updated_at'] ?? null,
+                    ]
+                );
+                $imported++;
+            }
+            $this->commit();
+        } catch (\Throwable $e) {
+            $this->rollback();
+            throw $e;
+        } finally {
+            fclose($handle);
+        }
+
+        return $imported;
     }
 
     /**
