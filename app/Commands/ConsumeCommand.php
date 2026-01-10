@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use Illuminate\Support\Collection;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
@@ -12,6 +11,8 @@ use App\Services\ConfigService;
 use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
 
 class ConsumeCommand extends Command
@@ -118,7 +119,7 @@ class ConsumeCommand extends Command
 
                 if ($readyTasks->isNotEmpty() && ! $this->processManager->isShuttingDown()) {
                     // Score and sort tasks by priority, complexity, and size
-                    $scoredTasks = $readyTasks->map(fn(array $task): array => [
+                    $scoredTasks = $readyTasks->map(fn (array $task): array => [
                         'task' => $task,
                         'score' => $this->calculateTaskScore($task),
                     ])->sortBy([
@@ -317,7 +318,7 @@ PROMPT;
             try {
                 $agentName = $this->configService->getAgentForComplexity($complexity);
             } catch (\RuntimeException $e) {
-                $this->error('Failed to get agent: ' . $e->getMessage());
+                $this->error('Failed to get agent: '.$e->getMessage());
                 $this->line('Use --agent to override or ensure .fuel/config.yaml exists');
 
                 return false;
@@ -332,7 +333,7 @@ PROMPT;
         if ($dryrun) {
             // Dryrun: show what would happen without claiming or spawning
             $statusLines[] = $this->formatStatus('👁', sprintf('[DRYRUN] Would spawn %s for %s: %s', $agentName, $taskId, $shortTitle), 'cyan');
-            $this->setTerminalTitle('fuel: [DRYRUN] ' . $taskId);
+            $this->setTerminalTitle('fuel: [DRYRUN] '.$taskId);
             $this->newLine();
             $this->line('<fg=cyan>== PROMPT THAT WOULD BE SENT ==</>');
             $this->line($fullPrompt);
@@ -464,7 +465,17 @@ PROMPT;
         // Auto-complete task if agent didn't run `fuel done`
         $task = $this->taskService->find($taskId);
         if ($task && $task['status'] === 'in_progress') {
-            $this->taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
+            // Add 'auto-closed' label to indicate it wasn't self-reported
+            $this->taskService->update($taskId, [
+                'add_labels' => ['auto-closed'],
+            ]);
+
+            // Use DoneCommand logic so future done enhancements apply automatically
+            Artisan::call('done', [
+                'ids' => [$taskId],
+                'reason' => 'Auto-completed by consume (agent exit 0)',
+            ]);
+
             $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
         } else {
             $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green');
@@ -507,7 +518,7 @@ PROMPT;
 
         // Create a needs-human task for permission configuration
         $humanTask = $this->taskService->create([
-            'title' => 'Configure agent permissions for ' . $agentName,
+            'title' => 'Configure agent permissions for '.$agentName,
             'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
                 "To fix, either:\n".
                 "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
@@ -557,7 +568,7 @@ PROMPT;
                 $sessionInfo = '';
                 if (! empty($metadata['session_id'])) {
                     $shortSession = substr($metadata['session_id'], 0, 8);
-                    $sessionInfo = ' 🔗' . $shortSession;
+                    $sessionInfo = ' 🔗'.$shortSession;
                 }
 
                 $processLines[] = sprintf('🔄 %s [%s] (%s)%s', $shortId, $agentName, $duration, $sessionInfo);
@@ -573,7 +584,7 @@ PROMPT;
             $failedLines = [];
             foreach ($failedTasks as $task) {
                 $shortId = substr((string) $task['id'], 2, 6);
-                $failedLines[] = '🪫 ' . $shortId;
+                $failedLines[] = '🪫 '.$shortId;
             }
 
             $this->line('<fg=red>Failed: '.implode(' | ', $failedLines).' (fuel retry)</>');
@@ -605,7 +616,7 @@ PROMPT;
     private function formatDuration(int $seconds): string
     {
         if ($seconds < 60) {
-            return $seconds . 's';
+            return $seconds.'s';
         }
 
         $minutes = (int) ($seconds / 60);
@@ -743,21 +754,21 @@ PROMPT;
     private function formatTaskForPrompt(array $task): string
     {
         $lines = [
-            'Task: ' . $task['id'],
-            'Title: ' . $task['title'],
-            'Status: ' . $task['status'],
+            'Task: '.$task['id'],
+            'Title: '.$task['title'],
+            'Status: '.$task['status'],
         ];
 
         if (! empty($task['description'])) {
-            $lines[] = 'Description: ' . $task['description'];
+            $lines[] = 'Description: '.$task['description'];
         }
 
         if (! empty($task['type'])) {
-            $lines[] = 'Type: ' . $task['type'];
+            $lines[] = 'Type: '.$task['type'];
         }
 
         if (! empty($task['priority'])) {
-            $lines[] = 'Priority: P' . $task['priority'];
+            $lines[] = 'Priority: P'.$task['priority'];
         }
 
         if (! empty($task['labels'])) {

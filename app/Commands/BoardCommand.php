@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use Illuminate\Support\Collection;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Services\TaskService;
+use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
 
 class BoardCommand extends Command
@@ -356,8 +356,15 @@ class BoardCommand extends Command
                 $isPidDead = fn (int $pid): bool => ! $this->isPidRunning($pid);
                 $failedIcon = $this->taskService->isFailed($task, $isPidDead) ? '🪫' : '';
 
+                // Show icon for auto-closed tasks (only in done column)
+                $autoClosedIcon = '';
+                if ($style === 'done') {
+                    $labels = $task['labels'] ?? [];
+                    $autoClosedIcon = is_array($labels) && in_array('auto-closed', $labels, true) ? '🤖' : '';
+                }
+
                 // Build icon string (all icons if present)
-                $icons = array_filter([$consumeIcon, $failedIcon]);
+                $icons = array_filter([$consumeIcon, $failedIcon, $autoClosedIcon]);
                 $iconString = implode(' ', $icons);
                 // Each emoji displays as 2 chars wide + 1 space after = 3 per icon
                 $iconWidth = count($icons) * 3;
@@ -479,14 +486,14 @@ class BoardCommand extends Command
 
         // Fallback: check /proc on Linux
         if (PHP_OS_FAMILY === 'Linux' && is_dir('/proc')) {
-            return is_dir('/proc/' . $pid);
+            return is_dir('/proc/'.$pid);
         }
 
         // Fallback: use ps command on Unix-like systems
         if (PHP_OS_FAMILY !== 'Windows') {
             $output = @shell_exec(sprintf('ps -p %d -o pid= 2>/dev/null', $pid));
 
-            return !in_array(trim($output ?? ''), ['', '0'], true);
+            return ! in_array(trim($output ?? ''), ['', '0'], true);
         }
 
         // Windows fallback: use tasklist
