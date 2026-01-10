@@ -8,25 +8,24 @@ enum Agent: string
 {
     case Claude = 'claude';
     case CursorAgent = 'cursor-agent';
+    case OpenCode = 'opencode';
 
     /**
      * Get the command to resume a session interactively.
-     * Note: For cursor-agent, sessions created with --output-format require -p flag.
-     * We provide a minimal prompt to satisfy the requirement while avoiding config.yaml args.
      */
     public function resumeCommand(string $sessionId): string
     {
         $escapedSessionId = escapeshellarg($sessionId);
 
         return match ($this) {
-            self::Claude => "claude --resume {$escapedSessionId}",
-            self::CursorAgent => "cursor-agent --resume={$escapedSessionId}",
+            self::Claude => 'claude --resume ' . $escapedSessionId,
+            self::CursorAgent => 'cursor-agent --resume=' . $escapedSessionId,
+            self::OpenCode => 'opencode --session ' . $escapedSessionId,
         };
     }
 
     /**
      * Get the command to resume with a prompt (headless).
-     * Note: For cursor-agent, we use space format (not =) for consistency.
      */
     public function resumeWithPromptCommand(string $sessionId, string $prompt): string
     {
@@ -34,8 +33,9 @@ enum Agent: string
         $escapedPrompt = escapeshellarg($prompt);
 
         return match ($this) {
-            self::Claude => "claude --resume {$escapedSessionId} -p {$escapedPrompt}",
-            self::CursorAgent => "cursor-agent --resume {$escapedSessionId} -p {$escapedPrompt}",
+            self::Claude => sprintf('claude --resume %s -p %s', $escapedSessionId, $escapedPrompt),
+            self::CursorAgent => sprintf('cursor-agent --resume %s -p %s', $escapedSessionId, $escapedPrompt),
+            self::OpenCode => sprintf('opencode run %s --session %s', $escapedPrompt, $escapedSessionId),
         };
     }
 
@@ -47,6 +47,7 @@ enum Agent: string
         return match ($this) {
             self::Claude => 'Claude',
             self::CursorAgent => 'Cursor Agent',
+            self::OpenCode => 'OpenCode',
         };
     }
 
@@ -58,6 +59,7 @@ enum Agent: string
         return match ($this) {
             self::Claude => 'claude',
             self::CursorAgent => 'cursor-agent',
+            self::OpenCode => 'opencode',
         };
     }
 
@@ -71,11 +73,13 @@ enum Agent: string
         return match ($this) {
             self::Claude => ['--resume', $sessionId],
             self::CursorAgent => ['--resume='.$sessionId],
+            self::OpenCode => ['--session', $sessionId],
         };
     }
 
     /**
      * Parse agent name from string (e.g., from run data).
+     * Tries to match against known agent binaries.
      *
      * @return self|null Returns null if the agent name is unknown or null
      */
@@ -85,10 +89,49 @@ enum Agent: string
             return null;
         }
 
+        // Match against binary names
         return match ($name) {
             'claude' => self::Claude,
             'cursor-agent' => self::CursorAgent,
+            'opencode' => self::OpenCode,
             default => null,
         };
+    }
+
+    /**
+     * Try to determine the agent type from an agent name that might be a custom config name.
+     * Falls back to matching the command binary.
+     *
+     * @param  string  $agentName  The agent name (could be 'claude-sonnet', 'opencode-glm', etc.)
+     * @param  string|null  $command  The command binary if known
+     * @return self|null Returns null if the agent cannot be determined
+     */
+    public static function fromAgentName(string $agentName, ?string $command = null): ?self
+    {
+        // First try direct match
+        $direct = self::fromString($agentName);
+        if ($direct instanceof \App\Enums\Agent) {
+            return $direct;
+        }
+
+        // Try matching the command
+        if ($command !== null) {
+            return self::fromString($command);
+        }
+
+        // Try matching common patterns in agent name
+        if (str_contains($agentName, 'claude')) {
+            return self::Claude;
+        }
+
+        if (str_contains($agentName, 'cursor')) {
+            return self::CursorAgent;
+        }
+
+        if (str_contains($agentName, 'opencode')) {
+            return self::OpenCode;
+        }
+
+        return null;
     }
 }
