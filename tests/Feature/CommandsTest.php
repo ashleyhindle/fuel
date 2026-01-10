@@ -2513,6 +2513,106 @@ describe('show command', function (): void {
             ->expectsOutputToContain('Task: '.$task['id'])
             ->assertExitCode(0);
     });
+
+    it('shows live output from stdout.log when task is in_progress', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'In progress task']);
+        $this->taskService->start($task['id']);
+
+        // Create processes directory and stdout.log with some content
+        $processDir = $this->tempDir.'/.fuel/processes/'.$task['id'];
+        mkdir($processDir, 0755, true);
+        $stdoutPath = $processDir.'/stdout.log';
+        file_put_contents($stdoutPath, "Line 1\nLine 2\nLine 3\n");
+
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Run Output (live)');
+        expect($output)->toContain('Showing live output (tail)...');
+        expect($output)->toContain('Line 1');
+        expect($output)->toContain('Line 2');
+        expect($output)->toContain('Line 3');
+    });
+
+    it('shows last 50 lines from stdout.log when file has more lines', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'In progress task']);
+        $this->taskService->start($task['id']);
+
+        // Create processes directory and stdout.log with 60 lines
+        $processDir = $this->tempDir.'/.fuel/processes/'.$task['id'];
+        mkdir($processDir, 0755, true);
+        $stdoutPath = $processDir.'/stdout.log';
+        $lines = [];
+        for ($i = 1; $i <= 60; $i++) {
+            $lines[] = "Line $i";
+        }
+        file_put_contents($stdoutPath, implode("\n", $lines)."\n");
+
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Run Output (live)');
+        expect($output)->toContain('Showing live output (tail)...');
+        // Should contain last 50 lines (11-60)
+        expect($output)->toContain('Line 11');
+        expect($output)->toContain('Line 60');
+        // Should not contain first 10 lines (check for exact line matches)
+        expect($output)->not->toContain("\n    Line 1\n");
+        expect($output)->not->toContain("\n    Line 10\n");
+    });
+
+    it('shows regular run output when task is not in_progress', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Completed task']);
+        $this->taskService->start($task['id']);
+
+        // Create a run with output
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'agent' => 'test-agent',
+            'output' => 'Run output content',
+        ]);
+
+        // Mark task as closed
+        $this->taskService->done($task['id']);
+
+        // Create stdout.log (should be ignored for closed tasks)
+        $processDir = $this->tempDir.'/.fuel/processes/'.$task['id'];
+        mkdir($processDir, 0755, true);
+        $stdoutPath = $processDir.'/stdout.log';
+        file_put_contents($stdoutPath, "Live output\n");
+
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Run Output');
+        expect($output)->not->toContain('Run Output (live)');
+        expect($output)->not->toContain('Showing live output (tail)...');
+        expect($output)->toContain('Run output content');
+        expect($output)->not->toContain('Live output');
+    });
+
+    it('shows regular run output when stdout.log does not exist', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'In progress task']);
+        $this->taskService->start($task['id']);
+
+        // Create a run with output
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task['id'], [
+            'agent' => 'test-agent',
+            'output' => 'Run output content',
+        ]);
+
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Run Output');
+        expect($output)->not->toContain('Run Output (live)');
+        expect($output)->toContain('Run output content');
+    });
 });
 
 // =============================================================================

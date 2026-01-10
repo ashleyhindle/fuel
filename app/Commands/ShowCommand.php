@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\RunService;
 use App\Services\TaskService;
+use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -105,6 +106,10 @@ class ShowCommand extends Command
 
                 // Run information from RunService
                 $runs = $runService->getRuns($task['id']);
+
+                // Check for live output if task is in_progress (even if no runs exist)
+                $liveOutput = $this->getLiveOutput($task['id'], $task['status'] ?? 'open');
+
                 if ($runs !== []) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Run History ──</>');
@@ -145,19 +150,41 @@ class ShowCommand extends Command
                             $this->line(sprintf('    Exit code: <fg=%s>%s</>', $exitColor, $run['exit_code']));
                         }
 
-                        if ($isLatest && isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
-                            $this->newLine();
-                            $this->line('    <fg=cyan>── Run Output ──</>');
-                            // Indent each line of output
-                            $outputLines = explode("\n", (string) $run['output']);
-                            foreach ($outputLines as $line) {
-                                $this->line('    '.$line);
+                        if ($isLatest) {
+                            // Show live output if available, otherwise show run output
+                            if ($liveOutput !== null) {
+                                $this->newLine();
+                                $this->line('    <fg=cyan>── Run Output (live) ──</>');
+                                $this->line('    <fg=yellow>Showing live output (tail)...</>');
+                                // Indent each line of output
+                                $outputLines = explode("\n", $liveOutput);
+                                foreach ($outputLines as $line) {
+                                    $this->line('    '.$line);
+                                }
+                            } elseif (isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
+                                $this->newLine();
+                                $this->line('    <fg=cyan>── Run Output ──</>');
+                                // Indent each line of output
+                                $outputLines = explode("\n", (string) $run['output']);
+                                foreach ($outputLines as $line) {
+                                    $this->line('    '.$line);
+                                }
                             }
                         }
 
                         if ($index < count($runs) - 1) {
                             $this->newLine();
                         }
+                    }
+                } elseif ($liveOutput !== null) {
+                    // Show live output even when there are no runs
+                    $this->newLine();
+                    $this->line('  <fg=cyan>── Run Output (live) ──</>');
+                    $this->line('  <fg=yellow>Showing live output (tail)...</>');
+                    // Indent each line of output
+                    $outputLines = explode("\n", $liveOutput);
+                    foreach ($outputLines as $line) {
+                        $this->line('  '.$line);
                     }
                 }
 
@@ -169,6 +196,70 @@ class ShowCommand extends Command
             return self::SUCCESS;
         } catch (RuntimeException $runtimeException) {
             return $this->outputError($runtimeException->getMessage());
+        }
+    }
+
+    /**
+     * Get live output from stdout.log if task is in_progress and file exists.
+     *
+     * @return string|null Returns last 50 lines of stdout.log or null if not available
+     */
+    private function getLiveOutput(string $taskId, string $status): ?string
+    {
+        // Only check for live output if task is in_progress
+        if ($status !== 'in_progress') {
+            return null;
+        }
+
+        // Determine the working directory
+        $cwd = $this->option('cwd') ?: getcwd();
+        $stdoutPath = $cwd.'/.fuel/processes/'.$taskId.'/stdout.log';
+
+        // Check if stdout.log exists
+        if (! File::exists($stdoutPath)) {
+            return null;
+        }
+
+        // Read the last 50 lines from the file
+        return $this->readLastLines($stdoutPath, 50);
+    }
+
+    /**
+     * Read the last N lines from a file.
+     *
+     * @return string|null Returns the last N lines or null if file cannot be read
+     */
+    private function readLastLines(string $filePath, int $lines): ?string
+    {
+        if (! File::exists($filePath)) {
+            return null;
+        }
+
+        try {
+            $content = File::get($filePath);
+            if ($content === false || $content === '') {
+                return null;
+            }
+
+            $allLines = explode("\n", $content);
+            // Remove empty line at the end if file ends with newline
+            if (end($allLines) === '') {
+                array_pop($allLines);
+            }
+
+            $lineCount = count($allLines);
+
+            // If file has fewer lines than requested, return all
+            if ($lineCount <= $lines) {
+                return implode("\n", $allLines);
+            }
+
+            // Return last N lines
+            $lastLines = array_slice($allLines, -$lines);
+
+            return implode("\n", $lastLines);
+        } catch (\Exception) {
+            return null;
         }
     }
 }
