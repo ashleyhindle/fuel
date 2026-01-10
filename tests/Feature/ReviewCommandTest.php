@@ -110,7 +110,8 @@ it('triggers review for valid task', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent');
+        ->with($task['id'], 'test-agent')
+        ->andReturn(true);
 
     $exitCode = Artisan::call('review', ['taskId' => $task['id']]);
     $output = Artisan::output();
@@ -163,7 +164,8 @@ it('uses agent from latest run when available', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'latest-agent');
+        ->with($task['id'], 'latest-agent')
+        ->andReturn(true);
 
     Artisan::call('review', ['taskId' => $task['id']]);
 });
@@ -179,7 +181,7 @@ it('uses config review agent when no run exists', function (): void {
             'trivial' => 'test-agent',
         ],
         'primary' => 'test-agent',
-        'review_agent' => 'review-agent',
+        'review' => 'review-agent',
     ];
     file_put_contents($this->configPath, Yaml::dump($config));
 
@@ -196,11 +198,12 @@ it('uses config review agent when no run exists', function (): void {
     ]);
     $this->taskService->update($task['id'], ['status' => 'closed']);
 
-    // Expect triggerReview to be called with review agent
+    // Expect triggerReview to be called with review agent from config
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'review-agent');
+        ->with($task['id'], 'review-agent')
+        ->andReturn(true);
 
     Artisan::call('review', ['taskId' => $task['id']]);
 });
@@ -216,7 +219,8 @@ it('uses primary agent as fallback when no run and no review agent configured', 
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent');
+        ->with($task['id'], 'test-agent')
+        ->andReturn(true);
 
     Artisan::call('review', ['taskId' => $task['id']]);
 });
@@ -264,7 +268,8 @@ it('allows reviewing closed tasks', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent');
+        ->with($task['id'], 'test-agent')
+        ->andReturn(true);
 
     Artisan::call('review', ['taskId' => $task['id']]);
 });
@@ -285,7 +290,8 @@ it('allows reviewing tasks in review status', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent');
+        ->with($task['id'], 'test-agent')
+        ->andReturn(true);
 
     Artisan::call('review', ['taskId' => $task['id']]);
 });
