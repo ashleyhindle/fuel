@@ -111,6 +111,23 @@ class DatabaseService
 
         // Create indexes for reviews table
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_id)');
+
+        // Create epics table
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS epics (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                status TEXT DEFAULT \'planning\',
+                created_at TEXT,
+                reviewed_at TEXT,
+                approved_at TEXT,
+                approved_by TEXT
+            )
+        ');
+
+        // Create index for epics table
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_epics_status ON epics(status)');
     }
 
     /**

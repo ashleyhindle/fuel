@@ -154,3 +154,30 @@ it('checks if database exists', function () {
 
     expect($this->service->exists())->toBeTrue();
 });
+
+it('creates epics table with correct schema', function () {
+    $this->service->initialize();
+
+    $columns = $this->service->fetchAll('PRAGMA table_info(epics)');
+
+    expect($columns)->toHaveCount(8);
+    expect(array_column($columns, 'name'))->toBe([
+        'id',
+        'title',
+        'description',
+        'status',
+        'created_at',
+        'reviewed_at',
+        'approved_at',
+        'approved_by',
+    ]);
+});
+
+it('creates index on epics status', function () {
+    $this->service->initialize();
+
+    $indexes = $this->service->fetchAll('PRAGMA index_list(epics)');
+    $indexNames = array_column($indexes, 'name');
+
+    expect($indexNames)->toContain('idx_epics_status');
+});
