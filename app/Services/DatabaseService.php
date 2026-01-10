@@ -844,13 +844,37 @@ class DatabaseService
     }
 
     /**
+     * Get the latest run ID for a task from the runs table.
+     *
+     * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
+     * @return string|null The run ID (e.g., 'run-xxxxxx'), or null if no runs found
+     */
+    public function getLatestRunId(string $taskShortId): ?string
+    {
+        // Resolve task short_id to integer id
+        $taskIntId = $this->resolveTaskId($taskShortId);
+        if ($taskIntId === null) {
+            return null;
+        }
+
+        // Get the latest run for this task, ordered by started_at descending
+        $run = $this->fetchOne(
+            'SELECT id FROM runs WHERE task_id = ? ORDER BY started_at DESC LIMIT 1',
+            [$taskIntId]
+        );
+
+        return $run !== null ? $run['id'] : null;
+    }
+
+    /**
      * Record that a review has started.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
      * @param  string  $agent  The agent performing the review
+     * @param  string|null  $runId  The run ID being reviewed (e.g., 'run-xxxxxx')
      * @return string The review short_id (e.g., 'r-xxxxxx')
      */
-    public function recordReviewStarted(string $taskShortId, string $agent): string
+    public function recordReviewStarted(string $taskShortId, string $agent, ?string $runId = null): string
     {
         $shortId = 'r-'.bin2hex(random_bytes(3));
         $startedAt = Carbon::now('UTC')->toIso8601String();
@@ -859,8 +883,8 @@ class DatabaseService
         $taskIntId = $this->resolveTaskId($taskShortId);
 
         $this->query(
-            'INSERT INTO reviews (short_id, task_id, agent, status, started_at) VALUES (?, ?, ?, ?, ?)',
-            [$shortId, $taskIntId, $agent, 'pending', $startedAt]
+            'INSERT INTO reviews (short_id, task_id, agent, status, started_at, run_id) VALUES (?, ?, ?, ?, ?, ?)',
+            [$shortId, $taskIntId, $agent, 'pending', $startedAt, $runId]
         );
 
         return $shortId;
