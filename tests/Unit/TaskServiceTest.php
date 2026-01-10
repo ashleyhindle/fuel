@@ -1,34 +1,37 @@
 <?php
 
+use App\Services\DatabaseService;
 use App\Services\TaskService;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->storagePath = $this->tempDir.'/.fuel/tasks.jsonl';
-    $this->taskService = new TaskService($this->storagePath);
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+    $this->dbPath = $this->tempDir.'/.fuel/agent.db';
+    $this->databaseService = new DatabaseService($this->dbPath);
+    $this->databaseService->initialize();
+    $this->taskService = new TaskService($this->databaseService);
 });
 
 afterEach(function (): void {
     // Clean up temp files
-    $fuelDir = dirname($this->storagePath);
+    $fuelDir = $this->tempDir.'/.fuel';
+    if (file_exists($this->dbPath)) {
+        unlink($this->dbPath);
+    }
+
+    // Clean up WAL and SHM files if present
+    if (file_exists($this->dbPath.'-wal')) {
+        unlink($this->dbPath.'-wal');
+    }
+    if (file_exists($this->dbPath.'-shm')) {
+        unlink($this->dbPath.'-shm');
+    }
+
+    // Clean up archive file if present
     $archivePath = $fuelDir.'/archive.jsonl';
-    if (file_exists($this->storagePath)) {
-        unlink($this->storagePath);
-    }
-
-    if (file_exists($this->storagePath.'.lock')) {
-        unlink($this->storagePath.'.lock');
-    }
-
-    if (file_exists($this->storagePath.'.tmp')) {
-        unlink($this->storagePath.'.tmp');
-    }
-
     if (file_exists($archivePath)) {
         unlink($archivePath);
     }
-
     if (file_exists($archivePath.'.tmp')) {
         unlink($archivePath.'.tmp');
     }
@@ -42,16 +45,7 @@ afterEach(function (): void {
     }
 });
 
-it('initializes storage directory and file', function (): void {
-    $this->taskService->initialize();
-
-    expect(file_exists($this->storagePath))->toBeTrue();
-    expect(is_dir(dirname($this->storagePath)))->toBeTrue();
-});
-
 it('creates a task with hash-based ID', function (): void {
-    $this->taskService->initialize();
-
     $task = $this->taskService->create(['title' => 'Test task']);
 
     expect($task['id'])->toStartWith('f-');
@@ -63,8 +57,6 @@ it('creates a task with hash-based ID', function (): void {
 });
 
 it('creates a task with default schema fields', function (): void {
-    $this->taskService->initialize();
-
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Verify all schema fields are present
@@ -79,8 +71,6 @@ it('creates a task with default schema fields', function (): void {
 });
 
 it('creates a task with custom schema fields', function (): void {
-    $this->taskService->initialize();
-
     $task = $this->taskService->create([
         'title' => 'Bug fix',
         'description' => 'Fix the critical bug',
@@ -99,8 +89,6 @@ it('creates a task with custom schema fields', function (): void {
 });
 
 it('validates task type enum', function (): void {
-    $this->taskService->initialize();
-
     // Valid types
     $validTypes = ['bug', 'feature', 'task', 'epic', 'chore', 'docs', 'test', 'refactor'];
     foreach ($validTypes as $type) {
@@ -113,8 +101,6 @@ it('validates task type enum', function (): void {
 })->throws(RuntimeException::class, 'Invalid task type');
 
 it('validates priority range', function (): void {
-    $this->taskService->initialize();
-
     // Valid priorities
     for ($priority = 0; $priority <= 4; $priority++) {
         $task = $this->taskService->create(['title' => 'Test', 'priority' => $priority]);
@@ -126,26 +112,18 @@ it('validates priority range', function (): void {
 })->throws(RuntimeException::class, 'Invalid priority');
 
 it('validates priority is integer', function (): void {
-    $this->taskService->initialize();
-
     $this->taskService->create(['title' => 'Test', 'priority' => 'high']);
 })->throws(RuntimeException::class, 'Invalid priority');
 
 it('validates labels is an array', function (): void {
-    $this->taskService->initialize();
-
     $this->taskService->create(['title' => 'Test', 'labels' => 'not-an-array']);
 })->throws(RuntimeException::class, 'Labels must be an array');
 
 it('validates all labels are strings', function (): void {
-    $this->taskService->initialize();
-
     $this->taskService->create(['title' => 'Test', 'labels' => [1, 2, 3]]);
 })->throws(RuntimeException::class, 'All labels must be strings');
 
 it('validates task size enum', function (): void {
-    $this->taskService->initialize();
-
     // Valid sizes
     $validSizes = ['xs', 's', 'm', 'l', 'xl'];
     foreach ($validSizes as $size) {
@@ -158,8 +136,6 @@ it('validates task size enum', function (): void {
 })->throws(RuntimeException::class, 'Invalid task size');
 
 it('validates task complexity enum', function (): void {
-    $this->taskService->initialize();
-
     // Valid complexities
     $validComplexities = ['trivial', 'simple', 'moderate', 'complex'];
     foreach ($validComplexities as $complexity) {
@@ -172,7 +148,6 @@ it('validates task complexity enum', function (): void {
 })->throws(RuntimeException::class, 'Invalid task complexity');
 
 it('validates task status enum', function (): void {
-    $this->taskService->initialize();
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Valid statuses
@@ -187,15 +162,12 @@ it('validates task status enum', function (): void {
 })->throws(RuntimeException::class, 'Invalid status');
 
 it('defaults complexity to simple when not provided', function (): void {
-    $this->taskService->initialize();
-
     $task = $this->taskService->create(['title' => 'Test task']);
 
     expect($task['complexity'])->toBe('simple');
 });
 
 it('finds task by exact ID', function (): void {
-    $this->taskService->initialize();
     $created = $this->taskService->create(['title' => 'Test task']);
 
     $found = $this->taskService->find($created['id']);
@@ -205,7 +177,6 @@ it('finds task by exact ID', function (): void {
 });
 
 it('finds task by partial ID', function (): void {
-    $this->taskService->initialize();
     $created = $this->taskService->create(['title' => 'Test task']);
 
     // Extract just the hash part (after 'f-')
@@ -218,7 +189,6 @@ it('finds task by partial ID', function (): void {
 });
 
 it('finds task by partial ID with f- prefix', function (): void {
-    $this->taskService->initialize();
     $created = $this->taskService->create(['title' => 'Test task']);
 
     // Use partial hash with f- prefix
@@ -232,7 +202,6 @@ it('finds task by partial ID with f- prefix', function (): void {
 });
 
 it('finds task by partial ID matching full ID prefix', function (): void {
-    $this->taskService->initialize();
     $created = $this->taskService->create(['title' => 'Test task']);
 
     // Use partial ID that matches the start of the full ID
@@ -245,27 +214,15 @@ it('finds task by partial ID matching full ID prefix', function (): void {
 });
 
 it('finds old format task by partial ID with fuel- prefix', function (): void {
-    $this->taskService->initialize();
-
-    // Manually create a task with old 'fuel-' prefix format
+    // Manually create a task with old 'fuel-' prefix format via direct SQL
     $oldFormatId = 'fuel-'.substr(uniqid('', true), 0, 6);
-    $task = [
-        'id' => $oldFormatId,
-        'title' => 'Old format task',
-        'status' => 'open',
-        'description' => null,
-        'type' => 'task',
-        'priority' => 2,
-        'labels' => [],
-        'size' => 'm',
-        'complexity' => 'simple',
-        'blocked_by' => [],
-        'created_at' => now()->toIso8601String(),
-        'updated_at' => now()->toIso8601String(),
-    ];
+    $now = now()->toIso8601String();
 
-    // Write task directly to JSONL file
-    file_put_contents($this->storagePath, json_encode($task)."\n", FILE_APPEND);
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status, type, priority, size, complexity, labels, blocked_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$oldFormatId, 'Old format task', 'open', 'task', 2, 'm', 'simple', '[]', '[]', $now, $now]
+    );
 
     // Try to find using partial ID with fuel- prefix
     $hashPart = substr($oldFormatId, 5, 3); // First 3 chars of hash
@@ -278,27 +235,15 @@ it('finds old format task by partial ID with fuel- prefix', function (): void {
 });
 
 it('finds old format task by partial hash only', function (): void {
-    $this->taskService->initialize();
-
-    // Manually create a task with old 'fuel-' prefix format
+    // Manually create a task with old 'fuel-' prefix format via direct SQL
     $oldFormatId = 'fuel-'.substr(uniqid('', true), 0, 6);
-    $task = [
-        'id' => $oldFormatId,
-        'title' => 'Old format task',
-        'status' => 'open',
-        'description' => null,
-        'type' => 'task',
-        'priority' => 2,
-        'labels' => [],
-        'size' => 'm',
-        'complexity' => 'simple',
-        'blocked_by' => [],
-        'created_at' => now()->toIso8601String(),
-        'updated_at' => now()->toIso8601String(),
-    ];
+    $now = now()->toIso8601String();
 
-    // Write task directly to JSONL file
-    file_put_contents($this->storagePath, json_encode($task)."\n", FILE_APPEND);
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status, type, priority, size, complexity, labels, blocked_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$oldFormatId, 'Old format task', 'open', 'task', 2, 'm', 'simple', '[]', '[]', $now, $now]
+    );
 
     // Try to find using just the hash part
     $hashPart = substr($oldFormatId, 5, 3); // First 3 chars of hash
@@ -310,7 +255,6 @@ it('finds old format task by partial hash only', function (): void {
 });
 
 it('throws exception for ambiguous partial ID', function (): void {
-    $this->taskService->initialize();
     $this->taskService->create(['title' => 'Task 1']);
     $this->taskService->create(['title' => 'Task 2']);
 
@@ -319,15 +263,12 @@ it('throws exception for ambiguous partial ID', function (): void {
 })->throws(RuntimeException::class, 'Ambiguous task ID');
 
 it('returns null for non-existent task', function (): void {
-    $this->taskService->initialize();
-
     $found = $this->taskService->find('nonexistent');
 
     expect($found)->toBeNull();
 });
 
 it('marks task as done', function (): void {
-    $this->taskService->initialize();
     $created = $this->taskService->create(['title' => 'Test task']);
 
     $done = $this->taskService->done($created['id']);
@@ -341,13 +282,10 @@ it('marks task as done', function (): void {
 });
 
 it('throws exception when marking non-existent task as done', function (): void {
-    $this->taskService->initialize();
-
     $this->taskService->done('nonexistent');
 })->throws(RuntimeException::class, "Task 'nonexistent' not found");
 
 it('returns only open tasks from ready()', function (): void {
-    $this->taskService->initialize();
     $this->taskService->create(['title' => 'Open task']);
 
     $closed = $this->taskService->create(['title' => 'To be closed']);
@@ -360,8 +298,6 @@ it('returns only open tasks from ready()', function (): void {
 });
 
 it('generates unique IDs', function (): void {
-    $this->taskService->initialize();
-
     $ids = [];
     for ($i = 0; $i < 10; $i++) {
         $task = $this->taskService->create(['title' => 'Task '.$i]);
@@ -372,8 +308,6 @@ it('generates unique IDs', function (): void {
 });
 
 it('generates unique IDs with collision detection', function (): void {
-    $this->taskService->initialize();
-
     // Create many tasks to exercise collision detection
     $ids = [];
     for ($i = 0; $i < 100; $i++) {
@@ -386,8 +320,6 @@ it('generates unique IDs with collision detection', function (): void {
 });
 
 it('generateId works when called directly without parameters', function (): void {
-    $this->taskService->initialize();
-
     // Should work without parameters (backward compatibility)
     $id = $this->taskService->generateId();
 
@@ -395,54 +327,17 @@ it('generateId works when called directly without parameters', function (): void
     expect(strlen((string) $id))->toBe(8); // f- + 6 chars
 });
 
-it('sorts tasks by ID when writing', function (): void {
-    $this->taskService->initialize();
-
-    // Create multiple tasks
-    $this->taskService->create(['title' => 'Task 1']);
-    $this->taskService->create(['title' => 'Task 2']);
-    $this->taskService->create(['title' => 'Task 3']);
-
-    // Read file directly and check sorting
-    $content = file_get_contents($this->storagePath);
-    $lines = array_filter(explode("\n", trim($content)));
-
-    $ids = array_map(function ($line) {
-        $task = json_decode($line, true);
-
-        return $task['id'];
-    }, $lines);
-
-    $sortedIds = $ids;
-    sort($sortedIds);
-
-    expect($ids)->toBe($sortedIds);
-});
-
 it('throws exception when creating task without title', function (): void {
-    $this->taskService->initialize();
-
     $this->taskService->create([]);
 })->throws(RuntimeException::class, 'Task title is required');
 
-it('can set custom storage path', function (): void {
-    $customPath = $this->tempDir.'/custom/path/tasks.jsonl';
-    $this->taskService->setStoragePath($customPath);
-
-    expect($this->taskService->getStoragePath())->toBe($customPath);
-});
-
 it('returns empty collection when no tasks exist', function (): void {
-    $this->taskService->initialize();
-
     $tasks = $this->taskService->all();
 
     expect($tasks)->toBeEmpty();
 });
 
 it('returns empty collection from ready() when no open tasks', function (): void {
-    $this->taskService->initialize();
-
     $ready = $this->taskService->ready();
 
     expect($ready)->toBeEmpty();
@@ -453,15 +348,12 @@ it('returns empty collection from ready() when no open tasks', function (): void
 // =============================================================================
 
 it('creates task with empty blocked_by array by default', function (): void {
-    $this->taskService->initialize();
-
     $task = $this->taskService->create(['title' => 'Task with no deps']);
 
     expect($task['blocked_by'] ?? [])->toBeEmpty();
 });
 
 it('adds blocker to blocked_by array', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -473,7 +365,6 @@ it('adds blocker to blocked_by array', function (): void {
 });
 
 it('removes a dependency between tasks', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -485,21 +376,18 @@ it('removes a dependency between tasks', function (): void {
 });
 
 it('throws exception when adding dependency to non-existent task', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
     $this->taskService->addDependency('nonexistent', $blocker['id']);
 })->throws(RuntimeException::class, 'not found');
 
 it('throws exception when adding dependency on non-existent task', function (): void {
-    $this->taskService->initialize();
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
     $this->taskService->addDependency($blocked['id'], 'nonexistent');
 })->throws(RuntimeException::class, 'not found');
 
 it('throws exception when removing non-existent dependency', function (): void {
-    $this->taskService->initialize();
     $task1 = $this->taskService->create(['title' => 'Task 1']);
     $task2 = $this->taskService->create(['title' => 'Task 2']);
 
@@ -512,7 +400,6 @@ it('throws exception when removing non-existent dependency', function (): void {
 // =============================================================================
 
 it('detects simple cycle (A depends on B, B depends on A)', function (): void {
-    $this->taskService->initialize();
     $taskA = $this->taskService->create(['title' => 'Task A']);
     $taskB = $this->taskService->create(['title' => 'Task B']);
 
@@ -524,7 +411,6 @@ it('detects simple cycle (A depends on B, B depends on A)', function (): void {
 })->throws(RuntimeException::class, 'Circular dependency detected');
 
 it('detects complex cycle (A->B->C->A)', function (): void {
-    $this->taskService->initialize();
     $taskA = $this->taskService->create(['title' => 'Task A']);
     $taskB = $this->taskService->create(['title' => 'Task B']);
     $taskC = $this->taskService->create(['title' => 'Task C']);
@@ -539,7 +425,6 @@ it('detects complex cycle (A->B->C->A)', function (): void {
 })->throws(RuntimeException::class, 'Circular dependency detected');
 
 it('allows valid non-cyclic dependencies', function (): void {
-    $this->taskService->initialize();
     $taskA = $this->taskService->create(['title' => 'Task A']);
     $taskB = $this->taskService->create(['title' => 'Task B']);
     $taskC = $this->taskService->create(['title' => 'Task C']);
@@ -563,7 +448,6 @@ it('allows valid non-cyclic dependencies', function (): void {
 // =============================================================================
 
 it('excludes blocked tasks from ready()', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -578,7 +462,6 @@ it('excludes blocked tasks from ready()', function (): void {
 });
 
 it('includes tasks when blocker is closed', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -596,7 +479,6 @@ it('includes tasks when blocker is closed', function (): void {
 });
 
 it('returns task with no blockers in ready()', function (): void {
-    $this->taskService->initialize();
     $task = $this->taskService->create(['title' => 'Independent task']);
 
     $ready = $this->taskService->ready();
@@ -606,7 +488,6 @@ it('returns task with no blockers in ready()', function (): void {
 });
 
 it('excludes tasks with needs-human label from ready()', function (): void {
-    $this->taskService->initialize();
     $normalTask = $this->taskService->create(['title' => 'Normal task']);
     $needsHumanTask = $this->taskService->create([
         'title' => 'Needs human task',
@@ -631,7 +512,6 @@ it('excludes tasks with needs-human label from ready()', function (): void {
 // =============================================================================
 
 it('returns only blocked tasks from blocked()', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
     $unblocked = $this->taskService->create(['title' => 'Unblocked task']);
@@ -647,7 +527,6 @@ it('returns only blocked tasks from blocked()', function (): void {
 });
 
 it('excludes tasks when blocker is closed from blocked()', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -664,7 +543,6 @@ it('excludes tasks when blocker is closed from blocked()', function (): void {
 });
 
 it('returns empty collection from blocked() when no blocked tasks', function (): void {
-    $this->taskService->initialize();
     $this->taskService->create(['title' => 'Unblocked task']);
 
     $blockedTasks = $this->taskService->blocked();
@@ -673,7 +551,6 @@ it('returns empty collection from blocked() when no blocked tasks', function ():
 });
 
 it('excludes in_progress tasks from blocked()', function (): void {
-    $this->taskService->initialize();
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -694,7 +571,6 @@ it('excludes in_progress tasks from blocked()', function (): void {
 // =============================================================================
 
 it('returns open blockers for a task', function (): void {
-    $this->taskService->initialize();
     $blocker1 = $this->taskService->create(['title' => 'Blocker 1']);
     $blocker2 = $this->taskService->create(['title' => 'Blocker 2']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
@@ -714,7 +590,6 @@ it('returns open blockers for a task', function (): void {
 });
 
 it('returns empty collection when no blockers', function (): void {
-    $this->taskService->initialize();
     $task = $this->taskService->create(['title' => 'Independent task']);
 
     $blockers = $this->taskService->getBlockers($task['id']);
@@ -727,7 +602,6 @@ it('returns empty collection when no blockers', function (): void {
 // =============================================================================
 
 it('preserves complexity when updating task without providing complexity', function (): void {
-    $this->taskService->initialize();
     $task = $this->taskService->create([
         'title' => 'Test task',
         'complexity' => 'moderate',
@@ -747,7 +621,6 @@ it('preserves complexity when updating task without providing complexity', funct
 });
 
 it('preserves arbitrary fields when updating a task', function (): void {
-    $this->taskService->initialize();
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Update with arbitrary fields (like consume command does)
@@ -775,8 +648,6 @@ it('preserves arbitrary fields when updating a task', function (): void {
 // =============================================================================
 
 it('archives closed tasks older than specified days', function (): void {
-    $this->taskService->initialize();
-
     // Create a closed task from 35 days ago
     $oldTask = $this->taskService->create(['title' => 'Old closed task']);
     $this->taskService->done($oldTask['id']);
@@ -799,17 +670,17 @@ it('archives closed tasks older than specified days', function (): void {
     expect($result['archived'])->toBe(1);
     expect($result['archived_tasks'][0]['id'])->toBe($oldTask['id']);
 
-    // Verify old task is removed from main file
+    // Verify old task is removed from main table
     expect($this->taskService->find($oldTask['id']))->toBeNull();
 
-    // Verify recent task is still in main file
+    // Verify recent task is still in main table
     expect($this->taskService->find($recentTask['id']))->not->toBeNull();
 
-    // Verify open task is still in main file
+    // Verify open task is still in main table
     expect($this->taskService->find($openTask['id']))->not->toBeNull();
 
     // Verify archive file exists and contains the old task
-    $archivePath = dirname($this->storagePath).'/archive.jsonl';
+    $archivePath = $this->taskService->getArchivePath();
     expect(file_exists($archivePath))->toBeTrue();
     $archiveContent = file_get_contents($archivePath);
     expect($archiveContent)->toContain($oldTask['id']);
@@ -817,8 +688,6 @@ it('archives closed tasks older than specified days', function (): void {
 });
 
 it('archives all closed tasks when --all flag is used', function (): void {
-    $this->taskService->initialize();
-
     // Create closed tasks with different ages
     $task1 = $this->taskService->create(['title' => 'Closed task 1']);
     $this->taskService->done($task1['id']);
@@ -837,17 +706,15 @@ it('archives all closed tasks when --all flag is used', function (): void {
     expect($result['archived'])->toBe(2);
     expect($result['archived_tasks'])->toHaveCount(2);
 
-    // Verify closed tasks are removed from main file
+    // Verify closed tasks are removed from main table
     expect($this->taskService->find($task1['id']))->toBeNull();
     expect($this->taskService->find($task2['id']))->toBeNull();
 
-    // Verify open task is still in main file
+    // Verify open task is still in main table
     expect($this->taskService->find($openTask['id']))->not->toBeNull();
 });
 
 it('returns empty result when no tasks to archive', function (): void {
-    $this->taskService->initialize();
-
     // Create only open tasks
     $this->taskService->create(['title' => 'Open task 1']);
     $this->taskService->create(['title' => 'Open task 2']);
@@ -859,8 +726,6 @@ it('returns empty result when no tasks to archive', function (): void {
 });
 
 it('does not archive tasks that are not closed', function (): void {
-    $this->taskService->initialize();
-
     // Create tasks in different states
     $openTask = $this->taskService->create(['title' => 'Open task']);
     $inProgressTask = $this->taskService->create(['title' => 'In progress task']);
@@ -883,8 +748,6 @@ it('does not archive tasks that are not closed', function (): void {
 });
 
 it('appends to existing archive file without duplicates', function (): void {
-    $this->taskService->initialize();
-
     // Create and archive first task
     $task1 = $this->taskService->create(['title' => 'Task 1']);
     $this->taskService->done($task1['id']);
@@ -901,8 +764,67 @@ it('appends to existing archive file without duplicates', function (): void {
     expect($result['archived'])->toBe(1);
 
     // Verify both tasks are in archive
-    $archivePath = dirname($this->storagePath).'/archive.jsonl';
+    $archivePath = $this->taskService->getArchivePath();
     $archiveContent = file_get_contents($archivePath);
     expect($archiveContent)->toContain($task1['id']);
     expect($archiveContent)->toContain($task2['id']);
+});
+
+// =============================================================================
+// Delete Method Tests
+// =============================================================================
+
+it('deletes a task', function (): void {
+    $task = $this->taskService->create(['title' => 'Task to delete']);
+
+    $deleted = $this->taskService->delete($task['id']);
+
+    expect($deleted['id'])->toBe($task['id']);
+    expect($this->taskService->find($task['id']))->toBeNull();
+});
+
+it('throws exception when deleting non-existent task', function (): void {
+    $this->taskService->delete('nonexistent');
+})->throws(RuntimeException::class, "Task 'nonexistent' not found");
+
+// =============================================================================
+// Consume Fields Persistence Tests
+// =============================================================================
+
+it('persists consume_pid field correctly', function (): void {
+    $task = $this->taskService->create(['title' => 'Task with PID']);
+
+    $updated = $this->taskService->update($task['id'], [
+        'consume_pid' => 12345,
+    ]);
+
+    expect($updated['consume_pid'])->toBe(12345);
+
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['consume_pid'])->toBe(12345);
+});
+
+it('persists all consume fields together', function (): void {
+    $task = $this->taskService->create(['title' => 'Task with consume fields']);
+
+    $updated = $this->taskService->update($task['id'], [
+        'consumed' => true,
+        'consumed_at' => '2026-01-10T10:00:00+00:00',
+        'consumed_exit_code' => 0,
+        'consumed_output' => 'Success output',
+        'consume_pid' => 99999,
+    ]);
+
+    expect($updated['consumed'])->toBeTrue();
+    expect($updated['consumed_at'])->toBe('2026-01-10T10:00:00+00:00');
+    expect($updated['consumed_exit_code'])->toBe(0);
+    expect($updated['consumed_output'])->toBe('Success output');
+    expect($updated['consume_pid'])->toBe(99999);
+
+    $reloaded = $this->taskService->find($task['id']);
+    expect($reloaded['consumed'])->toBeTrue();
+    expect($reloaded['consumed_at'])->toBe('2026-01-10T10:00:00+00:00');
+    expect($reloaded['consumed_exit_code'])->toBe(0);
+    expect($reloaded['consumed_output'])->toBe('Success output');
+    expect($reloaded['consume_pid'])->toBe(99999);
 });
