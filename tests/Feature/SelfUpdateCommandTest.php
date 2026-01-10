@@ -11,7 +11,7 @@ beforeEach(function (): void {
     $this->targetPath = $this->targetDir.'/fuel';
 
     // Set HOME environment variable for testing
-    putenv('HOME=' . $this->homeDir);
+    putenv('HOME='.$this->homeDir);
     $_SERVER['HOME'] = $this->homeDir;
 });
 
@@ -391,7 +391,7 @@ describe('File operations', function (): void {
         try {
             // Set HOME
             $_SERVER['HOME'] = $this->homeDir;
-            putenv('HOME=' . $this->homeDir);
+            putenv('HOME='.$this->homeDir);
 
             $result = $method->invoke($command);
             expect($result)->toBe($this->homeDir);
@@ -404,7 +404,7 @@ describe('File operations', function (): void {
             }
 
             if ($originalEnvHome !== false) {
-                putenv('HOME=' . $originalEnvHome);
+                putenv('HOME='.$originalEnvHome);
             } else {
                 putenv('HOME');
             }
@@ -434,7 +434,7 @@ describe('File operations', function (): void {
             }
 
             if ($originalEnvHome !== false) {
-                putenv('HOME=' . $originalEnvHome);
+                putenv('HOME='.$originalEnvHome);
             }
         }
     });

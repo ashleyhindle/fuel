@@ -74,7 +74,7 @@ class TasksCommand extends Command
 
             // Display all schema fields in a table
             $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Size', 'Labels', 'Created'];
-            $rows = $tasks->map(fn(array $t): array => [
+            $rows = $tasks->map(fn (array $t): array => [
                 $t['id'],
                 $t['title'],
                 $t['status'] ?? 'open',

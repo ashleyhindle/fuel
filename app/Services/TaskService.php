@@ -810,7 +810,7 @@ class TaskService
 
             // Remove archived tasks from main tasks file
             $archivedIds = $tasksToArchive->pluck('id')->toArray();
-            $remainingTasks = $tasks->filter(fn(array $task): bool => ! in_array($task['id'], $archivedIds, true));
+            $remainingTasks = $tasks->filter(fn (array $task): bool => ! in_array($task['id'], $archivedIds, true));
 
             $this->writeTasks($remainingTasks);
 

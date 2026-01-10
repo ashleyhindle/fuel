@@ -28,7 +28,7 @@ readonly class Process
 
     public function getDurationSeconds(): ?int
     {
-        if (!$this->startedAt instanceof \DateTimeImmutable) {
+        if (! $this->startedAt instanceof \DateTimeImmutable) {
             return null;
         }
 

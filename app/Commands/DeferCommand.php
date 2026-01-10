@@ -62,9 +62,9 @@ class DeferCommand extends Command
                     'backlog_item' => $backlogItem,
                 ]);
             } else {
-                $this->info('Deferred task: ' . $resolvedId);
-                $this->line('  Title: ' . $title);
-                $this->line('  Added to backlog: ' . $backlogItem['id']);
+                $this->info('Deferred task: '.$resolvedId);
+                $this->line('  Title: '.$title);
+                $this->line('  Added to backlog: '.$backlogItem['id']);
             }
 
             return self::SUCCESS;

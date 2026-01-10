@@ -47,7 +47,7 @@ class CompletedCommand extends Command
             $this->newLine();
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority'];
-            $rows = $tasks->map(fn(array $t): array => [
+            $rows = $tasks->map(fn (array $t): array => [
                 $t['id'],
                 $t['title'],
                 $this->formatDate($t['updated_at']),
@@ -80,21 +80,21 @@ class CompletedCommand extends Command
             if ($diff->days === 0 && $diff->h === 0) {
                 $minutes = $diff->i;
 
-                return $minutes . 'm ago';
+                return $minutes.'m ago';
             }
 
             // If less than 24 hours ago
             if ($diff->days === 0) {
                 $hours = $diff->h;
 
-                return $hours . 'h ago';
+                return $hours.'h ago';
             }
 
             // If less than 7 days ago
             if ($diff->days < 7) {
                 $days = $diff->days;
 
-                return $days . 'd ago';
+                return $days.'d ago';
             }
 
             // If same year, show "Mon Day" (e.g., "Jan 7")

@@ -62,7 +62,7 @@ class StuckCommand extends Command
                     // Indent each line of output
                     $outputLines = explode("\n", (string) $truncated);
                     foreach ($outputLines as $line) {
-                        $this->line('    ' . $line);
+                        $this->line('    '.$line);
                     }
                 }
 

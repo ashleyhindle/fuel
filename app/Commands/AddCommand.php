@@ -52,8 +52,8 @@ class AddCommand extends Command
             if ($this->option('json')) {
                 $this->outputJson($item);
             } else {
-                $this->info('Added to backlog: ' . $item['id']);
-                $this->line('  Title: ' . $item['title']);
+                $this->info('Added to backlog: '.$item['id']);
+                $this->line('  Title: '.$item['title']);
             }
 
             return self::SUCCESS;
@@ -117,13 +117,13 @@ class AddCommand extends Command
         if ($this->option('json')) {
             $this->outputJson($task);
         } else {
-            $this->info('Created task: ' . $task['id']);
-            $this->line('  Title: ' . $task['title']);
+            $this->info('Created task: '.$task['id']);
+            $this->line('  Title: '.$task['title']);
 
             if (! empty($task['blocked_by'])) {
                 $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
                 if ($blockerIds !== '') {
-                    $this->line('  Blocked by: ' . $blockerIds);
+                    $this->line('  Blocked by: '.$blockerIds);
                 }
             }
         }

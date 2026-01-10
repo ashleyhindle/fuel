@@ -72,8 +72,8 @@ class RetryCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Retried task: ' . $task['id']);
-                $this->line('  Title: ' . $task['title']);
+                $this->info('Retried task: '.$task['id']);
+                $this->line('  Title: '.$task['title']);
             }
         }
 
@@ -118,7 +118,7 @@ class RetryCommand extends Command
     {
         $exitCode = $task['consumed_exit_code'] ?? null;
         if ($exitCode !== null && $exitCode !== 0) {
-            return 'exit code ' . $exitCode;
+            return 'exit code '.$exitCode;
         }
 
         if (($task['status'] ?? '') === 'in_progress' && ! empty($task['consumed']) && ($task['consume_pid'] ?? null) === null) {

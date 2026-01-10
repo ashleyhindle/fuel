@@ -54,8 +54,9 @@ class RemoveCommand extends Command
                 $title = $item['title'] ?? '';
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
+                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
+
                     return self::SUCCESS;
                 }
 
@@ -69,8 +70,8 @@ class RemoveCommand extends Command
                         'deleted' => $deletedItem,
                     ]);
                 } else {
-                    $this->info('Deleted backlog item: ' . $resolvedId);
-                    $this->line('  Title: ' . $title);
+                    $this->info('Deleted backlog item: '.$resolvedId);
+                    $this->line('  Title: '.$title);
                 }
 
                 return self::SUCCESS;
@@ -92,8 +93,9 @@ class RemoveCommand extends Command
                 }
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
+                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
+
                     return self::SUCCESS;
                 }
 
@@ -107,8 +109,8 @@ class RemoveCommand extends Command
                         'deleted' => $deletedTask,
                     ]);
                 } else {
-                    $this->info('Deleted task: ' . $resolvedId);
-                    $this->line('  Title: ' . $title);
+                    $this->info('Deleted task: '.$resolvedId);
+                    $this->line('  Title: '.$title);
                 }
 
                 return self::SUCCESS;
@@ -128,8 +130,9 @@ class RemoveCommand extends Command
                 $title = $backlogItem['title'] ?? '';
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
+                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete backlog item '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
+
                     return self::SUCCESS;
                 }
 
@@ -143,8 +146,8 @@ class RemoveCommand extends Command
                         'deleted' => $deletedItem,
                     ]);
                 } else {
-                    $this->info('Deleted backlog item: ' . $resolvedId);
-                    $this->line('  Title: ' . $title);
+                    $this->info('Deleted backlog item: '.$resolvedId);
+                    $this->line('  Title: '.$title);
                 }
 
                 return self::SUCCESS;
@@ -160,8 +163,9 @@ class RemoveCommand extends Command
                 }
 
                 // Confirm deletion unless --force is set
-                if (! $this->option('force') && !$this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
+                if (! $this->option('force') && ! $this->option('json') && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
                     $this->line('Deletion cancelled.');
+
                     return self::SUCCESS;
                 }
 
@@ -175,8 +179,8 @@ class RemoveCommand extends Command
                         'deleted' => $deletedTask,
                     ]);
                 } else {
-                    $this->info('Deleted task: ' . $resolvedId);
-                    $this->line('  Title: ' . $title);
+                    $this->info('Deleted task: '.$resolvedId);
+                    $this->line('  Title: '.$title);
                 }
 
                 return self::SUCCESS;

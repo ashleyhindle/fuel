@@ -56,14 +56,14 @@ class DoneCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Completed task: ' . $task['id']);
-                $this->line('  Title: ' . $task['title']);
+                $this->info('Completed task: '.$task['id']);
+                $this->line('  Title: '.$task['title']);
                 if (isset($task['reason'])) {
-                    $this->line('  Reason: ' . $task['reason']);
+                    $this->line('  Reason: '.$task['reason']);
                 }
 
                 if (isset($task['commit_hash'])) {
-                    $this->line('  Commit: ' . $task['commit_hash']);
+                    $this->line('  Commit: '.$task['commit_hash']);
                 }
             }
         }

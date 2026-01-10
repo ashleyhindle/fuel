@@ -105,12 +105,12 @@ class PromoteCommand extends Command
                 $this->outputJson($task);
             } else {
                 $this->info(sprintf('Promoted backlog item %s to task: %s', $resolvedId, $task['id']));
-                $this->line('  Title: ' . $task['title']);
+                $this->line('  Title: '.$task['title']);
 
                 if (! empty($task['blocked_by'])) {
                     $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
                     if ($blockerIds !== '') {
-                        $this->line('  Blocked by: ' . $blockerIds);
+                        $this->line('  Blocked by: '.$blockerIds);
                     }
                 }
             }

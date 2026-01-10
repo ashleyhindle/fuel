@@ -222,7 +222,7 @@ it('generates unique IDs', function (): void {
 
     $ids = [];
     for ($i = 0; $i < 10; $i++) {
-        $item = $this->backlogService->add('Item ' . $i);
+        $item = $this->backlogService->add('Item '.$i);
         $ids[] = $item['id'];
     }
 
@@ -235,7 +235,7 @@ it('generates unique IDs with collision detection', function (): void {
     // Create many items to exercise collision detection
     $ids = [];
     for ($i = 0; $i < 100; $i++) {
-        $item = $this->backlogService->add('Item ' . $i);
+        $item = $this->backlogService->add('Item '.$i);
         $ids[] = $item['id'];
     }
 

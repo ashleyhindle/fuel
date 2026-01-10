@@ -93,7 +93,7 @@ class ResumeSessionCommand extends Command
 
             // Try to determine the agent type for resume
             $agent = Agent::fromAgentName($agentName, $command);
-            if (!$agent instanceof Agent) {
+            if (! $agent instanceof Agent) {
                 return $this->outputError(
                     sprintf("Unknown agent '%s' for run '%s'. ", $agentName, $run['run_id']).
                     'Cannot determine resume command format.'
@@ -108,13 +108,13 @@ class ResumeSessionCommand extends Command
             if (! $this->option('json')) {
                 $this->info(sprintf('Resuming session for task %s, run %s', $taskId, $run['run_id']));
                 $this->line(sprintf('Agent: %s (%s)', $agent->label(), $agentName));
-                $this->line('Session: ' . $sessionId);
+                $this->line('Session: '.$sessionId);
                 if ($prompt !== null && $prompt !== '') {
-                    $this->line('Prompt: ' . $prompt);
+                    $this->line('Prompt: '.$prompt);
                 }
 
                 $this->newLine();
-                $this->line('Executing: ' . $resumeCommand);
+                $this->line('Executing: '.$resumeCommand);
                 $this->newLine();
             }
 
@@ -127,7 +127,7 @@ class ResumeSessionCommand extends Command
             // This ensures the agent inherits the TTY properly
             if ($prompt === null || $prompt === '') {
                 $binary = $agent->binary();
-                $binaryPath = trim((string) shell_exec('which ' . $binary));
+                $binaryPath = trim((string) shell_exec('which '.$binary));
 
                 if ($binaryPath === '') {
                     return $this->outputError(sprintf("Could not find '%s' in PATH", $binary));

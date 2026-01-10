@@ -1,12 +1,12 @@
 <?php
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
-use Symfony\Component\Yaml\Yaml;
 use App\Services\BacklogService;
 use App\Services\RunService;
 use App\Services\TaskService;
+use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
@@ -14,13 +14,13 @@ beforeEach(function (): void {
     $this->storagePath = $this->tempDir.'/.fuel/tasks.jsonl';
 
     // Bind our test TaskService instance
-    $this->app->singleton(TaskService::class, fn(): TaskService => new TaskService($this->storagePath));
+    $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($this->storagePath));
 
     // Bind our test RunService instance
-    $this->app->singleton(RunService::class, fn(): RunService => new RunService($this->tempDir.'/.fuel/runs'));
+    $this->app->singleton(RunService::class, fn (): RunService => new RunService($this->tempDir.'/.fuel/runs'));
 
     // Bind our test BacklogService instance
-    $this->app->singleton(BacklogService::class, fn(): BacklogService => new BacklogService($this->tempDir.'/.fuel/backlog.jsonl'));
+    $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($this->tempDir.'/.fuel/backlog.jsonl'));
 
     $this->taskService = $this->app->make(TaskService::class);
 });
@@ -1100,7 +1100,7 @@ describe('done command', function (): void {
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Completed task:')
-            ->expectsOutputToContain('Commit: ' . $commitHash)
+            ->expectsOutputToContain('Commit: '.$commitHash)
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task['id']);
@@ -1151,7 +1151,7 @@ describe('done command', function (): void {
         ])
             ->expectsOutputToContain('Completed task:')
             ->expectsOutputToContain('Reason: Fixed the bug')
-            ->expectsOutputToContain('Commit: ' . $commitHash)
+            ->expectsOutputToContain('Commit: '.$commitHash)
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task['id']);
@@ -2152,7 +2152,7 @@ describe('board command', function (): void {
 
         // Create and close 12 tasks
         for ($i = 1; $i <= 12; $i++) {
-            $task = $this->taskService->create(['title' => 'Done task ' . $i]);
+            $task = $this->taskService->create(['title' => 'Done task '.$i]);
             $this->taskService->done($task['id']);
         }
 
@@ -2846,7 +2846,7 @@ describe('q command', function (): void {
             ->andThrow(new \RuntimeException('Failed to create task'));
 
         // Bind the mock to the service container
-        $this->app->singleton(TaskService::class, fn() => $mockTaskService);
+        $this->app->singleton(TaskService::class, fn () => $mockTaskService);
 
         $exitCode = Artisan::call('q', ['title' => 'Test task', '--cwd' => $this->tempDir]);
         $output = trim(Artisan::output());
@@ -3059,7 +3059,7 @@ describe('completed command', function (): void {
             for ($i = 1; $i <= 5; $i++) {
                 // Set time for this task (each task gets a different timestamp)
                 Carbon::setTestNow($baseTime->copy()->addSeconds($i));
-                $task = $this->taskService->create(['title' => 'Task ' . $i]);
+                $task = $this->taskService->create(['title' => 'Task '.$i]);
                 $taskIds[] = $task['id'];
                 // Increment time slightly for done() call to ensure updated_at differs
                 Carbon::setTestNow($baseTime->copy()->addSeconds($i)->addMilliseconds(100));

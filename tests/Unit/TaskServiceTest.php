@@ -349,7 +349,7 @@ it('generates unique IDs', function (): void {
 
     $ids = [];
     for ($i = 0; $i < 10; $i++) {
-        $task = $this->taskService->create(['title' => 'Task ' . $i]);
+        $task = $this->taskService->create(['title' => 'Task '.$i]);
         $ids[] = $task['id'];
     }
 
@@ -362,7 +362,7 @@ it('generates unique IDs with collision detection', function (): void {
     // Create many tasks to exercise collision detection
     $ids = [];
     for ($i = 0; $i < 100; $i++) {
-        $task = $this->taskService->create(['title' => 'Task ' . $i]);
+        $task = $this->taskService->create(['title' => 'Task '.$i]);
         $ids[] = $task['id'];
     }
 

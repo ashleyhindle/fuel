@@ -134,26 +134,26 @@ class RunsCommand extends Command
      */
     private function displayRunDetails(array $run, bool $showOutput = false): void
     {
-        $this->line('  Run ID: ' . $run['run_id']);
+        $this->line('  Run ID: '.$run['run_id']);
 
         if (isset($run['agent']) && $run['agent'] !== null) {
-            $this->line('  Agent: ' . $run['agent']);
+            $this->line('  Agent: '.$run['agent']);
         }
 
         if (isset($run['model']) && $run['model'] !== null) {
-            $this->line('  Model: ' . $run['model']);
+            $this->line('  Model: '.$run['model']);
         }
 
         if (isset($run['started_at']) && $run['started_at'] !== null) {
-            $this->line('  Started: ' . $this->formatDateTime($run['started_at']));
+            $this->line('  Started: '.$this->formatDateTime($run['started_at']));
         }
 
         if (isset($run['ended_at']) && $run['ended_at'] !== null) {
-            $this->line('  Ended: ' . $this->formatDateTime($run['ended_at']));
+            $this->line('  Ended: '.$this->formatDateTime($run['ended_at']));
         }
 
         if (isset($run['duration']) && $run['duration'] !== '') {
-            $this->line('  Duration: ' . $run['duration']);
+            $this->line('  Duration: '.$run['duration']);
         }
 
         if (isset($run['exit_code']) && $run['exit_code'] !== null) {
@@ -166,12 +166,12 @@ class RunsCommand extends Command
         }
 
         if (isset($run['session_id']) && $run['session_id'] !== null) {
-            $this->line('  Session: ' . $run['session_id']);
+            $this->line('  Session: '.$run['session_id']);
 
             $agent = Agent::fromString($run['agent'] ?? null);
             if ($agent instanceof Agent) {
                 $this->newLine();
-                $this->line('  <fg=green>Resume:</> ' . $agent->resumeCommand($run['session_id']));
+                $this->line('  <fg=green>Resume:</> '.$agent->resumeCommand($run['session_id']));
             }
         }
 
@@ -181,7 +181,7 @@ class RunsCommand extends Command
             // Indent each line of output
             $outputLines = explode("\n", (string) $run['output']);
             foreach ($outputLines as $line) {
-                $this->line('  ' . $line);
+                $this->line('  '.$line);
             }
         }
     }

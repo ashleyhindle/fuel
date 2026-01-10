@@ -53,7 +53,7 @@ class HumanCommand extends Command
             foreach ($humanTasks as $task) {
                 $this->line(sprintf('<info>%s</info> - %s', $task['id'], $task['title']));
                 if (! empty($task['description'] ?? null)) {
-                    $this->line('  ' . $task['description']);
+                    $this->line('  '.$task['description']);
                 }
 
                 $this->newLine();
