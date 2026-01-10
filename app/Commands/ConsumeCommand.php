@@ -341,9 +341,14 @@ If you need human input (credentials, decisions, file permissions):
 == CLOSING PROTOCOL ==
 Before exiting, you MUST:
 1. If you changed code: run tests and linter/formatter
-2. git add <files> && git commit -m "feat/fix: description"
-3. ./fuel done {$taskId}
-4. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
+2. Run `git status` to see modified files
+3. Run `git add <files>` for each file YOU modified (not files from other agents)
+4. VERIFY: `git diff --cached --stat` shows all YOUR changes are staged
+5. git commit -m "feat/fix: description"
+6. ./fuel done {$taskId} --commit=<hash>
+7. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
+
+CRITICAL: If you skip git add, your work will be lost. Verify YOUR files are staged before commit.
 
 == CONTEXT ==
 Working directory: {$cwd}
