@@ -11,3 +11,4 @@
 # Planning docs
 fuel-orchestrator-v2*.md
 handoff.md
+.fuel/processes/
