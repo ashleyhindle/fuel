@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Carbon\Carbon;
-use Closure;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -19,27 +18,25 @@ class TaskService
 
     private const VALID_STATUSES = ['open', 'in_progress', 'review', 'closed', 'cancelled'];
 
-    private string $storagePath;
-
     private string $prefix = 'f';
 
-    private int $lockRetries = 10;
+    private DatabaseService $db;
 
-    private int $lockRetryDelayMs = 100;
-
-    public function __construct(?string $storagePath = null)
+    public function __construct(DatabaseService $db)
     {
-        $this->storagePath = $storagePath ?? getcwd().'/.fuel/tasks.jsonl';
+        $this->db = $db;
     }
 
     /**
-     * Load all tasks from JSONL file (with shared lock for safe concurrent reads).
+     * Load all tasks from SQLite.
      *
      * @return Collection<int, array<string, mixed>>
      */
     public function all(): Collection
     {
-        return $this->withSharedLock(fn (): Collection => $this->readTasks());
+        $rows = $this->db->fetchAll('SELECT * FROM tasks ORDER BY short_id');
+
+        return collect($rows)->map(fn (array $row): array => $this->rowToTask($row));
     }
 
     /**
@@ -49,34 +46,27 @@ class TaskService
      */
     public function find(string $id): ?array
     {
-        $tasks = $this->all();
-
         // Try exact match first
-        $task = $tasks->firstWhere('id', $id);
-        if ($task !== null) {
-            return $task;
+        $row = $this->db->fetchOne('SELECT * FROM tasks WHERE short_id = ?', [$id]);
+        if ($row !== null) {
+            return $this->rowToTask($row);
         }
 
         // Try partial match (prefix matching)
         // Support both old 'fuel-' prefix and new 'f-' prefix for backward compatibility
-        $matches = $tasks->filter(function (array $task) use ($id): bool {
-            $taskId = $task['id'];
-            if (! is_string($taskId)) {
-                return false;
-            }
+        $rows = $this->db->fetchAll(
+            'SELECT * FROM tasks WHERE short_id LIKE ? OR short_id LIKE ? OR short_id LIKE ?',
+            [$id.'%', $this->prefix.'-'.$id.'%', 'fuel-'.$id.'%']
+        );
 
-            return str_starts_with($taskId, $id) ||
-                   str_starts_with($taskId, $this->prefix.'-'.$id) ||
-                   str_starts_with($taskId, 'fuel-'.$id);
-        });
-
-        if ($matches->count() === 1) {
-            return $matches->first();
+        if (count($rows) === 1) {
+            return $this->rowToTask($rows[0]);
         }
 
-        if ($matches->count() > 1) {
+        if (count($rows) > 1) {
+            $ids = array_column($rows, 'short_id');
             throw new RuntimeException(
-                sprintf("Ambiguous task ID '%s'. Matches: ", $id).$matches->pluck('id')->implode(', ')
+                sprintf("Ambiguous task ID '%s'. Matches: ", $id).implode(', ', $ids)
             );
         }
 
@@ -107,63 +97,85 @@ class TaskService
      */
     public function create(array $data): array
     {
-        return $this->withExclusiveLock(function () use ($data): array {
-            $tasks = $this->readTasks();
+        // Validate type enum
+        $type = $data['type'] ?? 'task';
+        $this->validateEnum($type, self::VALID_TYPES, 'task type');
 
-            // Validate type enum
-            $type = $data['type'] ?? 'task';
-            $this->validateEnum($type, self::VALID_TYPES, 'task type');
+        // Validate priority range
+        $priority = $data['priority'] ?? 2;
+        if (! is_int($priority) || $priority < 0 || $priority > 4) {
+            throw new RuntimeException(
+                sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)
+            );
+        }
 
-            // Validate priority range
-            $priority = $data['priority'] ?? 2;
-            if (! is_int($priority) || $priority < 0 || $priority > 4) {
-                throw new RuntimeException(
-                    sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)
-                );
+        // Validate labels is an array
+        $labels = $data['labels'] ?? [];
+        if (! is_array($labels)) {
+            throw new RuntimeException('Labels must be an array of strings.');
+        }
+
+        // Ensure all labels are strings
+        foreach ($labels as $label) {
+            if (! is_string($label)) {
+                throw new RuntimeException('All labels must be strings.');
             }
+        }
 
-            // Validate labels is an array
-            $labels = $data['labels'] ?? [];
-            if (! is_array($labels)) {
-                throw new RuntimeException('Labels must be an array of strings.');
-            }
+        // Validate size enum
+        $size = $data['size'] ?? 'm';
+        $this->validateEnum($size, self::VALID_SIZES, 'task size');
 
-            // Ensure all labels are strings
-            foreach ($labels as $label) {
-                if (! is_string($label)) {
-                    throw new RuntimeException('All labels must be strings.');
-                }
-            }
+        // Validate complexity enum
+        $complexity = $data['complexity'] ?? 'simple';
+        $this->validateEnum($complexity, self::VALID_COMPLEXITIES, 'task complexity');
 
-            // Validate size enum
-            $size = $data['size'] ?? 'm';
-            $this->validateEnum($size, self::VALID_SIZES, 'task size');
+        $shortId = $this->generateId();
+        $now = now()->toIso8601String();
 
-            // Validate complexity enum
-            $complexity = $data['complexity'] ?? 'simple';
-            $this->validateEnum($complexity, self::VALID_COMPLEXITIES, 'task complexity');
+        // Look up epic integer ID if provided
+        $epicId = null;
+        if (isset($data['epic_id']) && $data['epic_id'] !== null) {
+            $epicId = $this->resolveEpicId($data['epic_id']);
+        }
 
-            $task = [
-                'id' => $this->generateId($tasks),
-                'title' => $data['title'] ?? throw new RuntimeException('Task title is required'),
-                'status' => 'open',
-                'description' => $data['description'] ?? null,
-                'type' => $type,
-                'priority' => $priority,
-                'labels' => $labels,
-                'size' => $size,
-                'complexity' => $complexity,
-                'blocked_by' => $data['blocked_by'] ?? [],
-                'epic_id' => $data['epic_id'] ?? null,
-                'created_at' => now()->toIso8601String(),
-                'updated_at' => now()->toIso8601String(),
-            ];
+        $blockedBy = $data['blocked_by'] ?? [];
 
-            $tasks->push($task);
-            $this->writeTasks($tasks);
+        $this->db->query(
+            'INSERT INTO tasks (short_id, title, description, status, type, priority, size, complexity, labels, blocked_by, epic_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $shortId,
+                $data['title'] ?? throw new RuntimeException('Task title is required'),
+                $data['description'] ?? null,
+                'open',
+                $type,
+                $priority,
+                $size,
+                $complexity,
+                json_encode($labels),
+                json_encode($blockedBy),
+                $epicId,
+                $now,
+                $now,
+            ]
+        );
 
-            return $task;
-        });
+        return [
+            'id' => $shortId,
+            'title' => $data['title'],
+            'status' => 'open',
+            'description' => $data['description'] ?? null,
+            'type' => $type,
+            'priority' => $priority,
+            'labels' => $labels,
+            'size' => $size,
+            'complexity' => $complexity,
+            'blocked_by' => $blockedBy,
+            'epic_id' => $data['epic_id'] ?? null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 
     /**
@@ -174,105 +186,142 @@ class TaskService
      */
     public function update(string $id, array $data): array
     {
-        return $this->withExclusiveLock(function () use ($id, $data): array {
-            $tasks = $this->readTasks();
-            $task = $this->findInCollection($tasks, $id);
+        $task = $this->find($id);
+        if ($task === null) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $id));
+        }
 
-            if ($task === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $id));
+        $shortId = $task['id'];
+        $updates = [];
+        $params = [];
+
+        // Update title if provided
+        if (isset($data['title'])) {
+            $updates[] = 'title = ?';
+            $params[] = $data['title'];
+            $task['title'] = $data['title'];
+        }
+
+        // Update description if provided
+        if (array_key_exists('description', $data)) {
+            $updates[] = 'description = ?';
+            $params[] = $data['description'];
+            $task['description'] = $data['description'];
+        }
+
+        // Update type if provided (with validation)
+        if (isset($data['type'])) {
+            $this->validateEnum($data['type'], self::VALID_TYPES, 'task type');
+            $updates[] = 'type = ?';
+            $params[] = $data['type'];
+            $task['type'] = $data['type'];
+        }
+
+        // Update priority if provided (with validation)
+        if (isset($data['priority'])) {
+            $priority = $data['priority'];
+            if (! is_int($priority) || $priority < 0 || $priority > 4) {
+                throw new RuntimeException(
+                    sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)
+                );
             }
+            $updates[] = 'priority = ?';
+            $params[] = $priority;
+            $task['priority'] = $priority;
+        }
 
-            // Update title if provided
-            if (isset($data['title'])) {
-                $task['title'] = $data['title'];
+        // Update status if provided (with validation)
+        if (isset($data['status'])) {
+            $this->validateEnum($data['status'], self::VALID_STATUSES, 'status');
+            $updates[] = 'status = ?';
+            $params[] = $data['status'];
+            $task['status'] = $data['status'];
+        }
+
+        // Update size if provided (with validation)
+        if (isset($data['size'])) {
+            $this->validateEnum($data['size'], self::VALID_SIZES, 'task size');
+            $updates[] = 'size = ?';
+            $params[] = $data['size'];
+            $task['size'] = $data['size'];
+        }
+
+        // Update complexity if provided (with validation)
+        if (isset($data['complexity'])) {
+            $this->validateEnum($data['complexity'], self::VALID_COMPLEXITIES, 'task complexity');
+            $updates[] = 'complexity = ?';
+            $params[] = $data['complexity'];
+            $task['complexity'] = $data['complexity'];
+        }
+
+        // Update epic_id if provided
+        if (array_key_exists('epic_id', $data)) {
+            $epicId = null;
+            if ($data['epic_id'] !== null) {
+                $epicId = $this->resolveEpicId($data['epic_id']);
             }
+            $updates[] = 'epic_id = ?';
+            $params[] = $epicId;
+            $task['epic_id'] = $data['epic_id'];
+        }
 
-            // Update description if provided
-            if (array_key_exists('description', $data)) {
-                $task['description'] = $data['description'];
-            }
+        // Handle labels updates
+        if (isset($data['add_labels']) || isset($data['remove_labels'])) {
+            $labels = $task['labels'] ?? [];
+            $labels = is_array($labels) ? $labels : [];
 
-            // Update type if provided (with validation)
-            if (isset($data['type'])) {
-                $this->validateEnum($data['type'], self::VALID_TYPES, 'task type');
-                $task['type'] = $data['type'];
-            }
-
-            // Update priority if provided (with validation)
-            if (isset($data['priority'])) {
-                $priority = $data['priority'];
-                if (! is_int($priority) || $priority < 0 || $priority > 4) {
-                    throw new RuntimeException(
-                        sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)
-                    );
-                }
-
-                $task['priority'] = $priority;
-            }
-
-            // Update status if provided (with validation)
-            if (isset($data['status'])) {
-                $this->validateEnum($data['status'], self::VALID_STATUSES, 'status');
-                $task['status'] = $data['status'];
-            }
-
-            // Update size if provided (with validation)
-            if (isset($data['size'])) {
-                $this->validateEnum($data['size'], self::VALID_SIZES, 'task size');
-                $task['size'] = $data['size'];
-            }
-
-            // Update complexity if provided (with validation)
-            if (isset($data['complexity'])) {
-                $this->validateEnum($data['complexity'], self::VALID_COMPLEXITIES, 'task complexity');
-                $task['complexity'] = $data['complexity'];
-            }
-
-            // Update epic_id if provided
-            if (array_key_exists('epic_id', $data)) {
-                $task['epic_id'] = $data['epic_id'];
-            }
-
-            // Handle labels updates
-            if (isset($data['add_labels']) || isset($data['remove_labels'])) {
-                $labels = $task['labels'] ?? [];
-                $labels = is_array($labels) ? $labels : [];
-
-                // Add labels
-                if (isset($data['add_labels']) && is_array($data['add_labels'])) {
-                    foreach ($data['add_labels'] as $label) {
-                        if (is_string($label) && ! in_array($label, $labels, true)) {
-                            $labels[] = $label;
-                        }
+            // Add labels
+            if (isset($data['add_labels']) && is_array($data['add_labels'])) {
+                foreach ($data['add_labels'] as $label) {
+                    if (is_string($label) && ! in_array($label, $labels, true)) {
+                        $labels[] = $label;
                     }
                 }
-
-                // Remove labels
-                if (isset($data['remove_labels']) && is_array($data['remove_labels'])) {
-                    $labels = array_values(array_filter($labels, fn (string $label): bool => ! in_array($label, $data['remove_labels'], true)));
-                }
-
-                $task['labels'] = $labels;
             }
 
-            // Preserve arbitrary fields not explicitly handled above (e.g., consumed, consumed_at, consumed_exit_code, consumed_output)
-            $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'complexity', 'epic_id', 'add_labels', 'remove_labels'];
-            foreach ($data as $key => $value) {
-                if (! in_array($key, $handledFields, true)) {
-                    $task[$key] = $value;
-                }
+            // Remove labels
+            if (isset($data['remove_labels']) && is_array($data['remove_labels'])) {
+                $labels = array_values(array_filter($labels, fn (string $label): bool => ! in_array($label, $data['remove_labels'], true)));
             }
 
-            // Update updated_at only if not explicitly provided (allows setting custom dates for testing/archiving)
-            if (! isset($data['updated_at'])) {
-                $task['updated_at'] = now()->toIso8601String();
+            $updates[] = 'labels = ?';
+            $params[] = json_encode($labels);
+            $task['labels'] = $labels;
+        }
+
+        // Handle arbitrary fields (e.g., consumed, consumed_at, etc.)
+        $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'complexity', 'epic_id', 'add_labels', 'remove_labels'];
+        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid'];
+
+        foreach ($data as $key => $value) {
+            if (in_array($key, $arbitraryFields, true)) {
+                $updates[] = "{$key} = ?";
+                $params[] = $value;
+                $task[$key] = $value;
             }
+        }
 
-            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
-            $this->writeTasks($tasks);
+        // Update updated_at only if not explicitly provided
+        if (! isset($data['updated_at'])) {
+            $now = now()->toIso8601String();
+            $updates[] = 'updated_at = ?';
+            $params[] = $now;
+            $task['updated_at'] = $now;
+        } else {
+            $updates[] = 'updated_at = ?';
+            $params[] = $data['updated_at'];
+            $task['updated_at'] = $data['updated_at'];
+        }
 
-            return $task;
-        });
+        if ($updates !== []) {
+            $params[] = $shortId;
+            $this->db->query(
+                'UPDATE tasks SET '.implode(', ', $updates).' WHERE short_id = ?',
+                $params
+            );
+        }
+
+        return $task;
     }
 
     /**
@@ -282,22 +331,7 @@ class TaskService
      */
     public function start(string $id): array
     {
-        return $this->withExclusiveLock(function () use ($id): array {
-            $tasks = $this->readTasks();
-            $task = $this->findInCollection($tasks, $id);
-
-            if ($task === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $id));
-            }
-
-            $task['status'] = 'in_progress';
-            $task['updated_at'] = now()->toIso8601String();
-
-            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
-            $this->writeTasks($tasks);
-
-            return $task;
-        });
+        return $this->update($id, ['status' => 'in_progress']);
     }
 
     /**
@@ -309,29 +343,15 @@ class TaskService
      */
     public function done(string $id, ?string $reason = null, ?string $commitHash = null): array
     {
-        return $this->withExclusiveLock(function () use ($id, $reason, $commitHash): array {
-            $tasks = $this->readTasks();
-            $task = $this->findInCollection($tasks, $id);
+        $data = ['status' => 'closed'];
+        if ($reason !== null) {
+            $data['reason'] = $reason;
+        }
+        if ($commitHash !== null) {
+            $data['commit_hash'] = $commitHash;
+        }
 
-            if ($task === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $id));
-            }
-
-            $task['status'] = 'closed';
-            $task['updated_at'] = now()->toIso8601String();
-            if ($reason !== null) {
-                $task['reason'] = $reason;
-            }
-
-            if ($commitHash !== null) {
-                $task['commit_hash'] = $commitHash;
-            }
-
-            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
-            $this->writeTasks($tasks);
-
-            return $task;
-        });
+        return $this->update($id, $data);
     }
 
     /**
@@ -341,79 +361,67 @@ class TaskService
      */
     public function reopen(string $id): array
     {
-        return $this->withExclusiveLock(function () use ($id): array {
-            $tasks = $this->readTasks();
-            $task = $this->findInCollection($tasks, $id);
+        $task = $this->find($id);
+        if ($task === null) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $id));
+        }
 
-            if ($task === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $id));
-            }
+        $status = $task['status'] ?? '';
+        if ($status !== 'closed' && $status !== 'in_progress') {
+            throw new RuntimeException(sprintf("Task '%s' is not closed or in_progress. Only closed or in_progress tasks can be reopened.", $id));
+        }
 
-            $status = $task['status'] ?? '';
-            if ($status !== 'closed' && $status !== 'in_progress') {
-                throw new RuntimeException(sprintf("Task '%s' is not closed or in_progress. Only closed or in_progress tasks can be reopened.", $id));
-            }
+        $shortId = $task['id'];
+        $now = now()->toIso8601String();
 
-            $task['status'] = 'open';
-            $task['updated_at'] = now()->toIso8601String();
-            // Remove reason if it exists (since task is being reopened)
-            unset($task['reason']);
-            // Clear consumed fields so task can be retried cleanly
-            unset($task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
+        $this->db->query(
+            'UPDATE tasks SET status = ?, reason = NULL, consumed = NULL, consumed_at = NULL, consumed_exit_code = NULL, consumed_output = NULL, updated_at = ? WHERE short_id = ?',
+            ['open', $now, $shortId]
+        );
 
-            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
-            $this->writeTasks($tasks);
+        $task['status'] = 'open';
+        $task['updated_at'] = $now;
+        unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
 
-            return $task;
-        });
+        return $task;
     }
 
     /**
      * Retry a failed task by moving it back to open status.
      *
-     * Accepts tasks that are:
-     * - consumed=true with non-zero exit code (explicit failure)
-     * - in_progress + consumed=true + null consume_pid (spawn failed or PID lost)
-     *
      * @return array<string, mixed>
      */
     public function retry(string $id): array
     {
-        return $this->withExclusiveLock(function () use ($id): array {
-            $tasks = $this->readTasks();
-            $task = $this->findInCollection($tasks, $id);
+        $task = $this->find($id);
+        if ($task === null) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $id));
+        }
 
-            if ($task === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $id));
-            }
+        $consumed = ! empty($task['consumed']);
+        $status = $task['status'] ?? '';
 
-            $consumed = ! empty($task['consumed']);
-            $status = $task['status'] ?? '';
+        if (! ($consumed && $status === 'in_progress')) {
+            throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
+        }
 
-            // Any consumed in_progress task can be retried (agent started but didn't complete)
-            if (! ($consumed && $status === 'in_progress')) {
-                throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
-            }
+        $shortId = $task['id'];
+        $now = now()->toIso8601String();
 
-            $task['status'] = 'open';
-            $task['updated_at'] = now()->toIso8601String();
-            // Remove reason if it exists (since task is being retried)
-            unset($task['reason']);
-            // Clear consumed fields so task can be retried cleanly
-            unset($task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output'], $task['consume_pid']);
+        $this->db->query(
+            'UPDATE tasks SET status = ?, reason = NULL, consumed = NULL, consumed_at = NULL, consumed_exit_code = NULL, consumed_output = NULL, consume_pid = NULL, updated_at = ? WHERE short_id = ?',
+            ['open', $now, $shortId]
+        );
 
-            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $task['id'] ? $task : $t);
-            $this->writeTasks($tasks);
+        $task['status'] = 'open';
+        $task['updated_at'] = $now;
+        unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output'], $task['consume_pid']);
 
-            return $task;
-        });
+        return $task;
     }
 
     /**
      * Get tasks that are ready (open with no open blockers).
-     *
-     * A task is blocked if it has a blocker ID in blocked_by that points to
-     * a task with status != 'closed'.
      *
      * @return Collection<int, array<string, mixed>>
      */
@@ -424,11 +432,6 @@ class TaskService
 
     /**
      * Get tasks that are blocked (open with unresolved dependencies).
-     *
-     * A task is blocked if it has a blocker ID in blocked_by that points to
-     * a task with status != 'closed'.
-     *
-     * This is the inverse of ready() - shows tasks that have open blockers.
      *
      * @return Collection<int, array<string, mixed>>
      */
@@ -515,13 +518,8 @@ class TaskService
     /**
      * Check if a single task is failed/stuck.
      *
-     * A task is failed if:
-     * 1. consumed=true with non-zero exit code (explicit failure)
-     * 2. in_progress + consumed=true + null consume_pid (spawn failed or PID lost)
-     * 3. in_progress + consume_pid that is dead
-     *
      * @param  array<string, mixed>  $task
-     * @param  array<int>  $excludePids  PIDs to exclude (e.g., actively tracked by current session)
+     * @param  array<int>  $excludePids  PIDs to exclude
      */
     public function isFailed(array $task, array $excludePids = []): bool
     {
@@ -543,7 +541,6 @@ class TaskService
         // Case 3: in_progress + PID that is dead
         if ($status === 'in_progress' && $pid !== null) {
             $pidInt = (int) $pid;
-            // Skip if this PID is being tracked by the caller
             if (in_array($pidInt, $excludePids, true)) {
                 return false;
             }
@@ -557,7 +554,7 @@ class TaskService
     /**
      * Find failed/stuck tasks that need retry.
      *
-     * @param  array<int>  $excludePids  PIDs to exclude (e.g., actively tracked by current session)
+     * @param  array<int>  $excludePids  PIDs to exclude
      * @return Collection<int, array<string, mixed>>
      */
     public function failed(array $excludePids = []): Collection
@@ -568,88 +565,68 @@ class TaskService
     }
 
     /**
-     * Add a dependency to a task (adds blocker to blocked_by array).
+     * Add a dependency to a task.
      *
-     * @return array<string, mixed> The updated task
-     *
-     * @throws RuntimeException If task or dependency target doesn't exist, or if adding would create a cycle
+     * @return array<string, mixed>
      */
     public function addDependency(string $taskId, string $dependsOnId): array
     {
-        return $this->withExclusiveLock(function () use ($taskId, $dependsOnId): array {
-            $tasks = $this->readTasks();
+        $tasks = $this->all();
 
-            // Find the task to add dependency to
-            $task = $this->findInCollection($tasks, $taskId);
-            if ($task === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
-            }
+        $task = $this->findInCollection($tasks, $taskId);
+        if ($task === null) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
+        }
 
-            // Validate that the dependency target exists
-            $dependsOnTask = $this->findInCollection($tasks, $dependsOnId);
-            if ($dependsOnTask === null) {
-                throw new RuntimeException(sprintf("Dependency target '%s' not found", $dependsOnId));
-            }
+        $dependsOnTask = $this->findInCollection($tasks, $dependsOnId);
+        if ($dependsOnTask === null) {
+            throw new RuntimeException(sprintf("Dependency target '%s' not found", $dependsOnId));
+        }
 
-            // Use the actual resolved IDs
-            $resolvedTaskId = $task['id'];
-            $resolvedDependsOnId = $dependsOnTask['id'];
+        $resolvedTaskId = $task['id'];
+        $resolvedDependsOnId = $dependsOnTask['id'];
 
-            // Prevent self-dependency
-            if ($resolvedTaskId === $resolvedDependsOnId) {
-                throw new RuntimeException('A task cannot depend on itself');
-            }
+        if ($resolvedTaskId === $resolvedDependsOnId) {
+            throw new RuntimeException('A task cannot depend on itself');
+        }
 
-            // Check for cycles using BFS
-            // We want to add: $resolvedTaskId depends on $resolvedDependsOnId
-            // This creates a cycle if $resolvedDependsOnId (transitively) depends on $resolvedTaskId
-            if (! $this->validateNoCycles($tasks, $resolvedTaskId, $resolvedDependsOnId)) {
-                throw new RuntimeException(
-                    'Circular dependency detected! Adding this dependency would create a cycle.'
-                );
-            }
+        if (! $this->validateNoCycles($tasks, $resolvedTaskId, $resolvedDependsOnId)) {
+            throw new RuntimeException('Circular dependency detected! Adding this dependency would create a cycle.');
+        }
 
-            // Initialize blocked_by array if not present
-            if (! isset($task['blocked_by'])) {
-                $task['blocked_by'] = [];
-            }
+        $blockedBy = $task['blocked_by'] ?? [];
+        if (! is_array($blockedBy)) {
+            $blockedBy = [];
+        }
 
-            // Ensure blocked_by is an array
-            if (! is_array($task['blocked_by'])) {
-                $task['blocked_by'] = [];
-            }
-
-            // Check if dependency already exists
-            if (in_array($resolvedDependsOnId, $task['blocked_by'], true)) {
-                // Dependency already exists, just return the task
-                return $task;
-            }
-
-            // Add the blocker ID to blocked_by array
-            $task['blocked_by'][] = $resolvedDependsOnId;
-            $task['updated_at'] = now()->toIso8601String();
-
-            // Update the task in the collection
-            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $resolvedTaskId ? $task : $t);
-            $this->writeTasks($tasks);
-
+        if (in_array($resolvedDependsOnId, $blockedBy, true)) {
             return $task;
-        });
+        }
+
+        $blockedBy[] = $resolvedDependsOnId;
+        $now = now()->toIso8601String();
+
+        $this->db->query(
+            'UPDATE tasks SET blocked_by = ?, updated_at = ? WHERE short_id = ?',
+            [json_encode($blockedBy), $now, $resolvedTaskId]
+        );
+
+        $task['blocked_by'] = $blockedBy;
+        $task['updated_at'] = $now;
+
+        return $task;
     }
 
     /**
      * Get tasks that block the given task (open blockers).
      *
      * @return Collection<int, array<string, mixed>>
-     *
-     * @throws RuntimeException If task doesn't exist
      */
     public function getBlockers(string $taskId): Collection
     {
         $tasks = $this->all();
         $taskMap = $tasks->keyBy('id');
 
-        // Find the task
         $task = $this->findInCollection($tasks, $taskId);
         if ($task === null) {
             throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
@@ -661,7 +638,6 @@ class TaskService
         foreach ($blockedBy as $blockerId) {
             if (is_string($blockerId)) {
                 $blocker = $taskMap->get($blockerId);
-                // Only include open blockers (not closed)
                 if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
                     $blockers->push($blocker);
                 }
@@ -673,28 +649,19 @@ class TaskService
 
     /**
      * Generate a hash-based ID with collision detection.
-     *
-     * @param  Collection<int, array<string, mixed>>|null  $existingTasks  Collection of existing tasks to check against
-     *
-     * @throws RuntimeException If unable to generate unique ID after max attempts
      */
-    public function generateId(?Collection $existingTasks = null): string
+    public function generateId(): string
     {
-        $length = 6; // Increased from 4 to 6 chars for better collision resistance
-        $maxAttempts = 100; // Safeguard against infinite loops
+        $length = 6;
+        $maxAttempts = 100;
 
-        // Extract existing IDs if tasks collection provided
-        $existingIds = [];
-        if ($existingTasks instanceof Collection) {
-            $existingIds = $existingTasks->pluck('id')->toArray();
-        }
+        $existingIds = array_column($this->db->fetchAll('SELECT short_id FROM tasks'), 'short_id');
 
         $attempts = 0;
         while ($attempts < $maxAttempts) {
             $hash = hash('sha256', uniqid($this->prefix.'-', true).microtime(true));
             $id = $this->prefix.'-'.substr($hash, 0, $length);
 
-            // Check if ID already exists
             if (! in_array($id, $existingIds, true)) {
                 return $id;
             }
@@ -703,42 +670,16 @@ class TaskService
         }
 
         throw new RuntimeException(
-            sprintf('Failed to generate unique task ID after %d attempts. This is extremely unlikely.', $maxAttempts)
+            sprintf('Failed to generate unique task ID after %d attempts.', $maxAttempts)
         );
     }
 
     /**
-     * Initialize the storage directory and file.
+     * Initialize the database schema.
      */
     public function initialize(): void
     {
-        $dir = dirname($this->storagePath);
-
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        if (! file_exists($this->storagePath)) {
-            file_put_contents($this->storagePath, '');
-        }
-    }
-
-    /**
-     * Get the storage path.
-     */
-    public function getStoragePath(): string
-    {
-        return $this->storagePath;
-    }
-
-    /**
-     * Set custom storage path.
-     */
-    public function setStoragePath(string $path): self
-    {
-        $this->storagePath = $path;
-
-        return $this;
+        $this->db->initialize();
     }
 
     /**
@@ -746,7 +687,7 @@ class TaskService
      */
     public function getArchivePath(): string
     {
-        return dirname($this->storagePath).'/archive.jsonl';
+        return dirname($this->db->getPath()).'/archive.jsonl';
     }
 
     /**
@@ -754,75 +695,67 @@ class TaskService
      *
      * @param  int  $days  Age threshold in days (ignored if $all is true)
      * @param  bool  $all  Archive all closed tasks regardless of age
-     * @return array<string, mixed> Returns array with 'archived' count and 'archived_tasks' array
+     * @return array<string, mixed>
      */
     public function archiveTasks(int $days = 30, bool $all = false): array
     {
-        return $this->withExclusiveLock(function () use ($days, $all): array {
-            $tasks = $this->readTasks();
-            $archivePath = $this->getArchivePath();
+        $tasks = $this->all();
+        $archivePath = $this->getArchivePath();
 
-            // Determine cutoff date if not archiving all
-            $cutoffDate = null;
-            if (! $all) {
-                $cutoffDate = now()->subDays($days);
+        $cutoffDate = null;
+        if (! $all) {
+            $cutoffDate = now()->subDays($days);
+        }
+
+        $tasksToArchive = $tasks->filter(function (array $task) use ($cutoffDate, $all): bool {
+            if (($task['status'] ?? '') !== 'closed') {
+                return false;
             }
 
-            // Find tasks to archive (closed tasks that meet age criteria)
-            $tasksToArchive = $tasks->filter(function (array $task) use ($cutoffDate, $all): bool {
-                if (($task['status'] ?? '') !== 'closed') {
-                    return false;
-                }
-
-                if ($all) {
-                    return true;
-                }
-
-                // Check if task is older than cutoff date
-                $updatedAt = $task['updated_at'] ?? null;
-                if ($updatedAt === null) {
-                    return false; // Can't determine age, skip
-                }
-
-                try {
-                    $taskDate = Carbon::parse($updatedAt);
-
-                    return $taskDate->lt($cutoffDate);
-                } catch (\Exception) {
-                    return false; // Invalid date, skip
-                }
-            });
-
-            if ($tasksToArchive->isEmpty()) {
-                return ['archived' => 0, 'archived_tasks' => []];
+            if ($all) {
+                return true;
             }
 
-            // Read existing archive
-            $archivedTasks = $this->readArchive();
-
-            // Add tasks to archive (merge with existing)
-            $archivedTaskIds = $archivedTasks->pluck('id')->toArray();
-            foreach ($tasksToArchive as $task) {
-                // Only add if not already in archive (avoid duplicates)
-                if (! in_array($task['id'], $archivedTaskIds, true)) {
-                    $archivedTasks->push($task);
-                }
+            $updatedAt = $task['updated_at'] ?? null;
+            if ($updatedAt === null) {
+                return false;
             }
 
-            // Write updated archive
-            $this->writeArchive($archivedTasks);
+            try {
+                $taskDate = Carbon::parse($updatedAt);
 
-            // Remove archived tasks from main tasks file
-            $archivedIds = $tasksToArchive->pluck('id')->toArray();
-            $remainingTasks = $tasks->filter(fn (array $task): bool => ! in_array($task['id'], $archivedIds, true));
-
-            $this->writeTasks($remainingTasks);
-
-            return [
-                'archived' => $tasksToArchive->count(),
-                'archived_tasks' => $tasksToArchive->values()->toArray(),
-            ];
+                return $taskDate->lt($cutoffDate);
+            } catch (\Exception) {
+                return false;
+            }
         });
+
+        if ($tasksToArchive->isEmpty()) {
+            return ['archived' => 0, 'archived_tasks' => []];
+        }
+
+        $archivedTasks = $this->readArchive();
+
+        $archivedTaskIds = $archivedTasks->pluck('id')->toArray();
+        foreach ($tasksToArchive as $task) {
+            if (! in_array($task['id'], $archivedTaskIds, true)) {
+                $archivedTasks->push($task);
+            }
+        }
+
+        $this->writeArchive($archivedTasks);
+
+        // Delete archived tasks from SQLite
+        $archivedIds = $tasksToArchive->pluck('id')->toArray();
+        if (! empty($archivedIds)) {
+            $placeholders = implode(',', array_fill(0, count($archivedIds), '?'));
+            $this->db->query("DELETE FROM tasks WHERE short_id IN ({$placeholders})", $archivedIds);
+        }
+
+        return [
+            'archived' => $tasksToArchive->count(),
+            'archived_tasks' => $tasksToArchive->values()->toArray(),
+        ];
     }
 
     /**
@@ -878,7 +811,6 @@ class TaskService
             mkdir($dir, 0755, true);
         }
 
-        // Sort by ID for merge-friendly git diffs
         $sorted = $tasks->sortBy('id')->values();
 
         $content = $sorted
@@ -889,167 +821,81 @@ class TaskService
             $content .= "\n";
         }
 
-        // Atomic write: temp file + rename
         $tempPath = $archivePath.'.tmp';
         file_put_contents($tempPath, $content);
         rename($tempPath, $archivePath);
     }
 
     /**
-     * Execute a callback with an exclusive lock (for write operations).
+     * Delete a task.
      *
-     * @template T
-     *
-     * @param  Closure(): T  $callback
-     * @return T
+     * @return array<string, mixed>
      */
-    private function withExclusiveLock(Closure $callback): mixed
+    public function delete(string $id): array
     {
-        return $this->withLock(LOCK_EX, $callback);
+        $task = $this->find($id);
+        if ($task === null) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $id));
+        }
+
+        $this->db->query('DELETE FROM tasks WHERE short_id = ?', [$task['id']]);
+
+        return $task;
     }
 
     /**
-     * Execute a callback with a shared lock (for read operations).
+     * Remove a dependency between tasks.
      *
-     * @template T
-     *
-     * @param  Closure(): T  $callback
-     * @return T
+     * @return array<string, mixed>
      */
-    private function withSharedLock(Closure $callback): mixed
+    public function removeDependency(string $fromId, string $toId): array
     {
-        return $this->withLock(LOCK_SH, $callback);
-    }
+        $tasks = $this->all();
 
-    /**
-     * Execute a callback with a file lock.
-     *
-     * @template T
-     *
-     * @param  Closure(): T  $callback
-     * @return T
-     */
-    private function withLock(int $lockType, Closure $callback): mixed
-    {
-        $lockPath = $this->storagePath.'.lock';
-        $dir = dirname($lockPath);
-
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
+        $fromTask = $this->findInCollection($tasks, $fromId);
+        if ($fromTask === null) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $fromId));
         }
 
-        if (! file_exists($lockPath)) {
-            touch($lockPath);
+        $toTask = $this->findInCollection($tasks, $toId);
+        if ($toTask === null) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $toId));
         }
 
-        $handle = fopen($lockPath, 'r+');
-        if ($handle === false) {
-            throw new RuntimeException('Failed to open lock file: '.$lockPath);
+        $blockedBy = $fromTask['blocked_by'] ?? [];
+        if (! is_array($blockedBy)) {
+            $blockedBy = [];
         }
 
-        $lockAcquired = false;
-        $attempts = 0;
-        $delay = $this->lockRetryDelayMs;
-
-        try {
-            // Retry with exponential backoff
-            while ($attempts < $this->lockRetries) {
-                if (flock($handle, $lockType | LOCK_NB)) {
-                    $lockAcquired = true;
-                    break;
-                }
-
-                $attempts++;
-                usleep($delay * 1000);
-                $delay = min($delay * 2, 1000);
+        $resolvedToId = $toTask['id'];
+        $found = false;
+        $newBlockedBy = [];
+        foreach ($blockedBy as $blockerId) {
+            if ($blockerId === $resolvedToId) {
+                $found = true;
+            } else {
+                $newBlockedBy[] = $blockerId;
             }
-
-            // Final blocking attempt if retries exhausted
-            if (! $lockAcquired && ! flock($handle, $lockType)) {
-                throw new RuntimeException(
-                    'Failed to acquire file lock after '.$this->lockRetries.' attempts'
-                );
-            }
-
-            return $callback();
-        } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
-        }
-    }
-
-    /**
-     * Read tasks from JSONL file (internal, no locking - caller must handle).
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function readTasks(): Collection
-    {
-        if (! file_exists($this->storagePath)) {
-            return collect();
         }
 
-        $content = file_get_contents($this->storagePath);
-        if ($content === false || trim($content) === '') {
-            return collect();
+        if (! $found) {
+            throw new RuntimeException('No dependency exists between these tasks');
         }
 
-        $tasks = collect();
-        $lines = explode("\n", trim($content));
+        $now = now()->toIso8601String();
+        $this->db->query(
+            'UPDATE tasks SET blocked_by = ?, updated_at = ? WHERE short_id = ?',
+            [json_encode($newBlockedBy), $now, $fromTask['id']]
+        );
 
-        foreach ($lines as $lineNumber => $line) {
-            if (trim($line) === '') {
-                continue;
-            }
+        $fromTask['blocked_by'] = $newBlockedBy;
+        $fromTask['updated_at'] = $now;
 
-            $task = json_decode($line, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new RuntimeException(
-                    'Failed to parse tasks.jsonl on line '.($lineNumber + 1).': '.json_last_error_msg()
-                );
-            }
-
-            $tasks->push($task);
-        }
-
-        return $tasks;
-    }
-
-    /**
-     * Write tasks to JSONL file (internal, no locking - caller must handle).
-     *
-     * @param  Collection<int, array<string, mixed>>  $tasks
-     */
-    private function writeTasks(Collection $tasks): void
-    {
-        $dir = dirname($this->storagePath);
-
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        // Sort by ID for merge-friendly git diffs
-        $sorted = $tasks->sortBy('id')->values();
-
-        $content = $sorted
-            ->map(fn (array $task): string => (string) json_encode($task, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE))
-            ->implode("\n");
-
-        if ($content !== '') {
-            $content .= "\n";
-        }
-
-        // Atomic write: temp file + rename
-        $tempPath = $this->storagePath.'.tmp';
-        file_put_contents($tempPath, $content);
-        rename($tempPath, $this->storagePath);
+        return $fromTask;
     }
 
     /**
      * Validate that adding a dependency won't create a cycle.
-     *
-     * Uses BFS to check if $dependsOnId (transitively) depends on $taskId.
-     * If it does, adding "$taskId depends on $dependsOnId" would create a cycle.
      *
      * @param  Collection<int, array<string, mixed>>  $tasks
      */
@@ -1062,19 +908,16 @@ class TaskService
         while ($queue !== []) {
             $current = array_shift($queue);
 
-            // If we reached the task we're adding dependency to, there's a cycle
             if ($current === $taskId) {
                 return false;
             }
 
-            // Skip if already visited
             if (in_array($current, $visited, true)) {
                 continue;
             }
 
             $visited[] = $current;
 
-            // Add all blockers of current task to the queue
             $currentTask = $taskMap->get($current);
             if ($currentTask !== null) {
                 $blockedBy = $currentTask['blocked_by'] ?? [];
@@ -1086,80 +929,7 @@ class TaskService
             }
         }
 
-        return true; // No cycle detected
-    }
-
-    /**
-     * Delete a task from tasks.jsonl.
-     *
-     * @return array<string, mixed> The deleted task
-     */
-    public function delete(string $id): array
-    {
-        return $this->withExclusiveLock(function () use ($id): array {
-            $tasks = $this->readTasks();
-            $task = $this->findInCollection($tasks, $id);
-
-            if ($task === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $id));
-            }
-
-            $tasks = $tasks->filter(fn (array $t): bool => $t['id'] !== $task['id']);
-            $this->writeTasks($tasks);
-
-            return $task;
-        });
-    }
-
-    /**
-     * Remove a dependency between tasks.
-     *
-     * @return array<string, mixed> The updated "from" task
-     */
-    public function removeDependency(string $fromId, string $toId): array
-    {
-        return $this->withExclusiveLock(function () use ($fromId, $toId): array {
-            $tasks = $this->readTasks();
-
-            $fromTask = $this->findInCollection($tasks, $fromId);
-            if ($fromTask === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $fromId));
-            }
-
-            $toTask = $this->findInCollection($tasks, $toId);
-            if ($toTask === null) {
-                throw new RuntimeException(sprintf("Task '%s' not found", $toId));
-            }
-
-            $blockedBy = $fromTask['blocked_by'] ?? [];
-            if (! is_array($blockedBy)) {
-                $blockedBy = [];
-            }
-
-            // Find and remove the blocker ID
-            $resolvedToId = $toTask['id'];
-            $found = false;
-            $newBlockedBy = [];
-            foreach ($blockedBy as $blockerId) {
-                if ($blockerId === $resolvedToId) {
-                    $found = true;
-                } else {
-                    $newBlockedBy[] = $blockerId;
-                }
-            }
-
-            if (! $found) {
-                throw new RuntimeException('No dependency exists between these tasks');
-            }
-
-            $fromTask['blocked_by'] = $newBlockedBy;
-            $fromTask['updated_at'] = now()->toIso8601String();
-
-            $tasks = $tasks->map(fn (array $t): array => $t['id'] === $fromTask['id'] ? $fromTask : $t);
-            $this->writeTasks($tasks);
-
-            return $fromTask;
-        });
+        return true;
     }
 
     /**
@@ -1170,14 +940,11 @@ class TaskService
      */
     private function findInCollection(Collection $tasks, string $id): ?array
     {
-        // Try exact match first
         $task = $tasks->firstWhere('id', $id);
         if ($task !== null) {
             return $task;
         }
 
-        // Try partial match (prefix matching)
-        // Support both old 'fuel-' prefix and new 'f-' prefix for backward compatibility
         $matches = $tasks->filter(function (array $task) use ($id): bool {
             $taskId = $task['id'];
             if (! is_string($taskId)) {
@@ -1200,5 +967,72 @@ class TaskService
         }
 
         return null;
+    }
+
+    /**
+     * Convert a database row to a task array.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function rowToTask(array $row): array
+    {
+        $task = [
+            'id' => $row['short_id'],
+            'title' => $row['title'],
+            'description' => $row['description'],
+            'status' => $row['status'],
+            'type' => $row['type'],
+            'priority' => (int) $row['priority'],
+            'size' => $row['size'],
+            'complexity' => $row['complexity'],
+            'labels' => $row['labels'] !== null ? json_decode($row['labels'], true) : [],
+            'blocked_by' => $row['blocked_by'] !== null ? json_decode($row['blocked_by'], true) : [],
+            'created_at' => $row['created_at'],
+            'updated_at' => $row['updated_at'],
+        ];
+
+        // Add epic_id if present (map back to short_id for public interface)
+        if (isset($row['epic_id']) && $row['epic_id'] !== null) {
+            $epic = $this->db->fetchOne('SELECT short_id FROM epics WHERE id = ?', [$row['epic_id']]);
+            $task['epic_id'] = $epic !== null ? $epic['short_id'] : null;
+        } else {
+            $task['epic_id'] = null;
+        }
+
+        // Add optional fields if present
+        if (isset($row['commit_hash']) && $row['commit_hash'] !== null) {
+            $task['commit_hash'] = $row['commit_hash'];
+        }
+        if (isset($row['reason']) && $row['reason'] !== null) {
+            $task['reason'] = $row['reason'];
+        }
+        if (isset($row['consumed']) && $row['consumed'] !== null) {
+            $task['consumed'] = (bool) $row['consumed'];
+        }
+        if (isset($row['consumed_at']) && $row['consumed_at'] !== null) {
+            $task['consumed_at'] = $row['consumed_at'];
+        }
+        if (isset($row['consumed_exit_code']) && $row['consumed_exit_code'] !== null) {
+            $task['consumed_exit_code'] = (int) $row['consumed_exit_code'];
+        }
+        if (isset($row['consumed_output']) && $row['consumed_output'] !== null) {
+            $task['consumed_output'] = $row['consumed_output'];
+        }
+        if (isset($row['consume_pid']) && $row['consume_pid'] !== null) {
+            $task['consume_pid'] = (int) $row['consume_pid'];
+        }
+
+        return $task;
+    }
+
+    /**
+     * Resolve an epic ID (short_id string) to integer ID.
+     */
+    private function resolveEpicId(string $epicShortId): ?int
+    {
+        $epic = $this->db->fetchOne('SELECT id FROM epics WHERE short_id = ?', [$epicShortId]);
+
+        return $epic !== null ? (int) $epic['id'] : null;
     }
 }

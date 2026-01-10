@@ -36,8 +36,13 @@ class AppServiceProvider extends ServiceProvider
         // FuelContext must be registered first - all path-dependent services use it
         $this->app->singleton(FuelContext::class, fn (): FuelContext => new FuelContext);
 
+        // DatabaseService must be registered before TaskService (TaskService depends on it)
+        $this->app->singleton(DatabaseService::class, fn ($app): DatabaseService => new DatabaseService(
+            $app->make(FuelContext::class)->getDatabasePath()
+        ));
+
         $this->app->singleton(TaskService::class, fn ($app): TaskService => new TaskService(
-            $app->make(FuelContext::class)->getTasksJsonlPath()
+            $app->make(DatabaseService::class)
         ));
 
         $this->app->singleton(ConfigService::class, fn ($app): ConfigService => new ConfigService(
@@ -54,10 +59,6 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(ProcessManager::class, fn ($app): ProcessManager => $app->make(ProcessManagerInterface::class));
-
-        $this->app->singleton(DatabaseService::class, fn ($app): DatabaseService => new DatabaseService(
-            $app->make(FuelContext::class)->getDatabasePath()
-        ));
 
         $this->app->singleton(AgentHealthTrackerInterface::class, AgentHealthTracker::class);
 
