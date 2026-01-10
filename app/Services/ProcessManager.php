@@ -452,15 +452,21 @@ class ProcessManager implements ProcessManagerInterface
     {
         $outputDir = getcwd()."/.fuel/processes/{$taskId}";
         if (! File::exists($outputDir)) {
-            File::makeDirectory($outputDir, 0755, true);
+            if (! File::makeDirectory($outputDir, 0755, true)) {
+                throw new \RuntimeException("Failed to create output directory: {$outputDir}");
+            }
         }
 
         $stdoutPath = "{$outputDir}/stdout.log";
         $stderrPath = "{$outputDir}/stderr.log";
 
         // Clear existing output files
-        File::put($stdoutPath, '');
-        File::put($stderrPath, '');
+        if (File::put($stdoutPath, '') === false) {
+            throw new \RuntimeException("Failed to create stdout file: {$stdoutPath}");
+        }
+        if (File::put($stderrPath, '') === false) {
+            throw new \RuntimeException("Failed to create stderr file: {$stderrPath}");
+        }
 
         return [
             'outputDir' => $outputDir,
