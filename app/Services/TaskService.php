@@ -291,7 +291,7 @@ class TaskService
 
         // Handle arbitrary fields (e.g., consumed, consumed_at, etc.)
         $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'complexity', 'epic_id', 'add_labels', 'remove_labels'];
-        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid'];
+        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid', 'last_review_issues'];
 
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
@@ -367,8 +367,8 @@ class TaskService
         }
 
         $status = $task['status'] ?? '';
-        if ($status !== 'closed' && $status !== 'in_progress') {
-            throw new RuntimeException(sprintf("Task '%s' is not closed or in_progress. Only closed or in_progress tasks can be reopened.", $id));
+        if ($status !== 'closed' && $status !== 'in_progress' && $status !== 'review') {
+            throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
         $shortId = $task['id'];

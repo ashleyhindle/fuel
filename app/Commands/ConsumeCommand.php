@@ -536,8 +536,12 @@ PROMPT;
 
                     if ($wasAlreadyClosed) {
                         // Task was already closed but review failed - reopen with issues
-                        $this->taskService->reopen($taskId);
-                        $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
+                        try {
+                            $this->taskService->reopen($taskId);
+                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
+                        } catch (\RuntimeException $e) {
+                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s (could not reopen: %s)', $taskId, $issuesSummary, $e->getMessage()), 'yellow');
+                        }
                     } else {
                         // Task stays in 'review' status
                         $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');

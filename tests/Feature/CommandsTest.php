@@ -1601,7 +1601,7 @@ describe('reopen command', function (): void {
         $task = $this->taskService->create(['title' => 'Open task']);
 
         $this->artisan('reopen', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('is not closed or in_progress')
+            ->expectsOutputToContain('is not closed, in_progress, or review')
             ->assertExitCode(1);
 
         $updated = $this->taskService->find($task['id']);
