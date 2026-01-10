@@ -2612,6 +2612,60 @@ describe('show command', function (): void {
             ->assertExitCode(0);
     });
 
+    it('shows epic information when task has epic_id', function (): void {
+        $this->taskService->initialize();
+
+        // Initialize database for epics
+        $dbService = new DatabaseService;
+        $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
+        $dbService->initialize();
+
+        $epicService = new EpicService($dbService, $this->taskService);
+        $epic = $epicService->createEpic('Test Epic', 'Epic description');
+
+        $task = $this->taskService->create([
+            'title' => 'Task with epic',
+            'epic_id' => $epic['id'],
+        ]);
+
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        $output = Artisan::output();
+
+        // Verify task has epic_id
+        $taskData = $this->taskService->find($task['id']);
+        expect($taskData['epic_id'])->toBe($epic['id']);
+
+        expect($output)->toContain('Epic: '.$epic['id']);
+        expect($output)->toContain('Test Epic');
+        expect($output)->toContain('in_progress'); // Epic status is in_progress because task is open
+    });
+
+    it('includes epic information in JSON output when task has epic_id', function (): void {
+        $this->taskService->initialize();
+
+        // Initialize database for epics
+        $dbService = new DatabaseService;
+        $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
+        $dbService->initialize();
+
+        $epicService = new EpicService($dbService, $this->taskService);
+        $epic = $epicService->createEpic('JSON Epic', 'Epic description');
+
+        $task = $this->taskService->create([
+            'title' => 'Task with epic',
+            'epic_id' => $epic['id'],
+        ]);
+
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result['epic'])->toBeArray();
+        expect($result['epic']['id'])->toBe($epic['id']);
+        expect($result['epic']['title'])->toBe('JSON Epic');
+        expect($result['epic']['status'])->toBe('in_progress'); // Epic status is in_progress because task is open
+    });
+
     it('shows live output from stdout.log when task is in_progress', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'In progress task']);

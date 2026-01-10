@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\File;
@@ -26,6 +28,11 @@ class ShowCommand extends Command
     {
         $this->configureCwd($taskService);
 
+        // Configure EpicService with --cwd if provided
+        $cwd = $this->option('cwd') ?: getcwd();
+        $dbService = new DatabaseService($cwd.'/.fuel/agent.db');
+        $epicService = new EpicService($dbService, $taskService);
+
         try {
             $task = $taskService->find($this->argument('id'));
 
@@ -33,7 +40,26 @@ class ShowCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
+            // Fetch epic information if task has epic_id
+            $epic = null;
+            if (isset($task['epic_id']) && $task['epic_id'] !== null) {
+                try {
+                    $epic = $epicService->getEpic($task['epic_id']);
+                } catch (\Exception) {
+                    // Epic not found or error - continue without epic info
+                    $epic = null;
+                }
+            }
+
             if ($this->option('json')) {
+                // Include epic info in JSON output
+                if ($epic !== null) {
+                    $task['epic'] = [
+                        'id' => $epic['id'],
+                        'title' => $epic['title'] ?? null,
+                        'status' => $epic['status'] ?? null,
+                    ];
+                }
                 $this->outputJson($task);
             } else {
                 $this->info('Task: '.$task['id']);
@@ -66,6 +92,10 @@ class ShowCommand extends Command
                     if ($blockerIds !== '') {
                         $this->line('  Blocked by: '.$blockerIds);
                     }
+                }
+
+                if ($epic !== null) {
+                    $this->line('  Epic: '.$epic['id'].' - '.($epic['title'] ?? 'Untitled').' ('.$epic['status'].')');
                 }
 
                 if (isset($task['reason'])) {
