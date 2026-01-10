@@ -8,13 +8,14 @@ use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Process\ReviewResult;
 use App\Prompts\ReviewPrompt;
+use Symfony\Component\Process\Process;
 
 /**
  * Orchestrates the review process when agents complete tasks.
  */
 class ReviewService implements ReviewServiceInterface
 {
-    /** @var array<string, int> Task IDs currently being reviewed with start timestamp */
+    /** @var array<string, array{reviewId: string, timestamp: int}> Task IDs currently being reviewed with review ID and start timestamp */
     private array $pendingReviews = [];
 
     public function __construct(
@@ -22,6 +23,7 @@ class ReviewService implements ReviewServiceInterface
         private readonly TaskService $taskService,
         private readonly ConfigService $configService,
         private readonly ReviewPrompt $reviewPrompt,
+        private readonly DatabaseService $databaseService,
     ) {}
 
     /**
@@ -43,8 +45,24 @@ class ReviewService implements ReviewServiceInterface
         }
 
         // 2. Capture git state
-        $gitDiff = (string) shell_exec('git diff HEAD~1 2>/dev/null');
-        $gitStatus = (string) shell_exec('git status --porcelain 2>/dev/null');
+        $gitDiff = '';
+        $gitStatus = '';
+
+        try {
+            $diffProcess = new Process(['git', 'diff', 'HEAD~1']);
+            $diffProcess->run();
+            $gitDiff = $diffProcess->getOutput();
+        } catch (\Throwable $e) {
+            // Silently handle errors (matching original behavior of 2>/dev/null)
+        }
+
+        try {
+            $statusProcess = new Process(['git', 'status', '--porcelain']);
+            $statusProcess->run();
+            $gitStatus = $statusProcess->getOutput();
+        } catch (\Throwable $e) {
+            // Silently handle errors (matching original behavior of 2>/dev/null)
+        }
 
         // 3. Build review prompt
         $prompt = $this->reviewPrompt->generate($task, $gitDiff, $gitStatus);
@@ -88,8 +106,11 @@ class ReviewService implements ReviewServiceInterface
         // 7. Update task status to 'review'
         $this->taskService->update($taskId, ['status' => 'review']);
 
-        // 8. Track pending review
-        $this->pendingReviews[$taskId] = time();
+        // 8. Record review started in database
+        $reviewId = $this->databaseService->recordReviewStarted($taskId, $reviewAgent);
+
+        // 9. Track pending review with review ID
+        $this->pendingReviews[$taskId] = ['reviewId' => $reviewId, 'timestamp' => time()];
     }
 
     /**
@@ -206,6 +227,12 @@ class ReviewService implements ReviewServiceInterface
         // If there are follow-up tasks but no specific issues detected, mark as generic issue
         if (! $passed && empty($issues)) {
             $issues[] = 'review_issues_found';
+        }
+
+        // Record review completed in database
+        $reviewId = $this->pendingReviews[$taskId]['reviewId'] ?? null;
+        if ($reviewId !== null) {
+            $this->databaseService->recordReviewCompleted($reviewId, $passed, $issues, $followUpTaskIds);
         }
 
         // Remove from pending reviews

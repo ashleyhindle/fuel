@@ -54,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
             taskService: $app->make(TaskService::class),
             configService: $app->make(ConfigService::class),
             reviewPrompt: new ReviewPrompt,
+            databaseService: $app->make(DatabaseService::class),
         ));
     }
 }
