@@ -282,7 +282,7 @@ it('returns not completed when epic has no tasks', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result)->toBeFalse();
+    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
 });
 
 it('returns not completed when epic has open tasks', function () {
@@ -295,7 +295,7 @@ it('returns not completed when epic has open tasks', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result)->toBeFalse();
+    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
 });
 
 it('returns not completed when epic has in_progress tasks', function () {
@@ -309,7 +309,7 @@ it('returns not completed when epic has in_progress tasks', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result)->toBeFalse();
+    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
 });
 
 it('triggers completion when all tasks are closed', function () {
@@ -329,7 +329,8 @@ it('triggers completion when all tasks are closed', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result)->toBeTrue();
+    expect($result['completed'])->toBeTrue();
+    expect($result['review_task_id'])->not->toBeNull();
 
     $updatedEpic = $this->service->getEpic($epic['id']);
     expect($updatedEpic['status'])->toBe('review_pending');
@@ -352,11 +353,112 @@ it('triggers completion when tasks are closed or cancelled', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result)->toBeTrue();
+    expect($result['completed'])->toBeTrue();
+    expect($result['review_task_id'])->not->toBeNull();
 });
 
 it('returns false for non-existent epic', function () {
     $result = $this->service->checkEpicCompletion('e-000000');
 
-    expect($result)->toBeFalse();
+    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
 });
+
+it('prevents duplicate review tasks when checkEpicCompletion called multiple times', function () {
+    $epic = $this->service->createEpic('Epic for idempotency test');
+
+    $task1 = $this->taskService->create([
+        'title' => 'Task 1',
+        'epic_id' => $epic['id'],
+    ]);
+    $task2 = $this->taskService->create([
+        'title' => 'Task 2',
+        'epic_id' => $epic['id'],
+    ]);
+
+    $this->taskService->done($task1['id']);
+    $this->taskService->done($task2['id']);
+
+    // First call creates review task
+    $result1 = $this->service->checkEpicCompletion($epic['id']);
+    expect($result1['completed'])->toBeTrue();
+    expect($result1['review_task_id'])->not->toBeNull();
+    $firstReviewTaskId = $result1['review_task_id'];
+
+    // Second call should return same review task (idempotency)
+    $result2 = $this->service->checkEpicCompletion($epic['id']);
+    expect($result2['completed'])->toBeTrue();
+    expect($result2['review_task_id'])->toBe($firstReviewTaskId);
+
+    // Verify only one review task exists
+    $allTasks = $this->taskService->all();
+    $reviewTasks = $allTasks->filter(fn (array $task): bool => in_array('epic-review', $task['labels'] ?? [], true));
+    expect($reviewTasks->count())->toBe(1);
+});
+
+it('approves an epic', function () {
+    $epic = $this->service->createEpic('Epic to approve');
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic['id']]);
+    $this->taskService->done($task['id']);
+
+    $approved = $this->service->approveEpic($epic['id'], 'test-user');
+
+    expect($approved['approved_at'])->not->toBeNull();
+    expect($approved['approved_by'])->toBe('test-user');
+    expect($approved['status'])->toBe('approved');
+});
+
+it('approves an epic with default approved_by', function () {
+    $epic = $this->service->createEpic('Epic to approve');
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic['id']]);
+    $this->taskService->done($task['id']);
+
+    $approved = $this->service->approveEpic($epic['id']);
+
+    expect($approved['approved_at'])->not->toBeNull();
+    expect($approved['approved_by'])->toBe('human');
+    expect($approved['status'])->toBe('approved');
+});
+
+it('rejects an epic and reopens tasks', function () {
+    $epic = $this->service->createEpic('Epic to reject');
+    $task1 = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic['id']]);
+    $task2 = $this->taskService->create(['title' => 'Task 2', 'epic_id' => $epic['id']]);
+
+    // Close tasks
+    $this->taskService->done($task1['id']);
+    $this->taskService->done($task2['id']);
+
+    // Reject epic
+    $rejected = $this->service->rejectEpic($epic['id'], 'Needs more work');
+
+    expect($rejected['changes_requested_at'])->not->toBeNull();
+    expect($rejected['approved_at'])->toBeNull();
+    expect($rejected['approved_by'])->toBeNull();
+    expect($rejected['status'])->toBe('in_progress'); // Tasks reopened, so in_progress
+
+    // Verify tasks were reopened
+    $task1Updated = $this->taskService->find($task1['id']);
+    $task2Updated = $this->taskService->find($task2['id']);
+    expect($task1Updated['status'])->toBe('open');
+    expect($task2Updated['status'])->toBe('open');
+});
+
+it('shows changes_requested status when epic rejected but tasks not yet reopened', function () {
+    $epic = $this->service->createEpic('Epic to reject');
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic['id']]);
+    $this->taskService->done($task['id']);
+
+    // Reject epic
+    $rejected = $this->service->rejectEpic($epic['id']);
+
+    // Status should be in_progress because rejectEpic reopens tasks
+    expect($rejected['status'])->toBe('in_progress');
+});
+
+it('throws exception when approving non-existent epic', function () {
+    $this->service->approveEpic('e-000000');
+})->throws(RuntimeException::class, "Epic 'e-000000' not found");
+
+it('throws exception when rejecting non-existent epic', function () {
+    $this->service->rejectEpic('e-000000');
+})->throws(RuntimeException::class, "Epic 'e-000000' not found");

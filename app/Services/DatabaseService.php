@@ -366,6 +366,34 @@ class DatabaseService
                     $pdo->exec('ALTER TABLE tasks ADD COLUMN last_review_issues TEXT');
                 }
             },
+            8 => function (PDO $pdo): void {
+                // v8: Add approved_at, approved_by, and changes_requested_at columns to epics table for approval workflow
+                $tableInfo = $pdo->query('PRAGMA table_info(epics)')->fetchAll();
+                $hasApprovedAt = false;
+                $hasApprovedBy = false;
+                $hasChangesRequestedAt = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'approved_at') {
+                        $hasApprovedAt = true;
+                    }
+                    if ($column['name'] === 'approved_by') {
+                        $hasApprovedBy = true;
+                    }
+                    if ($column['name'] === 'changes_requested_at') {
+                        $hasChangesRequestedAt = true;
+                    }
+                }
+
+                if (! $hasApprovedAt) {
+                    $pdo->exec('ALTER TABLE epics ADD COLUMN approved_at TEXT');
+                }
+                if (! $hasApprovedBy) {
+                    $pdo->exec('ALTER TABLE epics ADD COLUMN approved_by TEXT');
+                }
+                if (! $hasChangesRequestedAt) {
+                    $pdo->exec('ALTER TABLE epics ADD COLUMN changes_requested_at TEXT');
+                }
+            },
         ];
     }
 

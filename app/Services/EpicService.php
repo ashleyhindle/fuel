@@ -29,16 +29,16 @@ class EpicService
         $shortId = $this->generateId();
         $now = Carbon::now('UTC')->toIso8601String();
 
+        // Note: status is not stored - it's computed from task states
         $this->db->query(
-            'INSERT INTO epics (short_id, title, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-            [$shortId, $title, $description, 'planning', $now, $now]
+            'INSERT INTO epics (short_id, title, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+            [$shortId, $title, $description, $now, $now]
         );
 
         $epic = [
             'id' => $shortId,
             'title' => $title,
             'description' => $description,
-            'status' => 'planning', // New epics have no tasks, so status is 'planning'
             'created_at' => $now,
             'updated_at' => $now,
             'reviewed_at' => null,
@@ -81,6 +81,39 @@ class EpicService
             // Map short_id to id for public interface compatibility
             $epic['id'] = $epic['short_id'];
             $epic['status'] = $this->getEpicStatus($epic['short_id']);
+
+            return $epic;
+        }, $epics);
+    }
+
+    /**
+     * Get all epics that are pending human review.
+     * An epic is review_pending when: has tasks, all tasks closed, and not yet reviewed.
+     *
+     * @return array<array<string, mixed>>
+     */
+    public function getEpicsPendingReview(): array
+    {
+        $this->db->initialize();
+
+        $sql = "
+            SELECT e.*
+            FROM epics e
+            WHERE e.reviewed_at IS NULL
+              AND EXISTS (SELECT 1 FROM tasks t WHERE t.epic_id = e.short_id)
+              AND NOT EXISTS (
+                  SELECT 1 FROM tasks t 
+                  WHERE t.epic_id = e.short_id 
+                    AND t.status NOT IN ('closed', 'cancelled')
+              )
+            ORDER BY e.created_at DESC
+        ";
+
+        $epics = $this->db->fetchAll($sql);
+
+        return array_map(function (array $epic): array {
+            $epic['id'] = $epic['short_id'];
+            $epic['status'] = 'review_pending';
 
             return $epic;
         }, $epics);
@@ -154,6 +187,93 @@ class EpicService
         return $epic;
     }
 
+    /**
+     * Approve an epic (mark as approved).
+     *
+     * @param  string  $id  The epic ID
+     * @param  string|null  $approvedBy  Who approved it (optional, defaults to 'human')
+     * @return array<string, mixed> The updated epic
+     */
+    public function approveEpic(string $id, ?string $approvedBy = null): array
+    {
+        $this->db->initialize();
+
+        $resolvedId = $this->resolveId($id);
+        if ($resolvedId === null) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
+        if ($epic === null) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $now = Carbon::now('UTC')->toIso8601String();
+        $approvedByValue = $approvedBy ?? 'human';
+
+        // Clear changes_requested_at when approving
+        $this->db->query(
+            'UPDATE epics SET approved_at = ?, approved_by = ?, changes_requested_at = NULL, updated_at = ? WHERE short_id = ?',
+            [$now, $approvedByValue, $now, $resolvedId]
+        );
+
+        // Map short_id to id for public interface compatibility
+        $epic['id'] = $epic['short_id'];
+        $epic['approved_at'] = $now;
+        $epic['approved_by'] = $approvedByValue;
+        $epic['changes_requested_at'] = null;
+        $epic['status'] = $this->getEpicStatus($resolvedId);
+
+        return $epic;
+    }
+
+    /**
+     * Reject an epic and request changes (moves back to in_progress).
+     *
+     * @param  string  $id  The epic ID
+     * @param  string|null  $reason  Optional reason for rejection
+     * @return array<string, mixed> The updated epic
+     */
+    public function rejectEpic(string $id, ?string $reason = null): array
+    {
+        $this->db->initialize();
+
+        $resolvedId = $this->resolveId($id);
+        if ($resolvedId === null) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
+        if ($epic === null) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $now = Carbon::now('UTC')->toIso8601String();
+
+        // Set changes_requested_at and clear approved_at
+        $this->db->query(
+            'UPDATE epics SET changes_requested_at = ?, approved_at = NULL, approved_by = NULL, updated_at = ? WHERE short_id = ?',
+            [$now, $now, $resolvedId]
+        );
+
+        // Reopen tasks in the epic that were closed (move back to in_progress)
+        $tasks = $this->getTasksForEpic($resolvedId);
+        foreach ($tasks as $task) {
+            if (($task['status'] ?? '') === 'closed') {
+                $this->taskService->update($task['id'], ['status' => 'open']);
+            }
+        }
+
+        // Map short_id to id for public interface compatibility
+        $epic['id'] = $epic['short_id'];
+        $epic['changes_requested_at'] = $now;
+        $epic['approved_at'] = null;
+        $epic['approved_by'] = null;
+        $epic['status'] = $this->getEpicStatus($resolvedId);
+
+        return $epic;
+    }
+
     public function deleteEpic(string $id): array
     {
         $this->db->initialize();
@@ -202,18 +322,19 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
-        $epic = $this->db->fetchOne('SELECT reviewed_at FROM epics WHERE short_id = ?', [$resolvedId]);
+        $epic = $this->db->fetchOne('SELECT approved_at, approved_by, changes_requested_at, reviewed_at FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
-        $tasks = $this->getTasksForEpic($resolvedId);
+        // Check approval/rejection status first (these override computed status)
+        if ($epic['approved_at'] !== null) {
+            return 'approved';
+        }
 
-        // If no tasks, epic is in planning
-        if (count($tasks) === 0) {
-            $computedStatus = 'planning';
-        } else {
-            // Check if any task is open or in_progress
+        if ($epic['changes_requested_at'] !== null) {
+            // If changes were requested, check if tasks are back in progress
+            $tasks = $this->getTasksForEpic($resolvedId);
             $hasActiveTask = false;
             foreach ($tasks as $task) {
                 $status = $task['status'] ?? '';
@@ -223,34 +344,52 @@ class EpicService
                 }
             }
 
-            if ($hasActiveTask) {
-                $computedStatus = 'in_progress';
-            } else {
-                // Check if all tasks are closed
-                $allClosed = true;
-                foreach ($tasks as $task) {
-                    $status = $task['status'] ?? '';
-                    if ($status !== 'closed') {
-                        $allClosed = false;
-                        break;
-                    }
-                }
-
-                if ($allClosed) {
-                    $computedStatus = 'review_pending';
-                } else {
-                    // Fallback: if tasks exist but not all closed and none active, still in_progress
-                    $computedStatus = 'in_progress';
-                }
-            }
+            // If tasks are active again, it's in_progress; otherwise still changes_requested
+            return $hasActiveTask ? 'in_progress' : 'changes_requested';
         }
 
-        // If reviewed_at is set, epic is reviewed regardless of computed status
+        // If reviewed_at is set but not approved, epic is reviewed (but not approved)
         if ($epic['reviewed_at'] !== null) {
             return 'reviewed';
         }
 
-        return $computedStatus;
+        $tasks = $this->getTasksForEpic($resolvedId);
+
+        // If no tasks, epic is in planning
+        if (count($tasks) === 0) {
+            return 'planning';
+        }
+
+        // Check if any task is open or in_progress
+        $hasActiveTask = false;
+        foreach ($tasks as $task) {
+            $status = $task['status'] ?? '';
+            if ($status === 'open' || $status === 'in_progress') {
+                $hasActiveTask = true;
+                break;
+            }
+        }
+
+        if ($hasActiveTask) {
+            return 'in_progress';
+        }
+
+        // Check if all tasks are closed
+        $allClosed = true;
+        foreach ($tasks as $task) {
+            $status = $task['status'] ?? '';
+            if ($status !== 'closed') {
+                $allClosed = false;
+                break;
+            }
+        }
+
+        if ($allClosed) {
+            return 'review_pending';
+        }
+
+        // Fallback: if tasks exist but not all closed and none active, still in_progress
+        return 'in_progress';
     }
 
     private function generateId(): string
@@ -295,10 +434,10 @@ class EpicService
     }
 
     /**
-     * Check if all tasks in an epic are complete and trigger review if so.
+     * Check if all tasks in an epic are complete and create review task if needed.
      *
      * @param  string  $epicId  The epic ID to check
-     * @return array{completed: bool, review_task_id: string|null} Whether the epic is complete and the review task ID if created
+     * @return array{completed: bool, review_task_id: string|null} Whether the epic is complete and review task ID if created
      */
     public function checkEpicCompletion(string $epicId): array
     {
@@ -332,17 +471,74 @@ class EpicService
             return ['completed' => false, 'review_task_id' => null];
         }
 
-        // Check if a review task already exists for this epic
+        // Check if a review task already exists for this epic (idempotency)
         $existingReviewTask = $this->findExistingReviewTask($resolvedId);
         if ($existingReviewTask !== null) {
             return ['completed' => true, 'review_task_id' => $existingReviewTask['id']];
         }
 
+        // Map short_id to id for public interface compatibility (needed for createEpicReviewTask)
+        $epic['id'] = $epic['short_id'];
+
+        // Create review task
         $gitDiff = $this->getCombinedGitDiff($tasks);
         $summary = $this->generateEpicSummary($epic, $tasks, $gitDiff);
         $reviewTask = $this->createEpicReviewTask($epic, $summary);
 
         return ['completed' => true, 'review_task_id' => $reviewTask['id']];
+    }
+
+    /**
+     * Find an existing review task for an epic.
+     *
+     * @param  string  $epicId  The epic short_id
+     * @return array<string, mixed>|null The review task if found
+     */
+    private function findExistingReviewTask(string $epicId): ?array
+    {
+        $allTasks = $this->taskService->all();
+
+        return $allTasks->first(function (array $task) use ($epicId): bool {
+            $labels = $task['labels'] ?? [];
+            if (! is_array($labels) || ! in_array('epic-review', $labels, true)) {
+                return false;
+            }
+
+            // Check if epic ID is in the title (format: "Review completed epic: ... ({$epicId})")
+            $title = $task['title'] ?? '';
+            if (str_contains($title, "({$epicId})")) {
+                return true;
+            }
+
+            // Also check description in case title format changed
+            $description = $task['description'] ?? '';
+            if (str_contains($description, $epicId)) {
+                return true;
+            }
+
+            return false;
+        });
+    }
+
+    /**
+     * Create a needs-human task for epic review.
+     *
+     * @param  array<string, mixed>  $epic  The epic data
+     * @param  string  $summary  The generated summary
+     * @return array<string, mixed> The created review task
+     */
+    private function createEpicReviewTask(array $epic, string $summary): array
+    {
+        $title = "Review completed epic: {$epic['title']} ({$epic['id']})";
+
+        return $this->taskService->create([
+            'title' => $title,
+            'description' => $summary,
+            'type' => 'task',
+            'priority' => 1,
+            'labels' => ['needs-human', 'epic-review'],
+            'complexity' => 'simple',
+        ]);
     }
 
     /**
@@ -498,59 +694,5 @@ class EpicService
         $summary .= "\n## Git Changes Summary\n\n```\n{$gitDiff}\n```\n";
 
         return $summary;
-    }
-
-    /**
-     * Find an existing review task for an epic.
-     *
-     * @param  string  $epicId  The epic ID to search for
-     * @return array<string, mixed>|null The existing review task, or null if not found
-     */
-    private function findExistingReviewTask(string $epicId): ?array
-    {
-        $allTasks = $this->taskService->all();
-
-        return $allTasks->first(function (array $task) use ($epicId): bool {
-            $labels = $task['labels'] ?? [];
-            if (! is_array($labels) || ! in_array('epic-review', $labels, true)) {
-                return false;
-            }
-
-            // Check if epic ID is in the title (format: "Review completed epic: ... ({$epicId})")
-            $title = $task['title'] ?? '';
-            if (str_contains($title, "({$epicId})")) {
-                return true;
-            }
-
-            // Also check description in case title format changed
-            $description = $task['description'] ?? '';
-            if (str_contains($description, $epicId)) {
-                return true;
-            }
-
-            return false;
-        });
-    }
-
-    /**
-     * Create a needs-human task for epic review.
-     *
-     * @param  array<string, mixed>  $epic  The epic data
-     * @param  string  $summary  The generated summary
-     * @return array<string, mixed>
-     */
-    private function createEpicReviewTask(array $epic, string $summary): array
-    {
-        $epicId = $epic['short_id'] ?? $epic['id'];
-        $title = "Review completed epic: {$epic['title']} ({$epicId})";
-
-        return $this->taskService->create([
-            'title' => $title,
-            'description' => $summary,
-            'type' => 'task',
-            'priority' => 1,
-            'labels' => ['needs-human', 'epic-review'],
-            'complexity' => 'simple',
-        ]);
     }
 }

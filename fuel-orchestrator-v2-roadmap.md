@@ -1,7 +1,8 @@
 # Fuel Orchestrator v2 - Implementation Roadmap
 
 *Created: 2026-01-10*
-*Status: Active - Phase 3 incomplete (blocked on f-c702f0, f-259ee9)*
+*Updated: 2026-01-10*
+*Status: Active - Phases 1-4 complete, Phase 5 next*
 
 ---
 
@@ -18,30 +19,34 @@ Transform Fuel from a task tracker with basic agent spawning into an **intellige
 
 ## Storage Strategy
 
-**Tasks stay in JSONL** - Git-native, merge-friendly, human-readable. This is core to Fuel's design.
-
-**Agent data goes in SQLite** (`.fuel/agent.db`) - Transient operational data that doesn't need to be committed:
-- Process tracking (running/completed processes)
+**SQLite** (`.fuel/agent.db`) - Primary data store for all structured data:
+- Tasks (migrated from JSONL for faster queries, joins, reliable locking)
+- Epics (cross-task grouping and status tracking)
+- Reviews (review process tracking)
 - Agent health metrics (failures, backoffs, success rates)
-- Run history (durations, costs, exit codes)
-- Routing decisions (for learning/analytics)
+- Runs (agent run history) - *currently in JSONL, migration pending*
+
+**JSONL** - Git-tracked, merge-friendly:
+- Backlog only (`backlog.jsonl`) - rough ideas and future work
 
 ```
 .fuel/
-├── tasks.jsonl          # Git-tracked, merge-friendly
 ├── backlog.jsonl        # Git-tracked, merge-friendly
-├── config.yaml          # Git-tracked
-├── agent.db             # SQLite, .gitignore'd
+├── config.yaml          # Git-tracked, agent definitions
+├── agent.db             # SQLite, .gitignore'd (tasks, epics, reviews, health)
+├── runs/                # JSONL per task, pending SQLite migration
+│   └── {taskId}.jsonl
 └── processes/           # Temp output files, .gitignore'd
     └── {taskId}/
         ├── stdout.log
         └── stderr.log
 ```
 
-**Why this split:**
-- Tasks are the "source of truth" that humans and agents collaborate on → git
-- Agent metrics are operational telemetry → SQLite for fast queries
-- Process output is ephemeral debugging info → files, cleaned up periodically
+**Why SQLite for tasks:**
+- Fast queries, joins, aggregations
+- Reliable locking (no file lock complexity)
+- Easy cross-entity queries (tasks ↔ epics ↔ reviews)
+- Auto-migration handled on init
 
 ---
 
@@ -176,29 +181,22 @@ interface AgentHealthTrackerInterface {
 
 ---
 
-### Phase 3: Auto-Review of Completed Work ⚠️ INCOMPLETE
+### Phase 3: Auto-Review of Completed Work ✅ COMPLETE
 **Goal:** Quality gate before work is accepted
 
 - [x] Capture git diff + git status per task on completion
 - [x] Check: Are there uncommitted changes? Missing commits?
 - [x] Check: Do tests pass? Any new test failures?
 - [x] Check: Does the change match the task description?
-- [ ] Check: Code duplication detection (optional, can be basic) - deferred
 - [x] Auto-create follow-up tasks if issues found
 - [x] Task status flow: `in_progress` → `review` → `closed` (or `needs_work`)
+- [x] Store last review issues on task for retry feedback
+- [ ] Code duplication detection - deferred (low priority)
 
-**Why now:** Agents often miss tests, forget to commit, or duplicate code. Need quality control before scaling up agent usage.
-
-**Review checks (in order of priority):**
+**Review checks implemented:**
 1. **Uncommitted changes** - Did agent leave dirty working tree?
 2. **Tests pass** - Run test suite, compare before/after
 3. **Task match** - Does diff align with task intent?
-4. **Code quality** - Basic duplication/smell detection (stretch goal)
-
-**Known Issues (blocked by f-c702f0, f-259ee9):**
-- Reviews only trigger when agent forgot `fuel done`, not on all completions
-- Stuck review detection missing (reviews can hang forever)
-- Manual `fuel review` command is broken
 
 ---
 

@@ -193,12 +193,12 @@ class EpicReviewCommand extends Command
 
             // Git stats
             if ($gitStats !== null) {
-                $this->line('  <fg=cyan>Diff Stats:</>');
+                $this->line('<fg=cyan>Diff Stats:</>');
                 $this->newLine();
                 // Indent all lines of git stats output
                 $statsLines = explode("\n", $gitStats);
                 foreach ($statsLines as $line) {
-                    $this->line('  '.$line);
+                    $this->line('  '.trim($line));
                 }
                 $this->newLine();
             }
