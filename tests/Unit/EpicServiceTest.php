@@ -282,8 +282,7 @@ it('returns not completed when epic has no tasks', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeFalse();
-    expect($result['review_task_id'])->toBeNull();
+    expect($result)->toBeFalse();
 });
 
 it('returns not completed when epic has open tasks', function () {
@@ -296,8 +295,7 @@ it('returns not completed when epic has open tasks', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeFalse();
-    expect($result['review_task_id'])->toBeNull();
+    expect($result)->toBeFalse();
 });
 
 it('returns not completed when epic has in_progress tasks', function () {
@@ -311,8 +309,7 @@ it('returns not completed when epic has in_progress tasks', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeFalse();
-    expect($result['review_task_id'])->toBeNull();
+    expect($result)->toBeFalse();
 });
 
 it('triggers completion when all tasks are closed', function () {
@@ -332,14 +329,7 @@ it('triggers completion when all tasks are closed', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeTrue();
-    expect($result['review_task_id'])->toStartWith('f-');
-
-    $reviewTask = $this->taskService->find($result['review_task_id']);
-    expect($reviewTask)->not->toBeNull();
-    expect($reviewTask['title'])->toContain('Review completed epic:');
-    expect($reviewTask['labels'])->toContain('needs-human');
-    expect($reviewTask['labels'])->toContain('epic-review');
+    expect($result)->toBeTrue();
 
     $updatedEpic = $this->service->getEpic($epic['id']);
     expect($updatedEpic['status'])->toBe('review_pending');
@@ -362,17 +352,16 @@ it('triggers completion when tasks are closed or cancelled', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeTrue();
+    expect($result)->toBeTrue();
 });
 
 it('returns false for non-existent epic', function () {
     $result = $this->service->checkEpicCompletion('e-000000');
 
-    expect($result['completed'])->toBeFalse();
-    expect($result['review_task_id'])->toBeNull();
+    expect($result)->toBeFalse();
 });
 
-it('includes task commit hashes in summary when available', function () {
+it('returns true when task with commit hash is completed', function () {
     $epic = $this->service->createEpic('Epic with commits');
 
     $task = $this->taskService->create([
@@ -384,13 +373,10 @@ it('includes task commit hashes in summary when available', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeTrue();
-
-    $reviewTask = $this->taskService->find($result['review_task_id']);
-    expect($reviewTask['description'])->toContain('abc1234');
+    expect($result)->toBeTrue();
 });
 
-it('does not create duplicate review tasks when checkEpicCompletion is called multiple times', function () {
+it('returns consistent result when checkEpicCompletion is called multiple times', function () {
     $epic = $this->service->createEpic('Epic for idempotency test');
 
     $task = $this->taskService->create([
@@ -400,31 +386,16 @@ it('does not create duplicate review tasks when checkEpicCompletion is called mu
 
     $this->taskService->done($task['id']);
 
-    // First call should create a review task
+    // First call should return true
     $result1 = $this->service->checkEpicCompletion($epic['id']);
-    expect($result1['completed'])->toBeTrue();
-    expect($result1['review_task_id'])->not->toBeNull();
+    expect($result1)->toBeTrue();
 
-    $firstReviewTaskId = $result1['review_task_id'];
-
-    // Second call should return the same review task ID, not create a new one
+    // Second call should also return true
     $result2 = $this->service->checkEpicCompletion($epic['id']);
-    expect($result2['completed'])->toBeTrue();
-    expect($result2['review_task_id'])->toBe($firstReviewTaskId);
-
-    // Verify only one review task exists
-    $allTasks = $this->taskService->all();
-    $reviewTasks = $allTasks->filter(function (array $task): bool {
-        $labels = $task['labels'] ?? [];
-
-        return is_array($labels) && in_array('epic-review', $labels, true);
-    });
-
-    expect($reviewTasks->count())->toBe(1);
-    expect($reviewTasks->first()['id'])->toBe($firstReviewTaskId);
+    expect($result2)->toBeTrue();
 });
 
-it('includes error details in summary when commit hash is invalid', function () {
+it('returns true when task with invalid commit hash is completed', function () {
     $epic = $this->service->createEpic('Epic with invalid commit');
 
     $task = $this->taskService->create([
@@ -437,16 +408,10 @@ it('includes error details in summary when commit hash is invalid', function () 
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeTrue();
-
-    $reviewTask = $this->taskService->find($result['review_task_id']);
-    expect($reviewTask['description'])->toContain('invalid123');
-    // Should contain error information
-    expect($reviewTask['description'])->toContain('Errors retrieving commits');
-    expect($reviewTask['description'])->toContain('Invalid commit hash');
+    expect($result)->toBeTrue();
 });
 
-it('includes error details in summary when commit is not found in repository', function () {
+it('returns true when task with non-existent commit is completed', function () {
     $epic = $this->service->createEpic('Epic with non-existent commit');
 
     $task = $this->taskService->create([
@@ -459,12 +424,7 @@ it('includes error details in summary when commit is not found in repository', f
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeTrue();
-
-    $reviewTask = $this->taskService->find($result['review_task_id']);
-    expect($reviewTask['description'])->toContain('a1b2c3d4e5f6789012345678901234567890abcd');
-    // Should contain error information
-    expect($reviewTask['description'])->toContain('Errors retrieving commits');
+    expect($result)->toBeTrue();
 });
 
 it('handles mixed valid and invalid commits gracefully', function () {
@@ -485,11 +445,5 @@ it('handles mixed valid and invalid commits gracefully', function () {
 
     $result = $this->service->checkEpicCompletion($epic['id']);
 
-    expect($result['completed'])->toBeTrue();
-
-    $reviewTask = $this->taskService->find($result['review_task_id']);
-    // Should still create the review task even with errors
-    expect($reviewTask)->not->toBeNull();
-    // Should mention the error
-    expect($reviewTask['description'])->toContain('Errors retrieving commits');
+    expect($result)->toBeTrue();
 });
