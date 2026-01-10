@@ -446,21 +446,30 @@ class ProcessManager implements ProcessManagerInterface
      */
     private function createOutputDirectory(string $taskId): array
     {
-        $outputDir = getcwd().('/.fuel/processes/' . $taskId);
-        if (!File::exists($outputDir) && ! File::makeDirectory($outputDir, 0755, true)) {
-            throw new \RuntimeException('Failed to create output directory: ' . $outputDir);
+        $outputDir = getcwd().'/.fuel/processes/'.$taskId;
+
+        // Always try to create directory (mkdir is idempotent with recursive=true)
+        if (! is_dir($outputDir)) {
+            if (! mkdir($outputDir, 0755, true)) {
+                throw new \RuntimeException('Failed to create output directory: '.$outputDir);
+            }
         }
 
-        $stdoutPath = $outputDir . '/stdout.log';
-        $stderrPath = $outputDir . '/stderr.log';
+        $stdoutPath = $outputDir.'/stdout.log';
+        $stderrPath = $outputDir.'/stderr.log';
 
-        // Clear existing output files
-        if (File::put($stdoutPath, '') === false) {
-            throw new \RuntimeException('Failed to create stdout file: ' . $stdoutPath);
+        // Create files using native PHP (File facade might have issues)
+        if (file_put_contents($stdoutPath, '') === false) {
+            throw new \RuntimeException('Failed to create stdout file: '.$stdoutPath);
         }
 
-        if (File::put($stderrPath, '') === false) {
-            throw new \RuntimeException('Failed to create stderr file: ' . $stderrPath);
+        if (file_put_contents($stderrPath, '') === false) {
+            throw new \RuntimeException('Failed to create stderr file: '.$stderrPath);
+        }
+
+        // Verify files actually exist
+        if (! file_exists($stdoutPath) || ! file_exists($stderrPath)) {
+            throw new \RuntimeException('Output files not found after creation: '.$outputDir);
         }
 
         return [
@@ -503,11 +512,9 @@ class ProcessManager implements ProcessManagerInterface
     private function startWithOutputCapture(SymfonyProcess $process, string $stdoutPath, string $stderrPath): void
     {
         $process->start(function ($type, $buffer) use ($stdoutPath, $stderrPath): void {
-            if ($type === SymfonyProcess::ERR) {
-                File::append($stderrPath, $buffer);
-            } else {
-                File::append($stdoutPath, $buffer);
-            }
+            $path = $type === SymfonyProcess::ERR ? $stderrPath : $stdoutPath;
+            // Use native file_put_contents with APPEND flag
+            file_put_contents($path, $buffer, FILE_APPEND);
         });
     }
 
