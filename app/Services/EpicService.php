@@ -310,8 +310,6 @@ class EpicService
         $summary = $this->generateEpicSummary($epic, $tasks, $gitDiff);
         $reviewTask = $this->createEpicReviewTask($epic, $summary);
 
-        $this->updateEpic($resolvedId, ['status' => 'completed']);
-
         return ['completed' => true, 'review_task_id' => $reviewTask['id']];
     }
 
@@ -396,7 +394,7 @@ class EpicService
      */
     private function createEpicReviewTask(array $epic, string $summary): array
     {
-        $title = "Review completed epic: {$epic['title']}";
+        $title = "Review completed epic: {$epic['title']} ({$epic['id']})";
 
         return $this->taskService->create([
             'title' => $title,
@@ -405,7 +403,6 @@ class EpicService
             'priority' => 1,
             'labels' => ['needs-human', 'epic-review'],
             'complexity' => 'simple',
-            'epic_id' => $epic['id'],
         ]);
     }
 }

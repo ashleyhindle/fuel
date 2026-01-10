@@ -67,10 +67,11 @@ class DoneCommand extends Command
                 }
                 $this->outputJson($output);
             } else {
-                // Multiple tasks - return array with epic completions
-                $output = ['tasks' => $tasks];
+                // Multiple tasks - return array for backward compatibility
                 if (! empty($epicCompletions)) {
-                    $output['epic_completions'] = array_values($epicCompletions);
+                    $output = ['tasks' => $tasks, 'epic_completions' => array_values($epicCompletions)];
+                } else {
+                    $output = $tasks;
                 }
                 $this->outputJson($output);
             }
