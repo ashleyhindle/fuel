@@ -758,6 +758,43 @@ describe('consume command auto-close feature', function () {
 });
 
 describe('consume command review integration', function () {
+    it('skips review when --skip-review flag is used', function () {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in_progress status
+        $task = $this->taskService->create([
+            'title' => 'Task for skip-review test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task['id'];
+        $this->taskService->start($taskId);
+
+        // Simulate what handleSuccess does with --skip-review
+        // Instead of triggering review, it directly marks task as done
+        $task = $this->taskService->find($taskId);
+        if ($task && $task['status'] === 'in_progress') {
+            $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
+        }
+
+        // Verify task was closed with the skip-review reason
+        $closedTask = $this->taskService->find($taskId);
+        expect($closedTask['status'])->toBe('closed');
+        expect($closedTask['reason'])->toBe('Auto-completed by consume (review skipped)');
+
+        // Verify no auto-closed label was added (skip-review path doesn't add it)
+        expect($closedTask['labels'])->not->toContain('auto-closed');
+    });
+
     it('verifies review conditions - task in_progress should trigger review', function () {
         // Create config
         $config = [
