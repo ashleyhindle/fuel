@@ -25,7 +25,8 @@
         "mockery/mockery": "^1.6.12",
         "pestphp/pest": "^3.8.4|^4.1.2",
         "pestphp/pest-plugin-type-coverage": "^4.0",
-        "phpacker/phpacker": "*"
+        "phpacker/phpacker": "*",
+        "rector/rector": "^2.3"
     },
     "autoload": {
         "psr-4": {
@@ -42,7 +43,11 @@
     "scripts": {
         "test": "pest",
         "test:coverage": "XDEBUG_MODE=coverage pest --coverage --min=60",
-        "test:type-coverage": "pest --type-coverage --min=99"
+        "test:type-coverage": "pest --type-coverage --min=99",
+        "format": "pint",
+        "rector": "rector process",
+        "rector:check": "rector process --dry-run",
+        "fix": ["@format", "@rector"]
     },
     "config": {
         "preferred-install": "dist",

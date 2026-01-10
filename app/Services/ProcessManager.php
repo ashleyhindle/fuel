@@ -25,12 +25,6 @@ class ProcessManager implements ProcessManagerInterface
     /** Poll interval in microseconds (default 100ms) */
     private const POLL_INTERVAL_US = 100000;
 
-    /** @var array<string, SymfonyProcess> Active processes indexed by taskId */
-    private array $processes = [];
-
-    /** @var array<string, Process> Process metadata indexed by taskId */
-    private array $processMetadata = [];
-
     /** @var array<string, AgentProcess> Active agent processes indexed by taskId */
     private array $activeAgentProcesses = [];
 
@@ -58,40 +52,11 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function isRunning(string $taskId): bool
     {
-        if (! isset($this->processes[$taskId])) {
+        if (! isset($this->activeAgentProcesses[$taskId])) {
             return false;
         }
 
-        $symfonyProcess = $this->processes[$taskId];
-        $isRunning = $symfonyProcess->isRunning();
-
-        // Update metadata if process completed
-        if (! $isRunning && isset($this->processMetadata[$taskId])) {
-            $metadata = $this->processMetadata[$taskId];
-            if ($metadata->status === ProcessStatus::Running) {
-                $exitCode = $symfonyProcess->getExitCode();
-                $status = match ($exitCode) {
-                    0 => ProcessStatus::Completed,
-                    -1, null => ProcessStatus::Failed,
-                    default => ProcessStatus::Failed
-                };
-
-                $this->processMetadata[$taskId] = new Process(
-                    id: $metadata->id,
-                    taskId: $metadata->taskId,
-                    agent: $metadata->agent,
-                    command: $metadata->command,
-                    cwd: $metadata->cwd,
-                    pid: $metadata->pid,
-                    status: $status,
-                    exitCode: $exitCode,
-                    startedAt: $metadata->startedAt,
-                    completedAt: new DateTimeImmutable
-                );
-            }
-        }
-
-        return $isRunning;
+        return $this->activeAgentProcesses[$taskId]->isRunning();
     }
 
     /**
@@ -101,32 +66,26 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function kill(string $taskId): void
     {
-        if (! isset($this->processes[$taskId])) {
+        if (! isset($this->activeAgentProcesses[$taskId])) {
             return;
         }
 
-        $symfonyProcess = $this->processes[$taskId];
+        $agentProcess = $this->activeAgentProcesses[$taskId];
+        $symfonyProcess = $agentProcess->getProcess();
 
         // Try SIGTERM first
         if ($symfonyProcess->isRunning()) {
             $symfonyProcess->stop(5); // 5 second timeout, then SIGKILL
         }
 
-        // Update metadata
-        if (isset($this->processMetadata[$taskId])) {
-            $metadata = $this->processMetadata[$taskId];
-            $this->processMetadata[$taskId] = new Process(
-                id: $metadata->id,
-                taskId: $metadata->taskId,
-                agent: $metadata->agent,
-                command: $metadata->command,
-                cwd: $metadata->cwd,
-                pid: $metadata->pid,
-                status: ProcessStatus::Killed,
-                exitCode: $symfonyProcess->getExitCode() ?? -1,
-                startedAt: $metadata->startedAt,
-                completedAt: new DateTimeImmutable
-            );
+        // Clean up tracking
+        unset($this->activeAgentProcesses[$taskId]);
+        $agentName = $agentProcess->getAgentName();
+        if (isset($this->agentCounts[$agentName])) {
+            $this->agentCounts[$agentName]--;
+            if ($this->agentCounts[$agentName] <= 0) {
+                unset($this->agentCounts[$agentName]);
+            }
         }
     }
 
@@ -138,7 +97,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function getOutput(string $taskId): ProcessOutput
     {
-        $outputDir = storage_path(".fuel/processes/{$taskId}");
+        $outputDir = getcwd()."/.fuel/processes/{$taskId}";
         $stdoutPath = "{$outputDir}/stdout.log";
         $stderrPath = "{$outputDir}/stderr.log";
 
@@ -170,8 +129,8 @@ class ProcessManager implements ProcessManagerInterface
     public function getRunningCount(): int
     {
         $count = 0;
-        foreach ($this->processes as $taskId => $process) {
-            if ($this->isRunning($taskId)) {
+        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+            if ($agentProcess->isRunning()) {
                 $count++;
             }
         }
@@ -188,9 +147,21 @@ class ProcessManager implements ProcessManagerInterface
     {
         $runningProcesses = [];
 
-        foreach ($this->processMetadata as $taskId => $metadata) {
-            if ($this->isRunning($taskId)) {
-                $runningProcesses[] = $metadata;
+        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+            if ($agentProcess->isRunning()) {
+                // Create Process object from AgentProcess data
+                $runningProcesses[] = new Process(
+                    id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
+                    taskId: $taskId,
+                    agent: $agentProcess->getAgentName(),
+                    command: '', // Command not stored in AgentProcess
+                    cwd: '', // CWD not stored in AgentProcess
+                    pid: $agentProcess->getPid() ?? 0,
+                    status: ProcessStatus::Running,
+                    exitCode: null,
+                    startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
+                    completedAt: null
+                );
             }
         }
 
@@ -206,24 +177,40 @@ class ProcessManager implements ProcessManagerInterface
     public function waitForAny(int $timeoutMs): ?ProcessResult
     {
         $startTime = microtime(true) * 1000;
+        $previouslyRunning = [];
+
+        // Track initially running processes
+        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+            if ($agentProcess->isRunning()) {
+                $previouslyRunning[$taskId] = true;
+            }
+        }
 
         while ((microtime(true) * 1000 - $startTime) < $timeoutMs) {
-            foreach ($this->processes as $taskId => $symfonyProcess) {
-                // Check if this process just completed
-                if (! $symfonyProcess->isRunning() &&
-                    isset($this->processMetadata[$taskId]) &&
-                    $this->processMetadata[$taskId]->status === ProcessStatus::Running) {
-
-                    // Update status and return result
-                    $this->isRunning($taskId); // This updates the metadata
-
-                    $metadata = $this->processMetadata[$taskId];
+            foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+                // Check if this process was running before but is now completed
+                if (isset($previouslyRunning[$taskId]) && ! $agentProcess->isRunning()) {
                     $output = $this->getOutput($taskId);
+                    $exitCode = $agentProcess->getExitCode() ?? -1;
+
+                    // Create Process metadata for compatibility
+                    $process = new Process(
+                        id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
+                        taskId: $taskId,
+                        agent: $agentProcess->getAgentName(),
+                        command: '', // Not available
+                        cwd: '', // Not available
+                        pid: $agentProcess->getPid() ?? 0,
+                        status: $exitCode === 0 ? ProcessStatus::Completed : ProcessStatus::Failed,
+                        exitCode: $exitCode,
+                        startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
+                        completedAt: new DateTimeImmutable
+                    );
 
                     return new ProcessResult(
-                        process: $metadata,
+                        process: $process,
                         output: $output,
-                        success: $metadata->exitCode === 0
+                        success: $exitCode === 0
                     );
                 }
             }
@@ -248,18 +235,32 @@ class ProcessManager implements ProcessManagerInterface
         while ((microtime(true) * 1000 - $startTime) < $timeoutMs) {
             $allCompleted = true;
 
-            foreach ($this->processes as $taskId => $symfonyProcess) {
-                if ($this->isRunning($taskId)) {
+            foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+                if ($agentProcess->isRunning()) {
                     $allCompleted = false;
                 } elseif (! isset($results[$taskId])) {
                     // Process completed but not yet in results
-                    $metadata = $this->processMetadata[$taskId];
                     $output = $this->getOutput($taskId);
+                    $exitCode = $agentProcess->getExitCode() ?? -1;
+
+                    // Create Process metadata for compatibility
+                    $process = new Process(
+                        id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
+                        taskId: $taskId,
+                        agent: $agentProcess->getAgentName(),
+                        command: '', // Not available
+                        cwd: '', // Not available
+                        pid: $agentProcess->getPid() ?? 0,
+                        status: $exitCode === 0 ? ProcessStatus::Completed : ProcessStatus::Failed,
+                        exitCode: $exitCode,
+                        startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
+                        completedAt: new DateTimeImmutable
+                    );
 
                     $results[$taskId] = new ProcessResult(
-                        process: $metadata,
+                        process: $process,
                         output: $output,
-                        success: $metadata->exitCode === 0
+                        success: $exitCode === 0
                     );
                 }
             }
@@ -312,7 +313,8 @@ class ProcessManager implements ProcessManagerInterface
             fwrite(STDERR, "\n\033[31m✗ Forcing immediate shutdown...\033[0m\n");
 
             // Force kill all processes immediately
-            foreach ($this->processes as $symfonyProcess) {
+            foreach ($this->activeAgentProcesses as $agentProcess) {
+                $symfonyProcess = $agentProcess->getProcess();
                 if ($symfonyProcess->isRunning()) {
                     $symfonyProcess->stop(0); // Immediate SIGKILL
                 }
@@ -346,10 +348,10 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         // Step 1: Send SIGTERM to all running processes
-        foreach ($this->processes as $taskId => $symfonyProcess) {
+        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+            $symfonyProcess = $agentProcess->getProcess();
             if ($symfonyProcess->isRunning()) {
                 $pid = $symfonyProcess->getPid();
-                $metadata = $this->processMetadata[$taskId];
                 fwrite(STDERR, "  - Sending SIGTERM to {$taskId} (PID: {$pid})\n");
                 $symfonyProcess->stop(30); // 30 second timeout before SIGKILL
             }
@@ -362,8 +364,8 @@ class ProcessManager implements ProcessManagerInterface
 
         while (time() - $start < $timeout) {
             $stillRunning = [];
-            foreach ($this->processes as $taskId => $symfonyProcess) {
-                if ($symfonyProcess->isRunning()) {
+            foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+                if ($agentProcess->isRunning()) {
                     $stillRunning[] = $taskId;
                 }
             }
@@ -386,7 +388,8 @@ class ProcessManager implements ProcessManagerInterface
 
         // Step 3: Force kill any remaining processes
         $forceKilled = [];
-        foreach ($this->processes as $taskId => $symfonyProcess) {
+        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+            $symfonyProcess = $agentProcess->getProcess();
             if ($symfonyProcess->isRunning()) {
                 $pid = $symfonyProcess->getPid();
                 fwrite(STDERR, "\033[31m  - Force killing {$taskId} (PID: {$pid})\033[0m\n");
@@ -400,28 +403,7 @@ class ProcessManager implements ProcessManagerInterface
             fwrite(STDERR, "\033[31m✗ Had to force kill ".count($forceKilled)." process(es).\033[0m\n");
         }
 
-        // Update metadata for all terminated processes
-        foreach ($this->processMetadata as $taskId => $metadata) {
-            if ($metadata->status === ProcessStatus::Running) {
-                $exitCode = $this->processes[$taskId]->getExitCode() ?? -1;
-                $this->processMetadata[$taskId] = new Process(
-                    id: $metadata->id,
-                    taskId: $metadata->taskId,
-                    agent: $metadata->agent,
-                    command: $metadata->command,
-                    cwd: $metadata->cwd,
-                    pid: $metadata->pid,
-                    status: ProcessStatus::Killed,
-                    exitCode: $exitCode,
-                    startedAt: $metadata->startedAt,
-                    completedAt: new DateTimeImmutable
-                );
-            }
-        }
-
         // Clear process tracking
-        $this->processes = [];
-        $this->processMetadata = [];
         $this->activeAgentProcesses = [];
         $this->agentCounts = [];
     }
@@ -461,21 +443,14 @@ class ProcessManager implements ProcessManagerInterface
     }
 
     /**
-     * Spawn a new process for a given task and agent (interface method).
+     * Create output directory and files for a task.
      *
-     * @param  string  $taskId  The ID of the task to process
-     * @param  string  $agent  The agent name to use for processing
-     * @param  string  $command  The command to execute
-     * @param  string  $cwd  The current working directory for the process
-     * @return Process The spawned process
+     * @param  string  $taskId  The task ID to create output for
+     * @return array{outputDir: string, stdoutPath: string, stderrPath: string}
      */
-    public function spawn(string $taskId, string $agent, string $command, string $cwd): Process
+    private function createOutputDirectory(string $taskId): array
     {
-        // Generate unique process ID
-        $processId = 'p-'.substr(bin2hex(random_bytes(3)), 0, 6);
-
-        // Create output directory
-        $outputDir = storage_path(".fuel/processes/{$taskId}");
+        $outputDir = getcwd()."/.fuel/processes/{$taskId}";
         if (! File::exists($outputDir)) {
             File::makeDirectory($outputDir, 0755, true);
         }
@@ -487,14 +462,26 @@ class ProcessManager implements ProcessManagerInterface
         File::put($stdoutPath, '');
         File::put($stderrPath, '');
 
-        // Parse command into array if it's a string
-        $commandArray = is_string($command) ? explode(' ', $command) : [$command];
+        return [
+            'outputDir' => $outputDir,
+            'stdoutPath' => $stdoutPath,
+            'stderrPath' => $stderrPath,
+        ];
+    }
 
-        // Create and start the process
+    /**
+     * Create and configure a Symfony Process.
+     *
+     * @param  array  $commandArray  The command array to execute
+     * @param  string  $cwd  The current working directory
+     * @param  array|null  $env  Environment variables
+     */
+    private function createSymfonyProcess(array $commandArray, string $cwd, ?array $env = null): SymfonyProcess
+    {
         $symfonyProcess = new SymfonyProcess(
             $commandArray,
             $cwd,
-            null,  // inherit environment
+            $env,
             null,  // no stdin
             null   // no timeout
         );
@@ -502,36 +489,80 @@ class ProcessManager implements ProcessManagerInterface
         $symfonyProcess->setTimeout(null);
         $symfonyProcess->setIdleTimeout(null);
 
-        // Start process and capture output to files
-        $symfonyProcess->start(function ($type, $buffer) use ($stdoutPath, $stderrPath) {
+        return $symfonyProcess;
+    }
+
+    /**
+     * Start a process with output capture to files.
+     *
+     * @param  SymfonyProcess  $process  The process to start
+     * @param  string  $stdoutPath  Path to stdout log file
+     * @param  string  $stderrPath  Path to stderr log file
+     */
+    private function startWithOutputCapture(SymfonyProcess $process, string $stdoutPath, string $stderrPath): void
+    {
+        $process->start(function ($type, $buffer) use ($stdoutPath, $stderrPath) {
             if ($type === SymfonyProcess::ERR) {
                 File::append($stderrPath, $buffer);
             } else {
                 File::append($stdoutPath, $buffer);
             }
         });
+    }
 
-        $pid = $symfonyProcess->getPid() ?? 0;
+    /**
+     * Spawn a new process for a given task and agent (interface method).
+     *
+     * This is a simple interface for tests and basic usage. It takes a command
+     * string directly and doesn't require agent configuration from ConfigService.
+     *
+     * @param  string  $taskId  The ID of the task to process
+     * @param  string  $agent  The agent name (for tracking purposes only)
+     * @param  string  $command  The command to execute
+     * @param  string  $cwd  The current working directory for the process
+     * @return Process The spawned process
+     */
+    public function spawn(string $taskId, string $agent, string $command, string $cwd): Process
+    {
+        // Create output directory and files
+        $outputPaths = $this->createOutputDirectory($taskId);
+        $stdoutPath = $outputPaths['stdoutPath'];
+        $stderrPath = $outputPaths['stderrPath'];
 
-        // Create Process value object
-        $process = new Process(
-            id: $processId,
+        // Use shell to handle the command string properly
+        $commandArray = ['sh', '-c', $command];
+
+        // Create and configure the process
+        $symfonyProcess = $this->createSymfonyProcess($commandArray, $cwd);
+
+        // Start process with output capture
+        $this->startWithOutputCapture($symfonyProcess, $stdoutPath, $stderrPath);
+
+        // Create AgentProcess for unified tracking
+        $agentProcess = new AgentProcess(
+            $symfonyProcess,
+            $taskId,
+            $agent,
+            time()
+        );
+
+        // Track the process
+        $this->activeAgentProcesses[$taskId] = $agentProcess;
+        $this->agentCounts[$agent] = ($this->agentCounts[$agent] ?? 0) + 1;
+
+        // Return Process metadata
+        return new Process(
+            id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
             taskId: $taskId,
             agent: $agent,
             command: $command,
             cwd: $cwd,
-            pid: $pid,
+            pid: $symfonyProcess->getPid() ?? 0,
             status: ProcessStatus::Running,
             exitCode: null,
             startedAt: new DateTimeImmutable,
             completedAt: null
         );
-
-        // Store process and metadata
-        $this->processes[$taskId] = $symfonyProcess;
-        $this->processMetadata[$taskId] = $process;
-
-        return $process;
     }
 
     /**
@@ -586,40 +617,17 @@ class ProcessManager implements ProcessManagerInterface
                 $commandArray[] = $arg;
             }
 
-            // Create output directory
-            $outputDir = storage_path(".fuel/processes/{$taskId}");
-            if (! File::exists($outputDir)) {
-                File::makeDirectory($outputDir, 0755, true);
-            }
+            // Create output directory and files
+            $outputPaths = $this->createOutputDirectory($taskId);
+            $stdoutPath = $outputPaths['stdoutPath'];
+            $stderrPath = $outputPaths['stderrPath'];
 
-            $stdoutPath = "{$outputDir}/stdout.log";
-            $stderrPath = "{$outputDir}/stderr.log";
-
-            // Clear existing output files
-            File::put($stdoutPath, '');
-            File::put($stderrPath, '');
-
-            // Create and start the process with env vars
+            // Create and configure the process with env vars
             $env = array_merge($_ENV, $agentDef['env']);
-            $symfonyProcess = new SymfonyProcess(
-                $commandArray,
-                $cwd,
-                $env,
-                null,  // no stdin
-                null   // no timeout
-            );
+            $symfonyProcess = $this->createSymfonyProcess($commandArray, $cwd, $env);
 
-            $symfonyProcess->setTimeout(null);
-            $symfonyProcess->setIdleTimeout(null);
-
-            // Start process and capture output to files
-            $symfonyProcess->start(function ($type, $buffer) use ($stdoutPath, $stderrPath) {
-                if ($type === SymfonyProcess::ERR) {
-                    File::append($stderrPath, $buffer);
-                } else {
-                    File::append($stdoutPath, $buffer);
-                }
-            });
+            // Start process with output capture
+            $this->startWithOutputCapture($symfonyProcess, $stdoutPath, $stderrPath);
 
             // Check if process started successfully
             if (! $symfonyProcess->isRunning()) {
@@ -637,22 +645,6 @@ class ProcessManager implements ProcessManagerInterface
             // Track the process
             $this->activeAgentProcesses[$taskId] = $agentProcess;
             $this->agentCounts[$agentName] = ($this->agentCounts[$agentName] ?? 0) + 1;
-
-            // Also update legacy tracking for compatibility
-            $this->processes[$taskId] = $symfonyProcess;
-            $pid = $symfonyProcess->getPid() ?? 0;
-            $this->processMetadata[$taskId] = new Process(
-                id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
-                taskId: $taskId,
-                agent: $agentName,
-                command: implode(' ', $commandArray),
-                cwd: $cwd,
-                pid: $pid,
-                status: ProcessStatus::Running,
-                exitCode: null,
-                startedAt: new DateTimeImmutable,
-                completedAt: null
-            );
 
             return SpawnResult::success($agentProcess);
 
@@ -745,24 +737,6 @@ class ProcessManager implements ProcessManagerInterface
                     if ($this->agentCounts[$agentName] <= 0) {
                         unset($this->agentCounts[$agentName]);
                     }
-                }
-
-                // Also update legacy tracking
-                unset($this->processes[$taskId]);
-                if (isset($this->processMetadata[$taskId])) {
-                    $metadata = $this->processMetadata[$taskId];
-                    $this->processMetadata[$taskId] = new Process(
-                        id: $metadata->id,
-                        taskId: $taskId,
-                        agent: $agentName,
-                        command: $metadata->command,
-                        cwd: $metadata->cwd,
-                        pid: $metadata->pid,
-                        status: $exitCode === 0 ? ProcessStatus::Completed : ProcessStatus::Failed,
-                        exitCode: $exitCode,
-                        startedAt: $metadata->startedAt,
-                        completedAt: new DateTimeImmutable
-                    );
                 }
             }
         }

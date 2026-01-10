@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Process\ProcessStatus;
+use App\Services\ConfigService;
 use App\Services\ProcessManager;
 use Illuminate\Support\Facades\File;
+use Mockery;
 use Tests\TestCase;
 
 class ProcessManagerTest extends TestCase
@@ -16,10 +18,25 @@ class ProcessManagerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->processManager = new ProcessManager;
+
+        // Create a mock ConfigService for testing with real commands
+        $mockConfig = Mockery::mock(ConfigService::class);
+        $mockConfig->shouldReceive('getAgentDefinition')
+            ->andReturn([
+                'command' => 'sh',
+                'prompt_args' => ['-c'],
+                'model' => '',
+                'args' => [],
+                'env' => [],
+                'max_concurrent' => 2,
+            ]);
+        $mockConfig->shouldReceive('getAgentLimit')
+            ->andReturn(10); // Higher limit for feature tests
+
+        $this->processManager = new ProcessManager($mockConfig);
 
         // Clean up any existing process files
-        $processDir = storage_path('.fuel/processes');
+        $processDir = getcwd().'/.fuel/processes';
         if (File::exists($processDir)) {
             File::deleteDirectory($processDir);
         }
@@ -31,7 +48,7 @@ class ProcessManagerTest extends TestCase
         $this->processManager->shutdown();
 
         // Clean up process files
-        $processDir = storage_path('.fuel/processes');
+        $processDir = getcwd().'/.fuel/processes';
         if (File::exists($processDir)) {
             File::deleteDirectory($processDir);
         }
@@ -73,7 +90,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNotNull($result);
 
         // Verify stdout file content
-        $stdoutPath = storage_path('.fuel/processes/f-stdout/stdout.log');
+        $stdoutPath = getcwd().'/.fuel/processes/f-stdout/stdout.log';
         $this->assertTrue(File::exists($stdoutPath));
         $content = File::get($stdoutPath);
         $this->assertStringContainsString('stdout content', $content);
@@ -94,7 +111,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNotNull($result);
 
         // Verify stderr file content
-        $stderrPath = storage_path('.fuel/processes/f-stderr/stderr.log');
+        $stderrPath = getcwd().'/.fuel/processes/f-stderr/stderr.log';
         $this->assertTrue(File::exists($stderrPath));
         $content = File::get($stderrPath);
         $this->assertStringContainsString('error', $content);
