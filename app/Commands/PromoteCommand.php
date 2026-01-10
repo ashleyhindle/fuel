@@ -78,8 +78,8 @@ class PromoteCommand extends Command
                     'description' => $deletedItem['description'] ?? null,
                 ];
 
-                // Add options if provided
-                if ($priority = $this->option('priority')) {
+                // Add options if provided (use !== null to allow 0)
+                if (($priority = $this->option('priority')) !== null) {
                     if (! is_numeric($priority)) {
                         $errors[] = ['id' => $id, 'error' => sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)];
 

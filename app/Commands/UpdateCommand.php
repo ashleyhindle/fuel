@@ -47,7 +47,7 @@ class UpdateCommand extends Command
             $updateData['type'] = $type;
         }
 
-        if ($priority = $this->option('priority')) {
+        if (($priority = $this->option('priority')) !== null) {
             if (! is_numeric($priority)) {
                 return $this->outputError(sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority));
             }

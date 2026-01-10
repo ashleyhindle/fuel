@@ -88,8 +88,8 @@ class AddCommand extends Command
             $data['type'] = $type;
         }
 
-        // Add priority
-        if ($priority = $this->option('priority')) {
+        // Add priority (use !== null to allow 0)
+        if (($priority = $this->option('priority')) !== null) {
             // Validate priority is numeric before casting
             if (! is_numeric($priority)) {
                 return $this->outputError(sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority));
