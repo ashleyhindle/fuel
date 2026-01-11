@@ -312,7 +312,7 @@ it('runs a basic command flow', function (): void {
     expect(array_column($epics, 'id'))->toContain($epicId);
 
     Artisan::call('epic:approve', [
-        'id' => $epicId,
+        'ids' => [$epicId],
         '--cwd' => $cwd,
         '--json' => true,
     ]);
