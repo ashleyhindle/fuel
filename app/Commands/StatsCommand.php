@@ -40,6 +40,9 @@ class StatsCommand extends Command
         EpicService $epicService,
         DatabaseService $databaseService
     ): int {
+        // Clear screen for clean dashboard experience
+        $this->output->write("\e[2J\e[H");
+
         $this->configureCwd($taskService);
 
         // Detect terminal width
