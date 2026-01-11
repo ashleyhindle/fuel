@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\EpicStatus;
+use App\Models\Epic;
 use Carbon\Carbon;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -21,7 +22,7 @@ class EpicService
         $this->taskService = $taskService ?? new TaskService($db);
     }
 
-    public function createEpic(string $title, ?string $description = null): array
+    public function createEpic(string $title, ?string $description = null): Epic
     {
         $this->db->initialize();
 
@@ -46,10 +47,10 @@ class EpicService
         // Compute status (will be 'planning' for new epic with no tasks)
         $epic['status'] = $this->getEpicStatus($shortId)->value;
 
-        return $epic;
+        return Epic::fromArray($epic);
     }
 
-    public function getEpic(string $id): ?array
+    public function getEpic(string $id): ?Epic
     {
         $this->db->initialize();
 
@@ -67,21 +68,24 @@ class EpicService
         $epic['id'] = $epic['short_id'];
         $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
-        return $epic;
+        return Epic::fromArray($epic);
     }
 
+    /**
+     * @return array<int, Epic>
+     */
     public function getAllEpics(): array
     {
         $this->db->initialize();
 
         $epics = $this->db->fetchAll('SELECT * FROM epics ORDER BY created_at DESC');
 
-        return array_map(function (array $epic): array {
+        return array_map(function (array $epic): Epic {
             // Map short_id to id for public interface compatibility
             $epic['id'] = $epic['short_id'];
             $epic['status'] = $this->getEpicStatus($epic['short_id'])->value;
 
-            return $epic;
+            return Epic::fromArray($epic);
         }, $epics);
     }
 
@@ -89,7 +93,7 @@ class EpicService
      * Get all epics that are pending human review.
      * An epic is review_pending when: has tasks, all tasks closed, and not yet reviewed.
      *
-     * @return array<array<string, mixed>>
+     * @return array<int, Epic>
      */
     public function getEpicsPendingReview(): array
     {
@@ -101,8 +105,8 @@ class EpicService
             WHERE e.reviewed_at IS NULL
               AND EXISTS (SELECT 1 FROM tasks t WHERE t.epic_id = e.short_id)
               AND NOT EXISTS (
-                  SELECT 1 FROM tasks t 
-                  WHERE t.epic_id = e.short_id 
+                  SELECT 1 FROM tasks t
+                  WHERE t.epic_id = e.short_id
                     AND t.status NOT IN ('closed', 'cancelled')
               )
             ORDER BY e.created_at DESC
@@ -110,15 +114,15 @@ class EpicService
 
         $epics = $this->db->fetchAll($sql);
 
-        return array_map(function (array $epic): array {
+        return array_map(function (array $epic): Epic {
             $epic['id'] = $epic['short_id'];
             $epic['status'] = EpicStatus::ReviewPending->value;
 
-            return $epic;
+            return Epic::fromArray($epic);
         }, $epics);
     }
 
-    public function updateEpic(string $id, array $data): array
+    public function updateEpic(string $id, array $data): Epic
     {
         $this->db->initialize();
 
@@ -158,10 +162,10 @@ class EpicService
         // Compute status from task states
         $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
-        return $epic;
+        return Epic::fromArray($epic);
     }
 
-    public function markAsReviewed(string $id): array
+    public function markAsReviewed(string $id): Epic
     {
         $this->db->initialize();
 
@@ -183,7 +187,7 @@ class EpicService
         $epic['reviewed_at'] = $now;
         $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
-        return $epic;
+        return Epic::fromArray($epic);
     }
 
     /**
@@ -191,9 +195,8 @@ class EpicService
      *
      * @param  string  $id  The epic ID
      * @param  string|null  $approvedBy  Who approved it (optional, defaults to 'human')
-     * @return array<string, mixed> The updated epic
      */
-    public function approveEpic(string $id, ?string $approvedBy = null): array
+    public function approveEpic(string $id, ?string $approvedBy = null): Epic
     {
         $this->db->initialize();
 
@@ -223,7 +226,7 @@ class EpicService
         $epic['changes_requested_at'] = null;
         $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
-        return $epic;
+        return Epic::fromArray($epic);
     }
 
     /**
@@ -231,9 +234,8 @@ class EpicService
      *
      * @param  string  $id  The epic ID
      * @param  string|null  $reason  Optional reason for rejection
-     * @return array<string, mixed> The updated epic
      */
-    public function rejectEpic(string $id, ?string $reason = null): array
+    public function rejectEpic(string $id, ?string $reason = null): Epic
     {
         $this->db->initialize();
 
@@ -270,10 +272,10 @@ class EpicService
         $epic['approved_by'] = null;
         $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
-        return $epic;
+        return Epic::fromArray($epic);
     }
 
-    public function deleteEpic(string $id): array
+    public function deleteEpic(string $id): Epic
     {
         $this->db->initialize();
 
@@ -294,7 +296,7 @@ class EpicService
 
         $this->db->query('DELETE FROM epics WHERE short_id = ?', [$resolvedId]);
 
-        return $epic;
+        return Epic::fromArray($epic);
     }
 
     public function getTasksForEpic(string $epicId): array
