@@ -55,7 +55,7 @@ class EpicDeleteCommand extends Command
 
             $linkedTasks = $epicService->getTasksForEpic($epicId);
 
-            if (! $this->option('force') && ! $this->option('json')) {
+            if (! $this->option('force') && ! $this->option('json') && $this->input->isInteractive()) {
                 $taskCount = count($linkedTasks);
                 $confirmMessage = sprintf(
                     "Are you sure you want to delete epic '%s' (%s)?",

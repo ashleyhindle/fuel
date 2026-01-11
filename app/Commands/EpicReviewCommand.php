@@ -122,7 +122,7 @@ class EpicReviewCommand extends Command
             $this->displayEpicReview($epic, $tasks, $commits, $gitStats, $gitDiff, $commitSubjects ?? [], $firstRunTimes);
 
             // Prompt to mark as reviewed (unless --no-prompt is set or output is piped)
-            if (! $this->option('no-prompt') && posix_isatty(STDOUT) && $this->confirm('Mark this epic as reviewed?', false)) {
+            if (! $this->option('no-prompt') && $this->input->isInteractive() && $this->confirm('Mark this epic as reviewed?', false)) {
                 $epicService->markAsReviewed($epic->id);
                 $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
             }
