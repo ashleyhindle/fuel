@@ -22,7 +22,7 @@ describe('runs command', function (): void {
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
-        $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
 
         $this->taskService = $this->app->make(TaskService::class);
     });

@@ -31,7 +31,7 @@ beforeEach(function (): void {
 
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
-    $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
+    $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
 
     $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
 

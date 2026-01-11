@@ -21,7 +21,7 @@ beforeEach(function (): void {
     $taskService = makeTaskService($databaseService);
     $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
 
-    $runService = new RunService($databaseService);
+    $runService = makeRunService($databaseService);
     $this->app->singleton(RunService::class, fn (): RunService => $runService);
 
     $this->databaseService = $this->app->make(DatabaseService::class);

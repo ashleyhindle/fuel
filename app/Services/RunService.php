@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Run;
+use App\Repositories\RunRepository;
+use App\Repositories\TaskRepository;
 use RuntimeException;
 
 class RunService
@@ -20,7 +22,8 @@ class RunService
     public const STATUS_FAILED = 'failed';
 
     public function __construct(
-        private readonly DatabaseService $databaseService
+        private readonly RunRepository $runRepository,
+        private readonly TaskRepository $taskRepository
     ) {}
 
     /**
@@ -43,24 +46,20 @@ class RunService
         $shortId = $this->generateShortId();
 
         // Insert into runs table with status='running'
-        $this->databaseService->query(
-            'INSERT INTO runs (short_id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status, duration_seconds)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [
-                $shortId,
-                $taskIntId,
-                $data['agent'] ?? null,
-                $data['model'] ?? null,
-                $data['started_at'] ?? now()->toIso8601String(),
-                null, // ended_at
-                null, // exit_code
-                null, // output
-                $data['session_id'] ?? null,
-                $data['cost_usd'] ?? null,
-                self::STATUS_RUNNING,
-                null, // duration_seconds
-            ]
-        );
+        $this->runRepository->insert([
+            'short_id' => $shortId,
+            'task_id' => $taskIntId,
+            'agent' => $data['agent'] ?? null,
+            'model' => $data['model'] ?? null,
+            'started_at' => $data['started_at'] ?? now()->toIso8601String(),
+            'ended_at' => null,
+            'exit_code' => null,
+            'output' => null,
+            'session_id' => $data['session_id'] ?? null,
+            'cost_usd' => $data['cost_usd'] ?? null,
+            'status' => self::STATUS_RUNNING,
+            'duration_seconds' => null,
+        ]);
 
         return $shortId;
     }
@@ -99,24 +98,20 @@ class RunService
         }
 
         // Insert into runs table - id auto-increments, all runs start as STATUS_RUNNING
-        $this->databaseService->query(
-            'INSERT INTO runs (short_id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status, duration_seconds)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [
-                $shortId,
-                $taskIntId,
-                $data['agent'] ?? null,
-                $data['model'] ?? null,
-                $data['started_at'] ?? now()->toIso8601String(),
-                $data['ended_at'] ?? null,
-                $data['exit_code'] ?? null,
-                $output,
-                $data['session_id'] ?? null,
-                $data['cost_usd'] ?? null,
-                self::STATUS_RUNNING,
-                $durationSeconds,
-            ]
-        );
+        $this->runRepository->insert([
+            'short_id' => $shortId,
+            'task_id' => $taskIntId,
+            'agent' => $data['agent'] ?? null,
+            'model' => $data['model'] ?? null,
+            'started_at' => $data['started_at'] ?? now()->toIso8601String(),
+            'ended_at' => $data['ended_at'] ?? null,
+            'exit_code' => $data['exit_code'] ?? null,
+            'output' => $output,
+            'session_id' => $data['session_id'] ?? null,
+            'cost_usd' => $data['cost_usd'] ?? null,
+            'status' => self::STATUS_RUNNING,
+            'duration_seconds' => $durationSeconds,
+        ]);
     }
 
     /**
@@ -133,13 +128,7 @@ class RunService
             return [];
         }
 
-        $runs = $this->databaseService->fetchAll(
-            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds, status
-             FROM runs
-             WHERE task_id = ?
-             ORDER BY started_at ASC',
-            [$taskIntId]
-        );
+        $runs = $this->runRepository->findByTaskId($taskIntId);
 
         // Transform to Run models (short_id becomes run_id for backward compatibility)
         return array_map(fn (array $run): Run => Run::fromArray([
@@ -170,14 +159,7 @@ class RunService
             return null;
         }
 
-        $run = $this->databaseService->fetchOne(
-            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds, status
-             FROM runs
-             WHERE task_id = ?
-             ORDER BY started_at DESC, id DESC
-             LIMIT 1',
-            [$taskIntId]
-        );
+        $run = $this->runRepository->getLatestForTask($taskIntId);
 
         if ($run === null) {
             return null;
@@ -214,10 +196,7 @@ class RunService
         }
 
         // Get the latest run ID and started_at (needed for duration calculation)
-        $latestRun = $this->databaseService->fetchOne(
-            'SELECT id, started_at FROM runs WHERE task_id = ? ORDER BY started_at DESC, id DESC LIMIT 1',
-            [$taskIntId]
-        );
+        $latestRun = $this->runRepository->getLatestForTask($taskIntId);
 
         if ($latestRun === null) {
             throw new RuntimeException(sprintf('No runs found for task %s to update', $taskId));
@@ -231,57 +210,43 @@ class RunService
 
         // Build dynamic UPDATE query based on provided fields
         $updateFields = [];
-        $params = [];
 
         if (isset($data['ended_at'])) {
-            $updateFields[] = 'ended_at = ?';
-            $params[] = $data['ended_at'];
+            $updateFields['ended_at'] = $data['ended_at'];
             // Also update status to completed when ended_at is set
-            $updateFields[] = 'status = ?';
-            $params[] = self::STATUS_COMPLETED;
+            $updateFields['status'] = self::STATUS_COMPLETED;
 
             // Calculate and set duration_seconds
             if ($latestRun['started_at'] !== null) {
                 $start = strtotime($latestRun['started_at']);
                 $end = strtotime((string) $data['ended_at']);
                 if ($start !== false && $end !== false) {
-                    $updateFields[] = 'duration_seconds = ?';
-                    $params[] = $end - $start;
+                    $updateFields['duration_seconds'] = $end - $start;
                 }
             }
         }
 
         if (isset($data['exit_code'])) {
-            $updateFields[] = 'exit_code = ?';
-            $params[] = $data['exit_code'];
+            $updateFields['exit_code'] = $data['exit_code'];
         }
 
         if (array_key_exists('output', $data)) {
-            $updateFields[] = 'output = ?';
-            $params[] = $output;
+            $updateFields['output'] = $output;
         }
 
         if (isset($data['session_id'])) {
-            $updateFields[] = 'session_id = ?';
-            $params[] = $data['session_id'];
+            $updateFields['session_id'] = $data['session_id'];
         }
 
         if (isset($data['cost_usd'])) {
-            $updateFields[] = 'cost_usd = ?';
-            $params[] = $data['cost_usd'];
+            $updateFields['cost_usd'] = $data['cost_usd'];
         }
 
         if ($updateFields === []) {
             return; // Nothing to update
         }
 
-        // Add run ID to params
-        $params[] = $latestRun['id'];
-
-        $this->databaseService->query(
-            'UPDATE runs SET '.implode(', ', $updateFields).' WHERE id = ?',
-            $params
-        );
+        $this->runRepository->update((int) $latestRun['id'], $updateFields);
     }
 
     /**
@@ -294,10 +259,7 @@ class RunService
     public function cleanupOrphanedRuns(callable $isPidDead): int
     {
         // Find all runs with status='running' and ended_at IS NULL
-        $orphanedRuns = $this->databaseService->fetchAll(
-            'SELECT id FROM runs WHERE status = ? AND ended_at IS NULL',
-            [self::STATUS_RUNNING]
-        );
+        $orphanedRuns = $this->runRepository->getOrphanedRuns();
 
         if ($orphanedRuns === []) {
             return 0;
@@ -308,15 +270,11 @@ class RunService
         $cleanupCount = 0;
 
         foreach ($orphanedRuns as $run) {
-            $this->databaseService->query(
-                'UPDATE runs SET status = ?, ended_at = ?, exit_code = ?, output = ? WHERE id = ?',
-                [
-                    self::STATUS_FAILED,
-                    $endedAt,
-                    -1,
-                    '[Run orphaned - consume process died before completion]',
-                    $run['id'],
-                ]
+            $this->runRepository->markAsFailed(
+                (int) $run['id'],
+                $endedAt,
+                -1,
+                '[Run orphaned - consume process died before completion]'
             );
             $cleanupCount++;
         }
@@ -338,8 +296,7 @@ class RunService
             $shortId = 'run-'.substr($hash, 0, $length);
 
             // Check if short_id already exists in database
-            $existing = $this->databaseService->fetchOne('SELECT id FROM runs WHERE short_id = ?', [$shortId]);
-            if ($existing === null) {
+            if (! $this->runRepository->existsByShortId($shortId)) {
                 return $shortId;
             }
 
@@ -364,42 +321,10 @@ class RunService
     public function getStats(): array
     {
         // Get all runs with their agent, model, and status
-        $runs = $this->databaseService->fetchAll(
-            'SELECT agent, model, status FROM runs'
-        );
-
-        $totalRuns = count($runs);
-        $byStatus = [
-            'running' => 0,
-            'completed' => 0,
-            'failed' => 0,
-        ];
-        $byAgent = [];
-        $byModel = [];
-
-        foreach ($runs as $run) {
-            // Count by status
-            $status = $run['status'] ?? self::STATUS_RUNNING;
-            if (isset($byStatus[$status])) {
-                $byStatus[$status]++;
-            }
-
-            // Count by agent (skip if agent is null)
-            if ($run['agent'] !== null) {
-                $agent = (string) $run['agent'];
-                $byAgent[$agent] = ($byAgent[$agent] ?? 0) + 1;
-            }
-
-            // Count by model (skip if model is null)
-            if ($run['model'] !== null) {
-                $model = (string) $run['model'];
-                $byModel[$model] = ($byModel[$model] ?? 0) + 1;
-            }
-        }
-
-        // Sort by count descending
-        arsort($byAgent);
-        arsort($byModel);
+        $totalRuns = $this->runRepository->count();
+        $byStatus = $this->runRepository->countByStatus();
+        $byAgent = $this->runRepository->countByAgent();
+        $byModel = $this->runRepository->countByModel();
 
         return [
             'total_runs' => $totalRuns,
@@ -423,54 +348,18 @@ class RunService
     public function getTimingStats(): array
     {
         // Get average duration overall
-        $avgOverall = $this->databaseService->fetchOne(
-            'SELECT AVG(duration_seconds) as avg_duration FROM runs WHERE duration_seconds IS NOT NULL'
-        );
-
-        // Get average duration by agent
-        $byAgent = $this->databaseService->fetchAll(
-            'SELECT agent, AVG(duration_seconds) as avg_duration
-             FROM runs
-             WHERE duration_seconds IS NOT NULL AND agent IS NOT NULL
-             GROUP BY agent'
-        );
-
-        // Get average duration by model
-        $byModel = $this->databaseService->fetchAll(
-            'SELECT model, AVG(duration_seconds) as avg_duration
-             FROM runs
-             WHERE duration_seconds IS NOT NULL AND model IS NOT NULL
-             GROUP BY model'
-        );
-
-        // Get longest run
-        $longest = $this->databaseService->fetchOne(
-            'SELECT MAX(duration_seconds) as max_duration FROM runs WHERE duration_seconds IS NOT NULL'
-        );
-
-        // Get shortest completed run
-        $shortest = $this->databaseService->fetchOne(
-            'SELECT MIN(duration_seconds) as min_duration FROM runs WHERE duration_seconds IS NOT NULL AND duration_seconds > 0'
-        );
-
-        // Transform byAgent to associative array
-        $byAgentMap = [];
-        foreach ($byAgent as $row) {
-            $byAgentMap[(string) $row['agent']] = (float) $row['avg_duration'];
-        }
-
-        // Transform byModel to associative array
-        $byModelMap = [];
-        foreach ($byModel as $row) {
-            $byModelMap[(string) $row['model']] = (float) $row['avg_duration'];
-        }
+        $avgOverall = $this->runRepository->getAverageDuration();
+        $byAgentMap = $this->runRepository->getAverageDurationByAgent();
+        $byModelMap = $this->runRepository->getAverageDurationByModel();
+        $longest = $this->runRepository->getMaxDuration();
+        $shortest = $this->runRepository->getMinDuration();
 
         return [
-            'average_duration' => $avgOverall['avg_duration'] !== null ? (float) $avgOverall['avg_duration'] : null,
+            'average_duration' => $avgOverall,
             'by_agent' => $byAgentMap,
             'by_model' => $byModelMap,
-            'longest_run' => $longest['max_duration'] !== null ? (int) $longest['max_duration'] : null,
-            'shortest_run' => $shortest['min_duration'] !== null ? (int) $shortest['min_duration'] : null,
+            'longest_run' => $longest,
+            'shortest_run' => $shortest,
         ];
     }
 
@@ -482,8 +371,6 @@ class RunService
      */
     private function resolveTaskId(string $taskShortId): ?int
     {
-        $task = $this->databaseService->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$taskShortId]);
-
-        return $task !== null ? (int) $task['id'] : null;
+        return $this->taskRepository->resolveToIntegerId($taskShortId);
     }
 }

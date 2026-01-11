@@ -2,7 +2,6 @@
 
 use App\Models\Run;
 use App\Services\DatabaseService;
-use App\Services\RunService;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
@@ -19,7 +18,7 @@ beforeEach(function (): void {
         [$this->taskId, 'Test Task', 'open']
     );
 
-    $this->runService = new RunService($this->databaseService);
+    $this->runService = makeRunService($this->databaseService);
 });
 
 afterEach(function (): void {

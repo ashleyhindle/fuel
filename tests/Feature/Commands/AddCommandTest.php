@@ -22,7 +22,7 @@ describe('add command', function (): void {
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
-        $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -371,7 +371,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService);
+        $epicService = makeEpicService($databaseService, $this->taskService);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -390,7 +390,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService);
+        $epicService = makeEpicService($databaseService, $this->taskService);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -419,7 +419,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService);
+        $epicService = makeEpicService($databaseService, $this->taskService);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -447,7 +447,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService);
+        $epicService = makeEpicService($databaseService, $this->taskService);
         $epic = $epicService->createEpic('Test Epic');
         $partialId = substr($epic->id, 2, 3); // Just hash part
 
