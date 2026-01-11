@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
@@ -118,9 +119,10 @@ class AddCommand extends Command
         if ($epic = $this->option('epic')) {
             // Validate epic exists
             $epicRecord = $epicService->getEpic($epic);
-            if ($epicRecord === null) {
+            if (!$epicRecord instanceof Epic) {
                 return $this->outputError(sprintf("Epic '%s' not found", $epic));
             }
+
             $data['epic_id'] = $epicRecord->id;
         }
 

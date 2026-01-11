@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
@@ -35,7 +36,7 @@ class RunsCommand extends Command
             // Validate task exists
             $task = $taskService->find($this->argument('id'));
 
-            if ($task === null) {
+            if (!$task instanceof Task) {
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
@@ -45,7 +46,7 @@ class RunsCommand extends Command
             if ($this->option('last')) {
                 $latestRun = $runService->getLatestRun($taskId);
 
-                if ($latestRun === null) {
+                if (!$latestRun instanceof Run) {
                     return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
                 }
 

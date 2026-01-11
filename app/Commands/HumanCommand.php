@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -55,14 +56,12 @@ class HumanCommand extends Command
 
         // Get epics with status review_pending
         $allEpics = $epicService->getAllEpics();
-        $pendingEpics = array_values(array_filter($allEpics, function ($epic): bool {
-            return ($epic->status ?? '') === 'review_pending';
-        }));
+        $pendingEpics = array_values(array_filter($allEpics, fn(Epic $epic): bool => ($epic->status ?? '') === 'review_pending'));
 
         if ($this->option('json')) {
             $this->outputJson([
                 'tasks' => $humanTasks->map(fn (Task $task): array => $task->toArray())->toArray(),
-                'epics' => array_map(fn ($epic) => $epic->toArray(), $pendingEpics),
+                'epics' => array_map(fn (Epic $epic): array => $epic->toArray(), $pendingEpics),
             ]);
 
             return self::SUCCESS;
@@ -86,6 +85,7 @@ class HumanCommand extends Command
             if (! empty($epic->description ?? null)) {
                 $this->line('  '.$epic->description);
             }
+
             $this->line(sprintf('  Review: <comment>fuel epic:review %s</comment>', $epic->id));
             $this->newLine();
         }
@@ -97,6 +97,7 @@ class HumanCommand extends Command
             if (! empty($task->description ?? null)) {
                 $this->line('  '.$task->description);
             }
+
             $this->newLine();
         }
 

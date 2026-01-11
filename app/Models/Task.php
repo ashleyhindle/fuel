@@ -65,7 +65,7 @@ class Task extends Model
             return [];
         }
 
-        return array_map('trim', explode(',', $labels));
+        return array_map(trim(...), explode(',', $labels));
     }
 
     /**
@@ -79,6 +79,6 @@ class Task extends Model
             return [];
         }
 
-        return array_map('trim', explode(',', $blockedBy));
+        return array_map(trim(...), explode(',', (string) $blockedBy));
     }
 }

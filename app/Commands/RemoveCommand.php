@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
@@ -89,7 +90,7 @@ class RemoveCommand extends Command
             if ($hasTaskPrefix) {
                 $task = $taskService->find($id);
 
-                if ($task === null) {
+                if (!$task instanceof Task) {
                     return $this->outputError(sprintf("Task '%s' not found", $id));
                 }
 
@@ -130,7 +131,7 @@ class RemoveCommand extends Command
             $backlogItem = $backlogService->find($id);
 
             // Check for ambiguous matches
-            if ($task !== null && $backlogItem !== null) {
+            if ($task instanceof Task && $backlogItem !== null) {
                 return $this->outputError(sprintf("ID '%s' is ambiguous. Matches both task '%s' and backlog item '%s'. Use full ID with prefix.", $id, $task->id, $backlogItem['id']));
             }
 
@@ -162,7 +163,7 @@ class RemoveCommand extends Command
                 return self::SUCCESS;
             }
 
-            if ($task !== null) {
+            if ($task instanceof Task) {
                 $resolvedId = $task->id;
                 $title = $task->title ?? '';
 

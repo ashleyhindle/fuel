@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Process\ReviewResult;
+use App\Enums\FailureType;
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
@@ -76,8 +79,8 @@ class ConsumeCommand extends Command
         // Validate config early before entering TUI
         try {
             $this->configService->validate();
-        } catch (\RuntimeException $e) {
-            $this->error('Config validation failed: '.$e->getMessage());
+        } catch (\RuntimeException $runtimeException) {
+            $this->error('Config validation failed: '.$runtimeException->getMessage());
 
             return self::FAILURE;
         }
@@ -101,7 +104,7 @@ class ConsumeCommand extends Command
         $this->runService->cleanupOrphanedRuns(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid));
 
         // Recover stuck reviews (tasks in 'review' status with no active review process)
-        if ($this->reviewService !== null) {
+        if ($this->reviewService instanceof ReviewServiceInterface) {
             $recoveredReviews = $this->reviewService->recoverStuckReviews();
             foreach ($recoveredReviews as $taskId) {
                 $this->info(sprintf('Recovered stuck review for task %s', $taskId));
@@ -205,9 +208,11 @@ class ConsumeCommand extends Command
                                 if (ob_get_level() > 0) {
                                     ob_flush();
                                 }
+
                                 flush();
                                 break 2; // Break out of foreach and while loop
                             }
+
                             // In interactive mode, show message and wait
                             $this->newLine();
                             $this->line('<fg=gray>Press Ctrl+C to exit, or wait to see next task...</>');
@@ -419,10 +424,10 @@ PROMPT;
         }
 
         // Check agent health / backoff before attempting to spawn
-        if (! $dryrun && $this->healthTracker !== null && ! $this->healthTracker->isAvailable($agentName)) {
+        if (! $dryrun && $this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
             $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
             $formatted = $backoffSeconds < 60
-                ? "{$backoffSeconds}s"
+                ? $backoffSeconds . 's'
                 : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
 
             // Only show message once per backoff period (check if already shown recently)
@@ -432,7 +437,7 @@ PROMPT;
         }
 
         // Check if agent is dead (exceeded max_retries consecutive failures)
-        if (! $dryrun && $this->healthTracker !== null) {
+        if (! $dryrun && $this->healthTracker instanceof AgentHealthTrackerInterface) {
             $maxRetries = $this->configService->getAgentMaxRetries($agentName);
             if ($this->healthTracker->isDead($agentName, $maxRetries)) {
                 $statusLines[] = $this->formatStatus('💀', sprintf('%s skipped - %s is dead (>= %d consecutive failures)', $taskId, $agentName, $maxRetries), 'red');
@@ -515,6 +520,7 @@ PROMPT;
             if ($process->getProcessType() === ProcessType::Review) {
                 continue;
             }
+
             if ($process->getSessionId() !== null) {
                 $this->runService->updateLatestRun($process->getTaskId(), [
                     'session_id' => $process->getSessionId(),
@@ -539,14 +545,14 @@ PROMPT;
      */
     private function checkCompletedReviews(array &$statusLines): void
     {
-        if ($this->reviewService === null) {
+        if (!$this->reviewService instanceof ReviewServiceInterface) {
             return;
         }
 
         foreach ($this->reviewService->getPendingReviews() as $taskId) {
             if ($this->reviewService->isReviewComplete($taskId)) {
                 $result = $this->reviewService->getReviewResult($taskId);
-                if ($result === null) {
+                if (!$result instanceof ReviewResult) {
                     continue;
                 }
 
@@ -567,6 +573,7 @@ PROMPT;
                                 '--reason' => 'Review passed (was already closed)',
                             ]);
                         }
+
                         $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s (was already closed)', $taskId), 'green');
                     } else {
                         // Task was in_progress - mark as done
@@ -578,10 +585,10 @@ PROMPT;
                     }
                 } else {
                     // Review found issues - reopen task if it was already closed
-                    $issuesSummary = empty($result->issues) ? 'issues found' : implode(', ', $result->issues);
+                    $issuesSummary = $result->issues === [] ? 'issues found' : implode(', ', $result->issues);
 
                     // Store the review issues on the task for the next agent run
-                    if (! empty($result->issues)) {
+                    if ($result->issues !== []) {
                         $this->taskService->setLastReviewIssues($taskId, $result->issues);
                     }
 
@@ -598,7 +605,7 @@ PROMPT;
                         try {
                             $this->taskService->reopen($taskId);
                             $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
-                        } catch (\RuntimeException $e) {
+                        } catch (\RuntimeException) {
                             $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
                         }
                     }
@@ -673,7 +680,7 @@ PROMPT;
         $taskId = $completion->taskId;
 
         // Record success with health tracker
-        if ($this->healthTracker !== null) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
             $this->healthTracker->recordSuccess($completion->agentName);
         }
 
@@ -682,7 +689,7 @@ PROMPT;
 
         // Check task status
         $task = $this->taskService->find($taskId);
-        if (! $task) {
+        if (!$task instanceof Task) {
             // Task was deleted?
             $statusLines[] = $this->formatStatus('?', sprintf('%s completed but task not found (%s)', $taskId, $durationStr), 'yellow');
 
@@ -699,14 +706,16 @@ PROMPT;
             if (! $wasAlreadyClosed) {
                 $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
             }
+
             $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (review skipped) (%s)', $taskId, $durationStr), 'green');
-        } elseif ($this->reviewService !== null) {
+        } elseif ($this->reviewService instanceof ReviewServiceInterface) {
             // Trigger review if ReviewService is available
             try {
                 // Store original status before triggering review
                 if ($wasAlreadyClosed) {
                     $this->preReviewTaskStatus[$taskId] = $originalStatus;
                 }
+
                 $reviewTriggered = $this->reviewService->triggerReview($taskId, $completion->agentName);
                 if ($reviewTriggered) {
                     $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan');
@@ -714,7 +723,7 @@ PROMPT;
                     // No review agent configured - auto-complete with warning
                     $this->fallbackAutoComplete($taskId, $statusLines, $durationStr, true);
                 }
-            } catch (\RuntimeException $e) {
+            } catch (\RuntimeException) {
                 // Review failed to trigger - fall back to auto-complete
                 $this->fallbackAutoComplete($taskId, $statusLines, $durationStr);
             }
@@ -767,7 +776,7 @@ PROMPT;
 
         // Record failure with health tracker
         $failureType = $completion->toFailureType();
-        if ($this->healthTracker !== null && $failureType !== null) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface && $failureType instanceof FailureType) {
             $this->healthTracker->recordFailure($agentName, $failureType);
         }
 
@@ -785,7 +794,7 @@ PROMPT;
 
             // Get backoff time if health tracker is available
             $backoffInfo = '';
-            if ($this->healthTracker !== null) {
+            if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
                 $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
                 if ($backoffSeconds > 0) {
                     $backoffInfo = sprintf(', backoff %ds', $backoffSeconds);
@@ -820,7 +829,7 @@ PROMPT;
 
         // Record failure with health tracker (network errors trigger backoff)
         $failureType = $completion->toFailureType();
-        if ($this->healthTracker !== null && $failureType !== null) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface && $failureType instanceof FailureType) {
             $this->healthTracker->recordFailure($agentName, $failureType);
         }
 
@@ -837,7 +846,7 @@ PROMPT;
 
             // Get backoff time info
             $backoffInfo = '';
-            if ($this->healthTracker !== null) {
+            if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
                 $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
                 if ($backoffSeconds > 0) {
                     $backoffInfo = sprintf(', backoff %ds', $backoffSeconds);
@@ -869,7 +878,7 @@ PROMPT;
 
         // Record failure with health tracker (permission errors don't trigger backoff)
         $failureType = $completion->toFailureType();
-        if ($this->healthTracker !== null && $failureType !== null) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface && $failureType instanceof FailureType) {
             $this->healthTracker->recordFailure($agentName, $failureType);
         }
 
@@ -952,10 +961,8 @@ PROMPT;
 
         // Show agent health status (unhealthy/degraded agents only)
         $healthLines = $this->getHealthStatusLines();
-        if ($healthLines !== []) {
-            foreach ($healthLines as $healthLine) {
-                $this->line($healthLine);
-            }
+        foreach ($healthLines as $healthLine) {
+            $this->line($healthLine);
         }
 
         // Show status history
@@ -1130,7 +1137,7 @@ PROMPT;
         // Include epic information if task is part of an epic
         if (! empty($task->epic_id)) {
             $epic = $this->epicService->getEpic($task->epic_id);
-            if ($epic !== null) {
+            if ($epic instanceof Epic) {
                 $lines[] = '';
                 $lines[] = '== EPIC CONTEXT ==';
                 $lines[] = 'This task is part of a larger epic:';
@@ -1139,6 +1146,7 @@ PROMPT;
                 if (! empty($epic->description)) {
                     $lines[] = 'Epic Description: '.$epic->description;
                 }
+
                 $lines[] = '';
                 $lines[] = 'You are working on a small part of this larger epic. Understanding the epic context will help you build better solutions that align with the overall goal.';
                 $lines[] = '';
@@ -1173,6 +1181,7 @@ PROMPT;
             foreach ($task->last_review_issues as $issue) {
                 $lines[] = '  - '.$issue;
             }
+
             $lines[] = '';
             $lines[] = 'DO NOT redo the entire task from scratch.';
             $lines[] = 'ONLY fix the specific issues listed above, then run the closing protocol again.';
@@ -1186,7 +1195,7 @@ PROMPT;
      */
     private function displayHealthStatus(): int
     {
-        if ($this->healthTracker === null) {
+        if (!$this->healthTracker instanceof AgentHealthTrackerInterface) {
             $this->error('Health tracker not available');
 
             return self::FAILURE;
@@ -1244,7 +1253,7 @@ PROMPT;
             $backoffSeconds = $health->getBackoffSeconds();
             if ($backoffSeconds > 0) {
                 $formatted = $backoffSeconds < 60
-                    ? "{$backoffSeconds}s"
+                    ? $backoffSeconds . 's'
                     : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                 $line .= sprintf(' <fg=yellow>backoff: %s</>', $formatted);
             }
@@ -1268,7 +1277,7 @@ PROMPT;
      */
     private function checkAgentHealthChanges(array &$statusLines): void
     {
-        if ($this->healthTracker === null) {
+        if (!$this->healthTracker instanceof AgentHealthTrackerInterface) {
             return;
         }
 
@@ -1297,7 +1306,7 @@ PROMPT;
             // Agent entered backoff
             if ($backoffChanged && $inBackoff && ! $previous['in_backoff']) {
                 $formatted = $backoffSeconds < 60
-                    ? "{$backoffSeconds}s"
+                    ? $backoffSeconds . 's'
                     : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                 $statusLines[] = $this->formatStatus('⏳', sprintf('%s entered backoff (%s remaining)', $agentName, $formatted), 'yellow');
             }
@@ -1344,7 +1353,7 @@ PROMPT;
      */
     private function getHealthStatusLines(): array
     {
-        if ($this->healthTracker === null) {
+        if (!$this->healthTracker instanceof AgentHealthTrackerInterface) {
             return [];
         }
 
@@ -1376,7 +1385,7 @@ PROMPT;
                 // Show agents in backoff (yellow)
                 if ($inBackoff) {
                     $formatted = $backoffSeconds < 60
-                        ? "{$backoffSeconds}s"
+                        ? $backoffSeconds . 's'
                         : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                     $unhealthyAgents[] = $this->formatStatus(
                         '⏳',
@@ -1404,6 +1413,7 @@ PROMPT;
                         $color
                     );
                 }
+
                 // Healthy agents are not shown to avoid clutter
             }
         }

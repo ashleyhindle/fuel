@@ -18,7 +18,7 @@ it('contains the task ID in the prompt', function (): void {
 
     expect($prompt)->toContain('f-abc123');
     // Task ID should appear multiple times (in header and fuel done command)
-    expect(substr_count($prompt, 'f-abc123'))->toBeGreaterThanOrEqual(3);
+    expect(substr_count((string) $prompt, 'f-abc123'))->toBeGreaterThanOrEqual(3);
 });
 
 it('contains the task title in the prompt', function (): void {
@@ -142,7 +142,7 @@ it('truncates large diffs', function (): void {
     // The prompt should be shorter than if the full diff was included
     $promptWithShortDiff = $this->reviewPrompt->generate($task, 'short diff', '');
     // Large diff prompt should still be reasonably sized (not include full 7500 chars)
-    expect(strlen($prompt))->toBeLessThan(strlen($promptWithShortDiff) + 6000);
+    expect(strlen((string) $prompt))->toBeLessThan(strlen((string) $promptWithShortDiff) + 6000);
 });
 
 it('does not truncate small diffs', function (): void {

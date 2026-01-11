@@ -1,5 +1,8 @@
 <?php
 
+use App\Process\CompletionResult;
+use App\Process\CompletionType;
+use App\Process\ReviewResult;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -8,34 +11,28 @@ use App\Services\RunService;
 use App\Services\TaskService;
 use Symfony\Component\Yaml\Yaml;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir.'/.fuel', 0755, true);
 
     // Create FuelContext pointing to test directory
     $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn () => $context);
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Store config path for tests that need to write config files
     $this->configPath = $context->getConfigPath();
 
     // Bind test services
     $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
+    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-    $this->app->singleton(TaskService::class, function () use ($databaseService) {
-        return new TaskService($databaseService);
-    });
+    $this->app->singleton(TaskService::class, fn(): TaskService => new TaskService($databaseService));
 
-    $this->app->singleton(RunService::class, function () use ($databaseService) {
-        return new RunService($databaseService);
-    });
+    $this->app->singleton(RunService::class, fn(): RunService => new RunService($databaseService));
 
-    $this->app->singleton(ConfigService::class, function () use ($context) {
-        return new ConfigService($context);
-    });
+    $this->app->singleton(ConfigService::class, fn(): ConfigService => new ConfigService($context));
 
-    $this->app->singleton(EpicService::class, function () use ($databaseService) {
+    $this->app->singleton(EpicService::class, function () use ($databaseService): EpicService {
         $taskService = $this->app->make(TaskService::class);
 
         return new EpicService($databaseService, $taskService);
@@ -49,17 +46,22 @@ beforeEach(function () {
     $this->taskService->initialize();
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir) {
+    $deleteDir = function (string $dir) use (&$deleteDir): void {
         if (! is_dir($dir)) {
             return;
         }
+
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
+            if ($item === '..') {
+                continue;
+            }
+
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -67,14 +69,15 @@ afterEach(function () {
                 unlink($path);
             }
         }
+
         rmdir($dir);
     };
 
     $deleteDir($this->tempDir);
 });
 
-describe('consume command parallel execution logic', function () {
-    it('verifies config supports multiple agent limits', function () {
+describe('consume command parallel execution logic', function (): void {
+    it('verifies config supports multiple agent limits', function (): void {
         // Create config with different agent limits
         $config = [
             'agents' => [
@@ -107,7 +110,7 @@ describe('consume command parallel execution logic', function () {
         ]);
     });
 
-    it('supports parallel task selection with different complexities', function () {
+    it('supports parallel task selection with different complexities', function (): void {
         // Create config mapping complexities to different agents
         $config = [
             'agents' => [
@@ -162,7 +165,7 @@ describe('consume command parallel execution logic', function () {
         expect($moderateConfig['model'])->toBe('sonnet');
     });
 
-    it('uses default agent limit of 2 when agent missing max_concurrent', function () {
+    it('uses default agent limit of 2 when agent missing max_concurrent', function (): void {
         // Create config with agent but no max_concurrent
         $config = [
             'agents' => [
@@ -182,8 +185,8 @@ describe('consume command parallel execution logic', function () {
     });
 });
 
-describe('consume command integration', function () {
-    it('creates run entries when spawning tasks', function () {
+describe('consume command integration', function (): void {
+    it('creates run entries when spawning tasks', function (): void {
         // This test verifies the integration between ConsumeCommand and RunService
         // Create a simple config
         $config = [
@@ -219,7 +222,7 @@ describe('consume command integration', function () {
         expect($runs[0]->run_id)->toStartWith('run-');
     });
 
-    it('tracks multiple concurrent runs separately', function () {
+    it('tracks multiple concurrent runs separately', function (): void {
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
 
@@ -245,8 +248,8 @@ describe('consume command integration', function () {
     });
 });
 
-describe('consume command permission-blocked detection', function () {
-    it('detects "commands are being rejected" and creates needs-human task', function () {
+describe('consume command permission-blocked detection', function (): void {
+    it('detects "commands are being rejected" and creates needs-human task', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -323,7 +326,7 @@ describe('consume command permission-blocked detection', function () {
         expect($readyIds)->not->toContain($taskId);
     });
 
-    it('detects "terminal commands are being rejected" pattern', function () {
+    it('detects "terminal commands are being rejected" pattern', function (): void {
         $config = [
             'agents' => [
                 'test-agent' => ['command' => 'test-agent'],
@@ -367,7 +370,7 @@ describe('consume command permission-blocked detection', function () {
         expect($humanTask->labels)->toContain('needs-human');
     });
 
-    it('detects "please manually complete" pattern', function () {
+    it('detects "please manually complete" pattern', function (): void {
         $config = [
             'agents' => [
                 'manual-agent' => ['command' => 'manual-agent'],
@@ -410,7 +413,7 @@ describe('consume command permission-blocked detection', function () {
         expect($updatedTask->blocked_by)->toContain($humanTask->id);
     });
 
-    it('completes normally when no permission errors are detected', function () {
+    it('completes normally when no permission errors are detected', function (): void {
         $config = [
             'agents' => [
                 'echo' => ['command' => 'echo', 'args' => []],
@@ -452,11 +455,11 @@ describe('consume command permission-blocked detection', function () {
 
         // Verify no needs-human tasks were created
         $allTasks = $this->taskService->all();
-        $needsHumanTasks = $allTasks->filter(fn ($t) => in_array('needs-human', $t->labels ?? []));
+        $needsHumanTasks = $allTasks->filter(fn ($t): bool => in_array('needs-human', $t->labels ?? []));
         expect($needsHumanTasks)->toHaveCount(0);
     });
 
-    it('detects permission errors case-insensitively', function () {
+    it('detects permission errors case-insensitively', function (): void {
         $config = [
             'agents' => [
                 'test-agent' => ['command' => 'test-agent'],
@@ -489,8 +492,8 @@ describe('consume command permission-blocked detection', function () {
     });
 });
 
-describe('consume command auto-close feature', function () {
-    it('adds auto-closed label when agent exits 0 without self-reporting', function () {
+describe('consume command auto-close feature', function (): void {
+    it('adds auto-closed label when agent exits 0 without self-reporting', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -539,7 +542,7 @@ describe('consume command auto-close feature', function () {
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
 
-    it('does not add auto-closed label when agent calls fuel done itself', function () {
+    it('does not add auto-closed label when agent calls fuel done itself', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -582,7 +585,7 @@ describe('consume command auto-close feature', function () {
         expect($task->reason)->toBe('Agent completed the task');
     });
 
-    it('uses Artisan::call for done command instead of direct taskService->done', function () {
+    it('uses Artisan::call for done command instead of direct taskService->done', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -625,7 +628,7 @@ describe('consume command auto-close feature', function () {
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
 
-    it('shows auto-closed icon in board done column', function () {
+    it('shows auto-closed icon in board done column', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -669,7 +672,7 @@ describe('consume command auto-close feature', function () {
         expect($output)->toContain('Done');
     });
 
-    it('does not show auto-closed icon for manually closed tasks', function () {
+    it('does not show auto-closed icon for manually closed tasks', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -711,9 +714,9 @@ describe('consume command auto-close feature', function () {
         expect($output)->not->toContain('🤖');
     });
 
-    it('handles CompletionResult with Success type for auto-close flow', function () {
+    it('handles CompletionResult with Success type for auto-close flow', function (): void {
         // Create a CompletionResult simulating a successful agent exit
-        $completion = new \App\Process\CompletionResult(
+        $completion = new CompletionResult(
             taskId: 'f-test01',
             agentName: 'test-agent',
             exitCode: 0,
@@ -721,21 +724,20 @@ describe('consume command auto-close feature', function () {
             sessionId: null,
             costUsd: null,
             output: 'Task completed',
-            type: \App\Process\CompletionType::Success,
-            message: null
+            type: CompletionType::Success
         );
 
         // Verify it's a success
         expect($completion->isSuccess())->toBeTrue();
         expect($completion->isFailed())->toBeFalse();
         expect($completion->exitCode)->toBe(0);
-        expect($completion->type)->toBe(\App\Process\CompletionType::Success);
+        expect($completion->type)->toBe(CompletionType::Success);
 
         // Verify formatted duration
         expect($completion->getFormattedDuration())->toBe('1m 0s');
     });
 
-    it('verifies auto-close only happens for in_progress tasks with exit 0', function () {
+    it('verifies auto-close only happens for in_progress tasks with exit 0', function (): void {
         $config = [
             'agents' => [
                 'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
@@ -774,8 +776,8 @@ describe('consume command auto-close feature', function () {
     });
 });
 
-describe('consume command review integration', function () {
-    it('skips review when --skip-review flag is used', function () {
+describe('consume command review integration', function (): void {
+    it('skips review when --skip-review flag is used', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -812,7 +814,7 @@ describe('consume command review integration', function () {
         expect($closedTask->labels)->not->toContain('auto-closed');
     });
 
-    it('verifies review conditions - task in_progress should trigger review', function () {
+    it('verifies review conditions - task in_progress should trigger review', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -845,7 +847,7 @@ describe('consume command review integration', function () {
         expect($shouldTriggerReview)->toBeTrue();
     });
 
-    it('verifies review conditions - closed task should not trigger review', function () {
+    it('verifies review conditions - closed task should not trigger review', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -877,7 +879,7 @@ describe('consume command review integration', function () {
         expect($shouldTriggerReview)->toBeFalse();
     });
 
-    it('marks task done when review passes', function () {
+    it('marks task done when review passes', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -899,7 +901,7 @@ describe('consume command review integration', function () {
         $this->taskService->update($taskId, ['status' => 'review']);
 
         // Create a ReviewResult that passed
-        $reviewResult = new \App\Process\ReviewResult(
+        $reviewResult = new ReviewResult(
             taskId: $taskId,
             passed: true,
             issues: [],
@@ -923,7 +925,7 @@ describe('consume command review integration', function () {
         expect($closedTask->reason)->toBe('Review passed');
     });
 
-    it('leaves task in review status when review fails', function () {
+    it('leaves task in review status when review fails', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -945,7 +947,7 @@ describe('consume command review integration', function () {
         $this->taskService->update($taskId, ['status' => 'review']);
 
         // Create a ReviewResult that failed
-        $reviewResult = new \App\Process\ReviewResult(
+        $reviewResult = new ReviewResult(
             taskId: $taskId,
             passed: false,
             issues: ['Modified files not committed: src/Service.php', 'Tests failed in UserServiceTest'],
@@ -962,7 +964,7 @@ describe('consume command review integration', function () {
         expect($reviewTask->status)->toBe('review');
     });
 
-    it('falls back to auto-complete when ReviewService is not available', function () {
+    it('falls back to auto-complete when ReviewService is not available', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -1000,7 +1002,7 @@ describe('consume command review integration', function () {
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
 
-    it('verifies exception handling causes fallback to auto-complete', function () {
+    it('verifies exception handling causes fallback to auto-complete', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -1045,8 +1047,8 @@ describe('consume command review integration', function () {
 
 });
 
-describe('consume command epic context in prompt', function () {
-    it('includes epic context in prompt when task is part of an epic', function () {
+describe('consume command epic context in prompt', function (): void {
+    it('includes epic context in prompt when task is part of an epic', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -1091,7 +1093,7 @@ describe('consume command epic context in prompt', function () {
         expect($output)->toContain('You are working on a small part of this larger epic');
     });
 
-    it('does not include epic context when task is not part of an epic', function () {
+    it('does not include epic context when task is not part of an epic', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -1124,7 +1126,7 @@ describe('consume command epic context in prompt', function () {
         expect($output)->not->toContain('This task is part of a larger epic:');
     });
 
-    it('includes epic context without description when epic has no description', function () {
+    it('includes epic context without description when epic has no description', function (): void {
         // Create config
         $config = [
             'agents' => [

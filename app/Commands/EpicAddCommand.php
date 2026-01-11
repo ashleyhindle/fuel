@@ -28,8 +28,8 @@ class EpicAddCommand extends Command
 
         try {
             $epic = $epicService->createEpic($title, $description);
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
 
         if ($this->option('json')) {

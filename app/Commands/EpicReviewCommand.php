@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
 use App\Models\Task;
@@ -44,7 +45,7 @@ class EpicReviewCommand extends Command
             // Load epic and validate it exists
             $epic = $epicService->getEpic($this->argument('epicId'));
 
-            if ($epic === null) {
+            if (!$epic instanceof Epic) {
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('epicId')));
             }
 
@@ -68,7 +69,7 @@ class EpicReviewCommand extends Command
             $gitDiff = null;
             $commitMessages = [];
 
-            if (! empty($commits)) {
+            if ($commits !== []) {
                 $commitHashes = array_column($commits, 'hash');
                 $firstCommit = $commitHashes[0];
                 $lastCommit = $commitHashes[count($commitHashes) - 1];
@@ -109,11 +110,9 @@ class EpicReviewCommand extends Command
             $this->displayEpicReview($epic, $tasks, $commits, $gitStats, $gitDiff, $commitMessages);
 
             // Prompt to mark as reviewed (unless --no-prompt is set)
-            if (! $this->option('no-prompt')) {
-                if ($this->confirm('Mark this epic as reviewed?', false)) {
-                    $epicService->markAsReviewed($epic->id);
-                    $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
-                }
+            if (!$this->option('no-prompt') && $this->confirm('Mark this epic as reviewed?', false)) {
+                $epicService->markAsReviewed($epic->id);
+                $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
             }
 
             return self::SUCCESS;
@@ -161,34 +160,33 @@ class EpicReviewCommand extends Command
         $this->line(sprintf('<fg=cyan>Tasks</> (%d total):', count($tasks)));
         $this->newLine();
 
-        if (empty($tasks)) {
+        if ($tasks === []) {
             $this->line('  <fg=yellow>No tasks linked to this epic.</>');
         } else {
             $headers = ['ID', 'Title', 'Status', 'Commit'];
-            $rows = array_map(function (Task $task): array {
-                return [
-                    $task->id ?? '',
-                    $task->title ?? '',
-                    $task->status ?? 'open',
-                    $task->commit_hash ?? '-',
-                ];
-            }, $tasks);
+            $rows = array_map(fn(Task $task): array => [
+                $task->id ?? '',
+                $task->title ?? '',
+                $task->status ?? 'open',
+                $task->commit_hash ?? '-',
+            ], $tasks);
 
             $this->table($headers, $rows);
         }
 
         // Commit information
-        if (! empty($commits)) {
+        if ($commits !== []) {
             $this->newLine();
             $this->line(sprintf('<fg=cyan>Commits</> (%d total):', count($commits)));
             $this->newLine();
 
             foreach ($commitMessages as $commitInfo) {
                 $this->line(sprintf('  <fg=yellow>%s</>', $commitInfo['hash']));
-                $lines = explode("\n", trim($commitInfo['message']));
+                $lines = explode("\n", trim((string) $commitInfo['message']));
                 foreach ($lines as $line) {
                     $this->line(sprintf('    %s', $line));
                 }
+
                 $this->newLine();
             }
 
@@ -201,6 +199,7 @@ class EpicReviewCommand extends Command
                 foreach ($statsLines as $line) {
                     $this->line('  '.trim($line));
                 }
+
                 $this->newLine();
             }
 
@@ -220,7 +219,7 @@ class EpicReviewCommand extends Command
     /**
      * Get git diff stats for a range of commits.
      */
-    private function getGitStats(string $firstCommit, string $lastCommit): ?string
+    private function getGitStats(string $firstCommit, string $lastCommit): string
     {
         try {
             $process = new Process(['git', 'diff', '--stat', $firstCommit.'^..'.$lastCommit]);
@@ -231,15 +230,15 @@ class EpicReviewCommand extends Command
             }
 
             return sprintf('Failed to get git stats: %s', trim($process->getErrorOutput()));
-        } catch (\Throwable $e) {
-            return sprintf('Failed to get git stats: %s', $e->getMessage());
+        } catch (\Throwable $throwable) {
+            return sprintf('Failed to get git stats: %s', $throwable->getMessage());
         }
     }
 
     /**
      * Get full git diff for a range of commits.
      */
-    private function getGitDiff(string $firstCommit, string $lastCommit): ?string
+    private function getGitDiff(string $firstCommit, string $lastCommit): string
     {
         try {
             $process = new Process(['git', 'diff', $firstCommit.'^..'.$lastCommit]);
@@ -250,8 +249,8 @@ class EpicReviewCommand extends Command
             }
 
             return sprintf('Failed to get git diff: %s', trim($process->getErrorOutput()));
-        } catch (\Throwable $e) {
-            return sprintf('Failed to get git diff: %s', $e->getMessage());
+        } catch (\Throwable $throwable) {
+            return sprintf('Failed to get git diff: %s', $throwable->getMessage());
         }
     }
 

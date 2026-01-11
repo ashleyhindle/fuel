@@ -14,11 +14,8 @@ class BacklogService
 
     private int $lockRetryDelayMs = 100;
 
-    private FuelContext $context;
-
-    public function __construct(FuelContext $context)
+    public function __construct(private readonly FuelContext $context)
     {
-        $this->context = $context;
     }
 
     /**

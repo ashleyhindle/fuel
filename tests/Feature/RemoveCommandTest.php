@@ -1,5 +1,13 @@
 <?php
 
+use App\Services\FuelContext;
+use App\Services\DatabaseService;
+use App\Services\TaskService;
+use App\Services\RunService;
+use App\Commands\RemoveCommand;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Illuminate\Console\OutputStyle;
 use App\Services\BacklogService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -12,21 +20,21 @@ describe('remove command', function (): void {
         $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
         mkdir($this->tempDir.'/.fuel', 0755, true);
 
-        $context = new App\Services\FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(App\Services\FuelContext::class, fn () => $context);
+        $context = new FuelContext($this->tempDir.'/.fuel');
+        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
         $this->dbPath = $context->getDatabasePath();
 
-        $databaseService = new App\Services\DatabaseService($context->getDatabasePath());
-        $this->app->singleton(App\Services\DatabaseService::class, fn () => $databaseService);
+        $databaseService = new DatabaseService($context->getDatabasePath());
+        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(App\Services\TaskService::class, fn (): App\Services\TaskService => new App\Services\TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
-        $this->app->singleton(App\Services\RunService::class, fn (): App\Services\RunService => new App\Services\RunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-        $this->app->singleton(App\Services\BacklogService::class, fn (): App\Services\BacklogService => new App\Services\BacklogService($context));
+        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
-        $this->taskService = $this->app->make(App\Services\TaskService::class);
+        $this->taskService = $this->app->make(TaskService::class);
     });
 
     afterEach(function (): void {
@@ -40,6 +48,7 @@ describe('remove command', function (): void {
                 if ($item === '.') {
                     continue;
                 }
+
                 if ($item === '..') {
                     continue;
                 }
@@ -47,10 +56,8 @@ describe('remove command', function (): void {
                 $path = $dir.'/'.$item;
                 if (is_dir($path)) {
                     $deleteDir($path);
-                } else {
-                    if (file_exists($path)) {
-                        unlink($path);
-                    }
+                } elseif (file_exists($path)) {
+                    unlink($path);
                 }
             }
 
@@ -107,23 +114,25 @@ describe('remove command', function (): void {
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
         // Create command instance and set input to non-interactive
-        $command = $this->app->make(\App\Commands\RemoveCommand::class);
+        $command = $this->app->make(RemoveCommand::class);
         $command->setLaravel($this->app);
-        $input = new \Symfony\Component\Console\Input\ArrayInput([
+
+        $input = new ArrayInput([
             'id' => $task['id'],
             '--cwd' => $this->tempDir,
         ], $command->getDefinition());
         $input->setInteractive(false);
-        $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput;
-        $output = new \Illuminate\Console\OutputStyle($input, $bufferedOutput);
+
+        $bufferedOutput = new BufferedOutput;
+        $output = new OutputStyle($input, $bufferedOutput);
         $command->setInput($input);
         $command->setOutput($output);
 
         $exitCode = $command->handle(
-            $this->app->make(\App\Services\FuelContext::class),
+            $this->app->make(FuelContext::class),
             $this->taskService,
-            $this->app->make(\App\Services\BacklogService::class),
-            $this->app->make(\App\Services\DatabaseService::class)
+            $this->app->make(BacklogService::class),
+            $this->app->make(DatabaseService::class)
         );
 
         expect($exitCode)->toBe(0);
@@ -138,23 +147,25 @@ describe('remove command', function (): void {
         $item = $backlogService->add('Backlog item to delete', 'Description');
 
         // Create command instance and set input to non-interactive
-        $command = $this->app->make(\App\Commands\RemoveCommand::class);
+        $command = $this->app->make(RemoveCommand::class);
         $command->setLaravel($this->app);
-        $input = new \Symfony\Component\Console\Input\ArrayInput([
+
+        $input = new ArrayInput([
             'id' => $item['id'],
             '--cwd' => $this->tempDir,
         ], $command->getDefinition());
         $input->setInteractive(false);
-        $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput;
-        $output = new \Illuminate\Console\OutputStyle($input, $bufferedOutput);
+
+        $bufferedOutput = new BufferedOutput;
+        $output = new OutputStyle($input, $bufferedOutput);
         $command->setInput($input);
         $command->setOutput($output);
 
         $exitCode = $command->handle(
-            $this->app->make(\App\Services\FuelContext::class),
-            $this->app->make(\App\Services\TaskService::class),
+            $this->app->make(FuelContext::class),
+            $this->app->make(TaskService::class),
             $backlogService,
-            $this->app->make(\App\Services\DatabaseService::class)
+            $this->app->make(DatabaseService::class)
         );
 
         expect($exitCode)->toBe(0);
@@ -168,21 +179,21 @@ describe('remove command', function (): void {
         $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
         mkdir($this->tempDir.'/.fuel', 0755, true);
 
-        $context = new App\Services\FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(App\Services\FuelContext::class, fn () => $context);
+        $context = new FuelContext($this->tempDir.'/.fuel');
+        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
         $this->dbPath = $context->getDatabasePath();
 
-        $databaseService = new App\Services\DatabaseService($context->getDatabasePath());
-        $this->app->singleton(App\Services\DatabaseService::class, fn () => $databaseService);
+        $databaseService = new DatabaseService($context->getDatabasePath());
+        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(App\Services\TaskService::class, fn (): App\Services\TaskService => new App\Services\TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
-        $this->app->singleton(App\Services\RunService::class, fn (): App\Services\RunService => new App\Services\RunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-        $this->app->singleton(App\Services\BacklogService::class, fn (): App\Services\BacklogService => new App\Services\BacklogService($context));
+        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
-        $this->taskService = $this->app->make(App\Services\TaskService::class);
+        $this->taskService = $this->app->make(TaskService::class);
     });
 
     afterEach(function (): void {
@@ -196,6 +207,7 @@ describe('remove command', function (): void {
                 if ($item === '.') {
                     continue;
                 }
+
                 if ($item === '..') {
                     continue;
                 }
@@ -203,10 +215,8 @@ describe('remove command', function (): void {
                 $path = $dir.'/'.$item;
                 if (is_dir($path)) {
                     $deleteDir($path);
-                } else {
-                    if (file_exists($path)) {
-                        unlink($path);
-                    }
+                } elseif (file_exists($path)) {
+                    unlink($path);
                 }
             }
 

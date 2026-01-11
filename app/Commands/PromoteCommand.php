@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
@@ -47,7 +48,7 @@ class PromoteCommand extends Command
             try {
                 // Validate that ID is a backlog ID (b- prefix)
                 $resolvedId = $id;
-                if (! str_starts_with($id, 'b-') && ! str_starts_with($id, 'b')) {
+                if (! str_starts_with((string) $id, 'b-') && ! str_starts_with((string) $id, 'b')) {
                     // Try to find if it's a partial match that would resolve to b-xxx
                     $backlogItem = $backlogService->find($id);
                     if ($backlogItem === null || ! str_starts_with($backlogItem['id'] ?? '', 'b-')) {
@@ -131,13 +132,13 @@ class PromoteCommand extends Command
         }
 
         if ($this->option('json')) {
-            $tasks = array_map(fn ($result) => $result['task'], $results);
+            $tasks = array_map(fn (array $result): Task => $result['task'], $results);
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
                 $this->outputJson($tasks[0]->toArray());
             } else {
                 // Multiple tasks - return array
-                $this->outputJson(array_map(fn ($task) => $task->toArray(), $tasks));
+                $this->outputJson(array_map(fn (Task $task): array => $task->toArray(), $tasks));
             }
         } else {
             foreach ($results as $result) {

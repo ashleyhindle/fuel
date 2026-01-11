@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Review;
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
@@ -41,7 +43,7 @@ class ReviewShowCommand extends Command
 
         $review = $dbService->getReview($reviewId);
 
-        if ($review === null) {
+        if (!$review instanceof Review) {
             return $this->outputError(sprintf("Review '%s' not found", $reviewId));
         }
 
@@ -52,16 +54,18 @@ class ReviewShowCommand extends Command
         }
 
         // Get stdout from process directory
-        $stdout = $this->getReviewOutput($review->task_id, $context);
+        $stdout = $this->getReviewOutput($review->task_id);
 
         if ($this->option('json')) {
             $data = $review->toArray();
-            if ($task !== null) {
+            if ($task instanceof Task) {
                 $data['task_title'] = $task->title;
             }
+
             if ($stdout !== null) {
                 $data['stdout'] = $stdout;
             }
+
             $this->outputJson($data);
 
             return self::SUCCESS;
@@ -75,7 +79,7 @@ class ReviewShowCommand extends Command
         };
 
         $this->info('Review: '.$review->id);
-        $this->line('  Task: '.($review->task_id ?? 'N/A').($task ? ' - '.$task->title : ''));
+        $this->line('  Task: '.($review->task_id ?? 'N/A').($task instanceof Task ? ' - '.$task->title : ''));
         $this->line(sprintf('  Status: <fg=%s>%s</>', $statusColor, strtoupper($review->status ?? 'pending')));
         $this->line('  Agent: '.($review->agent ?? 'N/A'));
 
@@ -122,7 +126,7 @@ class ReviewShowCommand extends Command
         return self::SUCCESS;
     }
 
-    private function getReviewOutput(?string $taskId, FuelContext $context): ?string
+    private function getReviewOutput(?string $taskId): ?string
     {
         if ($taskId === null) {
             return null;

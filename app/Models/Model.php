@@ -6,11 +6,8 @@ namespace App\Models;
 
 abstract class Model implements \ArrayAccess
 {
-    protected array $attributes = [];
-
-    public function __construct(array $attributes = [])
+    public function __construct(protected array $attributes = [])
     {
-        $this->attributes = $attributes;
     }
 
     public function __get(string $key): mixed

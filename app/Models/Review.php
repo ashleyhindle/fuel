@@ -35,7 +35,7 @@ class Review extends Model
         }
 
         // Decode JSON
-        $decoded = json_decode($issuesJson, true);
+        $decoded = json_decode((string) $issuesJson, true);
 
         // Handle invalid JSON, decode errors, or non-array results
         if (! is_array($decoded)) {
@@ -73,7 +73,7 @@ class Review extends Model
      */
     public function hasPassed(): bool
     {
-        return count($this->issues()) === 0;
+        return $this->issues() === [];
     }
 
     /**
@@ -82,7 +82,7 @@ class Review extends Model
      */
     public function hasFailed(): bool
     {
-        return $this->isCompleted() && count($this->issues()) > 0;
+        return $this->isCompleted() && $this->issues() !== [];
     }
 
     /**

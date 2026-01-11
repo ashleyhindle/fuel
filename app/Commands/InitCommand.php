@@ -174,7 +174,7 @@ class InitCommand extends Command
                 }
             }
 
-            if (! empty($added)) {
+            if ($added !== []) {
                 file_put_contents($gitignorePath, $content);
                 $this->info('Added '.implode(', ', $added).' to .gitignore');
             }

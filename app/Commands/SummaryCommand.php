@@ -41,7 +41,7 @@ class SummaryCommand extends Command
             // Validate task exists
             $task = $taskService->find($this->argument('id'));
 
-            if ($task === null) {
+            if (!$task instanceof Task) {
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 

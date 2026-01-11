@@ -30,6 +30,7 @@ afterEach(function (): void {
                 unlink($file);
             }
         }
+
         rmdir($fuelDir);
     }
 

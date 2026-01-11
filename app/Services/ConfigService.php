@@ -22,11 +22,17 @@ class ConfigService
     /** @var array<string, mixed>|null */
     private ?array $config = null;
 
-    private FuelContext $context;
-
-    public function __construct(FuelContext $context)
+    public function __construct(private readonly FuelContext $context)
     {
-        $this->context = $context;
+    }
+
+    /**
+     * Reload configuration from disk.
+     * Clears the cached config so the next access will re-read the file.
+     */
+    public function reload(): void
+    {
+        $this->config = null;
     }
 
     /**
@@ -477,9 +483,11 @@ class ConfigService
             if (! is_string($agentName)) {
                 continue;
             }
+
             if (! is_array($agentConfig)) {
                 continue;
             }
+
             $limits[$agentName] = $agentConfig['max_concurrent'] ?? self::DEFAULT_MAX_CONCURRENT;
         }
 

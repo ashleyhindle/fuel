@@ -39,7 +39,7 @@ class DatabaseService
      */
     public function getConnection(): PDO
     {
-        if ($this->connection === null) {
+        if (!$this->connection instanceof \PDO) {
             try {
                 $this->connection = new PDO('sqlite:'.$this->dbPath);
                 $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -96,6 +96,7 @@ class DatabaseService
 
         // Delete any existing row and insert the new version
         $this->connection->exec('DELETE FROM schema_version');
+
         $stmt = $this->connection->prepare('INSERT INTO schema_version (version) VALUES (?)');
         $stmt->execute([$version]);
     }
@@ -177,7 +178,7 @@ class DatabaseService
                 $tableInfo = $pdo->query('PRAGMA table_info(epics)')->fetchAll();
                 $hasOldSchema = false;
                 foreach ($tableInfo as $column) {
-                    if ($column['name'] === 'id' && strtoupper($column['type']) === 'TEXT') {
+                    if ($column['name'] === 'id' && strtoupper((string) $column['type']) === 'TEXT') {
                         $hasOldSchema = true;
                         break;
                     }
@@ -264,7 +265,7 @@ class DatabaseService
                 $tableInfo = $pdo->query('PRAGMA table_info(reviews)')->fetchAll();
                 $hasOldSchema = false;
                 foreach ($tableInfo as $column) {
-                    if ($column['name'] === 'id' && strtoupper($column['type']) === 'TEXT') {
+                    if ($column['name'] === 'id' && strtoupper((string) $column['type']) === 'TEXT') {
                         $hasOldSchema = true;
                         break;
                     }
@@ -377,9 +378,11 @@ class DatabaseService
                     if ($column['name'] === 'approved_at') {
                         $hasApprovedAt = true;
                     }
+
                     if ($column['name'] === 'approved_by') {
                         $hasApprovedBy = true;
                     }
+
                     if ($column['name'] === 'changes_requested_at') {
                         $hasChangesRequestedAt = true;
                     }
@@ -388,9 +391,11 @@ class DatabaseService
                 if (! $hasApprovedAt) {
                     $pdo->exec('ALTER TABLE epics ADD COLUMN approved_at TEXT');
                 }
+
                 if (! $hasApprovedBy) {
                     $pdo->exec('ALTER TABLE epics ADD COLUMN approved_by TEXT');
                 }
+
                 if (! $hasChangesRequestedAt) {
                     $pdo->exec('ALTER TABLE epics ADD COLUMN changes_requested_at TEXT');
                 }
@@ -417,7 +422,7 @@ class DatabaseService
                 $tableInfo = $pdo->query('PRAGMA table_info(runs)')->fetchAll();
                 $hasOldSchema = false;
                 foreach ($tableInfo as $column) {
-                    if ($column['name'] === 'task_id' && strtoupper($column['type']) === 'TEXT') {
+                    if ($column['name'] === 'task_id' && strtoupper((string) $column['type']) === 'TEXT') {
                         $hasOldSchema = true;
                         break;
                     }
@@ -553,7 +558,7 @@ class DatabaseService
                 $tableInfo = $pdo->query('PRAGMA table_info(runs)')->fetchAll();
                 $hasOldSchema = false;
                 foreach ($tableInfo as $column) {
-                    if ($column['name'] === 'id' && strtoupper($column['type']) === 'TEXT') {
+                    if ($column['name'] === 'id' && strtoupper((string) $column['type']) === 'TEXT') {
                         $hasOldSchema = true;
                         break;
                     }
@@ -605,6 +610,7 @@ class DatabaseService
                         if (is_numeric($oldRunId) && ! str_contains((string) $oldRunId, '-')) {
                             continue;
                         }
+
                         // Look up new integer id by the old string run_id (e.g., "run-xxxxxx")
                         $newRunId = $runLookup[$oldRunId] ?? null;
                         $stmt->execute([$newRunId, $review['id']]);
@@ -656,11 +662,11 @@ class DatabaseService
 
         $pendingMigrations = array_filter(
             $migrations,
-            fn (int $version) => $version > $currentVersion,
+            fn (int $version): bool => $version > $currentVersion,
             ARRAY_FILTER_USE_KEY
         );
 
-        if (empty($pendingMigrations)) {
+        if ($pendingMigrations === []) {
             return;
         }
 
@@ -678,15 +684,17 @@ class DatabaseService
                 if ($version === 4) {
                     $ranMigrationV4 = true;
                 }
+
                 if ($version === 10) {
                     $ranMigrationV10 = true;
                 }
             }
+
             $this->setSchemaVersion($maxVersion);
             $this->connection->commit();
-        } catch (PDOException $e) {
+        } catch (PDOException $pdoException) {
             $this->connection->rollBack();
-            throw new RuntimeException('Migration failed: '.$e->getMessage(), 0, $e);
+            throw new RuntimeException('Migration failed: '.$pdoException->getMessage(), 0, $pdoException);
         }
 
         // Auto-import tasks from JSONL after migration v4 creates the tasks table
@@ -875,7 +883,10 @@ class DatabaseService
                 }
 
                 $task = json_decode($line, true);
-                if (! is_array($task) || ! isset($task['id'], $task['title'])) {
+                if (! is_array($task)) {
+                    continue;
+                }
+                if (! isset($task['id'], $task['title'])) {
                     continue;
                 }
 
@@ -921,10 +932,11 @@ class DatabaseService
                 );
                 $imported++;
             }
+
             $this->commit();
-        } catch (\Throwable $e) {
+        } catch (\Throwable $throwable) {
             $this->rollback();
-            throw $e;
+            throw $throwable;
         } finally {
             fclose($handle);
         }
@@ -942,8 +954,8 @@ class DatabaseService
             $stmt->execute($params);
 
             return $stmt;
-        } catch (PDOException $e) {
-            throw new RuntimeException('Database query failed: '.$e->getMessage(), 0, $e);
+        } catch (PDOException $pdoException) {
+            throw new RuntimeException('Database query failed: '.$pdoException->getMessage(), 0, $pdoException);
         }
     }
 
@@ -1215,7 +1227,7 @@ class DatabaseService
         // Decode JSON fields
         $result['issues'] = [];
         if ($review['issues'] !== null && $review['issues'] !== '') {
-            $decoded = json_decode($review['issues'], true);
+            $decoded = json_decode((string) $review['issues'], true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                 $result['issues'] = $decoded;
             }

@@ -15,7 +15,7 @@ beforeEach(function (): void {
 
     // Create FuelContext pointing to test directory
     $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn () => $context);
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     $this->db = new DatabaseService($context->getDatabasePath());
     $this->taskService = new TaskService($this->db);
@@ -34,10 +34,12 @@ afterEach(function (): void {
 
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
-
+            if ($item === '..') {
+                continue;
+            }
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -152,7 +154,7 @@ describe('add command with --epic flag', function (): void {
 
     it('supports partial epic ID matching', function (): void {
         $epic = $this->epicService->createEpic('Test Epic');
-        $partialId = substr($epic->id, 2, 4);
+        $partialId = substr((string) $epic->id, 2, 4);
 
         Artisan::call('add', [
             'title' => 'Task with partial epic ID',

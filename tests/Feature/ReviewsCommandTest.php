@@ -23,11 +23,11 @@ beforeEach(function (): void {
 
     // Create FuelContext pointing to test directory
     $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn () => $context);
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test DatabaseService instance
     $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
+    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
     $this->databaseService = $this->app->make(DatabaseService::class);
     $this->databaseService->initialize();
@@ -42,10 +42,12 @@ afterEach(function (): void {
 
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
-
+            if ($item === '..') {
+                continue;
+            }
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -121,8 +123,8 @@ it('shows recent reviews with correct format', function (): void {
 it('shows only last 10 reviews by default', function (): void {
     // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
-        createTaskForReview($this->databaseService, "f-task{$i}");
-        $reviewId = $this->databaseService->recordReviewStarted("f-task{$i}", 'claude');
+        createTaskForReview($this->databaseService, 'f-task' . $i);
+        $reviewId = $this->databaseService->recordReviewStarted('f-task' . $i, 'claude');
         $this->databaseService->recordReviewCompleted($reviewId, true, []);
     }
 
@@ -137,8 +139,8 @@ it('shows only last 10 reviews by default', function (): void {
 it('shows all reviews with --all option', function (): void {
     // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
-        createTaskForReview($this->databaseService, "f-task{$i}");
-        $reviewId = $this->databaseService->recordReviewStarted("f-task{$i}", 'claude');
+        createTaskForReview($this->databaseService, 'f-task' . $i);
+        $reviewId = $this->databaseService->recordReviewStarted('f-task' . $i, 'claude');
         $this->databaseService->recordReviewCompleted($reviewId, true, []);
     }
 

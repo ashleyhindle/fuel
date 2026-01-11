@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -64,7 +66,7 @@ class ShowCommand extends Command
         try {
             $task = $taskService->find($id);
 
-            if ($task === null) {
+            if (!$task instanceof Task) {
                 return $this->outputError(sprintf("Task '%s' not found", $id));
             }
 
@@ -82,13 +84,14 @@ class ShowCommand extends Command
             if ($this->option('json')) {
                 $taskData = $task->toArray();
                 // Include epic info in JSON output
-                if ($epic !== null) {
+                if ($epic instanceof Epic) {
                     $taskData['epic'] = [
                         'id' => $epic->id,
                         'title' => $epic->title ?? null,
                         'status' => $epic->status ?? null,
                     ];
                 }
+
                 $this->outputJson($taskData);
             } else {
                 $this->info('Task: '.$task->id);
@@ -123,7 +126,7 @@ class ShowCommand extends Command
                     }
                 }
 
-                if ($epic !== null) {
+                if ($epic instanceof Epic) {
                     $this->line('  Epic: '.$epic->id.' - '.($epic->title ?? 'Untitled').' ('.$epic->status.')');
                 }
 
@@ -181,11 +184,13 @@ class ShowCommand extends Command
                         if (isset($run->run_id)) {
                             $parts[] = '<fg=gray>'.$run->run_id.'</>';
                         }
+
                         if (isset($run->agent)) {
                             $agentStr = $run->agent;
                             if (isset($run->model)) {
                                 $agentStr .= ' ('.$run->model.')';
                             }
+
                             $parts[] = $agentStr;
                         }
 
@@ -250,11 +255,13 @@ class ShowCommand extends Command
                         if ($reviewId) {
                             $line .= '<fg=gray>'.$reviewId.'</> | ';
                         }
+
                         $line .= sprintf('<fg=%s>%s</>', $statusColor, strtoupper($status));
                         if ($agent) {
                             $line .= ' by '.$agent;
                         }
-                        if ($timestamp) {
+
+                        if ($timestamp !== '' && $timestamp !== '0') {
                             $line .= ' @ '.$timestamp;
                         }
 
@@ -266,6 +273,7 @@ class ShowCommand extends Command
                             if (is_string($firstIssue) && strlen($firstIssue) > 60) {
                                 $firstIssue = substr($firstIssue, 0, 57).'...';
                             }
+
                             $line .= $issueCount > 1
                                 ? sprintf(' (%d issues: %s)', $issueCount, $firstIssue)
                                 : sprintf(' (%s)', $firstIssue);

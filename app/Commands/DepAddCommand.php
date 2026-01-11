@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -53,6 +54,6 @@ class DepAddCommand extends Command
     {
         $task = $taskService->find($toId);
 
-        return $task !== null ? $task->id : $toId;
+        return $task instanceof Task ? $task->id : $toId;
     }
 }

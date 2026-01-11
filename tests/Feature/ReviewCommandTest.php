@@ -17,7 +17,7 @@ beforeEach(function (): void {
 
     // Create FuelContext pointing to test directory
     $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn () => $context);
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     $this->configPath = $context->getConfigPath();
     $this->runsPath = $context->getRunsPath();
@@ -27,19 +27,13 @@ beforeEach(function (): void {
 
     // Bind test services
     $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
+    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-    $this->app->singleton(TaskService::class, function () use ($databaseService) {
-        return new TaskService($databaseService);
-    });
+    $this->app->singleton(TaskService::class, fn(): TaskService => new TaskService($databaseService));
 
-    $this->app->singleton(RunService::class, function () use ($databaseService) {
-        return new RunService($databaseService);
-    });
+    $this->app->singleton(RunService::class, fn(): RunService => new RunService($databaseService));
 
-    $this->app->singleton(ConfigService::class, function () use ($context) {
-        return new ConfigService($context);
-    });
+    $this->app->singleton(ConfigService::class, fn(): ConfigService => new ConfigService($context));
 
     // Create a mock ReviewServiceInterface
     $this->mockReviewService = \Mockery::mock(ReviewServiceInterface::class);
@@ -74,10 +68,12 @@ afterEach(function (): void {
 
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
-
+            if ($item === '..') {
+                continue;
+            }
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -117,7 +113,7 @@ it('triggers review for valid task', function (): void {
     $output = Artisan::output();
 
     expect($exitCode)->toBe(0);
-    expect($output)->toContain("Triggering review for {$task['id']}...");
+    expect($output)->toContain(sprintf('Triggering review for %s...', $task['id']));
     expect($output)->toContain('Review spawned. Check `fuel board` for status.');
 });
 
@@ -187,9 +183,7 @@ it('uses config review agent when no run exists', function (): void {
 
     // Reload config service (create new instance to clear cache)
     $context = $this->app->make(FuelContext::class);
-    $this->app->singleton(ConfigService::class, function () use ($context) {
-        return new ConfigService($context);
-    });
+    $this->app->singleton(ConfigService::class, fn(): ConfigService => new ConfigService($context));
     $this->configService = $this->app->make(ConfigService::class);
 
     // Create a task without runs and set status to closed
@@ -233,7 +227,7 @@ it('supports partial task ID matching', function (): void {
     $this->taskService->update($task['id'], ['status' => 'in_progress']);
 
     // Extract partial ID (last 6 characters)
-    $partialId = substr($task['id'], -6);
+    $partialId = substr((string) $task['id'], -6);
 
     $this->runService->logRun($task['id'], [
         'agent' => 'test-agent',
@@ -249,7 +243,7 @@ it('supports partial task ID matching', function (): void {
     Artisan::call('review', ['taskId' => $partialId]);
     $output = Artisan::output();
 
-    expect($output)->toContain("Triggering review for {$task['id']}...");
+    expect($output)->toContain(sprintf('Triggering review for %s...', $task['id']));
 });
 
 it('allows reviewing closed tasks', function (): void {

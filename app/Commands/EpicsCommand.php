@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
 use App\Models\Task;
@@ -40,7 +41,7 @@ class EpicsCommand extends Command
 
             if ($this->option('json')) {
                 // For JSON output, include task count and completed count for each epic
-                $epicsWithProgress = array_map(function ($epic) use ($epicService): array {
+                $epicsWithProgress = array_map(function (Epic $epic) use ($epicService): array {
                     $tasks = $epicService->getTasksForEpic($epic->id);
                     $totalCount = count($tasks);
                     $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === 'closed'));
@@ -56,7 +57,7 @@ class EpicsCommand extends Command
                 return self::SUCCESS;
             }
 
-            if (empty($epics)) {
+            if ($epics === []) {
                 $this->info('No epics found.');
 
                 return self::SUCCESS;
@@ -85,8 +86,8 @@ class EpicsCommand extends Command
             $this->table($headers, $rows);
 
             return self::SUCCESS;
-        } catch (\Exception $e) {
-            return $this->outputError('Failed to fetch epics: '.$e->getMessage());
+        } catch (\Exception $exception) {
+            return $this->outputError('Failed to fetch epics: '.$exception->getMessage());
         }
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Models\Review;
 use App\Services\DatabaseService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir);
     $this->dbPath = $this->tempDir.'/test-agent.db';
@@ -13,10 +13,11 @@ beforeEach(function () {
     $this->service->initialize();
 });
 
-afterEach(function () {
+afterEach(function (): void {
     if (file_exists($this->dbPath)) {
         unlink($this->dbPath);
     }
+
     // Clean up WAL and SHM files if they exist
     foreach (['-wal', '-shm'] as $suffix) {
         $file = $this->dbPath.$suffix;
@@ -24,6 +25,7 @@ afterEach(function () {
             unlink($file);
         }
     }
+
     if (is_dir($this->tempDir)) {
         rmdir($this->tempDir);
     }
@@ -40,7 +42,7 @@ function createTestTask(DatabaseService $service, string $shortId): void
     );
 }
 
-it('creates reviews table with correct schema', function () {
+it('creates reviews table with correct schema', function (): void {
     $columns = $this->service->fetchAll('PRAGMA table_info(reviews)');
 
     expect($columns)->toHaveCount(9);
@@ -58,20 +60,20 @@ it('creates reviews table with correct schema', function () {
 
     // Verify id is INTEGER PRIMARY KEY
     $idColumn = collect($columns)->firstWhere('name', 'id');
-    expect(strtoupper($idColumn['type']))->toBe('INTEGER');
+    expect(strtoupper((string) $idColumn['type']))->toBe('INTEGER');
     expect($idColumn['pk'])->toBe(1);
 
     // Verify short_id is TEXT UNIQUE NOT NULL
     $shortIdColumn = collect($columns)->firstWhere('name', 'short_id');
-    expect(strtoupper($shortIdColumn['type']))->toBe('TEXT');
+    expect(strtoupper((string) $shortIdColumn['type']))->toBe('TEXT');
     expect($shortIdColumn['notnull'])->toBe(1);
 
     // Verify task_id is INTEGER (FK to tasks)
     $taskIdColumn = collect($columns)->firstWhere('name', 'task_id');
-    expect(strtoupper($taskIdColumn['type']))->toBe('INTEGER');
+    expect(strtoupper((string) $taskIdColumn['type']))->toBe('INTEGER');
 });
 
-it('creates indexes on reviews table', function () {
+it('creates indexes on reviews table', function (): void {
     $indexes = $this->service->fetchAll('PRAGMA index_list(reviews)');
     $indexNames = array_column($indexes, 'name');
 
@@ -81,7 +83,7 @@ it('creates indexes on reviews table', function () {
     expect($indexNames)->toContain('idx_reviews_run_id');
 });
 
-it('records review started and returns review id', function () {
+it('records review started and returns review id', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
@@ -101,7 +103,7 @@ it('records review started and returns review id', function () {
     expect($review['completed_at'])->toBeNull();
 });
 
-it('records review completed with pass', function () {
+it('records review completed with pass', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
@@ -116,7 +118,7 @@ it('records review completed with pass', function () {
     expect($review['completed_at'])->not->toBeNull();
 });
 
-it('records review completed with failures and issues', function () {
+it('records review completed with failures and issues', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
@@ -129,11 +131,11 @@ it('records review completed with failures and issues', function () {
     $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
 
     expect($review['status'])->toBe('failed');
-    expect(json_decode($review['issues'], true))->toBe($issues);
+    expect(json_decode((string) $review['issues'], true))->toBe($issues);
     expect($review['completed_at'])->not->toBeNull();
 });
 
-it('gets reviews for task with correct data', function () {
+it('gets reviews for task with correct data', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
@@ -167,21 +169,21 @@ it('gets reviews for task with correct data', function () {
     }
 
     // Find review2 and check JSON fields are decoded via issues() method
-    $review2 = collect($reviews)->first(fn ($r) => $r->id === $reviewId2);
+    $review2 = collect($reviews)->first(fn ($r): bool => $r->id === $reviewId2);
     expect($review2->issues())->toBe(['Tests failed in ServiceTest']);
 
     // Find review3 (pending) and check empty arrays
-    $review3 = collect($reviews)->first(fn ($r) => $r->id === $reviewId3);
+    $review3 = collect($reviews)->first(fn ($r): bool => $r->id === $reviewId3);
     expect($review3->issues())->toBe([]);
 });
 
-it('gets reviews for task returns empty array when no reviews exist', function () {
+it('gets reviews for task returns empty array when no reviews exist', function (): void {
     $reviews = $this->service->getReviewsForTask('f-nonexistent');
 
     expect($reviews)->toBe([]);
 });
 
-it('gets pending reviews returns only pending reviews', function () {
+it('gets pending reviews returns only pending reviews', function (): void {
     // Create tasks first for FK relationship
     createTestTask($this->service, 'f-task1');
     createTestTask($this->service, 'f-task2');
@@ -206,7 +208,7 @@ it('gets pending reviews returns only pending reviews', function () {
     expect($pendingReviews[0]->task_id)->toBe('f-task2');
 });
 
-it('gets pending reviews returns all pending reviews', function () {
+it('gets pending reviews returns all pending reviews', function (): void {
     // Create tasks first for FK relationship
     createTestTask($this->service, 'f-task1');
     createTestTask($this->service, 'f-task2');
@@ -226,7 +228,7 @@ it('gets pending reviews returns all pending reviews', function () {
     expect($reviewIds)->toContain($reviewId3);
 });
 
-it('gets pending reviews returns empty array when no pending reviews exist', function () {
+it('gets pending reviews returns empty array when no pending reviews exist', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-task1');
 
@@ -238,7 +240,7 @@ it('gets pending reviews returns empty array when no pending reviews exist', fun
     expect($pendingReviews)->toBe([]);
 });
 
-it('decodes json fields correctly for null values', function () {
+it('decodes json fields correctly for null values', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
@@ -252,7 +254,7 @@ it('decodes json fields correctly for null values', function () {
     expect($reviews[0]->issues())->toBe([]);
 });
 
-it('gets all reviews returns all reviews ordered by started_at descending', function () {
+it('gets all reviews returns all reviews ordered by started_at descending', function (): void {
     // Create tasks first for FK relationship
     createTestTask($this->service, 'f-task1');
     createTestTask($this->service, 'f-task2');
@@ -288,13 +290,14 @@ it('gets all reviews returns all reviews ordered by started_at descending', func
     foreach ($reviews as $review) {
         expect($review)->toBeInstanceOf(Review::class);
     }
+
     // Should be ordered by started_at DESC, so newest first
     expect($reviews[0]->id)->toBe($reviewId2); // 1 minute ago (newest)
     expect($reviews[1]->id)->toBe($reviewId3); // 2 minutes ago
     expect($reviews[2]->id)->toBe($reviewId1); // 3 minutes ago (oldest)
 });
 
-it('gets all reviews filters by status', function () {
+it('gets all reviews filters by status', function (): void {
     // Create tasks first for FK relationship
     createTestTask($this->service, 'f-task1');
     createTestTask($this->service, 'f-task2');
@@ -325,11 +328,11 @@ it('gets all reviews filters by status', function () {
     expect($passedReviews[0]->id)->toBe($reviewId1);
 });
 
-it('gets all reviews respects limit', function () {
+it('gets all reviews respects limit', function (): void {
     // Create tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
-        createTestTask($this->service, "f-task{$i}");
-        $this->service->recordReviewStarted("f-task{$i}", 'claude');
+        createTestTask($this->service, 'f-task' . $i);
+        $this->service->recordReviewStarted('f-task' . $i, 'claude');
     }
 
     $reviews = $this->service->getAllReviews(null, 10);
@@ -339,16 +342,17 @@ it('gets all reviews respects limit', function () {
     expect($reviews)->toHaveCount(5);
 });
 
-it('gets all reviews with status and limit', function () {
+it('gets all reviews with status and limit', function (): void {
     // Create 10 passed and 10 failed reviews
     for ($i = 1; $i <= 10; $i++) {
-        createTestTask($this->service, "f-passed{$i}");
-        $reviewId = $this->service->recordReviewStarted("f-passed{$i}", 'claude');
+        createTestTask($this->service, 'f-passed' . $i);
+        $reviewId = $this->service->recordReviewStarted('f-passed' . $i, 'claude');
         $this->service->recordReviewCompleted($reviewId, true, []);
     }
+
     for ($i = 1; $i <= 10; $i++) {
-        createTestTask($this->service, "f-failed{$i}");
-        $reviewId = $this->service->recordReviewStarted("f-failed{$i}", 'claude');
+        createTestTask($this->service, 'f-failed' . $i);
+        $reviewId = $this->service->recordReviewStarted('f-failed' . $i, 'claude');
         $this->service->recordReviewCompleted($reviewId, false, ['Tests failed']);
     }
 
@@ -358,7 +362,7 @@ it('gets all reviews with status and limit', function () {
     expect($failedReviews[0]->status)->toBe('failed');
 });
 
-it('allows reviews with null task_id when task does not exist', function () {
+it('allows reviews with null task_id when task does not exist', function (): void {
     // Record a review for a task that doesn't exist (null FK)
     $reviewId = $this->service->recordReviewStarted('f-nonexistent', 'claude');
 
@@ -370,7 +374,7 @@ it('allows reviews with null task_id when task does not exist', function () {
     expect($review['task_id'])->toBeNull();
 });
 
-it('returns null task_id for reviews with orphaned tasks', function () {
+it('returns null task_id for reviews with orphaned tasks', function (): void {
     // Create task and review
     createTestTask($this->service, 'f-orphan');
     $reviewId = $this->service->recordReviewStarted('f-orphan', 'claude');

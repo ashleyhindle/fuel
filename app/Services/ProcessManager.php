@@ -39,15 +39,13 @@ class ProcessManager implements ProcessManagerInterface
     /** Number of times SIGTERM/SIGINT has been received */
     private int $shutdownSignalCount = 0;
 
-    /** The working directory where .fuel is located */
-    private ?string $cwd = null;
-
     public function __construct(
         private readonly ?ConfigService $configService = new ConfigService,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
-        ?string $cwd = null
-    ) {
-        $this->cwd = $cwd;
+        /** The working directory where .fuel is located */
+        private ?string $cwd = null
+    )
+    {
     }
 
     /**
@@ -629,7 +627,7 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         // Check agent health / backoff status before spawning
-        if ($this->healthTracker !== null && ! $this->healthTracker->isAvailable($agentName)) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
             $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
 
             return SpawnResult::agentInBackoff($agentName, $backoffSeconds);

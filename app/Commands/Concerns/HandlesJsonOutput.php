@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
+use Mockery\MockInterface;
 use App\Services\ConfigService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
@@ -29,11 +30,12 @@ trait HandlesJsonOutput
             if ($contextOrService instanceof FuelContext) {
                 $contextOrService->basePath = $cwd.'/.fuel';
             }
+
             // Legacy TaskService pattern - TaskService now uses SQLite via DI, no direct path setting needed
             // The database service will be reconfigured by commands that need it
             if (
                 $contextOrService instanceof TaskService
-                && (! interface_exists(\Mockery\MockInterface::class) || ! $contextOrService instanceof \Mockery\MockInterface)
+                && (! interface_exists(MockInterface::class) || ! $contextOrService instanceof MockInterface)
                 && method_exists($contextOrService, 'setDatabasePath')
             ) {
                 $contextOrService->setDatabasePath($cwd.'/.fuel/agent.db');

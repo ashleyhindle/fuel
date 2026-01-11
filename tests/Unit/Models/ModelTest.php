@@ -10,7 +10,7 @@ class TestModel extends Model
     // No additional methods needed for basic tests
 }
 
-it('can be instantiated with attributes', function () {
+it('can be instantiated with attributes', function (): void {
     $attributes = [
         'id' => 'test-123',
         'title' => 'Test Title',
@@ -22,14 +22,14 @@ it('can be instantiated with attributes', function () {
     expect($model)->toBeInstanceOf(Model::class);
 });
 
-it('can be instantiated without attributes', function () {
+it('can be instantiated without attributes', function (): void {
     $model = new TestModel;
 
     expect($model)->toBeInstanceOf(Model::class);
     expect($model->toArray())->toBe([]);
 });
 
-it('provides magic property access via __get', function () {
+it('provides magic property access via __get', function (): void {
     $attributes = [
         'id' => 'test-123',
         'title' => 'Test Title',
@@ -43,13 +43,13 @@ it('provides magic property access via __get', function () {
     expect($model->status)->toBe('open');
 });
 
-it('returns null for non-existent properties via __get', function () {
+it('returns null for non-existent properties via __get', function (): void {
     $model = new TestModel(['id' => 'test-123']);
 
     expect($model->nonexistent)->toBeNull();
 });
 
-it('supports isset check via __isset', function () {
+it('supports isset check via __isset', function (): void {
     $model = new TestModel([
         'id' => 'test-123',
         'title' => 'Test Title',
@@ -60,7 +60,7 @@ it('supports isset check via __isset', function () {
     expect(isset($model->nonexistent))->toBeFalse();
 });
 
-it('converts to array via toArray', function () {
+it('converts to array via toArray', function (): void {
     $attributes = [
         'id' => 'test-123',
         'title' => 'Test Title',
@@ -73,7 +73,7 @@ it('converts to array via toArray', function () {
     expect($model->toArray())->toBe($attributes);
 });
 
-it('gets attribute with default value via getAttribute', function () {
+it('gets attribute with default value via getAttribute', function (): void {
     $model = new TestModel(['id' => 'test-123']);
 
     expect($model->getAttribute('id'))->toBe('test-123');
@@ -81,7 +81,7 @@ it('gets attribute with default value via getAttribute', function () {
     expect($model->getAttribute('title', 'Default Title'))->toBe('Default Title');
 });
 
-it('gets attribute without default value via getAttribute', function () {
+it('gets attribute without default value via getAttribute', function (): void {
     $model = new TestModel([
         'id' => 'test-123',
         'title' => 'Test Title',
@@ -91,7 +91,7 @@ it('gets attribute without default value via getAttribute', function () {
     expect($model->getAttribute('title'))->toBe('Test Title');
 });
 
-it('handles nested array attributes', function () {
+it('handles nested array attributes', function (): void {
     $attributes = [
         'id' => 'test-123',
         'metadata' => [
@@ -109,7 +109,7 @@ it('handles nested array attributes', function () {
     expect($model->toArray())->toBe($attributes);
 });
 
-it('handles null attribute values', function () {
+it('handles null attribute values', function (): void {
     $attributes = [
         'id' => 'test-123',
         'optional_field' => null,
@@ -122,7 +122,7 @@ it('handles null attribute values', function () {
     expect($model->getAttribute('optional_field', 'default'))->toBe('default');
 });
 
-it('preserves attribute types', function () {
+it('preserves attribute types', function (): void {
     $attributes = [
         'string' => 'test',
         'integer' => 123,

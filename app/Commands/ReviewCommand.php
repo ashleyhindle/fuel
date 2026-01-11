@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
+use App\Models\Run;
 use App\Contracts\ReviewServiceInterface;
 use App\Services\ConfigService;
 use App\Services\RunService;
@@ -26,8 +28,8 @@ class ReviewCommand extends Command
 
         // Resolve partial ID
         $task = $taskService->find($taskId);
-        if ($task === null) {
-            $this->error("Task not found: {$taskId}");
+        if (!$task instanceof Task) {
+            $this->error('Task not found: ' . $taskId);
 
             return self::FAILURE;
         }
@@ -39,7 +41,7 @@ class ReviewCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info("Triggering review for {$task->id}...");
+        $this->info(sprintf('Triggering review for %s...', $task->id));
 
         // Get the agent that worked on it (from runs table or default)
         $agent = $this->determineReviewAgent($task->id, $runService, $configService);
@@ -77,7 +79,7 @@ class ReviewCommand extends Command
     ): string {
         // Try to get agent from latest run
         $latestRun = $runService->getLatestRun($taskId);
-        if ($latestRun !== null && isset($latestRun->agent) && $latestRun->agent !== null) {
+        if ($latestRun instanceof Run && isset($latestRun->agent) && $latestRun->agent !== null) {
             return $latestRun->agent;
         }
 

@@ -45,7 +45,7 @@ class ReviewsCommand extends Command
             $reviews = $databaseService->getAllReviews($status, $limit);
 
             if ($this->option('json')) {
-                $this->outputJson(array_map(fn (Review $r) => $r->toArray(), $reviews));
+                $this->outputJson(array_map(fn (Review $r): array => $r->toArray(), $reviews));
 
                 return self::SUCCESS;
             }
@@ -63,8 +63,8 @@ class ReviewsCommand extends Command
             }
 
             return self::SUCCESS;
-        } catch (\Exception $e) {
-            return $this->outputError('Failed to fetch reviews: '.$e->getMessage());
+        } catch (\Exception $exception) {
+            return $this->outputError('Failed to fetch reviews: '.$exception->getMessage());
         }
     }
 

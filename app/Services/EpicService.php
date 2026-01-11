@@ -13,14 +13,11 @@ use Symfony\Component\Process\Process;
 
 class EpicService
 {
-    private DatabaseService $db;
+    private readonly TaskService $taskService;
 
-    private TaskService $taskService;
-
-    public function __construct(DatabaseService $db, ?TaskService $taskService = null)
+    public function __construct(private readonly DatabaseService $db, ?TaskService $taskService = null)
     {
-        $this->db = $db;
-        $this->taskService = $taskService ?? new TaskService($db);
+        $this->taskService = $taskService ?? new TaskService($this->db);
     }
 
     public function createEpic(string $title, ?string $description = null): Epic
@@ -358,7 +355,7 @@ class EpicService
         $tasks = $this->getTasksForEpic($resolvedId);
 
         // If no tasks, epic is in planning
-        if (count($tasks) === 0) {
+        if ($tasks === []) {
             return EpicStatus::Planning;
         }
 
@@ -466,7 +463,7 @@ class EpicService
 
         // Check if a review task already exists for this epic (idempotency)
         $existingReviewTask = $this->findExistingReviewTask($resolvedId);
-        if ($existingReviewTask !== null) {
+        if ($existingReviewTask instanceof Task) {
             return ['completed' => true, 'review_task_id' => $existingReviewTask->id];
         }
 
@@ -499,17 +496,13 @@ class EpicService
 
             // Check if epic ID is in the title (format: "Review completed epic: ... ({$epicId})")
             $title = $task->title ?? '';
-            if (str_contains($title, "({$epicId})")) {
+            if (str_contains($title, sprintf('(%s)', $epicId))) {
                 return true;
             }
 
             // Also check description in case title format changed
             $description = $task->description ?? '';
-            if (str_contains($description, $epicId)) {
-                return true;
-            }
-
-            return false;
+            return str_contains($description, $epicId);
         });
     }
 
@@ -522,7 +515,7 @@ class EpicService
      */
     private function createEpicReviewTask(array $epic, string $summary): Task
     {
-        $title = "Review completed epic: {$epic['title']} ({$epic['id']})";
+        $title = sprintf('Review completed epic: %s (%s)', $epic['title'], $epic['id']);
 
         return $this->taskService->create([
             'title' => $title,
@@ -581,7 +574,7 @@ class EpicService
                 } else {
                     // Process failed - analyze the error
                     $errorOutput = $process->getErrorOutput();
-                    $reason = $this->classifyGitError($errorOutput, $commit);
+                    $reason = $this->classifyGitError($errorOutput);
                     $errors[] = [
                         'commit' => $commit,
                         'reason' => $reason,
@@ -607,11 +600,11 @@ class EpicService
         }
 
         // Build the output with error information
-        if ($diffOutput === '' && empty($errors)) {
+        if ($diffOutput === '' && $errors === []) {
             return 'Unable to retrieve git diffs for commits: '.implode(', ', $commits);
         }
 
-        if (! empty($errors)) {
+        if ($errors !== []) {
             $diffOutput .= "\n=== Errors retrieving commits ===\n";
             foreach ($errors as $error) {
                 $diffOutput .= sprintf(
@@ -630,10 +623,9 @@ class EpicService
      * Classify git error output to determine the specific failure reason.
      *
      * @param  string  $errorOutput  The error output from git command
-     * @param  string  $commit  The commit hash that was being processed
      * @return string A human-readable reason for the failure
      */
-    private function classifyGitError(string $errorOutput, string $commit): string
+    private function classifyGitError(string $errorOutput): string
     {
         $errorLower = strtolower($errorOutput);
 
@@ -678,15 +670,14 @@ class EpicService
             $taskStatus = $task->status ?? 'unknown';
             $commitHash = $task->commit_hash ?? 'no commit';
 
-            $summary .= "- [{$taskId}] {$taskTitle} ({$taskStatus})";
+            $summary .= sprintf('- [%s] %s (%s)', $taskId, $taskTitle, $taskStatus);
             if ($commitHash !== 'no commit') {
-                $summary .= " - commit: {$commitHash}";
+                $summary .= ' - commit: ' . $commitHash;
             }
+
             $summary .= "\n";
         }
 
-        $summary .= "\n## Git Changes Summary\n\n```\n{$gitDiff}\n```\n";
-
-        return $summary;
+        return $summary . "\n## Git Changes Summary\n\n```\n{$gitDiff}\n```\n";
     }
 }

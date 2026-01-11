@@ -69,9 +69,9 @@ class AgentHealthTracker implements AgentHealthTrackerInterface
             }
 
             $this->database->commit();
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             $this->database->rollback();
-            throw $e;
+            throw $exception;
         }
     }
 
@@ -119,9 +119,9 @@ class AgentHealthTracker implements AgentHealthTrackerInterface
             }
 
             $this->database->commit();
-        } catch (\Exception $e) {
+        } catch (\Exception $exception) {
             $this->database->rollback();
-            throw $e;
+            throw $exception;
         }
     }
 
@@ -195,7 +195,7 @@ class AgentHealthTracker implements AgentHealthTrackerInterface
         $rows = $this->database->fetchAll('SELECT * FROM agent_health ORDER BY agent');
 
         return array_map(
-            fn (array $row) => AgentHealth::fromDatabaseRow($row),
+            AgentHealth::fromDatabaseRow(...),
             $rows
         );
     }
@@ -245,6 +245,6 @@ class AgentHealthTracker implements AgentHealthTrackerInterface
         $index = min($consecutiveFailures - 1, count(self::BACKOFF_SECONDS) - 1);
         $backoffSeconds = self::BACKOFF_SECONDS[$index];
 
-        return $now->modify("+{$backoffSeconds} seconds");
+        return $now->modify(sprintf('+%s seconds', $backoffSeconds));
     }
 }

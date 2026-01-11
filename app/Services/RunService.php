@@ -49,8 +49,8 @@ class RunService
         // Calculate duration_seconds if both timestamps are provided
         $durationSeconds = null;
         if (isset($data['started_at'], $data['ended_at'])) {
-            $start = strtotime($data['started_at']);
-            $end = strtotime($data['ended_at']);
+            $start = strtotime((string) $data['started_at']);
+            $end = strtotime((string) $data['ended_at']);
             if ($start !== false && $end !== false) {
                 $durationSeconds = $end - $start;
             }
@@ -100,21 +100,19 @@ class RunService
         );
 
         // Transform to Run models (short_id becomes run_id for backward compatibility)
-        return array_map(function (array $run): Run {
-            return Run::fromArray([
-                'run_id' => $run['short_id'],
-                'agent' => $run['agent'],
-                'model' => $run['model'],
-                'started_at' => $run['started_at'],
-                'ended_at' => $run['ended_at'],
-                'exit_code' => $run['exit_code'],
-                'output' => $run['output'],
-                'session_id' => $run['session_id'],
-                'cost_usd' => $run['cost_usd'],
-                'duration_seconds' => $run['duration_seconds'],
-                'status' => $run['status'],
-            ]);
-        }, $runs);
+        return array_map(fn(array $run): Run => Run::fromArray([
+            'run_id' => $run['short_id'],
+            'agent' => $run['agent'],
+            'model' => $run['model'],
+            'started_at' => $run['started_at'],
+            'ended_at' => $run['ended_at'],
+            'exit_code' => $run['exit_code'],
+            'output' => $run['output'],
+            'session_id' => $run['session_id'],
+            'cost_usd' => $run['cost_usd'],
+            'duration_seconds' => $run['duration_seconds'],
+            'status' => $run['status'],
+        ]), $runs);
     }
 
     /**
@@ -203,7 +201,7 @@ class RunService
             // Calculate and set duration_seconds
             if ($latestRun['started_at'] !== null) {
                 $start = strtotime($latestRun['started_at']);
-                $end = strtotime($data['ended_at']);
+                $end = strtotime((string) $data['ended_at']);
                 if ($start !== false && $end !== false) {
                     $updateFields[] = 'duration_seconds = ?';
                     $params[] = $end - $start;
@@ -231,7 +229,7 @@ class RunService
             $params[] = $data['cost_usd'];
         }
 
-        if (empty($updateFields)) {
+        if ($updateFields === []) {
             return; // Nothing to update
         }
 
@@ -259,7 +257,7 @@ class RunService
             [self::STATUS_RUNNING]
         );
 
-        if (empty($orphanedRuns)) {
+        if ($orphanedRuns === []) {
             return 0;
         }
 

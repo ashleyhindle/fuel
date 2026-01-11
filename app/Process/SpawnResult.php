@@ -60,7 +60,7 @@ final readonly class SpawnResult
     public static function agentInBackoff(string $agentName, int $remainingSeconds): self
     {
         $formatted = $remainingSeconds < 60
-            ? "{$remainingSeconds}s"
+            ? $remainingSeconds . 's'
             : sprintf('%dm %ds', (int) ($remainingSeconds / 60), $remainingSeconds % 60);
 
         return new self(

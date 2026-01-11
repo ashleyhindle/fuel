@@ -48,7 +48,7 @@ class ReviewService implements ReviewServiceInterface
     {
         // 1. Get task details
         $task = $this->taskService->find($taskId);
-        if ($task === null) {
+        if (!$task instanceof Task) {
             throw new \RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
@@ -67,7 +67,7 @@ class ReviewService implements ReviewServiceInterface
             $diffProcess = new Process(['git', 'diff', 'HEAD~1']);
             $diffProcess->run();
             $gitDiff = $diffProcess->getOutput();
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             // Silently handle errors (matching original behavior of 2>/dev/null)
         }
 
@@ -75,7 +75,7 @@ class ReviewService implements ReviewServiceInterface
             $statusProcess = new Process(['git', 'status', '--porcelain']);
             $statusProcess->run();
             $gitStatus = $statusProcess->getOutput();
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             // Silently handle errors (matching original behavior of 2>/dev/null)
         }
 
@@ -104,7 +104,7 @@ class ReviewService implements ReviewServiceInterface
         }
 
         // Build command string with proper escaping
-        $command = implode(' ', array_map('escapeshellarg', $commandParts));
+        $command = implode(' ', array_map(escapeshellarg(...), $commandParts));
 
         // 6. Spawn review process with special task ID format for reviews
         $reviewTaskId = 'review-'.$taskId;
@@ -205,7 +205,7 @@ class ReviewService implements ReviewServiceInterface
             // No valid JSON found - check if the review agent ran `fuel done`
             // If so, the task status would be 'closed', meaning review passed
             $task = $this->taskService->find($taskId);
-            if ($task !== null && ($task->status === 'closed' || $task->status === 'done')) {
+            if ($task instanceof Task && ($task->status === 'closed' || $task->status === 'done')) {
                 $passed = true;
             } else {
                 // No JSON and task not done - review failed or agent crashed
@@ -372,7 +372,7 @@ class ReviewService implements ReviewServiceInterface
                     // No review agent configured - mark task as closed
                     $this->taskService->update($taskId, ['status' => 'closed']);
                 }
-            } catch (\Throwable $e) {
+            } catch (\Throwable) {
                 // Failed to re-trigger, skip this task
                 continue;
             }

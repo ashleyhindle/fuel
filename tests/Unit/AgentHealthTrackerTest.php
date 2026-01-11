@@ -157,6 +157,7 @@ it('increases backoff exponentially with consecutive failures', function (): voi
     $this->tracker->recordSuccess('claude');
     $this->tracker->recordFailure('claude', FailureType::Network);
     $this->tracker->recordFailure('claude', FailureType::Network);
+
     $backoff2 = $this->tracker->getBackoffSeconds('claude');
     expect($backoff2)->toBeLessThanOrEqual(60);
 
@@ -165,6 +166,7 @@ it('increases backoff exponentially with consecutive failures', function (): voi
     $this->tracker->recordFailure('claude', FailureType::Network);
     $this->tracker->recordFailure('claude', FailureType::Network);
     $this->tracker->recordFailure('claude', FailureType::Network);
+
     $backoff3 = $this->tracker->getBackoffSeconds('claude');
     expect($backoff3)->toBeLessThanOrEqual(120);
 });
@@ -268,7 +270,7 @@ it('returns all tracked agents', function (): void {
 
     expect($all)->toHaveCount(3);
 
-    $agents = array_map(fn (AgentHealth $h) => $h->agent, $all);
+    $agents = array_map(fn (AgentHealth $h): string => $h->agent, $all);
     expect($agents)->toContain('claude');
     expect($agents)->toContain('cursor-agent');
     expect($agents)->toContain('opencode');
@@ -363,6 +365,7 @@ it('returns correct health status label', function (): void {
     $this->tracker->recordFailure('warn-agent', FailureType::Network);
     $this->tracker->recordFailure('warn-agent', FailureType::Network);
     $this->tracker->recordFailure('warn-agent', FailureType::Network);
+
     expect($this->tracker->getHealthStatus('warn-agent')->getStatus())->toBe('unhealthy');
 });
 

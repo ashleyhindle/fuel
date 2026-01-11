@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use App\Models\Run;
 
-describe('Run Model', function () {
-    it('allows access to properties via magic __get', function () {
+describe('Run Model', function (): void {
+    it('allows access to properties via magic __get', function (): void {
         $run = new Run([
             'id' => 1,
             'short_id' => 'run-abc123',
@@ -39,148 +39,148 @@ describe('Run Model', function () {
         expect($run->cost_usd)->toBe(0.05);
     });
 
-    it('returns null for non-existent properties', function () {
+    it('returns null for non-existent properties', function (): void {
         $run = new Run([]);
         expect($run->non_existent)->toBeNull();
     });
 
-    describe('isRunning()', function () {
-        it('returns true when status is running', function () {
+    describe('isRunning()', function (): void {
+        it('returns true when status is running', function (): void {
             $run = new Run(['status' => 'running']);
             expect($run->isRunning())->toBeTrue();
         });
 
-        it('returns false when status is completed', function () {
+        it('returns false when status is completed', function (): void {
             $run = new Run(['status' => 'completed']);
             expect($run->isRunning())->toBeFalse();
         });
 
-        it('returns false when status is failed', function () {
+        it('returns false when status is failed', function (): void {
             $run = new Run(['status' => 'failed']);
             expect($run->isRunning())->toBeFalse();
         });
     });
 
-    describe('isCompleted()', function () {
-        it('returns true when status is completed', function () {
+    describe('isCompleted()', function (): void {
+        it('returns true when status is completed', function (): void {
             $run = new Run(['status' => 'completed']);
             expect($run->isCompleted())->toBeTrue();
         });
 
-        it('returns false when status is running', function () {
+        it('returns false when status is running', function (): void {
             $run = new Run(['status' => 'running']);
             expect($run->isCompleted())->toBeFalse();
         });
 
-        it('returns false when status is failed', function () {
+        it('returns false when status is failed', function (): void {
             $run = new Run(['status' => 'failed']);
             expect($run->isCompleted())->toBeFalse();
         });
     });
 
-    describe('isFailed()', function () {
-        it('returns true when status is failed', function () {
+    describe('isFailed()', function (): void {
+        it('returns true when status is failed', function (): void {
             $run = new Run(['status' => 'failed']);
             expect($run->isFailed())->toBeTrue();
         });
 
-        it('returns false when status is running', function () {
+        it('returns false when status is running', function (): void {
             $run = new Run(['status' => 'running']);
             expect($run->isFailed())->toBeFalse();
         });
 
-        it('returns false when status is completed', function () {
+        it('returns false when status is completed', function (): void {
             $run = new Run(['status' => 'completed']);
             expect($run->isFailed())->toBeFalse();
         });
     });
 
-    describe('getDurationFormatted()', function () {
-        it('formats duration with hours, minutes, and seconds', function () {
+    describe('getDurationFormatted()', function (): void {
+        it('formats duration with hours, minutes, and seconds', function (): void {
             $run = new Run(['duration_seconds' => 3665]); // 1h 1m 5s
             expect($run->getDurationFormatted())->toBe('1h 1m 5s');
         });
 
-        it('formats duration with hours and minutes only', function () {
+        it('formats duration with hours and minutes only', function (): void {
             $run = new Run(['duration_seconds' => 3660]); // 1h 1m
             expect($run->getDurationFormatted())->toBe('1h 1m');
         });
 
-        it('formats duration with hours and seconds only', function () {
+        it('formats duration with hours and seconds only', function (): void {
             $run = new Run(['duration_seconds' => 3605]); // 1h 5s
             expect($run->getDurationFormatted())->toBe('1h 5s');
         });
 
-        it('formats duration with minutes and seconds', function () {
+        it('formats duration with minutes and seconds', function (): void {
             $run = new Run(['duration_seconds' => 125]); // 2m 5s
             expect($run->getDurationFormatted())->toBe('2m 5s');
         });
 
-        it('formats duration with minutes only', function () {
+        it('formats duration with minutes only', function (): void {
             $run = new Run(['duration_seconds' => 120]); // 2m
             expect($run->getDurationFormatted())->toBe('2m');
         });
 
-        it('formats duration with seconds only', function () {
+        it('formats duration with seconds only', function (): void {
             $run = new Run(['duration_seconds' => 45]);
             expect($run->getDurationFormatted())->toBe('45s');
         });
 
-        it('formats zero duration as 0s', function () {
+        it('formats zero duration as 0s', function (): void {
             $run = new Run(['duration_seconds' => 0]);
             expect($run->getDurationFormatted())->toBe('0s');
         });
 
-        it('returns empty string when duration_seconds is null', function () {
+        it('returns empty string when duration_seconds is null', function (): void {
             $run = new Run(['duration_seconds' => null]);
             expect($run->getDurationFormatted())->toBe('');
         });
 
-        it('returns empty string when duration_seconds is not set', function () {
+        it('returns empty string when duration_seconds is not set', function (): void {
             $run = new Run([]);
             expect($run->getDurationFormatted())->toBe('');
         });
 
-        it('formats large durations correctly', function () {
+        it('formats large durations correctly', function (): void {
             $run = new Run(['duration_seconds' => 7384]); // 2h 3m 4s
             expect($run->getDurationFormatted())->toBe('2h 3m 4s');
         });
     });
 
-    describe('getOutputLines()', function () {
-        it('splits output into lines', function () {
+    describe('getOutputLines()', function (): void {
+        it('splits output into lines', function (): void {
             $run = new Run(['output' => "Line 1\nLine 2\nLine 3"]);
             expect($run->getOutputLines())->toBe(['Line 1', 'Line 2', 'Line 3']);
         });
 
-        it('returns single line for output without newlines', function () {
+        it('returns single line for output without newlines', function (): void {
             $run = new Run(['output' => 'Single line']);
             expect($run->getOutputLines())->toBe(['Single line']);
         });
 
-        it('returns empty array for null output', function () {
+        it('returns empty array for null output', function (): void {
             $run = new Run(['output' => null]);
             expect($run->getOutputLines())->toBe([]);
         });
 
-        it('returns empty array for empty string output', function () {
+        it('returns empty array for empty string output', function (): void {
             $run = new Run(['output' => '']);
             expect($run->getOutputLines())->toBe([]);
         });
 
-        it('handles output with trailing newline', function () {
+        it('handles output with trailing newline', function (): void {
             $run = new Run(['output' => "Line 1\nLine 2\n"]);
             expect($run->getOutputLines())->toBe(['Line 1', 'Line 2', '']);
         });
 
-        it('handles output with multiple consecutive newlines', function () {
+        it('handles output with multiple consecutive newlines', function (): void {
             $run = new Run(['output' => "Line 1\n\n\nLine 2"]);
             expect($run->getOutputLines())->toBe(['Line 1', '', '', 'Line 2']);
         });
     });
 
-    describe('fromArray()', function () {
-        it('creates a Run instance from an array', function () {
+    describe('fromArray()', function (): void {
+        it('creates a Run instance from an array', function (): void {
             $data = [
                 'id' => 1,
                 'short_id' => 'run-xyz789',
@@ -199,14 +199,14 @@ describe('Run Model', function () {
             expect($run->status)->toBe('running');
         });
 
-        it('creates a Run instance from an empty array', function () {
+        it('creates a Run instance from an empty array', function (): void {
             $run = Run::fromArray([]);
             expect($run)->toBeInstanceOf(Run::class);
         });
     });
 
-    describe('toArray()', function () {
-        it('returns the underlying attributes array', function () {
+    describe('toArray()', function (): void {
+        it('returns the underlying attributes array', function (): void {
             $data = [
                 'id' => 1,
                 'short_id' => 'run-abc123',
@@ -219,18 +219,18 @@ describe('Run Model', function () {
         });
     });
 
-    describe('getAttribute()', function () {
-        it('returns attribute value when it exists', function () {
+    describe('getAttribute()', function (): void {
+        it('returns attribute value when it exists', function (): void {
             $run = new Run(['agent' => 'claude']);
             expect($run->getAttribute('agent'))->toBe('claude');
         });
 
-        it('returns null when attribute does not exist', function () {
+        it('returns null when attribute does not exist', function (): void {
             $run = new Run([]);
             expect($run->getAttribute('non_existent'))->toBeNull();
         });
 
-        it('returns default value when attribute does not exist', function () {
+        it('returns default value when attribute does not exist', function (): void {
             $run = new Run([]);
             expect($run->getAttribute('non_existent', 'default'))->toBe('default');
         });

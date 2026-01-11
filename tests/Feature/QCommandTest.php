@@ -1,5 +1,9 @@
 <?php
 
+use App\Services\FuelContext;
+use App\Services\DatabaseService;
+use App\Services\RunService;
+use App\Services\BacklogService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Console\Command\Command;
@@ -11,21 +15,21 @@ describe('q command', function (): void {
         $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
         mkdir($this->tempDir.'/.fuel', 0755, true);
 
-        $context = new App\Services\FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(App\Services\FuelContext::class, fn () => $context);
+        $context = new FuelContext($this->tempDir.'/.fuel');
+        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
         $this->dbPath = $context->getDatabasePath();
 
-        $databaseService = new App\Services\DatabaseService($context->getDatabasePath());
-        $this->app->singleton(App\Services\DatabaseService::class, fn () => $databaseService);
+        $databaseService = new DatabaseService($context->getDatabasePath());
+        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(App\Services\TaskService::class, fn (): App\Services\TaskService => new App\Services\TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
-        $this->app->singleton(App\Services\RunService::class, fn (): App\Services\RunService => new App\Services\RunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-        $this->app->singleton(App\Services\BacklogService::class, fn (): App\Services\BacklogService => new App\Services\BacklogService($context));
+        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
-        $this->taskService = $this->app->make(App\Services\TaskService::class);
+        $this->taskService = $this->app->make(TaskService::class);
     });
 
     afterEach(function (): void {
@@ -39,6 +43,7 @@ describe('q command', function (): void {
                 if ($item === '.') {
                     continue;
                 }
+
                 if ($item === '..') {
                     continue;
                 }
@@ -46,10 +51,8 @@ describe('q command', function (): void {
                 $path = $dir.'/'.$item;
                 if (is_dir($path)) {
                     $deleteDir($path);
-                } else {
-                    if (file_exists($path)) {
-                        unlink($path);
-                    }
+                } elseif (file_exists($path)) {
+                    unlink($path);
                 }
             }
 

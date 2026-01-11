@@ -86,13 +86,11 @@ it('triggers a review by spawning a process', function (): void {
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) use ($taskId) {
-            return $reviewTaskId === 'review-'.$taskId
-                && $agent === 'review-agent'
-                && str_contains($command, 'echo')
-                && $cwd === getcwd()
-                && $processType === ProcessType::Review;
-        })
+        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $reviewTaskId === 'review-'.$taskId
+            && $agent === 'review-agent'
+            && str_contains((string) $command, 'echo')
+            && $cwd === getcwd()
+            && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-test01',
             taskId: 'review-'.$taskId,
@@ -284,9 +282,7 @@ it('uses configured review agent instead of completing agent', function (): void
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) {
-            return $agent === 'review-agent' && $processType === ProcessType::Review;
-        })
+        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $agent === 'review-agent' && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-test',
             taskId: 'review-'.$taskId,
@@ -346,9 +342,7 @@ YAML;
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) {
-            return $agent === 'test-agent' && $processType === ProcessType::Review;
-        })
+        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $agent === 'test-agent' && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-test',
             taskId: 'review-'.$taskId,
@@ -411,7 +405,7 @@ it('throws exception when task not found during trigger', function (): void {
         $this->runService
     );
 
-    expect(fn () => $reviewService->triggerReview('f-nonexistent', 'test-agent'))
+    expect(fn (): bool => $reviewService->triggerReview('f-nonexistent', 'test-agent'))
         ->toThrow(RuntimeException::class, "Task 'f-nonexistent' not found");
 });
 
@@ -737,9 +731,7 @@ it('recovers stuck reviews for tasks in review status with no active process', f
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(function ($reviewTaskId, $agent, $command, $cwd, $processType) use ($taskId) {
-            return $reviewTaskId === 'review-'.$taskId && $processType === ProcessType::Review;
-        })
+        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $reviewTaskId === 'review-'.$taskId && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-recover',
             taskId: 'review-'.$taskId,

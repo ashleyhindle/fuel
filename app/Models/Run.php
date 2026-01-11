@@ -50,15 +50,15 @@ class Run extends Model
         $seconds %= 60;
 
         if ($hours > 0) {
-            $parts[] = "{$hours}h";
+            $parts[] = $hours . 'h';
         }
 
         if ($minutes > 0) {
-            $parts[] = "{$minutes}m";
+            $parts[] = $minutes . 'm';
         }
 
-        if ($seconds > 0 || empty($parts)) {
-            $parts[] = "{$seconds}s";
+        if ($seconds > 0 || $parts === []) {
+            $parts[] = $seconds . 's';
         }
 
         return implode(' ', $parts);

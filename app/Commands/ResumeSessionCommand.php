@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
+use App\Models\Run;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
 use App\Services\ConfigService;
@@ -32,7 +34,7 @@ class ResumeSessionCommand extends Command
         try {
             $task = $taskService->find($this->argument('id'));
 
-            if ($task === null) {
+            if (!$task instanceof Task) {
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
@@ -43,7 +45,7 @@ class ResumeSessionCommand extends Command
                 $runs = $runService->getRuns($taskId);
                 $runId = $this->option('run');
 
-                $matches = array_filter($runs, function ($r) use ($runId): bool {
+                $matches = array_filter($runs, function (Run $r) use ($runId): bool {
                     $rId = $r->run_id ?? '';
 
                     return $rId === $runId || str_starts_with($rId, $runId);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -48,7 +49,7 @@ class ReopenCommand extends Command
                 $this->outputJson($tasks[0]->toArray());
             } else {
                 // Multiple tasks - return array
-                $this->outputJson(array_map(fn ($task) => $task->toArray(), $tasks));
+                $this->outputJson(array_map(fn (Task $task): array => $task->toArray(), $tasks));
             }
         } else {
             foreach ($tasks as $task) {

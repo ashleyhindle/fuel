@@ -50,6 +50,7 @@ class EpicApproveCommand extends Command
             if (isset($epic->approved_by)) {
                 $this->line(sprintf('  Approved by: %s', $epic->approved_by));
             }
+
             if (isset($epic->approved_at)) {
                 $this->line(sprintf('  Approved at: %s', $epic->approved_at));
             }

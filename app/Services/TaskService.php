@@ -21,11 +21,8 @@ class TaskService
 
     private string $prefix = 'f';
 
-    private DatabaseService $db;
-
-    public function __construct(DatabaseService $db)
+    public function __construct(private readonly DatabaseService $db)
     {
-        $this->db = $db;
     }
 
     /**
@@ -184,7 +181,7 @@ class TaskService
     public function update(string $id, array $data): Task
     {
         $taskModel = $this->find($id);
-        if ($taskModel === null) {
+        if (!$taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
@@ -223,6 +220,7 @@ class TaskService
                     sprintf("Invalid priority '%s'. Must be an integer between 0 and 4.", $priority)
                 );
             }
+
             $updates[] = 'priority = ?';
             $params[] = $priority;
             $task['priority'] = $priority;
@@ -258,6 +256,7 @@ class TaskService
             if ($data['epic_id'] !== null) {
                 $epicId = $this->resolveEpicId($data['epic_id']);
             }
+
             $updates[] = 'epic_id = ?';
             $params[] = $epicId;
             $task['epic_id'] = $data['epic_id'];
@@ -286,14 +285,11 @@ class TaskService
             $params[] = json_encode($labels);
             $task['labels'] = $labels;
         }
-
-        // Handle arbitrary fields (e.g., consumed, consumed_at, etc.)
-        $handledFields = ['title', 'description', 'type', 'priority', 'status', 'size', 'complexity', 'epic_id', 'add_labels', 'remove_labels'];
         $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid', 'last_review_issues'];
 
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
-                $updates[] = "{$key} = ?";
+                $updates[] = $key . ' = ?';
                 $params[] = $value;
                 $task[$key] = $value;
             }
@@ -310,14 +306,11 @@ class TaskService
             $params[] = $data['updated_at'];
             $task['updated_at'] = $data['updated_at'];
         }
-
-        if ($updates !== []) {
-            $params[] = $shortId;
-            $this->db->query(
-                'UPDATE tasks SET '.implode(', ', $updates).' WHERE short_id = ?',
-                $params
-            );
-        }
+        $params[] = $shortId;
+        $this->db->query(
+            'UPDATE tasks SET '.implode(', ', $updates).' WHERE short_id = ?',
+            $params
+        );
 
         return Task::fromArray($task);
     }
@@ -342,6 +335,7 @@ class TaskService
         if ($reason !== null) {
             $data['reason'] = $reason;
         }
+
         if ($commitHash !== null) {
             $data['commit_hash'] = $commitHash;
         }
@@ -380,13 +374,13 @@ class TaskService
     public function reopen(string $id): Task
     {
         $taskModel = $this->find($id);
-        if ($taskModel === null) {
+        if (!$taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
         $task = $taskModel->toArray();
         $status = $task['status'] ?? '';
-        if ($status !== 'closed' && $status !== 'in_progress' && $status !== 'review') {
+        if (!in_array($status, ['closed', 'in_progress', 'review'], true)) {
             throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
@@ -411,7 +405,7 @@ class TaskService
     public function retry(string $id): Task
     {
         $taskModel = $this->find($id);
-        if ($taskModel === null) {
+        if (!$taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
@@ -589,12 +583,12 @@ class TaskService
         $tasks = $this->all();
 
         $taskModel = $this->findInCollection($tasks, $taskId);
-        if ($taskModel === null) {
+        if (!$taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
         $dependsOnTask = $this->findInCollection($tasks, $dependsOnId);
-        if ($dependsOnTask === null) {
+        if (!$dependsOnTask instanceof Task) {
             throw new RuntimeException(sprintf("Dependency target '%s' not found", $dependsOnId));
         }
 
@@ -644,7 +638,7 @@ class TaskService
         $taskMap = $tasks->keyBy('id');
 
         $task = $this->findInCollection($tasks, $taskId);
-        if ($task === null) {
+        if (!$task instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
@@ -721,7 +715,7 @@ class TaskService
     public function archiveTasks(int $days = 30, bool $all = false): array
     {
         $tasks = $this->all();
-        $archivePath = $this->getArchivePath();
+        $this->getArchivePath();
 
         $cutoffDate = null;
         if (! $all) {
@@ -770,7 +764,7 @@ class TaskService
         $archivedIds = $tasksToArchive->pluck('id')->toArray();
         if (! empty($archivedIds)) {
             $placeholders = implode(',', array_fill(0, count($archivedIds), '?'));
-            $this->db->query("DELETE FROM tasks WHERE short_id IN ({$placeholders})", $archivedIds);
+            $this->db->query(sprintf('DELETE FROM tasks WHERE short_id IN (%s)', $placeholders), $archivedIds);
         }
 
         return [
@@ -853,7 +847,7 @@ class TaskService
     public function delete(string $id): Task
     {
         $task = $this->find($id);
-        if ($task === null) {
+        if (!$task instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
@@ -870,12 +864,12 @@ class TaskService
         $tasks = $this->all();
 
         $fromTaskModel = $this->findInCollection($tasks, $fromId);
-        if ($fromTaskModel === null) {
+        if (!$fromTaskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $fromId));
         }
 
         $toTask = $this->findInCollection($tasks, $toId);
-        if ($toTask === null) {
+        if (!$toTask instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $toId));
         }
 
@@ -1021,26 +1015,33 @@ class TaskService
         if (isset($row['commit_hash']) && $row['commit_hash'] !== null) {
             $task['commit_hash'] = $row['commit_hash'];
         }
+
         if (isset($row['reason']) && $row['reason'] !== null) {
             $task['reason'] = $row['reason'];
         }
+
         if (isset($row['consumed']) && $row['consumed'] !== null) {
             $task['consumed'] = (bool) $row['consumed'];
         }
+
         if (isset($row['consumed_at']) && $row['consumed_at'] !== null) {
             $task['consumed_at'] = $row['consumed_at'];
         }
+
         if (isset($row['consumed_exit_code']) && $row['consumed_exit_code'] !== null) {
             $task['consumed_exit_code'] = (int) $row['consumed_exit_code'];
         }
+
         if (isset($row['consumed_output']) && $row['consumed_output'] !== null) {
             $task['consumed_output'] = $row['consumed_output'];
         }
+
         if (isset($row['consume_pid']) && $row['consume_pid'] !== null) {
             $task['consume_pid'] = (int) $row['consume_pid'];
         }
+
         if (isset($row['last_review_issues']) && $row['last_review_issues'] !== null) {
-            $task['last_review_issues'] = json_decode($row['last_review_issues'], true);
+            $task['last_review_issues'] = json_decode((string) $row['last_review_issues'], true);
         }
 
         return $task;

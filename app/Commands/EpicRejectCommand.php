@@ -50,6 +50,7 @@ class EpicRejectCommand extends Command
             if ($reason !== null) {
                 $this->line(sprintf('  Reason: %s', $reason));
             }
+
             $this->line('  Tasks have been reopened for changes');
 
             return self::SUCCESS;

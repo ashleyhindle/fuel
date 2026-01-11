@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
 use App\Models\Task;
@@ -40,7 +41,7 @@ class EpicShowCommand extends Command
         try {
             $epic = $epicService->getEpic($this->argument('id'));
 
-            if ($epic === null) {
+            if (!$epic instanceof Epic) {
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('id')));
             }
 
@@ -52,9 +53,7 @@ class EpicShowCommand extends Command
             $blockedIds = $taskService->getBlockedIds($allTasks);
 
             // Partition tasks into unblocked and blocked groups
-            [$unblockedTasks, $blockedTasks] = $tasksCollection->partition(function (Task $task) use ($blockedIds): bool {
-                return ! in_array($task->id ?? '', $blockedIds, true);
-            });
+            [$unblockedTasks, $blockedTasks] = $tasksCollection->partition(fn(Task $task): bool => ! in_array($task->id ?? '', $blockedIds, true));
 
             // Sort each group by priority ASC, then created_at ASC
             $sortedUnblocked = $unblockedTasks

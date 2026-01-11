@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Process\ProcessResult;
 use App\Process\ProcessStatus;
 use App\Services\ConfigService;
 use App\Services\ProcessManager;
@@ -49,7 +50,7 @@ class ProcessManagerTest extends TestCase
 
     public function test_spawn_runs_real_command(): void
     {
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-real01',
             agent: 'claude',
             command: 'echo hello',
@@ -68,7 +69,7 @@ class ProcessManagerTest extends TestCase
 
     public function test_captures_stdout_to_file(): void
     {
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-stdout',
             agent: 'claude',
             command: 'echo "stdout content"',
@@ -89,7 +90,7 @@ class ProcessManagerTest extends TestCase
 
     public function test_captures_stderr_to_file(): void
     {
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-stderr',
             agent: 'claude',
             command: 'sh -c "echo error >&2"',
@@ -111,14 +112,14 @@ class ProcessManagerTest extends TestCase
     public function test_wait_for_any_returns_completed_process(): void
     {
         // Spawn multiple processes with different durations
-        $process1 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-fast',
             agent: 'claude',
             command: 'echo fast',
             cwd: '/tmp'
         );
 
-        $process2 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-slow',
             agent: 'claude',
             command: 'sleep 1',
@@ -140,21 +141,21 @@ class ProcessManagerTest extends TestCase
     public function test_wait_for_all_waits_for_all_processes(): void
     {
         // Spawn multiple quick processes
-        $process1 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-proc1',
             agent: 'claude',
             command: 'echo one',
             cwd: '/tmp'
         );
 
-        $process2 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-proc2',
             agent: 'claude',
             command: 'echo two',
             cwd: '/tmp'
         );
 
-        $process3 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-proc3',
             agent: 'claude',
             command: 'echo three',
@@ -173,7 +174,7 @@ class ProcessManagerTest extends TestCase
         }
 
         // Verify we got output from all
-        $outputs = array_map(fn ($r) => trim($r->output->stdout), $results);
+        $outputs = array_map(fn (ProcessResult $r): string => trim($r->output->stdout), $results);
         $this->assertContains('one', $outputs);
         $this->assertContains('two', $outputs);
         $this->assertContains('three', $outputs);
@@ -182,7 +183,7 @@ class ProcessManagerTest extends TestCase
     public function test_kill_stops_long_running_process(): void
     {
         // Spawn a long-running process
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-long',
             agent: 'claude',
             command: 'sleep 60',
@@ -209,21 +210,21 @@ class ProcessManagerTest extends TestCase
     public function test_shutdown_kills_all_processes(): void
     {
         // Spawn multiple long-running processes
-        $process1 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-shutdown1',
             agent: 'claude',
             command: 'sleep 30',
             cwd: '/tmp'
         );
 
-        $process2 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-shutdown2',
             agent: 'claude',
             command: 'sleep 30',
             cwd: '/tmp'
         );
 
-        $process3 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-shutdown3',
             agent: 'claude',
             command: 'sleep 30',
@@ -247,7 +248,7 @@ class ProcessManagerTest extends TestCase
     {
         // Use a command that doesn't have spaces in arguments
         // false command always exits with 1
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-fail',
             agent: 'claude',
             command: 'false',  // Standard Unix command that always fails with exit code 1
@@ -265,7 +266,7 @@ class ProcessManagerTest extends TestCase
 
     public function test_handles_command_with_arguments(): void
     {
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-args',
             agent: 'claude',
             command: 'echo foo bar baz',
@@ -283,7 +284,7 @@ class ProcessManagerTest extends TestCase
     public function test_wait_for_any_returns_null_on_timeout(): void
     {
         // Spawn a long-running process
-        $process = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-timeout',
             agent: 'claude',
             command: 'sleep 5',
@@ -303,21 +304,21 @@ class ProcessManagerTest extends TestCase
     public function test_wait_for_all_partial_completion_on_timeout(): void
     {
         // Spawn mix of fast and slow processes
-        $process1 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-fast1',
             agent: 'claude',
             command: 'echo fast1',
             cwd: '/tmp'
         );
 
-        $process2 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-slow1',
             agent: 'claude',
             command: 'sleep 5',
             cwd: '/tmp'
         );
 
-        $process3 = $this->processManager->spawn(
+        $this->processManager->spawn(
             taskId: 'f-fast2',
             agent: 'claude',
             command: 'echo fast2',
@@ -331,7 +332,7 @@ class ProcessManagerTest extends TestCase
         $this->assertGreaterThanOrEqual(2, count($results));
 
         // Verify fast processes completed
-        $taskIds = array_map(fn ($r) => $r->getTaskId(), $results);
+        $taskIds = array_map(fn (ProcessResult $r): string => $r->getTaskId(), $results);
         $this->assertContains('f-fast1', $taskIds);
         $this->assertContains('f-fast2', $taskIds);
 

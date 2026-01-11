@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Services\RunService;
+use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -14,18 +16,16 @@ beforeEach(function (): void {
 
     // Create FuelContext pointing to test directory
     $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn () => $context);
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test service instances
     $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
+    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
     $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
-    $this->app->singleton(EpicService::class, function (): EpicService {
-        return new EpicService(
-            $this->app->make(DatabaseService::class),
-            $this->app->make(TaskService::class)
-        );
-    });
+    $this->app->singleton(EpicService::class, fn(): EpicService => new EpicService(
+        $this->app->make(DatabaseService::class),
+        $this->app->make(TaskService::class)
+    ));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
     $this->databaseService->initialize();
@@ -39,10 +39,12 @@ afterEach(function (): void {
 
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
-
+            if ($item === '..') {
+                continue;
+            }
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -62,21 +64,21 @@ describe('epic:delete command', function (): void {
         $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
         mkdir($this->tempDir.'/.fuel', 0755, true);
 
-        $context = new App\Services\FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(App\Services\FuelContext::class, fn () => $context);
+        $context = new FuelContext($this->tempDir.'/.fuel');
+        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
         $this->dbPath = $context->getDatabasePath();
 
-        $databaseService = new App\Services\DatabaseService($context->getDatabasePath());
-        $this->app->singleton(App\Services\DatabaseService::class, fn () => $databaseService);
+        $databaseService = new DatabaseService($context->getDatabasePath());
+        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(App\Services\TaskService::class, fn (): App\Services\TaskService => new App\Services\TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
-        $this->app->singleton(App\Services\RunService::class, fn (): App\Services\RunService => new App\Services\RunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-        $this->app->singleton(App\Services\BacklogService::class, fn (): App\Services\BacklogService => new App\Services\BacklogService($context));
+        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
-        $this->taskService = $this->app->make(App\Services\TaskService::class);
+        $this->taskService = $this->app->make(TaskService::class);
     });
 
     afterEach(function (): void {
@@ -90,6 +92,7 @@ describe('epic:delete command', function (): void {
                 if ($item === '.') {
                     continue;
                 }
+
                 if ($item === '..') {
                     continue;
                 }
@@ -97,10 +100,8 @@ describe('epic:delete command', function (): void {
                 $path = $dir.'/'.$item;
                 if (is_dir($path)) {
                     $deleteDir($path);
-                } else {
-                    if (file_exists($path)) {
-                        unlink($path);
-                    }
+                } elseif (file_exists($path)) {
+                    unlink($path);
                 }
             }
 
@@ -150,7 +151,7 @@ describe('epic:delete command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Partial ID Epic');
 
-        $partialId = substr($epic->id, 2);
+        $partialId = substr((string) $epic->id, 2);
 
         Artisan::call('epic:delete', ['id' => $partialId, '--cwd' => $this->tempDir, '--force' => true]);
         $output = Artisan::output();

@@ -128,6 +128,7 @@ class RetryCommand extends Command
             if ($pid === null) {
                 return 'spawn failed / PID lost';
             }
+
             if (! ProcessManager::isProcessAlive((int) $pid)) {
                 return 'dead process (PID '.$pid.')';
             }

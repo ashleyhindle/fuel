@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\TaskService;
 
@@ -10,6 +9,7 @@ beforeEach(function (): void {
     $this->dbPath = $this->tempDir.'/.fuel/agent.db';
     $this->databaseService = new DatabaseService($this->dbPath);
     $this->databaseService->initialize();
+
     $this->taskService = new TaskService($this->databaseService);
 });
 
@@ -24,6 +24,7 @@ afterEach(function (): void {
     if (file_exists($this->dbPath.'-wal')) {
         unlink($this->dbPath.'-wal');
     }
+
     if (file_exists($this->dbPath.'-shm')) {
         unlink($this->dbPath.'-shm');
     }
@@ -33,6 +34,7 @@ afterEach(function (): void {
     if (file_exists($archivePath)) {
         unlink($archivePath);
     }
+
     if (file_exists($archivePath.'.tmp')) {
         unlink($archivePath.'.tmp');
     }

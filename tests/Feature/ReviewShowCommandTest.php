@@ -12,16 +12,17 @@ beforeEach(function (): void {
     mkdir($this->tempDir.'/.fuel', 0755, true);
 
     $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn () => $context);
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
+    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
     $taskService = new TaskService($databaseService);
-    $this->app->singleton(TaskService::class, fn () => $taskService);
+    $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
 
     $this->databaseService = $this->app->make(DatabaseService::class);
     $this->databaseService->initialize();
+
     $this->taskService = $this->app->make(TaskService::class);
 });
 
@@ -33,10 +34,12 @@ afterEach(function (): void {
 
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
-
+            if ($item === '..') {
+                continue;
+            }
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -105,7 +108,7 @@ it('supports partial ID matching', function (): void {
     $reviewId = $this->databaseService->recordReviewStarted('f-xyz789', 'amp-free');
     $this->databaseService->recordReviewCompleted($reviewId, true, []);
 
-    $partialId = substr($reviewId, 2, 4);
+    $partialId = substr((string) $reviewId, 2, 4);
 
     Artisan::call('review:show', ['id' => $partialId, '--cwd' => $this->tempDir]);
     $output = Artisan::output();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -45,7 +46,7 @@ class EpicDeleteCommand extends Command
         try {
             $epic = $epicService->getEpic($this->argument('id'));
 
-            if ($epic === null) {
+            if (!$epic instanceof Epic) {
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('id')));
             }
 

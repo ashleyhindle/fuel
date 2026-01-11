@@ -34,6 +34,7 @@ afterEach(function (): void {
             if ($item === '.') {
                 continue;
             }
+
             if ($item === '..') {
                 continue;
             }

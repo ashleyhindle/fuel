@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\EpicService;
 use App\Services\TaskService;
@@ -62,20 +63,22 @@ class DoneCommand extends Command
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
                 $output = $tasks[0]->toArray();
-                if (! empty($epicCompletions)) {
+                if ($epicCompletions !== []) {
                     $output['epic_completions'] = array_values($epicCompletions);
                 }
+
                 $this->outputJson($output);
             } else {
                 // Multiple tasks - return array for backward compatibility
-                if (! empty($epicCompletions)) {
+                if ($epicCompletions !== []) {
                     $output = [
-                        'tasks' => array_map(fn ($task) => $task->toArray(), $tasks),
+                        'tasks' => array_map(fn (Task $task): array => $task->toArray(), $tasks),
                         'epic_completions' => array_values($epicCompletions),
                     ];
                 } else {
-                    $output = array_map(fn ($task) => $task->toArray(), $tasks);
+                    $output = array_map(fn (Task $task): array => $task->toArray(), $tasks);
                 }
+
                 $this->outputJson($output);
             }
         } else {
@@ -93,7 +96,7 @@ class DoneCommand extends Command
 
             foreach ($epicCompletions as $epicId => $completion) {
                 $this->newLine();
-                $this->info("Epic {$epicId} completed! Review task created: {$completion['review_task_id']}");
+                $this->info(sprintf('Epic %s completed! Review task created: %s', $epicId, $completion['review_task_id']));
             }
         }
 

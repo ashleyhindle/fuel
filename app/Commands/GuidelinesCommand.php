@@ -117,7 +117,7 @@ fuel add "Title" --description="..." --type=bug|fix|feature|task|epic|chore|docs
 
 ### Writing Good Descriptions
 
-Descriptions should be explicit enough for a less capable agent to complete without guessing. Include: files to modify (exact paths), what to change (methods, patterns), expected behavior, and patterns to follow.
+Descriptions should be explicit enough for a less capable agent to complete without guessing. Include: files to modify (exact paths), what to change (methods, patterns), expected behavior, and patterns to follow. **Give one clear solution, not options—subagents execute, they don't decide.**
 
 **Bad**: "Fix the ID display bug"
 **Good**: "BoardCommand.php:320 uses substr($id, 5, 4) for old format. Change to substr($id, 2, 6) for f-xxxxxx format."
@@ -146,8 +146,9 @@ Blocked tasks won't appear in `fuel ready` until blockers are closed.
 **Workflow:**
 1. `fuel epic:add "Feature name" --description="What and why"`
 2. Break down into tasks, linking each: `fuel add "Task" --epic=e-xxxx`
-3. Tasks get worked and reviewed individually
-4. When ALL tasks close → epic review triggers → human inbox notification
+3. Create a final review task: `fuel add "Review: Feature name" --epic=e-xxxx --blocked-by=f-task1,f-task2,...`
+4. Work tasks individually; review task auto-unblocks when all dependencies close
+5. Complete review task to close out the epic
 
 ```bash
 fuel epic:add "Add user preferences"    # Create epic (note the ID)

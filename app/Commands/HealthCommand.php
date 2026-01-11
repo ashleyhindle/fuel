@@ -47,7 +47,7 @@ class HealthCommand extends Command
      */
     private function displayTable(array $allHealth): void
     {
-        if (empty($allHealth)) {
+        if ($allHealth === []) {
             $this->info('No agent health data available.');
 
             return;
@@ -148,7 +148,7 @@ class HealthCommand extends Command
      */
     private function formatDateTime(?DateTimeImmutable $dateTime): string
     {
-        if ($dateTime === null) {
+        if (!$dateTime instanceof \DateTimeImmutable) {
             return '-';
         }
 
@@ -163,18 +163,16 @@ class HealthCommand extends Command
      */
     private function formatForJson(array $allHealth): array
     {
-        return array_map(function (AgentHealth $health) {
-            return [
-                'agent' => $health->agent,
-                'status' => $this->getStatusLabel($health),
-                'consecutive_failures' => $health->consecutiveFailures,
-                'backoff_remaining_seconds' => $health->getBackoffSeconds(),
-                'success_rate' => $health->getSuccessRate(),
-                'last_success_at' => $health->lastSuccessAt?->format('c'),
-                'last_failure_at' => $health->lastFailureAt?->format('c'),
-                'total_runs' => $health->totalRuns,
-                'total_successes' => $health->totalSuccesses,
-            ];
-        }, $allHealth);
+        return array_map(fn(AgentHealth $health): array => [
+            'agent' => $health->agent,
+            'status' => $this->getStatusLabel($health),
+            'consecutive_failures' => $health->consecutiveFailures,
+            'backoff_remaining_seconds' => $health->getBackoffSeconds(),
+            'success_rate' => $health->getSuccessRate(),
+            'last_success_at' => $health->lastSuccessAt?->format('c'),
+            'last_failure_at' => $health->lastFailureAt?->format('c'),
+            'total_runs' => $health->totalRuns,
+            'total_successes' => $health->totalSuccesses,
+        ], $allHealth);
     }
 }

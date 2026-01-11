@@ -35,7 +35,7 @@ class OutputParser
             }
 
             $event = $this->parseLine($line);
-            if ($event !== null) {
+            if ($event instanceof ParsedEvent) {
                 $events[] = $event;
             }
         }

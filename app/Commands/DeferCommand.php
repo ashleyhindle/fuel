@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
@@ -39,7 +40,7 @@ class DeferCommand extends Command
             // Find the task first to validate it exists and is a task
             $task = $taskService->find($id);
 
-            if ($task === null) {
+            if (!$task instanceof Task) {
                 return $this->outputError(sprintf("Task '%s' not found", $id));
             }
 
