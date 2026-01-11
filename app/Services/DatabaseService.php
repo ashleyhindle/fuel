@@ -680,22 +680,12 @@ class DatabaseService
 
         ksort($pendingMigrations);
 
-        $ranMigrationV4 = false;
-        $ranMigrationV10 = false;
-
         $this->connection->beginTransaction();
         try {
             $maxVersion = $currentVersion;
             foreach ($pendingMigrations as $version => $migration) {
                 $migration($this->connection);
                 $maxVersion = $version;
-                if ($version === 4) {
-                    $ranMigrationV4 = true;
-                }
-
-                if ($version === 10) {
-                    $ranMigrationV10 = true;
-                }
             }
 
             $this->setSchemaVersion($maxVersion);
@@ -703,11 +693,6 @@ class DatabaseService
         } catch (PDOException $pdoException) {
             $this->connection->rollBack();
             throw new RuntimeException('Migration failed: '.$pdoException->getMessage(), 0, $pdoException);
-        }
-
-        // Auto-import tasks from JSONL after migration v4 creates the tasks table
-        if ($ranMigrationV4) {
-            $this->importTasksFromJsonl();
         }
     }
 
@@ -844,112 +829,6 @@ class DatabaseService
     public function getPath(): string
     {
         return $this->dbPath;
-    }
-
-    /**
-     * Import tasks from JSONL file into SQLite table.
-     * Only imports if tasks.jsonl exists and tasks table is empty.
-     *
-     * @return int Number of tasks imported
-     */
-    public function importTasksFromJsonl(): int
-    {
-        // Derive tasks.jsonl path from database path
-        $tasksJsonlPath = dirname($this->dbPath).'/tasks.jsonl';
-
-        // Check if file exists
-        if (! file_exists($tasksJsonlPath)) {
-            return 0;
-        }
-
-        // Check if tasks table is empty
-        $count = $this->fetchOne('SELECT COUNT(*) as count FROM tasks');
-        if ($count !== null && (int) $count['count'] > 0) {
-            return 0;
-        }
-
-        // Build epic short_id -> integer id lookup
-        $epicLookup = [];
-        $epics = $this->fetchAll('SELECT id, short_id FROM epics');
-        foreach ($epics as $epic) {
-            $epicLookup[$epic['short_id']] = (int) $epic['id'];
-        }
-
-        // Read and import tasks
-        $imported = 0;
-        $handle = fopen($tasksJsonlPath, 'r');
-        if ($handle === false) {
-            return 0;
-        }
-
-        $this->beginTransaction();
-        try {
-            while (($line = fgets($handle)) !== false) {
-                $line = trim($line);
-                if ($line === '') {
-                    continue;
-                }
-
-                $task = json_decode($line, true);
-                if (! is_array($task)) {
-                    continue;
-                }
-                if (! isset($task['id'], $task['title'])) {
-                    continue;
-                }
-
-                // Map epic_id string to integer if epic exists
-                $epicId = null;
-                if (isset($task['epic_id']) && $task['epic_id'] !== null) {
-                    $epicId = $epicLookup[$task['epic_id']] ?? null;
-                }
-
-                // Encode arrays as JSON
-                $labels = isset($task['labels']) && is_array($task['labels'])
-                    ? json_encode($task['labels'])
-                    : null;
-                $blockedBy = isset($task['blocked_by']) && is_array($task['blocked_by'])
-                    ? json_encode($task['blocked_by'])
-                    : null;
-
-                $this->query(
-                    'INSERT INTO tasks (short_id, title, description, status, type, priority, size, complexity, labels, blocked_by, epic_id, commit_hash, reason, consumed, consumed_at, consumed_exit_code, consumed_output, consume_pid, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [
-                        $task['id'],                                    // short_id
-                        $task['title'],
-                        $task['description'] ?? null,
-                        $task['status'] ?? 'open',
-                        $task['type'] ?? 'task',
-                        $task['priority'] ?? 2,
-                        $task['size'] ?? 'm',
-                        $task['complexity'] ?? 'moderate',
-                        $labels,
-                        $blockedBy,
-                        $epicId,
-                        $task['commit_hash'] ?? null,
-                        $task['reason'] ?? null,
-                        $task['consumed'] ?? 0,
-                        $task['consumed_at'] ?? null,
-                        $task['consumed_exit_code'] ?? null,
-                        $task['consumed_output'] ?? null,
-                        $task['consume_pid'] ?? null,
-                        $task['created_at'] ?? null,
-                        $task['updated_at'] ?? null,
-                    ]
-                );
-                $imported++;
-            }
-
-            $this->commit();
-        } catch (\Throwable $throwable) {
-            $this->rollback();
-            throw $throwable;
-        } finally {
-            fclose($handle);
-        }
-
-        return $imported;
     }
 
     /**
