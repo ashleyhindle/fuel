@@ -167,7 +167,7 @@ class ShowCommand extends Command
                 $runs = $runService->getRuns($task->id);
 
                 // Check for live output if task is in_progress (even if no runs exist)
-                $liveOutput = $this->getLiveOutput($task->id, $task->status ?? TaskStatus::Open->value);
+                $liveOutput = $this->getLiveOutput($task->id, $task->status ?? TaskStatus::Open->value, $runService);
 
                 if ($runs !== []) {
                     $this->newLine();
@@ -316,7 +316,7 @@ class ShowCommand extends Command
      *
      * @return string|null Returns last 50 lines of stdout.log or null if not available
      */
-    private function getLiveOutput(string $taskId, string $status): ?string
+    private function getLiveOutput(string $taskId, string $status, RunService $runService): ?string
     {
         // Only check for live output if task is in_progress
         if ($status !== TaskStatus::InProgress->value) {
@@ -325,7 +325,13 @@ class ShowCommand extends Command
 
         // Determine the working directory
         $cwd = $this->option('cwd') ?: getcwd();
-        $stdoutPath = $cwd.'/.fuel/processes/'.$taskId.'/stdout.log';
+
+        // Get the latest run for this task to determine the correct process directory
+        $latestRun = $runService->getLatestRun($taskId);
+
+        // Use run ID if available, otherwise fall back to task ID for backward compatibility
+        $processId = $latestRun?->run_id ?? $taskId;
+        $stdoutPath = $cwd.'/.fuel/processes/'.$processId.'/stdout.log';
 
         // Check if stdout.log exists
         if (! File::exists($stdoutPath)) {
