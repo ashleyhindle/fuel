@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
@@ -76,11 +77,11 @@ class RunCommand extends Command
             $this->warn('⚠ Task is blocked by: '.implode(', ', $blockedBy).' (ignoring for debug run)');
         }
 
-        if ($status === 'in_progress') {
+        if ($status === TaskStatus::InProgress->value) {
             $this->warn('⚠ Task is already in_progress (ignoring for debug run)');
         } elseif ($status === 'done') {
             $this->warn('⚠ Task is already done (ignoring for debug run)');
-        } elseif ($status === 'cancelled') {
+        } elseif ($status === TaskStatus::Cancelled->value) {
             $this->warn('⚠ Task is cancelled (ignoring for debug run)');
         }
 
@@ -103,7 +104,7 @@ class RunCommand extends Command
         $fullPrompt = $this->option('prompt') ?? $this->buildPrompt($task, $cwd);
 
         // Mark task as in_progress unless --no-start
-        if (! $this->option('no-start') && $task->status !== 'in_progress') {
+        if (! $this->option('no-start') && $task->status !== TaskStatus::InProgress->value) {
             $this->taskService->start($taskId);
             $this->line('<fg=yellow>→ Marked task as in_progress</>');
         }
@@ -231,7 +232,7 @@ class RunCommand extends Command
             // Auto-complete task unless --no-done
             if (! $this->option('no-done')) {
                 $task = $this->taskService->find($taskId);
-                if ($task && $task->status === 'in_progress') {
+                if ($task && $task->status === TaskStatus::InProgress->value) {
                     $this->taskService->update($taskId, [
                         'add_labels' => ['auto-closed'],
                     ]);
