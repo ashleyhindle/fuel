@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\EpicStatus;
 use Carbon\Carbon;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
 class EpicService
 {
-    private const VALID_STATUSES = ['planning', 'active', 'completed', 'cancelled'];
-
     private DatabaseService $db;
 
     private TaskService $taskService;
@@ -45,7 +44,7 @@ class EpicService
         ];
 
         // Compute status (will be 'planning' for new epic with no tasks)
-        $epic['status'] = $this->getEpicStatus($shortId);
+        $epic['status'] = $this->getEpicStatus($shortId)->value;
 
         return $epic;
     }
@@ -66,7 +65,7 @@ class EpicService
 
         // Map short_id to id for public interface compatibility
         $epic['id'] = $epic['short_id'];
-        $epic['status'] = $this->getEpicStatus($resolvedId);
+        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
         return $epic;
     }
@@ -80,7 +79,7 @@ class EpicService
         return array_map(function (array $epic): array {
             // Map short_id to id for public interface compatibility
             $epic['id'] = $epic['short_id'];
-            $epic['status'] = $this->getEpicStatus($epic['short_id']);
+            $epic['status'] = $this->getEpicStatus($epic['short_id'])->value;
 
             return $epic;
         }, $epics);
@@ -113,7 +112,7 @@ class EpicService
 
         return array_map(function (array $epic): array {
             $epic['id'] = $epic['short_id'];
-            $epic['status'] = 'review_pending';
+            $epic['status'] = EpicStatus::ReviewPending->value;
 
             return $epic;
         }, $epics);
@@ -157,7 +156,7 @@ class EpicService
         // Map short_id to id for public interface compatibility
         $epic['id'] = $epic['short_id'];
         // Compute status from task states
-        $epic['status'] = $this->getEpicStatus($resolvedId);
+        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
         return $epic;
     }
@@ -182,7 +181,7 @@ class EpicService
         // Map short_id to id for public interface compatibility
         $epic['id'] = $epic['short_id'];
         $epic['reviewed_at'] = $now;
-        $epic['status'] = $this->getEpicStatus($resolvedId);
+        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
         return $epic;
     }
@@ -222,7 +221,7 @@ class EpicService
         $epic['approved_at'] = $now;
         $epic['approved_by'] = $approvedByValue;
         $epic['changes_requested_at'] = null;
-        $epic['status'] = $this->getEpicStatus($resolvedId);
+        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
         return $epic;
     }
@@ -269,7 +268,7 @@ class EpicService
         $epic['changes_requested_at'] = $now;
         $epic['approved_at'] = null;
         $epic['approved_by'] = null;
-        $epic['status'] = $this->getEpicStatus($resolvedId);
+        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
         return $epic;
     }
@@ -291,7 +290,7 @@ class EpicService
         // Map short_id to id for public interface compatibility
         $epic['id'] = $epic['short_id'];
         // Compute status before deleting
-        $epic['status'] = $this->getEpicStatus($resolvedId);
+        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
 
         $this->db->query('DELETE FROM epics WHERE short_id = ?', [$resolvedId]);
 
@@ -313,7 +312,7 @@ class EpicService
             ->toArray();
     }
 
-    public function getEpicStatus(string $epicId): string
+    public function getEpicStatus(string $epicId): EpicStatus
     {
         $this->db->initialize();
 
@@ -329,7 +328,7 @@ class EpicService
 
         // Check approval/rejection status first (these override computed status)
         if ($epic['approved_at'] !== null) {
-            return 'approved';
+            return EpicStatus::Approved;
         }
 
         if ($epic['changes_requested_at'] !== null) {
@@ -345,19 +344,19 @@ class EpicService
             }
 
             // If tasks are active again, it's in_progress; otherwise still changes_requested
-            return $hasActiveTask ? 'in_progress' : 'changes_requested';
+            return $hasActiveTask ? EpicStatus::InProgress : EpicStatus::ChangesRequested;
         }
 
         // If reviewed_at is set but not approved, epic is reviewed (but not approved)
         if ($epic['reviewed_at'] !== null) {
-            return 'reviewed';
+            return EpicStatus::Reviewed;
         }
 
         $tasks = $this->getTasksForEpic($resolvedId);
 
         // If no tasks, epic is in planning
         if (count($tasks) === 0) {
-            return 'planning';
+            return EpicStatus::Planning;
         }
 
         // Check if any task is open or in_progress
@@ -371,7 +370,7 @@ class EpicService
         }
 
         if ($hasActiveTask) {
-            return 'in_progress';
+            return EpicStatus::InProgress;
         }
 
         // Check if all tasks are closed
@@ -385,25 +384,16 @@ class EpicService
         }
 
         if ($allClosed) {
-            return 'review_pending';
+            return EpicStatus::ReviewPending;
         }
 
         // Fallback: if tasks exist but not all closed and none active, still in_progress
-        return 'in_progress';
+        return EpicStatus::InProgress;
     }
 
     private function generateId(): string
     {
         return 'e-'.bin2hex(random_bytes(3));
-    }
-
-    private function validateStatus(string $status): void
-    {
-        if (! in_array($status, self::VALID_STATUSES, true)) {
-            throw new RuntimeException(
-                sprintf("Invalid status '%s'. Must be one of: ", $status).implode(', ', self::VALID_STATUSES)
-            );
-        }
     }
 
     private function resolveId(string $id): ?string

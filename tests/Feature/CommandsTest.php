@@ -3793,7 +3793,7 @@ describe('human command', function (): void {
 
         // Verify epic status is review_pending
         $epicStatus = $epicService->getEpicStatus($epic['id']);
-        expect($epicStatus)->toBe('review_pending');
+        expect($epicStatus->value)->toBe('review_pending');
 
         // Check that human command shows the epic
         Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
