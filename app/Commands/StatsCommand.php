@@ -56,6 +56,7 @@ class StatsCommand extends Command
             $this->collectTaskStats($taskService),
             $this->collectEpicStats($epicService),
             $this->collectRunStats($runService),
+            $this->collectCostStats($databaseService),
             $this->collectTimingStats($runService),
             $this->collectTrends($databaseService),
             $this->collectActivityHeatmap($databaseService),
@@ -70,6 +71,7 @@ class StatsCommand extends Command
                 foreach ($boxLines as $line) {
                     $this->line($line);
                 }
+
                 $this->line('');
             }
         }
@@ -93,7 +95,7 @@ class StatsCommand extends Command
 
         // Try stty size
         exec('stty size 2>/dev/null', $output);
-        if (! empty($output[0])) {
+        if (isset($output[0]) && ($output[0] !== '' && $output[0] !== '0')) {
             $parts = explode(' ', trim($output[0]));
             if (count($parts) === 2) {
                 return (int) $parts[1];
@@ -142,6 +144,8 @@ class StatsCommand extends Command
      */
     private function renderColumnsSideBySide(array $columns, int $boxWidth): void
     {
+        $emptyLine = str_repeat(' ', $boxWidth);
+
         // Flatten each column: combine all boxes in the column with gaps
         $flattenedColumns = [];
         foreach ($columns as $columnBoxes) {
@@ -150,22 +154,30 @@ class StatsCommand extends Command
                 $flatColumn = array_merge($flatColumn, $box);
                 // Add gap after each box except the last one
                 if ($boxIndex < count($columnBoxes) - 1) {
-                    $flatColumn[] = ''; // Empty line for gap
+                    $flatColumn[] = $emptyLine; // Padded empty line for gap
                 }
             }
+
             $flattenedColumns[] = $flatColumn;
         }
 
         // Find max height across all columns
-        $maxHeight = max(array_map('count', $flattenedColumns));
+        $maxHeight = max(array_map(count(...), $flattenedColumns));
 
         // Output line by line, combining columns horizontally
         for ($lineIndex = 0; $lineIndex < $maxHeight; $lineIndex++) {
             $lineParts = [];
             foreach ($flattenedColumns as $column) {
                 // Get line from this column or use padding if column is shorter
-                $lineParts[] = $column[$lineIndex] ?? str_repeat(' ', $boxWidth);
+                $line = $column[$lineIndex] ?? $emptyLine;
+                // Ensure line is exactly boxWidth (pad if needed)
+                if ($line === '') {
+                    $line = $emptyLine;
+                }
+
+                $lineParts[] = $line;
             }
+
             $this->line(implode('  ', $lineParts));
         }
     }
@@ -188,6 +200,7 @@ class StatsCommand extends Command
             'blocked' => 0,
             'review' => 0,
             'cancelled' => 0,
+            'someday' => 0,
         ];
 
         // Aggregate by complexity
@@ -269,13 +282,23 @@ class StatsCommand extends Command
             $statusCounts['open'],
             $statusCounts['blocked']
         );
-        if ($statusCounts['review'] > 0 || $statusCounts['cancelled'] > 0) {
-            $lines[] = sprintf(
-                '  <fg=magenta>👀 Review: %d</>  <fg=gray>❌ Cancelled: %d</>',
-                $statusCounts['review'],
-                $statusCounts['cancelled']
-            );
+        if ($statusCounts['review'] > 0 || $statusCounts['cancelled'] > 0 || $statusCounts['someday'] > 0) {
+            $extraStatus = [];
+            if ($statusCounts['review'] > 0) {
+                $extraStatus[] = sprintf('<fg=magenta>👀 Review: %d</>', $statusCounts['review']);
+            }
+
+            if ($statusCounts['cancelled'] > 0) {
+                $extraStatus[] = sprintf('<fg=gray>❌ Cancelled: %d</>', $statusCounts['cancelled']);
+            }
+
+            if ($statusCounts['someday'] > 0) {
+                $extraStatus[] = sprintf('<fg=gray>💭 Someday: %d</>', $statusCounts['someday']);
+            }
+
+            $lines[] = '  '.implode('  ', $extraStatus);
         }
+
         $lines[] = '';
         $lines[] = '<fg=cyan>By Complexity:</>';
         $lines[] = sprintf('  trivial: %d', $complexityCounts['trivial']);
@@ -319,12 +342,14 @@ class StatsCommand extends Command
         $total = count($epics);
         $planning = 0;
         $inProgress = 0;
+        $reviewPending = 0;
         $done = 0;
 
         foreach ($epics as $epic) {
             match ($epic->status) {
                 'planning' => $planning++,
-                'in_progress' => $inProgress++,
+                'in_progress', 'changes_requested' => $inProgress++,
+                'review_pending', 'reviewed' => $reviewPending++,
                 'approved' => $done++,
                 default => null,
             };
@@ -333,7 +358,7 @@ class StatsCommand extends Command
         $lines = [];
         $lines[] = sprintf('Total: %d', $total);
         $lines[] = sprintf('  📋 Planning: %d  🔄 In Progress: %d', $planning, $inProgress);
-        $lines[] = sprintf('  ✅ Done: %d', $done);
+        $lines[] = sprintf('  👀 Review: %d  ✅ Approved: %d', $reviewPending, $done);
 
         return $this->captureBoxOutput('EPICS', $lines, '📦', 43);
     }
@@ -432,6 +457,7 @@ class StatsCommand extends Command
                 $longestFormatted = $this->formatDuration($stats['longest_run']);
                 $lines[] = sprintf('Longest Run: %s', $longestFormatted);
             }
+
             if ($stats['shortest_run'] !== null) {
                 $shortestFormatted = $this->formatDuration($stats['shortest_run']);
                 $lines[] = sprintf('Shortest Run: %s', $shortestFormatted);
@@ -439,6 +465,220 @@ class StatsCommand extends Command
         }
 
         return $this->captureBoxOutput('TIMING', $lines, '⏱️', 43);
+    }
+
+    /**
+     * Collect cost stats box lines without rendering.
+     *
+     * @return array<string>
+     */
+    private function collectCostStats(DatabaseService $db): array
+    {
+        $lines = [];
+
+        // Total cost and average
+        $totals = $db->fetchOne(
+            'SELECT SUM(cost_usd) as total, AVG(cost_usd) as avg, COUNT(*) as count
+             FROM runs
+             WHERE cost_usd IS NOT NULL AND cost_usd > 0'
+        );
+
+        $totalCost = (float) ($totals['total'] ?? 0);
+        $avgCost = (float) ($totals['avg'] ?? 0);
+        $runsWithCost = (int) ($totals['count'] ?? 0);
+
+        if ($runsWithCost === 0) {
+            $lines[] = '<fg=gray>(no cost data available)</>';
+
+            return $this->captureBoxOutput('COSTS', $lines, '💰', 43);
+        }
+
+        // Calculate overall median
+        $medianCost = $this->calculateMedian($db, 'runs', 'cost_usd');
+
+        $lines[] = sprintf('Total Spend: <fg=yellow>$%.2f</>', $totalCost);
+        $lines[] = sprintf('Avg: <fg=cyan>$%.2f</>  Median: <fg=cyan>$%.2f</>', $avgCost, $medianCost);
+        $lines[] = '';
+
+        // Cost by agent (top 3) with median
+        $byAgent = $db->fetchAll(
+            'SELECT agent, SUM(cost_usd) as total, AVG(cost_usd) as avg, COUNT(*) as count
+             FROM runs
+             WHERE cost_usd IS NOT NULL AND cost_usd > 0 AND agent IS NOT NULL
+             GROUP BY agent
+             ORDER BY total DESC
+             LIMIT 3'
+        );
+
+        if ($byAgent !== []) {
+            $lines[] = 'By Agent (total / median):';
+            foreach ($byAgent as $row) {
+                $median = $this->calculateMedianForGroup($db, 'agent', $row['agent']);
+                $lines[] = sprintf(
+                    '  %s: $%.2f / $%.2f',
+                    $row['agent'],
+                    $row['total'],
+                    $median
+                );
+            }
+
+            $lines[] = '';
+        }
+
+        // Cost by model (top 3) with median
+        $byModel = $db->fetchAll(
+            'SELECT model, SUM(cost_usd) as total, AVG(cost_usd) as avg, COUNT(*) as count
+             FROM runs
+             WHERE cost_usd IS NOT NULL AND cost_usd > 0 AND model IS NOT NULL
+             GROUP BY model
+             ORDER BY total DESC
+             LIMIT 3'
+        );
+
+        if ($byModel !== []) {
+            $lines[] = 'By Model (total / median):';
+            foreach ($byModel as $row) {
+                $median = $this->calculateMedianForGroup($db, 'model', $row['model']);
+                $lines[] = sprintf(
+                    '  %s: $%.2f / $%.2f',
+                    $this->truncateModel($row['model']),
+                    $row['total'],
+                    $median
+                );
+            }
+
+            $lines[] = '';
+        }
+
+        // Most expensive task
+        $expensive = $db->fetchOne(
+            'SELECT r.cost_usd, t.short_id, t.title
+             FROM runs r
+             JOIN tasks t ON r.task_id = t.id
+             WHERE r.cost_usd IS NOT NULL
+             ORDER BY r.cost_usd DESC
+             LIMIT 1'
+        );
+
+        if ($expensive && $expensive['cost_usd'] > 0) {
+            $title = $expensive['title'];
+            if (strlen((string) $title) > 25) {
+                $title = substr((string) $title, 0, 22).'...';
+            }
+
+            $lines[] = sprintf(
+                '💸 Most Expensive: <fg=red>$%.2f</>',
+                $expensive['cost_usd']
+            );
+            $lines[] = sprintf('   %s: %s', $expensive['short_id'], $title);
+        }
+
+        return $this->captureBoxOutput('COSTS', $lines, '💰', 43);
+    }
+
+    /**
+     * Calculate median cost from all runs.
+     */
+    private function calculateMedian(DatabaseService $db, string $table, string $column): float
+    {
+        $count = $db->fetchOne(
+            sprintf('SELECT COUNT(*) as cnt FROM %s WHERE %s IS NOT NULL AND %s > 0', $table, $column, $column)
+        );
+        $total = (int) ($count['cnt'] ?? 0);
+
+        if ($total === 0) {
+            return 0.0;
+        }
+
+        $offset = (int) floor(($total - 1) / 2);
+
+        if ($total % 2 === 1) {
+            // Odd count: return middle value
+            $row = $db->fetchOne(
+                "SELECT {$column} as val FROM {$table}
+                 WHERE {$column} IS NOT NULL AND {$column} > 0
+                 ORDER BY {$column}
+                 LIMIT 1 OFFSET {$offset}"
+            );
+
+            return (float) ($row['val'] ?? 0);
+        }
+
+        // Even count: average of two middle values
+        $rows = $db->fetchAll(
+            "SELECT {$column} as val FROM {$table}
+             WHERE {$column} IS NOT NULL AND {$column} > 0
+             ORDER BY {$column}
+             LIMIT 2 OFFSET {$offset}"
+        );
+
+        if (count($rows) < 2) {
+            return (float) ($rows[0]['val'] ?? 0);
+        }
+
+        return ((float) $rows[0]['val'] + (float) $rows[1]['val']) / 2;
+    }
+
+    /**
+     * Calculate median cost for a specific agent or model.
+     */
+    private function calculateMedianForGroup(DatabaseService $db, string $groupColumn, string $groupValue): float
+    {
+        $count = $db->fetchOne(
+            "SELECT COUNT(*) as cnt FROM runs
+             WHERE cost_usd IS NOT NULL AND cost_usd > 0 AND {$groupColumn} = ?",
+            [$groupValue]
+        );
+        $total = (int) ($count['cnt'] ?? 0);
+
+        if ($total === 0) {
+            return 0.0;
+        }
+
+        $offset = (int) floor(($total - 1) / 2);
+
+        if ($total % 2 === 1) {
+            // Odd count: return middle value
+            $row = $db->fetchOne(
+                "SELECT cost_usd as val FROM runs
+                 WHERE cost_usd IS NOT NULL AND cost_usd > 0 AND {$groupColumn} = ?
+                 ORDER BY cost_usd
+                 LIMIT 1 OFFSET {$offset}",
+                [$groupValue]
+            );
+
+            return (float) ($row['val'] ?? 0);
+        }
+
+        // Even count: average of two middle values
+        $rows = $db->fetchAll(
+            "SELECT cost_usd as val FROM runs
+             WHERE cost_usd IS NOT NULL AND cost_usd > 0 AND {$groupColumn} = ?
+             ORDER BY cost_usd
+             LIMIT 2 OFFSET {$offset}",
+            [$groupValue]
+        );
+
+        if (count($rows) < 2) {
+            return (float) ($rows[0]['val'] ?? 0);
+        }
+
+        return ((float) $rows[0]['val'] + (float) $rows[1]['val']) / 2;
+    }
+
+    /**
+     * Truncate model name for display.
+     */
+    private function truncateModel(string $model): string
+    {
+        // Remove common prefixes for cleaner display
+        $model = preg_replace('/^claude-/', '', $model);
+
+        if (strlen((string) $model) > 20) {
+            return substr((string) $model, 0, 17).'...';
+        }
+
+        return $model;
     }
 
     /**
@@ -472,7 +712,7 @@ class StatsCommand extends Command
 
         for ($i = 0; $i < 14; $i++) {
             $date = clone $startDate;
-            $date->modify("+{$i} days");
+            $date->modify(sprintf('+%d days', $i));
             $dateStr = $date->format('Y-m-d');
 
             $taskValues[] = 0;
@@ -567,6 +807,7 @@ class StatsCommand extends Command
             'blocked' => 0,
             'review' => 0,
             'cancelled' => 0,
+            'someday' => 0,
         ];
 
         // Aggregate by complexity
@@ -648,13 +889,23 @@ class StatsCommand extends Command
             $statusCounts['open'],
             $statusCounts['blocked']
         );
-        if ($statusCounts['review'] > 0 || $statusCounts['cancelled'] > 0) {
-            $lines[] = sprintf(
-                '  <fg=magenta>👀 Review: %d</>  <fg=gray>❌ Cancelled: %d</>',
-                $statusCounts['review'],
-                $statusCounts['cancelled']
-            );
+        if ($statusCounts['review'] > 0 || $statusCounts['cancelled'] > 0 || $statusCounts['someday'] > 0) {
+            $extraStatus = [];
+            if ($statusCounts['review'] > 0) {
+                $extraStatus[] = sprintf('<fg=magenta>👀 Review: %d</>', $statusCounts['review']);
+            }
+
+            if ($statusCounts['cancelled'] > 0) {
+                $extraStatus[] = sprintf('<fg=gray>❌ Cancelled: %d</>', $statusCounts['cancelled']);
+            }
+
+            if ($statusCounts['someday'] > 0) {
+                $extraStatus[] = sprintf('<fg=gray>💭 Someday: %d</>', $statusCounts['someday']);
+            }
+
+            $lines[] = '  '.implode('  ', $extraStatus);
         }
+
         $lines[] = '';
         $lines[] = '<fg=cyan>By Complexity:</>';
         $lines[] = sprintf(
@@ -706,12 +957,14 @@ class StatsCommand extends Command
         $total = count($epics);
         $planning = 0;
         $inProgress = 0;
+        $reviewPending = 0;
         $done = 0;
 
         foreach ($epics as $epic) {
             match ($epic->status) {
                 'planning' => $planning++,
-                'in_progress' => $inProgress++,
+                'in_progress', 'changes_requested' => $inProgress++,
+                'review_pending', 'reviewed' => $reviewPending++,
                 'approved' => $done++,
                 default => null,
             };
@@ -720,7 +973,7 @@ class StatsCommand extends Command
         $lines = [];
         $lines[] = sprintf('Total: %d', $total);
         $lines[] = sprintf('  📋 Planning: %d  🔄 In Progress: %d', $planning, $inProgress);
-        $lines[] = sprintf('  ✅ Done: %d', $done);
+        $lines[] = sprintf('  👀 Review: %d  ✅ Approved: %d', $reviewPending, $done);
 
         $renderer = new BoxRenderer($this->output);
         $renderer->box('EPICS', $lines, '📦', 43);
@@ -811,6 +1064,7 @@ class StatsCommand extends Command
                 $longestFormatted = $this->formatDuration($stats['longest_run']);
                 $lines[] = sprintf('Longest Run: %s', $longestFormatted);
             }
+
             if ($stats['shortest_run'] !== null) {
                 $shortestFormatted = $this->formatDuration($stats['shortest_run']);
                 $lines[] = sprintf('Shortest Run: %s', $shortestFormatted);
@@ -870,7 +1124,7 @@ class StatsCommand extends Command
 
         for ($i = 0; $i < 14; $i++) {
             $date = clone $startDate;
-            $date->modify("+{$i} days");
+            $date->modify(sprintf('+%d days', $i));
             $dateStr = $date->format('Y-m-d');
 
             $taskValues[] = 0;
@@ -917,7 +1171,7 @@ class StatsCommand extends Command
         $max = max($values) ?: 1;
 
         return implode('', array_map(
-            fn ($v) => $chars[(int) floor(($v / $max) * 7)],
+            fn ($v): string => $chars[(int) floor(($v / $max) * 7)],
             $values
         ));
     }
@@ -962,6 +1216,7 @@ class StatsCommand extends Command
         foreach ($taskResults as $row) {
             $activity[$row['day']] = ($activity[$row['day']] ?? 0) + $row['cnt'];
         }
+
         foreach ($runResults as $row) {
             $activity[$row['day']] = ($activity[$row['day']] ?? 0) + $row['cnt'];
         }
@@ -982,7 +1237,7 @@ class StatsCommand extends Command
 
         for ($i = 0; $i < 56; $i++) {
             $date = clone $startDate;
-            $date->modify("+{$i} days");
+            $date->modify(sprintf('+%d days', $i));
 
             if ($date > $today) {
                 break;
@@ -1022,20 +1277,21 @@ class StatsCommand extends Command
         }
 
         $percentage = $count / $max;
-
         if ($percentage <= 0.25) {
             // Level 1: #0e4429 (dark green)
             return "\e[38;2;14;68;41m";
-        } elseif ($percentage <= 0.50) {
+        }
+        if ($percentage <= 0.50) {
             // Level 2: #006d32 (medium green)
             return "\e[38;2;0;109;50m";
-        } elseif ($percentage <= 0.75) {
+        }
+
+        if ($percentage <= 0.75) {
             // Level 3: #26a641 (bright green)
             return "\e[38;2;38;166;65m";
-        } else {
-            // Level 4: #39d353 (neon green)
-            return "\e[38;2;57;211;83m";
         }
+        // Level 4: #39d353 (neon green)
+        return "\e[38;2;57;211;83m";
     }
 
     private function renderStreaksAndAchievements(DatabaseService $db): void
@@ -1059,7 +1315,7 @@ class StatsCommand extends Command
         $lines[] = '';
         $lines[] = '<fg=cyan>🎖️  Badges:</>';
 
-        if (empty($earnedBadges)) {
+        if ($earnedBadges === []) {
             $lines[] = '  <fg=gray>(no badges earned yet)</>';
         } else {
             foreach ($earnedBadges as $badge) {
@@ -1082,13 +1338,14 @@ class StatsCommand extends Command
                   ORDER BY day DESC";
         $results = $db->fetchAll($query);
 
-        if (empty($results)) {
+        if ($results === []) {
             return 0;
         }
 
         $streak = 0;
         $today = new \DateTime;
         $today->setTime(0, 0, 0);
+
         $checkDate = clone $today;
 
         // Group dates to get unique days
@@ -1122,7 +1379,7 @@ class StatsCommand extends Command
                   ORDER BY day ASC";
         $results = $db->fetchAll($query);
 
-        if (empty($results)) {
+        if ($results === []) {
             return 0;
         }
 
@@ -1134,7 +1391,7 @@ class StatsCommand extends Command
         foreach ($uniqueDays as $dayStr) {
             $currentDate = new \DateTime($dayStr);
 
-            if ($previousDate === null) {
+            if (!$previousDate instanceof \DateTime) {
                 $currentStreak = 1;
             } else {
                 $diff = $previousDate->diff($currentDate);

@@ -9,6 +9,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
 use App\Models\Run;
 use App\Models\Task;
+use App\Services\OutputParser;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -24,9 +25,16 @@ class RunsCommand extends Command
         {id : The task ID (supports partial matching)}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
+        {--raw : Show raw output instead of formatted}
         {--last : Show only the latest run with full output}';
 
     protected $description = 'View task execution history';
+
+    public function __construct(
+        private OutputParser $outputParser,
+    ) {
+        parent::__construct();
+    }
 
     public function handle(TaskService $taskService, RunService $runService): int
     {
@@ -179,9 +187,45 @@ class RunsCommand extends Command
         if ($showOutput && $run->output !== null && $run->output !== '') {
             $this->newLine();
             $this->line('  <fg=cyan>── Output ──</>');
-            // Indent each line of output
-            $outputLines = explode("\n", $run->output);
-            foreach ($outputLines as $line) {
+            $this->outputChunk($run->output, $this->option('raw'));
+        }
+    }
+
+    /**
+     * Output a chunk of agent output, either raw or parsed.
+     */
+    private function outputChunk(string $chunk, bool $raw): void
+    {
+        if ($raw) {
+            // Show raw JSON lines with indentation
+            $lines = explode("\n", $chunk);
+            foreach ($lines as $line) {
+                $this->line('  '.OutputFormatter::escape($line));
+            }
+
+            return;
+        }
+
+        // Parse and format the output nicely
+        $events = $this->outputParser->parseChunk($chunk);
+        $hasOutput = false;
+
+        foreach ($events as $event) {
+            $formatted = $this->outputParser->format($event);
+            if ($formatted !== null) {
+                $hasOutput = true;
+                // Indent each line
+                $lines = explode("\n", $formatted);
+                foreach ($lines as $line) {
+                    $this->line('  '.$line);
+                }
+            }
+        }
+
+        // Fall back to raw output if no events were formatted (plain text output)
+        if (! $hasOutput && trim($chunk) !== '') {
+            $lines = explode("\n", $chunk);
+            foreach ($lines as $line) {
                 $this->line('  '.OutputFormatter::escape($line));
             }
         }

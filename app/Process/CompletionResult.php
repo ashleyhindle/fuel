@@ -22,6 +22,7 @@ final readonly class CompletionResult
         public CompletionType $type,
         public ?string $message = null,
         public ProcessType $processType = ProcessType::Task,
+        public ?string $model = null,
     ) {}
 
     /**
