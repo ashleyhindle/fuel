@@ -13,8 +13,6 @@ class TaskService
 {
     private const VALID_TYPES = ['bug', 'fix', 'feature', 'task', 'epic', 'chore', 'docs', 'test', 'refactor'];
 
-    private const VALID_SIZES = ['xs', 's', 'm', 'l', 'xl'];
-
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
 
     private string $prefix = 'f';
@@ -113,10 +111,6 @@ class TaskService
             }
         }
 
-        // Validate size enum
-        $size = $data['size'] ?? 'm';
-        $this->validateEnum($size, self::VALID_SIZES, 'task size');
-
         // Validate complexity enum
         $complexity = $data['complexity'] ?? 'simple';
         $this->validateEnum($complexity, self::VALID_COMPLEXITIES, 'task complexity');
@@ -133,8 +127,8 @@ class TaskService
         $blockedBy = $data['blocked_by'] ?? [];
 
         $this->db->query(
-            'INSERT INTO tasks (short_id, title, description, status, type, priority, size, complexity, labels, blocked_by, epic_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO tasks (short_id, title, description, status, type, priority, complexity, labels, blocked_by, epic_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $shortId,
                 $data['title'] ?? throw new RuntimeException('Task title is required'),
@@ -142,7 +136,6 @@ class TaskService
                 TaskStatus::Open->value,
                 $type,
                 $priority,
-                $size,
                 $complexity,
                 json_encode($labels),
                 json_encode($blockedBy),
@@ -160,7 +153,6 @@ class TaskService
             'type' => $type,
             'priority' => $priority,
             'labels' => $labels,
-            'size' => $size,
             'complexity' => $complexity,
             'blocked_by' => $blockedBy,
             'epic_id' => $data['epic_id'] ?? null,
@@ -228,14 +220,6 @@ class TaskService
             $updates[] = 'status = ?';
             $params[] = $data['status'];
             $task['status'] = $data['status'];
-        }
-
-        // Update size if provided (with validation)
-        if (isset($data['size'])) {
-            $this->validateEnum($data['size'], self::VALID_SIZES, 'task size');
-            $updates[] = 'size = ?';
-            $params[] = $data['size'];
-            $task['size'] = $data['size'];
         }
 
         // Update complexity if provided (with validation)
@@ -849,7 +833,6 @@ class TaskService
             'status' => $row['status'],
             'type' => $row['type'],
             'priority' => (int) $row['priority'],
-            'size' => $row['size'],
             'complexity' => $row['complexity'],
             'labels' => $row['labels'] !== null ? json_decode($row['labels'], true) : [],
             'blocked_by' => $row['blocked_by'] !== null ? json_decode($row['blocked_by'], true) : [],
