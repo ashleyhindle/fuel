@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
@@ -25,7 +26,7 @@ class TreeCommand extends Command
         $this->configureCwd($taskService);
 
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => ($t->status ?? '') !== 'closed')
+            ->filter(fn (Task $t): bool => ($t->status ?? '') !== TaskStatus::Closed->value)
             ->sortBy([
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
@@ -75,7 +76,7 @@ class TreeCommand extends Command
             foreach ($blockedBy as $blockerId) {
                 // Only include if blocker is not closed
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && ($blocker->status ?? '') !== 'closed') {
+                if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
                     $blocksMap[$blockerId][] = $task;
                 }
             }
@@ -148,7 +149,7 @@ class TreeCommand extends Command
     private function getDisplayStatus(Task $task): string
     {
         $blockedBy = $task->blocked_by ?? [];
-        $status = $task->status ?? 'open';
+        $status = $task->status ?? TaskStatus::Open->value;
 
         // Check for needs-human label first
         if ($this->hasNeedsHumanLabel($task)) {
