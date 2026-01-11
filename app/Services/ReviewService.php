@@ -12,6 +12,8 @@ use App\Process\ProcessOutput;
 use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Prompts\ReviewPrompt;
+use App\Repositories\ReviewRepository;
+use App\Repositories\RunRepository;
 use Carbon\Carbon;
 use Symfony\Component\Process\Process;
 
@@ -30,6 +32,8 @@ class ReviewService implements ReviewServiceInterface
         private readonly ReviewPrompt $reviewPrompt,
         private readonly DatabaseService $databaseService,
         private readonly RunService $runService,
+        private readonly ReviewRepository $reviewRepository,
+        private readonly RunRepository $runRepository,
     ) {}
 
     /**
@@ -128,8 +132,11 @@ class ReviewService implements ReviewServiceInterface
         $this->taskService->update($taskId, ['status' => TaskStatus::Review->value]);
 
         // 9. Record review started in database (need to get integer ID for database)
-        $runIntId = $this->databaseService->getRunIntegerId($runShortId);
-        $reviewId = $this->databaseService->recordReviewStarted($taskId, $reviewAgent, $runIntId);
+        $runIntId = $this->runRepository->resolveToIntegerId($runShortId);
+        $taskIntId = $this->reviewRepository->resolveTaskId($taskId);
+        $reviewShortId = 'r-'.bin2hex(random_bytes(3));
+        $this->reviewRepository->createReview($reviewShortId, $taskIntId, $reviewAgent, $runIntId);
+        $reviewId = $reviewShortId;
 
         // 10. Track pending review with review ID and run short ID
         $this->pendingReviews[$taskId] = [
@@ -233,7 +240,7 @@ class ReviewService implements ReviewServiceInterface
         // Record review completed in database
         $reviewId = $this->pendingReviews[$taskId]['reviewId'] ?? null;
         if ($reviewId !== null) {
-            $this->databaseService->recordReviewCompleted($reviewId, $passed, $issues);
+            $this->reviewRepository->markAsCompleted($reviewId, $passed, $issues);
         }
 
         // Remove from pending reviews
