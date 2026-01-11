@@ -41,10 +41,9 @@ Fuel is an AI agent orchestration system built on Laravel Zero. It manages tasks
 │                           DATA STORAGE                                       │
 │                                                                              │
 │   .fuel/                                                                     │
-│   ├── agent.db           ← SQLite: tasks, epics, reviews, health            │
+│   ├── agent.db           ← SQLite: tasks, epics, reviews, runs, health      │
 │   ├── backlog.jsonl      ← Future ideas (git-tracked)                       │
 │   ├── config.yaml        ← Agent definitions, routing (git-tracked)         │
-│   ├── runs/              ← Run history per task (.gitignored)               │
 │   └── processes/         ← Live stdout/stderr per task (.gitignored)        │
 │       └── {taskId}/                                                          │
 │           ├── stdout.log                                                     │
@@ -337,6 +336,7 @@ SQLite (.fuel/agent.db)
 ├── Fast queries, joins, aggregations
 ├── Tasks (the fundamental unit of work)
 ├── Epics (cross-task grouping)
+├── Runs (agent execution history)
 ├── Reviews (transient process data)
 ├── Agent health (local telemetry)
 └── Schema versioned with auto-migrations
@@ -418,7 +418,7 @@ while (running) {
 | `fuel ready` | Show unblocked open tasks |
 | `fuel start <id>` | Claim a task (in_progress) |
 | `fuel done <id>` | Mark task complete |
-| `fuel show <id>` | View task details + live output |
+| `fuel show <id>` | View task/epic/review details (delegates by ID prefix) |
 | `fuel board` | Kanban view |
 | `fuel consume` | Start orchestration loop |
 | `fuel epic:add "..."` | Create an epic |
@@ -428,6 +428,7 @@ while (running) {
 | `fuel human` | Show needs-human tasks |
 | `fuel health` | Show agent health status |
 | `fuel review <id>` | Manually trigger review |
+| `fuel review:show <id>` | View review details + agent stdout |
 | `fuel reviews` | List recent reviews |
 
 ---
