@@ -9,6 +9,7 @@ use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
+use Carbon\Carbon;
 use LaravelZero\Framework\Commands\Command;
 
 class HumanCommand extends Command
@@ -51,8 +52,11 @@ class HumanCommand extends Command
             ->sortBy('created_at')
             ->values();
 
-        // Get epics pending review
-        $pendingEpics = $epicService->getEpicsPendingReview();
+        // Get epics with status review_pending
+        $allEpics = $epicService->getAllEpics();
+        $pendingEpics = array_values(array_filter($allEpics, function (array $epic): bool {
+            return ($epic['status'] ?? '') === 'review_pending';
+        }));
 
         if ($this->option('json')) {
             $this->outputJson([
@@ -76,7 +80,8 @@ class HumanCommand extends Command
 
         // Show epics pending review first
         foreach ($pendingEpics as $epic) {
-            $this->line(sprintf('<info>%s</info> - %s', $epic['id'], $epic['title']));
+            $age = $this->formatAge($epic['created_at'] ?? null);
+            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $epic['id'], $epic['title'], $age));
             if (! empty($epic['description'] ?? null)) {
                 $this->line('  '.$epic['description']);
             }
@@ -86,7 +91,8 @@ class HumanCommand extends Command
 
         // Show tasks needing human attention
         foreach ($humanTasks as $task) {
-            $this->line(sprintf('<info>%s</info> - %s', $task['id'], $task['title']));
+            $age = $this->formatAge($task['created_at'] ?? null);
+            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $task['id'], $task['title'], $age));
             if (! empty($task['description'] ?? null)) {
                 $this->line('  '.$task['description']);
             }
@@ -94,5 +100,14 @@ class HumanCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function formatAge(?string $createdAt): string
+    {
+        if (! $createdAt) {
+            return 'unknown';
+        }
+
+        return Carbon::parse($createdAt)->diffForHumans();
     }
 }
