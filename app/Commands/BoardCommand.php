@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\ConfigService;
 use App\Services\TaskService;
@@ -228,18 +229,18 @@ class BoardCommand extends Command
         $readyIds = $readyTasks->pluck('id')->toArray();
 
         $inProgressTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === 'in_progress')
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress->value)
             ->sortByDesc('updated_at')
             ->values();
 
         $reviewTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === 'review')
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Review->value)
             ->sortByDesc('updated_at')
             ->values();
 
         // Blocked tasks exclude needs-human (those are shown in a separate line)
         $blockedTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === 'open' && ! in_array($t->id, $readyIds, true))
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open->value && ! in_array($t->id, $readyIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
@@ -252,7 +253,7 @@ class BoardCommand extends Command
 
         // Needs-human tasks (open tasks with needs-human label)
         $humanTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === 'open')
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open->value)
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
 
@@ -261,7 +262,7 @@ class BoardCommand extends Command
             ->values();
 
         $doneTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === 'closed')
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed->value)
             ->sortByDesc('updated_at')
             ->values();
 
