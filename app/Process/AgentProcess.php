@@ -31,6 +31,8 @@ final class AgentProcess
         private readonly ?string $stdoutPath = null,
         private readonly ?string $stderrPath = null,
         private readonly ProcessType $processType = ProcessType::Task,
+        private readonly ?string $model = null,
+        private readonly ?string $runId = null,
     ) {}
 
     public function getProcessType(): ProcessType
@@ -56,6 +58,16 @@ final class AgentProcess
     public function getAgentName(): string
     {
         return $this->agentName;
+    }
+
+    public function getModel(): ?string
+    {
+        return $this->model;
+    }
+
+    public function getRunId(): ?string
+    {
+        return $this->runId;
     }
 
     public function getStartTime(): int
@@ -145,13 +157,14 @@ final class AgentProcess
     /**
      * Get metadata array for display purposes.
      *
-     * @return array{task_id: string, agent_name: string, start_time: int, session_id: ?string, duration: int}
+     * @return array{task_id: string, agent_name: string, model: ?string, start_time: int, session_id: ?string, duration: int}
      */
     public function getMetadata(): array
     {
         return [
             'task_id' => $this->taskId,
             'agent_name' => $this->agentName,
+            'model' => $this->model,
             'start_time' => $this->startTime,
             'session_id' => $this->sessionId,
             'duration' => $this->getDuration(),
