@@ -11,16 +11,6 @@ beforeEach(function (): void {
     $this->service = new DatabaseService($this->dbPath);
 });
 
-afterEach(function (): void {
-    if (file_exists($this->dbPath)) {
-        unlink($this->dbPath);
-    }
-
-    if (is_dir($this->tempDir)) {
-        rmdir($this->tempDir);
-    }
-});
-
 it('creates database file on initialization', function (): void {
     expect(file_exists($this->dbPath))->toBeFalse();
 

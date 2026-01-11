@@ -16,22 +16,6 @@ beforeEach(function (): void {
     $this->tracker = new AgentHealthTracker($this->database);
 });
 
-afterEach(function (): void {
-    // Clean up temp files
-    if (file_exists($this->dbPath)) {
-        unlink($this->dbPath);
-    }
-
-    $fuelDir = $this->tempDir.'/.fuel';
-    if (is_dir($fuelDir)) {
-        rmdir($fuelDir);
-    }
-
-    if (is_dir($this->tempDir)) {
-        rmdir($this->tempDir);
-    }
-});
-
 // =============================================================================
 // recordSuccess() Tests
 // =============================================================================
