@@ -1090,7 +1090,7 @@ PROMPT;
     }
 
     /**
-     * Calculate a score for task selection based on priority, complexity, and size.
+     * Calculate a score for task selection based on priority and complexity.
      * Lower score = higher priority (should be selected first).
      *
      * @param  array<string, mixed>  $task
@@ -1112,18 +1112,7 @@ PROMPT;
         $complexityScore = $complexityMap[$complexity] ?? 1;
         $complexityScore *= 10;
 
-        // Size score (xs=0, s=1, m=2, l=3, xl=4)
-        $sizeMap = [
-            'xs' => 0,
-            's' => 1,
-            'm' => 2,
-            'l' => 3,
-            'xl' => 4,
-        ];
-        $size = $task->size ?? 'm';
-        $sizeScore = $sizeMap[$size] ?? 2;
-
-        return $priorityScore + $complexityScore + $sizeScore;
+        return $priorityScore + $complexityScore;
     }
 
     /**
