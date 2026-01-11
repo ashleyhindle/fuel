@@ -227,7 +227,54 @@ class StatsCommand extends Command
 
     private function renderRunStats(RunService $runService): void
     {
-        // TODO: Implement run statistics (assigned to another agent)
+        $stats = $runService->getStats();
+
+        $this->line('┌─────────────────────────────────────────┐');
+        $this->line('│ 🤖 AGENT RUNS                           │');
+        $this->line('├─────────────────────────────────────────┤');
+        $this->line(sprintf('│ Total Runs: %-28d│', $stats['total_runs']));
+
+        // Status counts
+        $completedCount = $stats['by_status']['completed'];
+        $failedCount = $stats['by_status']['failed'];
+        $runningCount = $stats['by_status']['running'];
+
+        $statusLine = sprintf(
+            '│   ✅ Completed: %d  ❌ Failed: %-8d│',
+            $completedCount,
+            $failedCount
+        );
+        $this->line($statusLine);
+
+        $this->line(sprintf('│   🔄 Running: %-27d│', $runningCount));
+        $this->line('│                                         │');
+
+        // Top Agents
+        $this->line('│ Top Agents:                             │');
+        $agentRank = 1;
+        foreach (array_slice($stats['by_agent'], 0, 3, true) as $agent => $count) {
+            $agentLine = sprintf('│   %d. %s (%d runs)', $agentRank, $agent, $count);
+            // Pad to 41 chars total (39 content + 2 border)
+            $padding = 41 - mb_strlen($agentLine) - 1;
+            $this->line($agentLine.str_repeat(' ', $padding).'│');
+            $agentRank++;
+        }
+
+        // If fewer than 3 agents, no need to pad - just continue
+        $this->line('│                                         │');
+
+        // Top Models
+        $this->line('│ Top Models:                             │');
+        $modelRank = 1;
+        foreach (array_slice($stats['by_model'], 0, 3, true) as $model => $count) {
+            $modelLine = sprintf('│   %d. %s (%d)', $modelRank, $model, $count);
+            // Pad to 41 chars total
+            $padding = 41 - mb_strlen($modelLine) - 1;
+            $this->line($modelLine.str_repeat(' ', $padding).'│');
+            $modelRank++;
+        }
+
+        $this->line('└─────────────────────────────────────────┘');
     }
 
     private function renderActivityHeatmap(TaskService $taskService, RunService $runService): void
