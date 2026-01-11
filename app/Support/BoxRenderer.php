@@ -145,11 +145,9 @@ class BoxRenderer
      */
     private function visibleLength(string $text): int
     {
-        $baseLength = mb_strlen($text);
-        // Count emojis - they display as 2 columns wide but mb_strlen counts them as 1
-        $emojiCount = preg_match_all('/[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]/u', $text);
-
-        return $baseLength + $emojiCount;
+        // mb_strwidth correctly handles East Asian width and emoji display width
+        // Returns the width of string where halfwidth characters count as 1, and fullwidth characters count as 2
+        return mb_strwidth($text);
     }
 
     /**

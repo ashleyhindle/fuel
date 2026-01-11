@@ -282,57 +282,51 @@ class StatsCommand extends Command
     private function renderTimingStats(RunService $runService): void
     {
         $stats = $runService->getTimingStats();
-
-        $this->line('┌─────────────────────────────────────────┐');
-        $this->line('│ ⏱️  TIMING                              │');
-        $this->line('├─────────────────────────────────────────┤');
+        $lines = [];
 
         // Average Run Duration
         if ($stats['average_duration'] !== null) {
             $avgFormatted = $this->formatDuration((int) round($stats['average_duration']));
-            $this->line(sprintf('│ Average Run Duration: %-18s│', $avgFormatted));
+            $lines[] = sprintf('Average Run Duration: %s', $avgFormatted);
         } else {
-            $this->line('│ Average Run Duration: (no data)         │');
+            $lines[] = 'Average Run Duration: (no data)';
         }
 
         // By Agent
         if (! empty($stats['by_agent'])) {
-            $this->line('│                                         │');
-            $this->line('│ By Agent:                               │');
+            $lines[] = '';
+            $lines[] = 'By Agent:';
             foreach ($stats['by_agent'] as $agent => $avgDuration) {
                 $formatted = $this->formatDuration((int) round($avgDuration));
-                $agentLine = sprintf('│   %s: %s', $agent, $formatted);
-                $padding = 41 - mb_strlen($agentLine) - 1;
-                $this->line($agentLine.str_repeat(' ', $padding).'│');
+                $lines[] = sprintf('  %s: %s', $agent, $formatted);
             }
         }
 
         // By Model
         if (! empty($stats['by_model'])) {
-            $this->line('│                                         │');
-            $this->line('│ By Model:                               │');
+            $lines[] = '';
+            $lines[] = 'By Model:';
             foreach ($stats['by_model'] as $model => $avgDuration) {
                 $formatted = $this->formatDuration((int) round($avgDuration));
-                $modelLine = sprintf('│   %s: %s', $model, $formatted);
-                $padding = 41 - mb_strlen($modelLine) - 1;
-                $this->line($modelLine.str_repeat(' ', $padding).'│');
+                $lines[] = sprintf('  %s: %s', $model, $formatted);
             }
         }
 
         // Longest and shortest runs
         if ($stats['longest_run'] !== null || $stats['shortest_run'] !== null) {
-            $this->line('│                                         │');
+            $lines[] = '';
             if ($stats['longest_run'] !== null) {
                 $longestFormatted = $this->formatDuration($stats['longest_run']);
-                $this->line(sprintf('│ Longest Run: %-27s│', $longestFormatted));
+                $lines[] = sprintf('Longest Run: %s', $longestFormatted);
             }
             if ($stats['shortest_run'] !== null) {
                 $shortestFormatted = $this->formatDuration($stats['shortest_run']);
-                $this->line(sprintf('│ Shortest Run: %-26s│', $shortestFormatted));
+                $lines[] = sprintf('Shortest Run: %s', $shortestFormatted);
             }
         }
 
-        $this->line('└─────────────────────────────────────────┘');
+        $renderer = new BoxRenderer($this->output);
+        $renderer->box('TIMING', $lines, '⏱️', 43);
     }
 
     /**
@@ -414,12 +408,12 @@ class StatsCommand extends Command
         $runSparkline = $this->sparkline($runValues);
 
         // Render box
-        $this->line('┌─────────────────────────────────────────┐');
-        $this->line('│ 📈 TRENDS (14 days)                     │');
-        $this->line('├─────────────────────────────────────────┤');
-        $this->line(sprintf('│ Tasks:  %s  (%d total)%-*s │', $taskSparkline, $totalTasks, max(0, 18 - strlen((string) $totalTasks) - mb_strlen($taskSparkline)), ''));
-        $this->line(sprintf('│ Runs:   %s  (%d total)%-*s │', $runSparkline, $totalRuns, max(0, 18 - strlen((string) $totalRuns) - mb_strlen($runSparkline)), ''));
-        $this->line('└─────────────────────────────────────────┘');
+        $renderer = new BoxRenderer($this->output);
+        $lines = [
+            sprintf('Tasks:  %s  (%d total)', $taskSparkline, $totalTasks),
+            sprintf('Runs:   %s  (%d total)', $runSparkline, $totalRuns),
+        ];
+        $renderer->box('TRENDS (14 days)', $lines, '📈', 43);
     }
 
     /**
@@ -451,7 +445,7 @@ class StatsCommand extends Command
             'Legend: ░ none  ▒ low  ▓ medium  █ high',
         ]);
 
-        $renderer->box('ACTIVITY (last 12 weeks)', $lines, '📊', 55);
+        $renderer->box('ACTIVITY (last 8 weeks)', $lines, '📊', 43);
     }
 
     private function getActivityByDay(DatabaseService $db): array
@@ -460,14 +454,14 @@ class StatsCommand extends Command
         $taskQuery = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
                       FROM tasks
                       WHERE status = 'done'
-                      AND updated_at >= date('now', '-84 days')
+                      AND updated_at >= date('now', '-56 days')
                       GROUP BY DATE(updated_at)";
         $taskResults = $db->fetchAll($taskQuery);
 
         // Get runs per day
         $runQuery = "SELECT DATE(started_at) as day, COUNT(*) as cnt
                      FROM runs
-                     WHERE started_at >= date('now', '-84 days')
+                     WHERE started_at >= date('now', '-56 days')
                      GROUP BY DATE(started_at)";
         $runResults = $db->fetchAll($runQuery);
 
@@ -488,13 +482,13 @@ class StatsCommand extends Command
         $maxCount = max(array_merge([1], array_values($data)));
 
         // Build a 2D grid: [day_of_week][week_index] = count
-        $grid = array_fill(0, 7, array_fill(0, 12, 0));
+        $grid = array_fill(0, 7, array_fill(0, 8, 0));
 
-        // Start from 84 days ago
-        $startDate = new \DateTime('-84 days');
+        // Start from 56 days ago (8 weeks)
+        $startDate = new \DateTime('-56 days');
         $today = new \DateTime;
 
-        for ($i = 0; $i < 84; $i++) {
+        for ($i = 0; $i < 56; $i++) {
             $date = clone $startDate;
             $date->modify("+{$i} days");
 
@@ -564,46 +558,25 @@ class StatsCommand extends Command
         $thisMonth = $this->getTasksCompletedThisMonth($db);
         $allTime = $this->getTasksCompletedAllTime($db);
 
-        $this->line('┌─────────────────────────────────────────┐');
-        $this->line('│ <fg=yellow>🔥 STREAKS & ACHIEVEMENTS</>               │');
-        $this->line('├─────────────────────────────────────────┤');
-        $this->line(sprintf('│ 🔥 Current Streak: <fg=yellow>%d days</>%-*s │', $currentStreak, max(0, 24 - strlen((string) $currentStreak)), ''));
-        $this->line(sprintf('│ 🏆 Longest Streak: <fg=yellow>%d days</>%-*s │', $longestStreak, max(0, 24 - strlen((string) $longestStreak)), ''));
-        $this->line('│                                         │');
-        $this->line(sprintf(
-            '│ Today: %d ✅  This Week: %d ✅%-*s │',
-            $today,
-            $thisWeek,
-            max(0, 23 - strlen((string) $today) - strlen((string) $thisWeek)),
-            ''
-        ));
-        $this->line(sprintf(
-            '│ This Month: %d ✅  All Time: %d ✅%-*s │',
-            $thisMonth,
-            $allTime,
-            max(0, 17 - strlen((string) $thisMonth) - strlen((string) $allTime)),
-            ''
-        ));
-        $this->line('│                                         │');
-        $this->line('│ <fg=cyan>🎖️  Badges:</>                              │');
+        $lines = [];
+        $lines[] = sprintf('🔥 Current Streak: <fg=yellow>%d days</>', $currentStreak);
+        $lines[] = sprintf('🏆 Longest Streak: <fg=yellow>%d days</>', $longestStreak);
+        $lines[] = '';
+        $lines[] = sprintf('Today: %d ✅  This Week: %d ✅', $today, $thisWeek);
+        $lines[] = sprintf('This Month: %d ✅  All Time: %d ✅', $thisMonth, $allTime);
+        $lines[] = '';
+        $lines[] = '<fg=cyan>🎖️  Badges:</>';
 
         if (empty($earnedBadges)) {
-            $this->line('│   <fg=gray>(no badges earned yet)</>                │');
+            $lines[] = '  <fg=gray>(no badges earned yet)</>';
         } else {
             foreach ($earnedBadges as $badge) {
-                $line = sprintf('│   %s %s', $badge['emoji'], $badge['name']);
-                // Calculate visible length (strip color tags and ANSI codes)
-                $stripped = preg_replace('/<[^>]+>/', '', $line);
-                $text = $stripped ?? $line;
-                // Count emoji characters that display as 2 columns wide
-                $emojiCount = preg_match_all('/[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]/u', $text);
-                $visibleLength = mb_strlen($text) + $emojiCount;
-                $padding = 41 - $visibleLength;
-                $this->line($line.str_repeat(' ', max(0, $padding)).'│');
+                $lines[] = sprintf('  %s %s', $badge['emoji'], $badge['name']);
             }
         }
 
-        $this->line('└─────────────────────────────────────────┘');
+        $renderer = new BoxRenderer($this->output);
+        $renderer->box('<fg=yellow>STREAKS & ACHIEVEMENTS</>', $lines, '🔥', 43);
     }
 
     /**

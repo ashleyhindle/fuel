@@ -1,6 +1,5 @@
 <?php
 
-use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -28,8 +27,6 @@ describe('stats command', function (): void {
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
         $this->app->singleton(EpicService::class, fn (): EpicService => new EpicService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
         $this->runService = $this->app->make(RunService::class);
@@ -247,7 +244,7 @@ describe('stats command', function (): void {
         $output = Artisan::output();
 
         // Check heatmap section exists
-        expect($output)->toContain('ACTIVITY (last 12 weeks)');
+        expect($output)->toContain('ACTIVITY (last 8 weeks)');
 
         // Check all days of week are rendered
         expect($output)->toContain('Sun');
@@ -335,7 +332,7 @@ describe('stats command', function (): void {
         expect($output)->toContain('📋 TASK STATISTICS');
         expect($output)->toContain('📦 EPICS');
         expect($output)->toContain('🤖 AGENT RUNS');
-        expect($output)->toContain('⏱️  TIMING');
+        expect($output)->toContain('⏱️ TIMING');
         expect($output)->toContain('📈 TRENDS');
         expect($output)->toContain('📊 ACTIVITY');
         expect($output)->toContain('🔥 STREAKS & ACHIEVEMENTS');
