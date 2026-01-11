@@ -3,16 +3,11 @@
 /.idea
 /.vscode
 .phpunit.result.cache
-.fuel/*.lock
 /builds
-.fuel/runs/
 .phpactor.json
 
 # Planning docs
 fuel-orchestrator-v2*.md
 handoff.md
-.fuel/processes/
-.fuel/agent.db
-.fuel/agent.db-wal
-.fuel/agent.db-shm
+.fuel
 *.md
