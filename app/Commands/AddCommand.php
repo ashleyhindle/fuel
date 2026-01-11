@@ -53,7 +53,7 @@ class AddCommand extends Command
 
         // Set status to someday if --someday or --backlog flag is present
         if ($this->option('backlog') || $this->option('someday')) {
-            $data['status'] = TaskStatus::Someday;
+            $data['status'] = TaskStatus::Someday->value;
         }
 
         // Add description (support both --description and -d)

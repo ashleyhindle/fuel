@@ -85,8 +85,9 @@ class TaskService
     private function validateEnum(mixed $value, array $validValues, string $fieldName): void
     {
         if (! in_array($value, $validValues, true)) {
+            $valueStr = is_object($value) ? get_class($value) : (string) $value;
             throw new RuntimeException(
-                sprintf("Invalid %s '%s'. Must be one of: ", $fieldName, $value).implode(', ', $validValues)
+                sprintf("Invalid %s '%s'. Must be one of: ", $fieldName, $valueStr).implode(', ', $validValues)
             );
         }
     }
@@ -127,6 +128,10 @@ class TaskService
         $complexity = $data['complexity'] ?? 'simple';
         $this->validateEnum($complexity, self::VALID_COMPLEXITIES, 'task complexity');
 
+        // Validate status enum if provided, otherwise default to Open
+        $status = $data['status'] ?? TaskStatus::Open->value;
+        $this->validateEnum($status, array_column(TaskStatus::cases(), 'value'), 'status');
+
         $shortId = $this->generateId();
         $now = now()->toIso8601String();
 
@@ -145,7 +150,7 @@ class TaskService
                 $shortId,
                 $data['title'] ?? throw new RuntimeException('Task title is required'),
                 $data['description'] ?? null,
-                TaskStatus::Open->value,
+                $status,
                 $type,
                 $priority,
                 $complexity,
@@ -160,7 +165,7 @@ class TaskService
         return Task::fromArray([
             'id' => $shortId,
             'title' => $data['title'],
-            'status' => TaskStatus::Open->value,
+            'status' => $status,
             'description' => $data['description'] ?? null,
             'type' => $type,
             'priority' => $priority,
