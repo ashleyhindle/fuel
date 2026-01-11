@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -29,13 +30,13 @@ class CompletedCommand extends Command
         }
 
         $tasks = $taskService->all()
-            ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'closed')
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'closed')
             ->sortByDesc('updated_at')
             ->take($limit)
             ->values();
 
         if ($this->option('json')) {
-            $this->outputJson($tasks->toArray());
+            $this->outputJson($tasks->map(fn (Task $task): array => $task->toArray())->toArray());
         } else {
             if ($tasks->isEmpty()) {
                 $this->info('No completed tasks found.');
@@ -47,12 +48,12 @@ class CompletedCommand extends Command
             $this->newLine();
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority'];
-            $rows = $tasks->map(fn (array $t): array => [
-                $t['id'],
-                $t['title'],
-                $this->formatDate($t['updated_at']),
-                $t['type'] ?? 'task',
-                $t['priority'] ?? 2,
+            $rows = $tasks->map(fn (Task $t): array => [
+                $t->id,
+                $t->title,
+                $this->formatDate($t->updated_at),
+                $t->type ?? 'task',
+                $t->priority ?? 2,
             ])->toArray();
 
             $this->table($headers, $rows);

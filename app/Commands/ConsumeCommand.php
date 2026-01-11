@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Process\ProcessType;
@@ -141,7 +142,7 @@ class ConsumeCommand extends Command
         }
 
         // In non-interactive mode, start unpaused so we process tasks immediately
-        $paused = true;
+        $paused = ! $singleIteration;
 
         $statusLines = [];
 
@@ -175,7 +176,7 @@ class ConsumeCommand extends Command
 
                 if ($readyTasks->isNotEmpty() && ! $this->processManager->isShuttingDown()) {
                     // Score and sort tasks by priority, complexity, and size
-                    $scoredTasks = $readyTasks->map(fn (array $task): array => [
+                    $scoredTasks = $readyTasks->map(fn (Task $task): array => [
                         'task' => $task,
                         'score' => $this->calculateTaskScore($task),
                     ])->sortBy([
@@ -327,7 +328,7 @@ class ConsumeCommand extends Command
      * @param  array<string>  $statusLines
      */
     private function trySpawnTask(
-        array $task,
+        Task $task,
         ?string $agentOverride,
         bool $dryrun,
         array &$statusLines
@@ -337,8 +338,8 @@ class ConsumeCommand extends Command
             return false;
         }
 
-        $taskId = $task['id'];
-        $taskTitle = $task['title'];
+        $taskId = $task->id;
+        $taskTitle = $task->title;
         $shortTitle = mb_strlen((string) $taskTitle) > 40 ? mb_substr((string) $taskTitle, 0, 37).'...' : $taskTitle;
 
         // Build structured prompt with task details
@@ -401,7 +402,7 @@ PROMPT;
         // Determine agent name for capacity check and dryrun display
         $agentName = $agentOverride;
         if ($agentName === null) {
-            $complexity = $task['complexity'] ?? 'simple';
+            $complexity = $task->complexity ?? 'simple';
             try {
                 $agentName = $this->configService->getAgentForComplexity($complexity);
             } catch (\RuntimeException $e) {
@@ -461,7 +462,7 @@ PROMPT;
         $this->invalidateTaskCache();
 
         // Spawn via ProcessManager
-        $result = $this->processManager->spawnForTask($task, $fullPrompt, $cwd, $agentOverride);
+        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $agentOverride);
 
         if (! $result->success) {
             // Agent in backoff should already be caught above, but handle just in case
@@ -559,7 +560,7 @@ PROMPT;
                     if ($wasAlreadyClosed) {
                         // Task was already closed - confirm done (maybe update reason)
                         $task = $this->taskService->find($taskId);
-                        if ($task && ($task['status'] ?? '') !== 'closed') {
+                        if ($task && ($task->status ?? '') !== 'closed') {
                             // Task status changed (shouldn't happen, but handle gracefully)
                             Artisan::call('done', [
                                 'ids' => [$taskId],
@@ -690,7 +691,7 @@ PROMPT;
 
         // Always trigger review as quality gate for ALL completions (Phase 3 spec)
         // Track original status to handle already-closed tasks correctly
-        $originalStatus = $task['status'] ?? 'in_progress';
+        $originalStatus = $task->status ?? 'in_progress';
         $wasAlreadyClosed = $originalStatus === 'closed' || $originalStatus === 'done';
 
         if ($this->option('skip-review')) {
@@ -891,10 +892,10 @@ PROMPT;
         ]);
 
         // Block the original task until permissions are configured
-        $this->taskService->addDependency($taskId, $humanTask['id']);
+        $this->taskService->addDependency($taskId, $humanTask->id);
         $this->taskService->reopen($taskId);
 
-        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTask['id']), 'yellow');
+        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTask->id), 'yellow');
     }
 
     /**
@@ -942,7 +943,7 @@ PROMPT;
         if ($failedTasks->isNotEmpty()) {
             $failedLines = [];
             foreach ($failedTasks as $task) {
-                $shortId = substr((string) $task['id'], 2, 6);
+                $shortId = substr((string) $task->id, 2, 6);
                 $failedLines[] = '🪫 '.$shortId;
             }
 
@@ -1042,7 +1043,7 @@ PROMPT;
     /**
      * Get cached ready tasks (refreshes if cache expired or after task mutations).
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, Task>
      */
     private function getCachedReadyTasks(): Collection
     {
@@ -1084,10 +1085,10 @@ PROMPT;
      *
      * @param  array<string, mixed>  $task
      */
-    private function calculateTaskScore(array $task): int
+    private function calculateTaskScore(Task $task): int
     {
         // Priority score (0-4, lower is better)
-        $priority = $task['priority'] ?? 2;
+        $priority = $task->priority ?? 2;
         $priorityScore = $priority * 100;
 
         // Complexity score (trivial=0, simple=1, moderate=2, complex=3)
@@ -1097,7 +1098,7 @@ PROMPT;
             'moderate' => 2,
             'complex' => 3,
         ];
-        $complexity = $task['complexity'] ?? 'simple';
+        $complexity = $task->complexity ?? 'simple';
         $complexityScore = $complexityMap[$complexity] ?? 1;
         $complexityScore *= 10;
 
@@ -1109,7 +1110,7 @@ PROMPT;
             'l' => 3,
             'xl' => 4,
         ];
-        $size = $task['size'] ?? 'm';
+        $size = $task->size ?? 'm';
         $sizeScore = $sizeMap[$size] ?? 2;
 
         return $priorityScore + $complexityScore + $sizeScore;
@@ -1118,17 +1119,17 @@ PROMPT;
     /**
      * @param  array<string, mixed>  $task
      */
-    private function formatTaskForPrompt(array $task): string
+    private function formatTaskForPrompt(Task $task): string
     {
         $lines = [
-            'Task: '.$task['id'],
-            'Title: '.$task['title'],
-            'Status: '.$task['status'],
+            'Task: '.$task->id,
+            'Title: '.$task->title,
+            'Status: '.$task->status,
         ];
 
         // Include epic information if task is part of an epic
-        if (! empty($task['epic_id'])) {
-            $epic = $this->epicService->getEpic($task['epic_id']);
+        if (! empty($task->epic_id)) {
+            $epic = $this->epicService->getEpic($task->epic_id);
             if ($epic !== null) {
                 $lines[] = '';
                 $lines[] = '== EPIC CONTEXT ==';
@@ -1144,32 +1145,32 @@ PROMPT;
             }
         }
 
-        if (! empty($task['description'])) {
-            $lines[] = 'Description: '.$task['description'];
+        if (! empty($task->description)) {
+            $lines[] = 'Description: '.$task->description;
         }
 
-        if (! empty($task['type'])) {
-            $lines[] = 'Type: '.$task['type'];
+        if (! empty($task->type)) {
+            $lines[] = 'Type: '.$task->type;
         }
 
-        if (! empty($task['priority'])) {
-            $lines[] = 'Priority: P'.$task['priority'];
+        if (! empty($task->priority)) {
+            $lines[] = 'Priority: P'.$task->priority;
         }
 
-        if (! empty($task['labels'])) {
-            $lines[] = 'Labels: '.implode(', ', $task['labels']);
+        if (! empty($task->labels)) {
+            $lines[] = 'Labels: '.implode(', ', $task->labels);
         }
 
-        if (! empty($task['blocked_by'])) {
-            $lines[] = 'Blocked by: '.implode(', ', $task['blocked_by']);
+        if (! empty($task->blocked_by)) {
+            $lines[] = 'Blocked by: '.implode(', ', $task->blocked_by);
         }
 
         // Include previous review issues if present
-        if (! empty($task['last_review_issues'])) {
+        if (! empty($task->last_review_issues)) {
             $lines[] = '';
             $lines[] = '⚠️ PREVIOUS ATTEMPT FAILED REVIEW';
             $lines[] = 'You ALREADY completed this task, but a reviewer found issues:';
-            foreach ($task['last_review_issues'] as $issue) {
+            foreach ($task->last_review_issues as $issue) {
                 $lines[] = '  - '.$issue;
             }
             $lines[] = '';

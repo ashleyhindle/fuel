@@ -49,7 +49,7 @@ class DoneCommand extends Command
 
         $epicCompletions = [];
         foreach ($tasks as $task) {
-            $epicId = $task['epic_id'] ?? null;
+            $epicId = $task->epic_id ?? null;
             if ($epicId !== null && is_string($epicId) && ! isset($epicCompletions[$epicId])) {
                 $result = $epicService->checkEpicCompletion($epicId);
                 if ($result['completed']) {
@@ -61,7 +61,7 @@ class DoneCommand extends Command
         if ($this->option('json')) {
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
-                $output = $tasks[0];
+                $output = $tasks[0]->toArray();
                 if (! empty($epicCompletions)) {
                     $output['epic_completions'] = array_values($epicCompletions);
                 }
@@ -69,22 +69,25 @@ class DoneCommand extends Command
             } else {
                 // Multiple tasks - return array for backward compatibility
                 if (! empty($epicCompletions)) {
-                    $output = ['tasks' => $tasks, 'epic_completions' => array_values($epicCompletions)];
+                    $output = [
+                        'tasks' => array_map(fn ($task) => $task->toArray(), $tasks),
+                        'epic_completions' => array_values($epicCompletions),
+                    ];
                 } else {
-                    $output = $tasks;
+                    $output = array_map(fn ($task) => $task->toArray(), $tasks);
                 }
                 $this->outputJson($output);
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Completed task: '.$task['id']);
-                $this->line('  Title: '.$task['title']);
-                if (isset($task['reason'])) {
-                    $this->line('  Reason: '.$task['reason']);
+                $this->info('Completed task: '.$task->id);
+                $this->line('  Title: '.$task->title);
+                if (isset($task->reason)) {
+                    $this->line('  Reason: '.$task->reason);
                 }
 
-                if (isset($task['commit_hash'])) {
-                    $this->line('  Commit: '.$task['commit_hash']);
+                if (isset($task->commit_hash)) {
+                    $this->line('  Commit: '.$task->commit_hash);
                 }
             }
 

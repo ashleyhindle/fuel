@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -35,9 +36,9 @@ class HumanCommand extends Command
         // Get tasks with needs-human label (excluding epic-review tasks)
         $tasks = $taskService->all();
         $humanTasks = $tasks
-            ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
-            ->filter(function (array $t): bool {
-                $labels = $t['labels'] ?? [];
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'open')
+            ->filter(function (Task $t): bool {
+                $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
                     return false;
                 }
@@ -60,7 +61,7 @@ class HumanCommand extends Command
 
         if ($this->option('json')) {
             $this->outputJson([
-                'tasks' => $humanTasks->toArray(),
+                'tasks' => $humanTasks->map(fn (Task $task): array => $task->toArray())->toArray(),
                 'epics' => array_map(fn ($epic) => $epic->toArray(), $pendingEpics),
             ]);
 
@@ -91,10 +92,10 @@ class HumanCommand extends Command
 
         // Show tasks needing human attention
         foreach ($humanTasks as $task) {
-            $age = $this->formatAge($task['created_at'] ?? null);
-            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $task['id'], $task['title'], $age));
-            if (! empty($task['description'] ?? null)) {
-                $this->line('  '.$task['description']);
+            $age = $this->formatAge($task->created_at ?? null);
+            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $task->id, $task->title, $age));
+            if (! empty($task->description ?? null)) {
+                $this->line('  '.$task->description);
             }
             $this->newLine();
         }

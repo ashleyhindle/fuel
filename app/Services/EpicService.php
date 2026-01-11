@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Enums\EpicStatus;
 use App\Models\Epic;
+use App\Models\Task;
 use Carbon\Carbon;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -309,9 +310,9 @@ class EpicService
         }
 
         return $this->taskService->all()
-            ->filter(fn (array $task): bool => ($task['epic_id'] ?? null) === $resolvedId)
+            ->filter(fn (Task $task): bool => ($task->epic_id ?? null) === $resolvedId)
             ->values()
-            ->toArray();
+            ->all();
     }
 
     public function getEpicStatus(string $epicId): EpicStatus

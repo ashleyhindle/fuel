@@ -45,15 +45,15 @@ class ReopenCommand extends Command
         if ($this->option('json')) {
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
-                $this->outputJson($tasks[0]);
+                $this->outputJson($tasks[0]->toArray());
             } else {
                 // Multiple tasks - return array
-                $this->outputJson($tasks);
+                $this->outputJson(array_map(fn ($task) => $task->toArray(), $tasks));
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Reopened task: '.$task['id']);
-                $this->line('  Title: '.$task['title']);
+                $this->info('Reopened task: '.$task->id);
+                $this->line('  Title: '.$task->title);
             }
         }
 

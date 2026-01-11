@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
 use App\Services\OutputParser;
@@ -63,10 +64,10 @@ class RunCommand extends Command
             return $this->outputError("Task not found: {$taskId}");
         }
 
-        $taskId = $task['id']; // Use full ID after partial match
-        $taskTitle = $task['title'];
-        $status = $task['status'];
-        $blockedBy = $task['blocked_by'] ?? [];
+        $taskId = $task->id; // Use full ID after partial match
+        $taskTitle = $task->title;
+        $status = $task->status;
+        $blockedBy = $task->blocked_by ?? [];
 
         $this->info("Task: {$taskId}");
         $this->line("Title: {$taskTitle}");
@@ -89,7 +90,7 @@ class RunCommand extends Command
         // Determine agent
         $agentName = $this->option('agent');
         if ($agentName === null) {
-            $complexity = $task['complexity'] ?? 'simple';
+            $complexity = $task->complexity ?? 'simple';
             try {
                 $agentName = $this->configService->getAgentForComplexity($complexity);
             } catch (\RuntimeException $e) {
@@ -103,7 +104,7 @@ class RunCommand extends Command
         $fullPrompt = $this->option('prompt') ?? $this->buildPrompt($task, $cwd);
 
         // Mark task as in_progress unless --no-start
-        if (! $this->option('no-start') && $task['status'] !== 'in_progress') {
+        if (! $this->option('no-start') && $task->status !== 'in_progress') {
             $this->taskService->start($taskId);
             $this->line('<fg=yellow>→ Marked task as in_progress</>');
         }
@@ -114,7 +115,7 @@ class RunCommand extends Command
         $this->line('<fg=gray>─────────────────────────────────────────</>');
         $this->newLine();
 
-        $result = $this->processManager->spawnForTask($task, $fullPrompt, $cwd, $this->option('agent'));
+        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $this->option('agent'));
 
         if (! $result->success) {
             $this->error('Failed to spawn agent: '.($result->error ?? 'Unknown error'));
@@ -231,7 +232,7 @@ class RunCommand extends Command
             // Auto-complete task unless --no-done
             if (! $this->option('no-done')) {
                 $task = $this->taskService->find($taskId);
-                if ($task && $task['status'] === 'in_progress') {
+                if ($task && $task->status === 'in_progress') {
                     $this->taskService->update($taskId, [
                         'add_labels' => ['auto-closed'],
                     ]);
@@ -263,9 +264,9 @@ class RunCommand extends Command
         return self::FAILURE;
     }
 
-    private function buildPrompt(array $task, string $cwd): string
+    private function buildPrompt(Task $task, string $cwd): string
     {
-        $taskId = $task['id'];
+        $taskId = $task->id;
         $taskDetails = $this->formatTaskForPrompt($task);
 
         return <<<PROMPT
@@ -317,32 +318,32 @@ Task ID: {$taskId}
 PROMPT;
     }
 
-    private function formatTaskForPrompt(array $task): string
+    private function formatTaskForPrompt(Task $task): string
     {
         $lines = [
-            'Task: '.$task['id'],
-            'Title: '.$task['title'],
-            'Status: '.$task['status'],
+            'Task: '.$task->id,
+            'Title: '.$task->title,
+            'Status: '.$task->status,
         ];
 
-        if (! empty($task['description'])) {
-            $lines[] = 'Description: '.$task['description'];
+        if (! empty($task->description)) {
+            $lines[] = 'Description: '.$task->description;
         }
 
-        if (! empty($task['type'])) {
-            $lines[] = 'Type: '.$task['type'];
+        if (! empty($task->type)) {
+            $lines[] = 'Type: '.$task->type;
         }
 
-        if (! empty($task['priority'])) {
-            $lines[] = 'Priority: P'.$task['priority'];
+        if (! empty($task->priority)) {
+            $lines[] = 'Priority: P'.$task->priority;
         }
 
-        if (! empty($task['labels'])) {
-            $lines[] = 'Labels: '.implode(', ', $task['labels']);
+        if (! empty($task->labels)) {
+            $lines[] = 'Labels: '.implode(', ', $task->labels);
         }
 
-        if (! empty($task['blocked_by'])) {
-            $lines[] = 'Blocked by: '.implode(', ', $task['blocked_by']);
+        if (! empty($task->blocked_by)) {
+            $lines[] = 'Blocked by: '.implode(', ', $task->blocked_by);
         }
 
         return implode("\n", $lines);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -26,7 +27,7 @@ class StuckCommand extends Command
         $stuckTasks = $taskService->failed()->sortByDesc('consumed_at')->values();
 
         if ($this->option('json')) {
-            $this->outputJson($stuckTasks->toArray());
+            $this->outputJson($stuckTasks->map(fn (Task $task): array => $task->toArray())->toArray());
         } else {
             if ($stuckTasks->isEmpty()) {
                 $this->info('No stuck tasks found.');
@@ -38,11 +39,11 @@ class StuckCommand extends Command
             $this->newLine();
 
             foreach ($stuckTasks as $task) {
-                $exitCode = $task['consumed_exit_code'] ?? null;
-                $pid = $task['consume_pid'] ?? null;
-                $output = $task['consumed_output'] ?? '';
+                $exitCode = $task->consumed_exit_code ?? null;
+                $pid = $task->consume_pid ?? null;
+                $output = $task->consumed_output ?? '';
 
-                $this->line(sprintf('<info>%s</info> - %s', $task['id'], $task['title']));
+                $this->line(sprintf('<info>%s</info> - %s', $task->id, $task->title));
 
                 // Show reason for being stuck
                 if ($exitCode !== null && $exitCode !== 0) {

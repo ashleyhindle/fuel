@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
+use App\Models\Task;
 use App\Services\ConfigService;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
@@ -62,12 +63,12 @@ class BoardCommand extends Command
 
         if ($this->option('json')) {
             $this->outputJson([
-                'ready' => $readyTasks->values()->toArray(),
-                'in_progress' => $inProgressTasks->toArray(),
-                'review' => $reviewTasks->toArray(),
-                'blocked' => $blockedTasks->toArray(),
-                'human' => $humanTasks->toArray(),
-                'done' => $doneTasks->toArray(),
+                'ready' => $readyTasks->values()->map(fn (Task $task): array => $task->toArray())->toArray(),
+                'in_progress' => $inProgressTasks->map(fn (Task $task): array => $task->toArray())->toArray(),
+                'review' => $reviewTasks->map(fn (Task $task): array => $task->toArray())->toArray(),
+                'blocked' => $blockedTasks->map(fn (Task $task): array => $task->toArray())->toArray(),
+                'human' => $humanTasks->map(fn (Task $task): array => $task->toArray())->toArray(),
+                'done' => $doneTasks->map(fn (Task $task): array => $task->toArray())->toArray(),
             ]);
 
             return self::SUCCESS;
@@ -227,29 +228,40 @@ class BoardCommand extends Command
         $readyIds = $readyTasks->pluck('id')->toArray();
 
         $inProgressTasks = $allTasks
-            ->filter(fn (array $t): bool => $t['status'] === 'in_progress')
+            ->filter(fn (Task $t): bool => $t->status === 'in_progress')
             ->sortByDesc('updated_at')
             ->values();
 
         $reviewTasks = $allTasks
-            ->filter(fn (array $t): bool => $t['status'] === 'review')
+            ->filter(fn (Task $t): bool => $t->status === 'review')
             ->sortByDesc('updated_at')
             ->values();
 
         // Blocked tasks exclude needs-human (those are shown in a separate line)
         $blockedTasks = $allTasks
-            ->filter(fn (array $t): bool => $t['status'] === 'open' && ! in_array($t['id'], $readyIds))
-            ->filter(fn (array $t): bool => ! is_array($t['labels'] ?? null) || ! in_array('needs-human', $t['labels'], true))
+            ->filter(fn (Task $t): bool => $t->status === 'open' && ! in_array($t->id, $readyIds, true))
+            ->filter(function (Task $t): bool {
+                $labels = $t->labels ?? [];
+                if (! is_array($labels)) {
+                    return true;
+                }
+
+                return ! in_array('needs-human', $labels, true);
+            })
             ->values();
 
         // Needs-human tasks (open tasks with needs-human label)
         $humanTasks = $allTasks
-            ->filter(fn (array $t): bool => $t['status'] === 'open')
-            ->filter(fn (array $t): bool => is_array($t['labels'] ?? null) && in_array('needs-human', $t['labels'], true))
+            ->filter(fn (Task $t): bool => $t->status === 'open')
+            ->filter(function (Task $t): bool {
+                $labels = $t->labels ?? [];
+
+                return is_array($labels) && in_array('needs-human', $labels, true);
+            })
             ->values();
 
         $doneTasks = $allTasks
-            ->filter(fn (array $t): bool => $t['status'] === 'closed')
+            ->filter(fn (Task $t): bool => $t->status === 'closed')
             ->sortByDesc('updated_at')
             ->values();
 
@@ -363,7 +375,7 @@ class BoardCommand extends Command
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $tasks
+     * @param  array<int, Task>  $tasks
      * @param  string  $style  Column style: 'normal', 'blocked', or 'done'
      * @return array<int, string>
      */
@@ -378,13 +390,13 @@ class BoardCommand extends Command
             $lines[] = $this->padLine('<fg=gray>No tasks</>', $width);
         } else {
             foreach ($tasks as $task) {
-                $id = (string) $task['id'];
-                $taskTitle = (string) $task['title'];
+                $id = (string) $task->id;
+                $taskTitle = (string) $task->title;
                 $shortId = substr($id, 2, 6); // Skip 'f-' prefix
                 $complexityChar = $this->getComplexityChar($task);
 
                 // Show icon for tasks being consumed by fuel consume
-                $consumeIcon = empty($task['consumed']) ? '' : '⚡';
+                $consumeIcon = empty($task->consumed) ? '' : '⚡';
 
                 // Show icon for failed tasks
                 $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
@@ -392,7 +404,7 @@ class BoardCommand extends Command
                 // Show icon for auto-closed tasks (only in done column)
                 $autoClosedIcon = '';
                 if ($style === 'done') {
-                    $labels = $task['labels'] ?? [];
+                    $labels = $task->labels ?? [];
                     $autoClosedIcon = is_array($labels) && in_array('auto-closed', $labels, true) ? '🤖' : '';
                 }
 
@@ -441,7 +453,7 @@ class BoardCommand extends Command
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $humanTasks
+     * @param  array<int, Task>  $humanTasks
      */
     private function renderHumanLine(array $humanTasks): void
     {
@@ -457,8 +469,8 @@ class BoardCommand extends Command
         $separator = '<fg=gray> | </>';
 
         foreach ($humanTasks as $task) {
-            $id = (string) $task['id'];
-            $title = (string) $task['title'];
+            $id = (string) $task->id;
+            $title = (string) $task->title;
             $shortId = substr($id, 2, 6); // Skip 'f-' prefix
 
             // Calculate separator length if not first item
@@ -513,12 +525,10 @@ class BoardCommand extends Command
 
     /**
      * Get a single character representing task complexity.
-     *
-     * @param  array<string, mixed>  $task
      */
-    private function getComplexityChar(array $task): string
+    private function getComplexityChar(Task $task): string
     {
-        $complexity = $task['complexity'] ?? 'simple';
+        $complexity = $task->complexity ?? 'simple';
 
         return match ($complexity) {
             'trivial' => 't',

@@ -39,7 +39,7 @@ class RunsCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
-            $taskId = $task['id'];
+            $taskId = $task->id;
 
             // Get runs
             if ($this->option('last')) {

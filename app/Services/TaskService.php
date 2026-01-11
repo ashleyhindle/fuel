@@ -698,6 +698,11 @@ class TaskService
         $this->db->initialize();
     }
 
+    public function setDatabasePath(string $path): void
+    {
+        $this->db->setDatabasePath($path);
+    }
+
     /**
      * Get the archive storage path.
      */

@@ -79,10 +79,10 @@ class UpdateCommand extends Command
             $task = $taskService->update($this->argument('id'), $updateData);
 
             if ($this->option('json')) {
-                $this->outputJson($task);
+                $this->outputJson($task->toArray());
             } else {
-                $this->info('Updated task: '.$task['id']);
-                $this->line('  Title: '.$task['title']);
+                $this->info('Updated task: '.$task->id);
+                $this->line('  Title: '.$task->title);
             }
 
             return self::SUCCESS;

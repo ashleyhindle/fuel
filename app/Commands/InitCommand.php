@@ -66,7 +66,7 @@ class InitCommand extends Command
             $this->updateConfig($context->getConfigPath(), $agent, $model);
         }
 
-        // Ensure .fuel/runs/ is in .gitignore
+        // Ensure .fuel paths are in .gitignore
         $this->ensureGitignoreEntry($cwd);
 
         // Inject guidelines into AGENTS.md
@@ -81,7 +81,7 @@ class InitCommand extends Command
                 'priority' => 2,
             ]);
 
-            $this->info('Created starter task: '.$task['id']);
+            $this->info('Created starter task: '.$task->id);
         }
 
         $this->newLine();
@@ -152,12 +152,12 @@ class InitCommand extends Command
     }
 
     /**
-     * Ensure .fuel/runs/, .fuel/processes/, .fuel/agent.db, .fuel/agent.db-wal, and .fuel/agent.db-shm are in .gitignore.
+     * Ensure .fuel/processes/, .fuel/agent.db, .fuel/agent.db-wal, and .fuel/agent.db-shm are in .gitignore.
      */
     private function ensureGitignoreEntry(string $cwd): void
     {
         $gitignorePath = $cwd.'/.gitignore';
-        $entries = ['.fuel/runs/', '.fuel/processes/', '.fuel/agent.db', '.fuel/agent.db-wal', '.fuel/agent.db-shm'];
+        $entries = ['.fuel/processes/', '.fuel/agent.db', '.fuel/agent.db-wal', '.fuel/agent.db-shm'];
 
         // Check if .gitignore exists
         if (file_exists($gitignorePath)) {

@@ -33,10 +33,10 @@ class StartCommand extends Command
         }
 
         if ($this->option('json')) {
-            $this->outputJson($task);
+            $this->outputJson($task->toArray());
         } else {
-            $this->info('Started task: '.$task['id']);
-            $this->line('  Title: '.$task['title']);
+            $this->info('Started task: '.$task->id);
+            $this->line('  Title: '.$task->title);
         }
 
         return self::SUCCESS;

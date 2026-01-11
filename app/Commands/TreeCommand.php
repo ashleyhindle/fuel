@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
@@ -24,7 +25,7 @@ class TreeCommand extends Command
         $this->configureCwd($taskService);
 
         $tasks = $taskService->all()
-            ->filter(fn (array $t): bool => ($t['status'] ?? '') !== 'closed')
+            ->filter(fn (Task $t): bool => ($t->status ?? '') !== 'closed')
             ->sortBy([
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
@@ -45,7 +46,15 @@ class TreeCommand extends Command
         $treeData = $this->buildTreeData($tasks, $taskMap);
 
         if ($this->option('json')) {
-            $this->outputJson($treeData);
+            $this->outputJson(array_map(function (array $item): array {
+                return [
+                    'task' => $item['task']->toArray(),
+                    'blocks' => array_map(
+                        fn (Task $task): array => $task->toArray(),
+                        $item['blocks']
+                    ),
+                ];
+            }, $treeData));
         } else {
             $this->renderTree($treeData);
         }
@@ -57,18 +66,18 @@ class TreeCommand extends Command
      * Build tree data structure for output.
      * Each task shows what it blocks (children are tasks blocked by this task).
      *
-     * @return array<int, array{task: array, blocks: array}>
+     * @return array<int, array{task: Task, blocks: array<int, Task>}>
      */
     private function buildTreeData(Collection $tasks, Collection $taskMap): array
     {
         // Build reverse lookup: task ID -> tasks it blocks
         $blocksMap = [];
         foreach ($tasks as $task) {
-            $blockedBy = $task['blocked_by'] ?? [];
+            $blockedBy = $task->blocked_by ?? [];
             foreach ($blockedBy as $blockerId) {
                 // Only include if blocker is not closed
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
+                if ($blocker !== null && ($blocker->status ?? '') !== 'closed') {
                     $blocksMap[$blockerId][] = $task;
                 }
             }
@@ -76,7 +85,7 @@ class TreeCommand extends Command
 
         $treeData = [];
         foreach ($tasks as $task) {
-            $taskId = $task['id'];
+            $taskId = $task->id;
             $blocks = $blocksMap[$taskId] ?? [];
 
             $treeData[] = [
@@ -91,7 +100,7 @@ class TreeCommand extends Command
     /**
      * Render the tree to console output.
      *
-     * @param  array<int, array{task: array, blocks: array}>  $treeData
+     * @param  array<int, array{task: Task, blocks: array<int, Task>}>  $treeData
      */
     private function renderTree(array $treeData): void
     {
@@ -99,7 +108,7 @@ class TreeCommand extends Command
             $task = $item['task'];
             $blocks = $item['blocks'];
 
-            $priority = $task['priority'] ?? 2;
+            $priority = $task->priority ?? 2;
             $complexity = $this->getComplexityChar($task);
             $displayStatus = $this->getDisplayStatus($task);
             $statusColor = $this->hasNeedsHumanLabel($task) ? 'magenta' : 'gray';
@@ -108,8 +117,8 @@ class TreeCommand extends Command
                 '<fg=cyan>[P%d·%s]</> %s %s <fg=%s>(%s)</>',
                 $priority,
                 $complexity,
-                $task['id'],
-                $task['title'],
+                $task->id,
+                $task->title,
                 $statusColor,
                 $displayStatus
             ));
@@ -120,7 +129,7 @@ class TreeCommand extends Command
                 $isLast = ($index === $blocksCount - 1);
                 $prefix = $isLast ? '  └─ ' : '  ├─ ';
 
-                $blockedPriority = $blocked['priority'] ?? 2;
+                $blockedPriority = $blocked->priority ?? 2;
                 $blockedComplexity = $this->getComplexityChar($blocked);
 
                 $this->line(sprintf(
@@ -128,8 +137,8 @@ class TreeCommand extends Command
                     $prefix,
                     $blockedPriority,
                     $blockedComplexity,
-                    $blocked['id'],
-                    $blocked['title']
+                    $blocked->id,
+                    $blocked->title
                 ));
             }
         }
@@ -137,13 +146,11 @@ class TreeCommand extends Command
 
     /**
      * Get the display status for a task.
-     *
-     * @param  array<string, mixed>  $task
      */
-    private function getDisplayStatus(array $task): string
+    private function getDisplayStatus(Task $task): string
     {
-        $blockedBy = $task['blocked_by'] ?? [];
-        $status = $task['status'] ?? 'open';
+        $blockedBy = $task->blocked_by ?? [];
+        $status = $task->status ?? 'open';
 
         // Check for needs-human label first
         if ($this->hasNeedsHumanLabel($task)) {
@@ -160,24 +167,20 @@ class TreeCommand extends Command
 
     /**
      * Check if a task has the needs-human label.
-     *
-     * @param  array<string, mixed>  $task
      */
-    private function hasNeedsHumanLabel(array $task): bool
+    private function hasNeedsHumanLabel(Task $task): bool
     {
-        $labels = $task['labels'] ?? [];
+        $labels = $task->labels ?? [];
 
         return in_array('needs-human', $labels, true);
     }
 
     /**
      * Get a single character representing task complexity.
-     *
-     * @param  array<string, mixed>  $task
      */
-    private function getComplexityChar(array $task): string
+    private function getComplexityChar(Task $task): string
     {
-        $complexity = $task['complexity'] ?? 'simple';
+        $complexity = $task->complexity ?? 'simple';
 
         return match ($complexity) {
             'trivial' => 't',

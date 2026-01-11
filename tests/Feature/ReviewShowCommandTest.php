@@ -6,7 +6,6 @@ use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\File;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();

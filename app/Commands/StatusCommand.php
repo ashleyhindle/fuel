@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -25,21 +26,21 @@ class StatusCommand extends Command
         $tasks = $taskService->all();
 
         // Group by status
-        $open = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open');
-        $inProgress = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'in_progress');
-        $review = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'review');
-        $closed = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === 'closed');
+        $open = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === 'open');
+        $inProgress = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === 'in_progress');
+        $review = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === 'review');
+        $closed = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === 'closed');
 
         // Calculate blocked count (open tasks with open blockers)
         $taskMap = $tasks->keyBy('id');
         $blockedCount = 0;
         foreach ($open as $task) {
-            $blockedBy = $task['blocked_by'] ?? [];
+            $blockedBy = $task->blocked_by ?? [];
             foreach ($blockedBy as $blockerId) {
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
                     // Task is blocked if the blocker exists and is not closed
-                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
+                    if ($blocker !== null && ($blocker->status ?? '') !== 'closed') {
                         $blockedCount++;
                         break; // No need to check other blockers
                     }

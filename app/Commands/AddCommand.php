@@ -131,13 +131,13 @@ class AddCommand extends Command
         }
 
         if ($this->option('json')) {
-            $this->outputJson($task);
+            $this->outputJson($task->toArray());
         } else {
-            $this->info('Created task: '.$task['id']);
-            $this->line('  Title: '.$task['title']);
+            $this->info('Created task: '.$task->id);
+            $this->line('  Title: '.$task->title);
 
-            if (! empty($task['blocked_by'])) {
-                $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
+            if (! empty($task->blocked_by)) {
+                $blockerIds = is_array($task->blocked_by) ? implode(', ', $task->blocked_by) : '';
                 if ($blockerIds !== '') {
                     $this->line('  Blocked by: '.$blockerIds);
                 }

@@ -70,9 +70,9 @@ class ShowCommand extends Command
 
             // Fetch epic information if task has epic_id
             $epic = null;
-            if (isset($task['epic_id']) && $task['epic_id'] !== null) {
+            if (isset($task->epic_id) && $task->epic_id !== null) {
                 try {
-                    $epic = $epicService->getEpic($task['epic_id']);
+                    $epic = $epicService->getEpic($task->epic_id);
                 } catch (\Exception) {
                     // Epic not found or error - continue without epic info
                     $epic = null;
@@ -80,43 +80,44 @@ class ShowCommand extends Command
             }
 
             if ($this->option('json')) {
+                $taskData = $task->toArray();
                 // Include epic info in JSON output
                 if ($epic !== null) {
-                    $task['epic'] = [
+                    $taskData['epic'] = [
                         'id' => $epic->id,
                         'title' => $epic->title ?? null,
                         'status' => $epic->status ?? null,
                     ];
                 }
-                $this->outputJson($task);
+                $this->outputJson($taskData);
             } else {
-                $this->info('Task: '.$task['id']);
-                $this->line('  Title: '.$task['title']);
-                $this->line('  Status: '.$task['status']);
+                $this->info('Task: '.$task->id);
+                $this->line('  Title: '.$task->title);
+                $this->line('  Status: '.$task->status);
 
-                if (isset($task['description']) && $task['description'] !== null) {
-                    $this->line('  Description: '.$task['description']);
+                if (isset($task->description) && $task->description !== null) {
+                    $this->line('  Description: '.$task->description);
                 }
 
-                if (isset($task['type'])) {
-                    $this->line('  Type: '.$task['type']);
+                if (isset($task->type)) {
+                    $this->line('  Type: '.$task->type);
                 }
 
-                if (isset($task['priority'])) {
-                    $this->line('  Priority: '.$task['priority']);
+                if (isset($task->priority)) {
+                    $this->line('  Priority: '.$task->priority);
                 }
 
-                if (isset($task['size'])) {
-                    $this->line('  Size: '.$task['size']);
+                if (isset($task->size)) {
+                    $this->line('  Size: '.$task->size);
                 }
 
-                if (isset($task['labels']) && ! empty($task['labels'])) {
-                    $labels = implode(', ', $task['labels']);
+                if (isset($task->labels) && ! empty($task->labels)) {
+                    $labels = implode(', ', $task->labels);
                     $this->line('  Labels: '.$labels);
                 }
 
-                if (isset($task['blocked_by']) && ! empty($task['blocked_by'])) {
-                    $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
+                if (isset($task->blocked_by) && ! empty($task->blocked_by)) {
+                    $blockerIds = is_array($task->blocked_by) ? implode(', ', $task->blocked_by) : '';
                     if ($blockerIds !== '') {
                         $this->line('  Blocked by: '.$blockerIds);
                     }
@@ -126,36 +127,36 @@ class ShowCommand extends Command
                     $this->line('  Epic: '.$epic->id.' - '.($epic->title ?? 'Untitled').' ('.$epic->status.')');
                 }
 
-                if (isset($task['reason'])) {
-                    $this->line('  Reason: '.$task['reason']);
+                if (isset($task->reason)) {
+                    $this->line('  Reason: '.$task->reason);
                 }
 
                 // Consume command fields
-                if (! empty($task['consumed']) || isset($task['consume_pid'])) {
+                if (! empty($task->consumed) || isset($task->consume_pid)) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Consume Info ──</>');
-                    if (! empty($task['consumed'])) {
+                    if (! empty($task->consumed)) {
                         $this->line('  Consumed: Yes');
                     }
 
-                    if (isset($task['consume_pid']) && $task['consume_pid'] !== null) {
-                        $this->line('  PID: '.$task['consume_pid']);
+                    if (isset($task->consume_pid) && $task->consume_pid !== null) {
+                        $this->line('  PID: '.$task->consume_pid);
                     }
 
-                    if (isset($task['consumed_at'])) {
-                        $this->line('  Consumed at: '.$task['consumed_at']);
+                    if (isset($task->consumed_at)) {
+                        $this->line('  Consumed at: '.$task->consumed_at);
                     }
 
-                    if (isset($task['consumed_exit_code'])) {
-                        $exitColor = $task['consumed_exit_code'] === 0 ? 'green' : 'red';
-                        $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $task['consumed_exit_code']));
+                    if (isset($task->consumed_exit_code)) {
+                        $exitColor = $task->consumed_exit_code === 0 ? 'green' : 'red';
+                        $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $task->consumed_exit_code));
                     }
 
-                    if (isset($task['consumed_output']) && $task['consumed_output'] !== '') {
+                    if (isset($task->consumed_output) && $task->consumed_output !== '') {
                         $this->newLine();
                         $this->line('  <fg=cyan>── Agent Output ──</>');
                         // Indent each line of output
-                        $outputLines = explode("\n", (string) $task['consumed_output']);
+                        $outputLines = explode("\n", (string) $task->consumed_output);
                         foreach ($outputLines as $line) {
                             $this->line('  '.OutputFormatter::escape($line));
                         }
@@ -163,10 +164,10 @@ class ShowCommand extends Command
                 }
 
                 // Run information from RunService (compact format)
-                $runs = $runService->getRuns($task['id']);
+                $runs = $runService->getRuns($task->id);
 
                 // Check for live output if task is in_progress (even if no runs exist)
-                $liveOutput = $this->getLiveOutput($task['id'], $task['status'] ?? 'open');
+                $liveOutput = $this->getLiveOutput($task->id, $task->status ?? 'open');
 
                 if ($runs !== []) {
                     $this->newLine();
@@ -177,34 +178,34 @@ class ShowCommand extends Command
 
                         // Build compact run line: → run_id | agent (model) | duration | exit:0
                         $parts = [];
-                        if (isset($run['run_id'])) {
-                            $parts[] = '<fg=gray>'.$run['run_id'].'</>';
+                        if (isset($run->run_id)) {
+                            $parts[] = '<fg=gray>'.$run->run_id.'</>';
                         }
-                        if (isset($run['agent'])) {
-                            $agentStr = $run['agent'];
-                            if (isset($run['model'])) {
-                                $agentStr .= ' ('.$run['model'].')';
+                        if (isset($run->agent)) {
+                            $agentStr = $run->agent;
+                            if (isset($run->model)) {
+                                $agentStr .= ' ('.$run->model.')';
                             }
                             $parts[] = $agentStr;
                         }
 
                         // Duration
-                        if (isset($run['started_at']) && isset($run['ended_at'])) {
+                        if (isset($run->started_at) && isset($run->ended_at)) {
                             try {
-                                $start = new \DateTime($run['started_at']);
-                                $end = new \DateTime($run['ended_at']);
+                                $start = new \DateTime($run->started_at);
+                                $end = new \DateTime($run->ended_at);
                                 $duration = $end->getTimestamp() - $start->getTimestamp();
                                 $parts[] = $duration < 60 ? $duration.'s' : (int) ($duration / 60).'m '.($duration % 60).'s';
                             } catch (\Exception) {
                             }
-                        } elseif (isset($run['started_at'])) {
+                        } elseif (isset($run->started_at)) {
                             $parts[] = 'running';
                         }
 
                         // Exit code
-                        if (isset($run['exit_code']) && $run['exit_code'] !== null) {
-                            $exitColor = $run['exit_code'] === 0 ? 'green' : 'red';
-                            $parts[] = sprintf('<fg=%s>exit:%s</>', $exitColor, $run['exit_code']);
+                        if (isset($run->exit_code) && $run->exit_code !== null) {
+                            $exitColor = $run->exit_code === 0 ? 'green' : 'red';
+                            $parts[] = sprintf('<fg=%s>exit:%s</>', $exitColor, $run->exit_code);
                         }
 
                         $this->line(sprintf('  %s %s', $prefix, implode(' | ', $parts)));
@@ -213,33 +214,36 @@ class ShowCommand extends Command
                         if ($isLatest) {
                             if ($liveOutput !== null) {
                                 $this->line('    <fg=yellow>(live output)</>');
+                                $this->line('    <fg=gray>Showing live output (tail)...</>');
                                 $this->outputChunk($liveOutput, $this->option('raw'));
-                            } elseif (isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
-                                $this->outputChunk((string) $run['output'], $this->option('raw'));
+                            } elseif (isset($run->output) && $run->output !== null && $run->output !== '') {
+                                $this->line('    <fg=cyan>Run Output</>');
+                                $this->outputChunk((string) $run->output, $this->option('raw'));
                             }
                         }
                     }
                 } elseif ($liveOutput !== null) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Run Output (live) ──</>');
+                    $this->line('  <fg=gray>Showing live output (tail)...</>');
                     $this->outputChunk($liveOutput, $this->option('raw'));
                 }
 
                 // Reviews
-                $reviews = $dbService->getReviewsForTask($task['id']);
+                $reviews = $dbService->getReviewsForTask($task->id);
                 if ($reviews !== []) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Reviews ──</>');
                     foreach ($reviews as $review) {
-                        $status = $review['status'] ?? 'pending';
+                        $status = $review->status ?? 'pending';
                         $statusColor = match ($status) {
                             'passed' => 'green',
                             'failed' => 'red',
                             default => 'yellow',
                         };
-                        $timestamp = $this->formatDateTime($review['completed_at'] ?? $review['started_at'] ?? '');
-                        $agent = $review['agent'] ?? '';
-                        $reviewId = $review['id'] ?? '';
+                        $timestamp = $this->formatDateTime($review->completed_at ?? $review->started_at ?? '');
+                        $agent = $review->agent ?? '';
+                        $reviewId = $review->id ?? '';
 
                         // Build one-line review summary: id | STATUS by agent @ time (issues)
                         $line = '  ';
@@ -272,8 +276,8 @@ class ShowCommand extends Command
                 }
 
                 $this->newLine();
-                $this->line('  Created: '.$this->formatDateTime($task['created_at']));
-                $this->line('  Updated: '.$this->formatDateTime($task['updated_at']));
+                $this->line('  Created: '.$this->formatDateTime($task->created_at));
+                $this->line('  Updated: '.$this->formatDateTime($task->updated_at));
             }
 
             return self::SUCCESS;

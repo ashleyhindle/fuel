@@ -7,6 +7,8 @@ namespace App\Commands;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
+use App\Models\Run;
+use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -43,7 +45,7 @@ class SummaryCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
-            $taskId = $task['id'];
+            $taskId = $task->id;
 
             // Get runs
             $runs = $runService->getRuns($taskId);
@@ -58,7 +60,7 @@ class SummaryCommand extends Command
             if ($this->option('json')) {
                 // JSON output: return task + runs with parsed summaries
                 $output = [
-                    'task' => $task,
+                    'task' => $task->toArray(),
                     'runs' => array_map($this->enrichRunData(...), $runsToDisplay),
                 ];
                 $this->outputJson($output);
@@ -88,18 +90,18 @@ class SummaryCommand extends Command
     /**
      * Display task header with basic info.
      */
-    private function displayTaskHeader(array $task, array $runs): void
+    private function displayTaskHeader(Task $task, array $runs): void
     {
-        $statusLabel = match ($task['status']) {
+        $statusLabel = match ($task->status) {
             'open' => '<fg=yellow>open</>',
             'in_progress' => '<fg=blue>in progress</>',
             'review' => '<fg=magenta>review</>',
             'closed' => '<fg=green>closed</>',
             'cancelled' => '<fg=gray>cancelled</>',
-            default => $task['status'],
+            default => $task->status,
         };
 
-        $this->line(sprintf('<fg=cyan>Task:</> %s - %s', $task['id'], $task['title']));
+        $this->line(sprintf('<fg=cyan>Task:</> %s - %s', $task->id, $task->title));
         $this->line('<fg=cyan>Status:</> '.$statusLabel);
         $this->line('<fg=cyan>Runs:</> '.count($runs));
     }
@@ -107,53 +109,53 @@ class SummaryCommand extends Command
     /**
      * Display a single run summary.
      */
-    private function displayRunSummary(array $run, bool $showAsLatest = false): void
+    private function displayRunSummary(Run $run, bool $showAsLatest = false): void
     {
         $header = $showAsLatest ? 'Latest Run' : 'Run';
-        $this->line(sprintf('<fg=white;options=bold>%s (%s)</>', $header, $run['run_id']));
+        $this->line(sprintf('<fg=white;options=bold>%s (%s)</>', $header, $run->run_id));
 
         // Agent info
-        $agent = Agent::fromString($run['agent'] ?? null);
+        $agent = Agent::fromString($run->agent ?? null);
         if ($agent instanceof Agent) {
             $agentLabel = $agent->label();
-            $model = $run['model'] ?? null;
+            $model = $run->model ?? null;
             $agentDisplay = $model ? sprintf('%s (%s)', $agentLabel, $model) : $agentLabel;
             $this->line('  <fg=cyan>Agent:</> '.$agentDisplay);
-        } elseif (isset($run['agent']) && $run['agent'] !== null) {
-            $this->line('  <fg=cyan>Agent:</> '.$run['agent']);
+        } elseif (isset($run->agent) && $run->agent !== null) {
+            $this->line('  <fg=cyan>Agent:</> '.$run->agent);
         }
 
         // Duration
-        $duration = $this->calculateDuration($run['started_at'] ?? null, $run['ended_at'] ?? null);
+        $duration = $this->calculateDuration($run->started_at ?? null, $run->ended_at ?? null);
         if ($duration !== '') {
             $this->line('  <fg=cyan>Duration:</> '.$duration);
         }
 
         // Cost
-        if (isset($run['cost_usd']) && $run['cost_usd'] !== null) {
-            $cost = '$'.number_format($run['cost_usd'], 4);
+        if (isset($run->cost_usd) && $run->cost_usd !== null) {
+            $cost = '$'.number_format($run->cost_usd, 4);
             $this->line('  <fg=cyan>Cost:</> '.$cost);
         }
 
         // Exit code
-        if (isset($run['exit_code']) && $run['exit_code'] !== null) {
-            $exitColor = $run['exit_code'] === 0 ? 'green' : 'red';
-            $exitLabel = $run['exit_code'] === 0 ? 'success' : 'failed';
-            $this->line(sprintf('  <fg=cyan>Exit:</> <fg=%s>%s (%s)</>', $exitColor, $run['exit_code'], $exitLabel));
+        if (isset($run->exit_code) && $run->exit_code !== null) {
+            $exitColor = $run->exit_code === 0 ? 'green' : 'red';
+            $exitLabel = $run->exit_code === 0 ? 'success' : 'failed';
+            $this->line(sprintf('  <fg=cyan>Exit:</> <fg=%s>%s (%s)</>', $exitColor, $run->exit_code, $exitLabel));
         }
 
         // Session ID and resume command
-        if (isset($run['session_id']) && $run['session_id'] !== null && $agent instanceof Agent) {
+        if (isset($run->session_id) && $run->session_id !== null && $agent instanceof Agent) {
             $this->newLine();
-            $this->line('  <fg=cyan>Session:</> '.$run['session_id']);
-            $this->line('  <fg=cyan>Resume:</> '.$agent->resumeCommand($run['session_id']));
+            $this->line('  <fg=cyan>Session:</> '.$run->session_id);
+            $this->line('  <fg=cyan>Resume:</> '.$agent->resumeCommand($run->session_id));
         }
 
         // Parse and display output summary
-        if (isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
+        if (isset($run->output) && $run->output !== null && $run->output !== '') {
             $this->newLine();
             $this->line('  <fg=white;options=bold>Output Summary:</>');
-            $this->displayOutputSummary($run['output']);
+            $this->displayOutputSummary($run->output);
         }
     }
 
@@ -277,14 +279,15 @@ class SummaryCommand extends Command
     /**
      * Enrich run data with calculated fields and parsed summary for JSON output.
      */
-    private function enrichRunData(array $run): array
+    private function enrichRunData(Run $run): array
     {
-        $run['duration'] = $this->calculateDuration($run['started_at'] ?? null, $run['ended_at'] ?? null);
+        $runData = $run->toArray();
+        $runData['duration'] = $this->calculateDuration($run->started_at ?? null, $run->ended_at ?? null);
 
-        if (isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
-            $run['parsed_summary'] = $this->parseOutput($run['output']);
+        if (isset($run->output) && $run->output !== null && $run->output !== '') {
+            $runData['parsed_summary'] = $this->parseOutput($run->output);
         }
 
-        return $run;
+        return $runData;
     }
 }

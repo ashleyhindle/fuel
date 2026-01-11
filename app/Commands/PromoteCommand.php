@@ -134,20 +134,20 @@ class PromoteCommand extends Command
             $tasks = array_map(fn ($result) => $result['task'], $results);
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
-                $this->outputJson($tasks[0]);
+                $this->outputJson($tasks[0]->toArray());
             } else {
                 // Multiple tasks - return array
-                $this->outputJson($tasks);
+                $this->outputJson(array_map(fn ($task) => $task->toArray(), $tasks));
             }
         } else {
             foreach ($results as $result) {
                 $backlogId = $result['backlog_id'];
                 $task = $result['task'];
-                $this->info(sprintf('Promoted backlog item %s to task: %s', $backlogId, $task['id']));
-                $this->line('  Title: '.$task['title']);
+                $this->info(sprintf('Promoted backlog item %s to task: %s', $backlogId, $task->id));
+                $this->line('  Title: '.$task->title);
 
-                if (! empty($task['blocked_by'])) {
-                    $blockerIds = is_array($task['blocked_by']) ? implode(', ', $task['blocked_by']) : '';
+                if (! empty($task->blocked_by)) {
+                    $blockerIds = is_array($task->blocked_by) ? implode(', ', $task->blocked_by) : '';
                     if ($blockerIds !== '') {
                         $this->line('  Blocked by: '.$blockerIds);
                     }

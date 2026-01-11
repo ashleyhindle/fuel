@@ -93,8 +93,8 @@ class RemoveCommand extends Command
                     return $this->outputError(sprintf("Task '%s' not found", $id));
                 }
 
-                $resolvedId = $task['id'];
-                $title = $task['title'] ?? '';
+                $resolvedId = $task->id;
+                $title = $task->title ?? '';
 
                 // Validate that the resolved task ID starts with 'f-' (is a task, not backlog item)
                 if (! str_starts_with((string) $resolvedId, 'f-')) {
@@ -115,7 +115,7 @@ class RemoveCommand extends Command
                     $this->outputJson([
                         'id' => $resolvedId,
                         'type' => 'task',
-                        'deleted' => $deletedTask,
+                        'deleted' => $deletedTask->toArray(),
                     ]);
                 } else {
                     $this->info('Deleted task: '.$resolvedId);
@@ -131,7 +131,7 @@ class RemoveCommand extends Command
 
             // Check for ambiguous matches
             if ($task !== null && $backlogItem !== null) {
-                return $this->outputError(sprintf("ID '%s' is ambiguous. Matches both task '%s' and backlog item '%s'. Use full ID with prefix.", $id, $task['id'], $backlogItem['id']));
+                return $this->outputError(sprintf("ID '%s' is ambiguous. Matches both task '%s' and backlog item '%s'. Use full ID with prefix.", $id, $task->id, $backlogItem['id']));
             }
 
             if ($backlogItem !== null) {
@@ -163,8 +163,8 @@ class RemoveCommand extends Command
             }
 
             if ($task !== null) {
-                $resolvedId = $task['id'];
-                $title = $task['title'] ?? '';
+                $resolvedId = $task->id;
+                $title = $task->title ?? '';
 
                 // Validate that the resolved task ID starts with 'f-' (is a task, not backlog item)
                 if (! str_starts_with((string) $resolvedId, 'f-')) {
@@ -185,7 +185,7 @@ class RemoveCommand extends Command
                     $this->outputJson([
                         'id' => $resolvedId,
                         'type' => 'task',
-                        'deleted' => $deletedTask,
+                        'deleted' => $deletedTask->toArray(),
                     ]);
                 } else {
                     $this->info('Deleted task: '.$resolvedId);

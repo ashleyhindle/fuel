@@ -32,11 +32,11 @@ class DepRemoveCommand extends Command
             );
 
             if ($this->option('json')) {
-                $this->outputJson($updatedTask);
+                $this->outputJson($updatedTask->toArray());
             } else {
-                $fromId = $updatedTask['id'];
+                $fromId = $updatedTask->id;
                 $toTask = $taskService->find($this->argument('to'));
-                $toId = $toTask['id'] ?? $this->argument('to');
+                $toId = $toTask?->id ?? $this->argument('to');
                 $this->info(sprintf('Removed dependency: %s no longer blocked by %s', $fromId, $toId));
             }
 

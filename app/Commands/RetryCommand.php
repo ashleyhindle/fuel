@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -66,15 +67,15 @@ class RetryCommand extends Command
         if ($this->option('json')) {
             if (count($tasks) === 1) {
                 // Single task - return object for backward compatibility
-                $this->outputJson($tasks[0]);
+                $this->outputJson($tasks[0]->toArray());
             } else {
                 // Multiple tasks - return array
-                $this->outputJson($tasks);
+                $this->outputJson(array_map(fn (Task $task): array => $task->toArray(), $tasks));
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Retried task: '.$task['id']);
-                $this->line('  Title: '.$task['title']);
+                $this->info('Retried task: '.$task->id);
+                $this->line('  Title: '.$task->title);
             }
         }
 
@@ -101,7 +102,7 @@ class RetryCommand extends Command
         }
 
         if ($this->option('json')) {
-            $this->outputJson($failedTasks->values()->all());
+            $this->outputJson($failedTasks->values()->map(fn (Task $task): array => $task->toArray())->all());
 
             return self::SUCCESS;
         }
@@ -109,21 +110,21 @@ class RetryCommand extends Command
         $this->info('Failed tasks (use fuel retry to retry all):');
         foreach ($failedTasks as $task) {
             $reason = $this->getFailureReason($task);
-            $this->line(sprintf('  %s: %s <fg=gray>(%s)</>', $task['id'], $task['title'], $reason));
+            $this->line(sprintf('  %s: %s <fg=gray>(%s)</>', $task->id, $task->title, $reason));
         }
 
         return self::SUCCESS;
     }
 
-    private function getFailureReason(array $task): string
+    private function getFailureReason(Task $task): string
     {
-        $exitCode = $task['consumed_exit_code'] ?? null;
+        $exitCode = $task->consumed_exit_code ?? null;
         if ($exitCode !== null && $exitCode !== 0) {
             return 'exit code '.$exitCode;
         }
 
-        $pid = $task['consume_pid'] ?? null;
-        if (($task['status'] ?? '') === 'in_progress' && ! empty($task['consumed'])) {
+        $pid = $task->consume_pid ?? null;
+        if (($task->status ?? '') === 'in_progress' && ! empty($task->consumed)) {
             if ($pid === null) {
                 return 'spawn failed / PID lost';
             }

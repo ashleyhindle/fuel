@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Models\Task;
 use App\Process\ProcessOutput;
 use App\Process\ProcessType;
 use App\Process\ReviewResult;
@@ -340,10 +341,10 @@ class ReviewService implements ReviewServiceInterface
 
         // Find all tasks in 'review' status
         $allTasks = $this->taskService->all();
-        $reviewTasks = $allTasks->filter(fn (array $task): bool => ($task['status'] ?? '') === 'review');
+        $reviewTasks = $allTasks->filter(fn (Task $task): bool => ($task->status ?? '') === 'review');
 
         foreach ($reviewTasks as $task) {
-            $taskId = $task['id'];
+            $taskId = $task->id;
             $reviewTaskId = 'review-'.$taskId;
 
             // Check if review process is still running

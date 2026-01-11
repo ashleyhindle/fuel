@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
@@ -37,22 +38,25 @@ class TasksCommand extends Command
 
         // Apply filters
         if ($status = $this->option('status')) {
-            $tasks = $tasks->filter(fn (array $t): bool => ($t['status'] ?? '') === $status);
+            $tasks = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === $status);
         }
 
         if ($type = $this->option('type')) {
-            $tasks = $tasks->filter(fn (array $t): bool => ($t['type'] ?? 'task') === $type);
+            $tasks = $tasks->filter(fn (Task $t): bool => ($t->type ?? 'task') === $type);
         }
 
         if ($priority = $this->option('priority')) {
             $priorityInt = (int) $priority;
-            $tasks = $tasks->filter(fn (array $t): bool => ($t['priority'] ?? 2) === $priorityInt);
+            $tasks = $tasks->filter(fn (Task $t): bool => ($t->priority ?? 2) === $priorityInt);
         }
 
         if ($labels = $this->option('labels')) {
             $filterLabels = array_map(trim(...), explode(',', $labels));
-            $tasks = $tasks->filter(function (array $t) use ($filterLabels): bool {
-                $taskLabels = $t['labels'] ?? [];
+            $tasks = $tasks->filter(function (Task $t) use ($filterLabels): bool {
+                $taskLabels = $t->labels ?? [];
+                if (! is_array($taskLabels)) {
+                    $taskLabels = [];
+                }
 
                 // Task must have at least one of the filter labels
                 return array_intersect($filterLabels, $taskLabels) !== [];
@@ -60,14 +64,14 @@ class TasksCommand extends Command
         }
 
         if ($size = $this->option('size')) {
-            $tasks = $tasks->filter(fn (array $t): bool => ($t['size'] ?? 'm') === $size);
+            $tasks = $tasks->filter(fn (Task $t): bool => ($t->size ?? 'm') === $size);
         }
 
         // Sort by created_at
         $tasks = $tasks->sortBy('created_at')->values();
 
         if ($this->option('json')) {
-            $this->outputJson($tasks->toArray());
+            $this->outputJson($tasks->map(fn (Task $t): array => $t->toArray())->toArray());
         } else {
             if ($tasks->isEmpty()) {
                 $this->info('No tasks found.');
@@ -80,15 +84,15 @@ class TasksCommand extends Command
 
             // Display all schema fields in a table
             $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Size', 'Labels', 'Created'];
-            $rows = $tasks->map(fn (array $t): array => [
-                $t['id'],
-                $t['title'],
-                $t['status'] ?? 'open',
-                $t['type'] ?? 'task',
-                $t['priority'] ?? 2,
-                $t['size'] ?? 'm',
-                isset($t['labels']) && ! empty($t['labels']) ? implode(', ', $t['labels']) : '',
-                $t['created_at'],
+            $rows = $tasks->map(fn (Task $t): array => [
+                $t->id,
+                $t->title,
+                $t->status ?? 'open',
+                $t->type ?? 'task',
+                $t->priority ?? 2,
+                $t->size ?? 'm',
+                isset($t->labels) && ! empty($t->labels) && is_array($t->labels) ? implode(', ', $t->labels) : '',
+                $t->created_at,
             ])->toArray();
 
             $this->table($headers, $rows);

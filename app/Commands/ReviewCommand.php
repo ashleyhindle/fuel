@@ -33,18 +33,18 @@ class ReviewCommand extends Command
         }
 
         // Check task is in reviewable state (in_progress, review, or closed)
-        if ($task['status'] === 'open') {
+        if ($task->status === 'open') {
             $this->error('Cannot review a task that has not been started');
 
             return self::FAILURE;
         }
 
-        $this->info("Triggering review for {$task['id']}...");
+        $this->info("Triggering review for {$task->id}...");
 
         // Get the agent that worked on it (from runs table or default)
-        $agent = $this->determineReviewAgent($task['id'], $runService, $configService);
+        $agent = $this->determineReviewAgent($task->id, $runService, $configService);
 
-        $reviewTriggered = $reviewService->triggerReview($task['id'], $agent);
+        $reviewTriggered = $reviewService->triggerReview($task->id, $agent);
 
         if (! $reviewTriggered) {
             $this->warn('No review agent configured. Set "review" or "primary" in .fuel/config.yaml');

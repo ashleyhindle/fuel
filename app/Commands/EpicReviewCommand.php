@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
+use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -53,11 +54,11 @@ class EpicReviewCommand extends Command
             // Collect commit hashes from tasks
             $commits = [];
             foreach ($tasks as $task) {
-                if (isset($task['commit_hash']) && is_string($task['commit_hash']) && $task['commit_hash'] !== '') {
+                if (isset($task->commit_hash) && is_string($task->commit_hash) && $task->commit_hash !== '') {
                     $commits[] = [
-                        'hash' => $task['commit_hash'],
-                        'task_id' => $task['id'],
-                        'task_title' => $task['title'],
+                        'hash' => $task->commit_hash,
+                        'task_id' => $task->id,
+                        'task_title' => $task->title,
                     ];
                 }
             }
@@ -88,7 +89,7 @@ class EpicReviewCommand extends Command
             if ($this->option('json')) {
                 $output = [
                     'epic' => $epic->toArray(),
-                    'tasks' => $tasks,
+                    'tasks' => array_map(fn (Task $task): array => $task->toArray(), $tasks),
                     'commits' => $commits,
                     'git_stats' => $gitStats,
                 ];
@@ -164,12 +165,12 @@ class EpicReviewCommand extends Command
             $this->line('  <fg=yellow>No tasks linked to this epic.</>');
         } else {
             $headers = ['ID', 'Title', 'Status', 'Commit'];
-            $rows = array_map(function (array $task): array {
+            $rows = array_map(function (Task $task): array {
                 return [
-                    $task['id'] ?? '',
-                    $task['title'] ?? '',
-                    $task['status'] ?? 'open',
-                    $task['commit_hash'] ?? '-',
+                    $task->id ?? '',
+                    $task->title ?? '',
+                    $task->status ?? 'open',
+                    $task->commit_hash ?? '-',
                 ];
             }, $tasks);
 

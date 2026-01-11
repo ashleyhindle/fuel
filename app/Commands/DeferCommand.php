@@ -44,14 +44,14 @@ class DeferCommand extends Command
             }
 
             // Validate that the resolved task ID starts with 'f-' (is a task, not backlog item)
-            $resolvedId = $task['id'] ?? '';
+            $resolvedId = $task->id ?? '';
             if (! str_starts_with($resolvedId, 'f-')) {
                 return $this->outputError(sprintf("ID '%s' is not a task (must have f- prefix)", $id));
             }
 
             // Get task data before deletion
-            $title = $task['title'] ?? '';
-            $description = $task['description'] ?? null;
+            $title = $task->title ?? '';
+            $description = $task->description ?? null;
 
             // Delete from tasks
             $taskService->delete($resolvedId);
