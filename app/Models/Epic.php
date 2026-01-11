@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\EpicStatus;
+
 class Epic extends Model
 {
     /**
@@ -15,19 +17,19 @@ class Epic extends Model
     }
 
     /**
-     * Check if the epic is open.
+     * Check if the epic is in planning status.
      */
-    public function isOpen(): bool
+    public function isPlanning(): bool
     {
-        return $this->attributes['status'] === 'open';
+        return $this->attributes['status'] === EpicStatus::Planning->value;
     }
 
     /**
-     * Check if the epic is closed.
+     * Check if the epic is approved (terminal state).
      */
-    public function isClosed(): bool
+    public function isApproved(): bool
     {
-        return $this->attributes['status'] === 'closed';
+        return $this->attributes['status'] === EpicStatus::Approved->value;
     }
 
     /**
@@ -39,10 +41,13 @@ class Epic extends Model
     }
 
     /**
-     * Check if the epic is in planning or open status.
+     * Check if the epic is in planning or in_progress status.
      */
-    public function isPlanningOrOpen(): bool
+    public function isPlanningOrInProgress(): bool
     {
-        return in_array($this->attributes['status'], ['planning', 'open'], true);
+        return in_array($this->attributes['status'], [
+            EpicStatus::Planning->value,
+            EpicStatus::InProgress->value,
+        ], true);
     }
 }

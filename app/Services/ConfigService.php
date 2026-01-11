@@ -189,10 +189,8 @@ class ConfigService
     /**
      * Extract agent name from complexity config.
      * Supports both string format and array with 'agent' key.
-     *
-     * @param  mixed  $complexityConfig
      */
-    private function extractAgentName($complexityConfig): ?string
+    private function extractAgentName(mixed $complexityConfig): ?string
     {
         if (is_string($complexityConfig)) {
             return $complexityConfig;

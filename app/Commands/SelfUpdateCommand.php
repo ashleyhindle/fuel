@@ -156,7 +156,7 @@ class SelfUpdateCommand extends Command
      *
      * @return resource
      */
-    private function createHttpContext(int $timeout = 10)
+    private function createHttpContext(int $timeout = 10): mixed
     {
         return stream_context_create([
             'http' => [

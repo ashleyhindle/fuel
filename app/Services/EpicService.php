@@ -97,9 +97,7 @@ class EpicService
     {
         $this->db->initialize();
 
-        // SQL uses string literals for TaskStatus values: 'closed', 'cancelled'
-        // These correspond to TaskStatus::Closed->value and TaskStatus::Cancelled->value
-        $sql = "
+        $sql = '
             SELECT e.*
             FROM epics e
             WHERE e.reviewed_at IS NULL
@@ -107,12 +105,12 @@ class EpicService
               AND NOT EXISTS (
                   SELECT 1 FROM tasks t
                   WHERE t.epic_id = e.short_id
-                    AND t.status NOT IN ('closed', 'cancelled')
+                    AND t.status NOT IN (?, ?)
               )
             ORDER BY e.created_at DESC
-        ";
+        ';
 
-        $epics = $this->db->fetchAll($sql);
+        $epics = $this->db->fetchAll($sql, [TaskStatus::Closed->value, TaskStatus::Cancelled->value]);
 
         return array_map(function (array $epic): Epic {
             $epic['id'] = $epic['short_id'];

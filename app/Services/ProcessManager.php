@@ -371,7 +371,7 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         // Step 3: Force kill any remaining processes
-        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
+        foreach ($this->activeAgentProcesses as $agentProcess) {
             $symfonyProcess = $agentProcess->getProcess();
             if ($symfonyProcess->isRunning()) {
                 $symfonyProcess->stop(0); // Immediate SIGKILL
@@ -485,7 +485,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     private function startWithOutputCapture(SymfonyProcess $process, string $stdoutPath, string $stderrPath): void
     {
-        $process->start(function ($type, $buffer) use ($stdoutPath, $stderrPath): void {
+        $process->start(function (string $type, string $buffer) use ($stdoutPath, $stderrPath): void {
             $path = $type === SymfonyProcess::ERR ? $stderrPath : $stdoutPath;
 
             // Recreate directory if it was deleted (e.g., by git clean -X)

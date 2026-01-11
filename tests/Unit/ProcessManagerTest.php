@@ -8,6 +8,7 @@ use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessStatus;
 use App\Services\ConfigService;
+use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use Illuminate\Support\Facades\File;
 use Mockery;
@@ -38,7 +39,7 @@ class ProcessManagerTest extends TestCase
         $mockConfig->shouldReceive('getAgentLimit')
             ->andReturn(2);
 
-        $this->processManager = new ProcessManager($mockConfig, new \App\Services\FuelContext($this->testDir.'/.fuel'));
+        $this->processManager = new ProcessManager($mockConfig, new FuelContext($this->testDir.'/.fuel'));
     }
 
     public function test_spawn_creates_process_with_correct_properties(): void

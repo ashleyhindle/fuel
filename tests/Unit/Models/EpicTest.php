@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\EpicStatus;
 use App\Models\Epic;
 
 test('fromArray creates Epic instance', function (): void {
@@ -10,7 +11,7 @@ test('fromArray creates Epic instance', function (): void {
         'short_id' => 'e-abc123',
         'title' => 'Test Epic',
         'description' => 'Test description',
-        'status' => 'open',
+        'status' => EpicStatus::Planning->value,
         'created_at' => '2024-01-01 12:00:00',
         'updated_at' => '2024-01-01 12:00:00',
         'reviewed_at' => null,
@@ -31,7 +32,7 @@ test('magic __get provides access to properties', function (): void {
         'short_id' => 'e-abc123',
         'title' => 'Test Epic',
         'description' => 'Test description',
-        'status' => 'open',
+        'status' => EpicStatus::Planning->value,
         'created_at' => '2024-01-01 12:00:00',
         'updated_at' => '2024-01-01 12:00:00',
         'reviewed_at' => null,
@@ -41,36 +42,36 @@ test('magic __get provides access to properties', function (): void {
     expect($epic->short_id)->toBe('e-abc123');
     expect($epic->title)->toBe('Test Epic');
     expect($epic->description)->toBe('Test description');
-    expect($epic->status)->toBe('open');
+    expect($epic->status)->toBe(EpicStatus::Planning->value);
     expect($epic->created_at)->toBe('2024-01-01 12:00:00');
     expect($epic->updated_at)->toBe('2024-01-01 12:00:00');
     expect($epic->reviewed_at)->toBeNull();
 });
 
-test('isOpen returns true when status is open', function (): void {
-    $epic = Epic::fromArray(['status' => 'open']);
-    expect($epic->isOpen())->toBeTrue();
+test('isPlanning returns true when status is planning', function (): void {
+    $epic = Epic::fromArray(['status' => EpicStatus::Planning->value]);
+    expect($epic->isPlanning())->toBeTrue();
 });
 
-test('isOpen returns false when status is not open', function (): void {
-    $closedEpic = Epic::fromArray(['status' => 'closed']);
-    expect($closedEpic->isOpen())->toBeFalse();
+test('isPlanning returns false when status is not planning', function (): void {
+    $approvedEpic = Epic::fromArray(['status' => EpicStatus::Approved->value]);
+    expect($approvedEpic->isPlanning())->toBeFalse();
 
-    $planningEpic = Epic::fromArray(['status' => 'planning']);
-    expect($planningEpic->isOpen())->toBeFalse();
+    $inProgressEpic = Epic::fromArray(['status' => EpicStatus::InProgress->value]);
+    expect($inProgressEpic->isPlanning())->toBeFalse();
 });
 
-test('isClosed returns true when status is closed', function (): void {
-    $epic = Epic::fromArray(['status' => 'closed']);
-    expect($epic->isClosed())->toBeTrue();
+test('isApproved returns true when status is approved', function (): void {
+    $epic = Epic::fromArray(['status' => EpicStatus::Approved->value]);
+    expect($epic->isApproved())->toBeTrue();
 });
 
-test('isClosed returns false when status is not closed', function (): void {
-    $openEpic = Epic::fromArray(['status' => 'open']);
-    expect($openEpic->isClosed())->toBeFalse();
+test('isApproved returns false when status is not approved', function (): void {
+    $planningEpic = Epic::fromArray(['status' => EpicStatus::Planning->value]);
+    expect($planningEpic->isApproved())->toBeFalse();
 
-    $planningEpic = Epic::fromArray(['status' => 'planning']);
-    expect($planningEpic->isClosed())->toBeFalse();
+    $inProgressEpic = Epic::fromArray(['status' => EpicStatus::InProgress->value]);
+    expect($inProgressEpic->isApproved())->toBeFalse();
 });
 
 test('isReviewed returns true when reviewed_at is set', function (): void {
@@ -88,22 +89,22 @@ test('isReviewed returns false when reviewed_at is empty string', function (): v
     expect($epic->isReviewed())->toBeFalse();
 });
 
-test('isPlanningOrOpen returns true for planning status', function (): void {
-    $epic = Epic::fromArray(['status' => 'planning']);
-    expect($epic->isPlanningOrOpen())->toBeTrue();
+test('isPlanningOrInProgress returns true for planning status', function (): void {
+    $epic = Epic::fromArray(['status' => EpicStatus::Planning->value]);
+    expect($epic->isPlanningOrInProgress())->toBeTrue();
 });
 
-test('isPlanningOrOpen returns true for open status', function (): void {
-    $epic = Epic::fromArray(['status' => 'open']);
-    expect($epic->isPlanningOrOpen())->toBeTrue();
+test('isPlanningOrInProgress returns true for in_progress status', function (): void {
+    $epic = Epic::fromArray(['status' => EpicStatus::InProgress->value]);
+    expect($epic->isPlanningOrInProgress())->toBeTrue();
 });
 
-test('isPlanningOrOpen returns false for closed status', function (): void {
-    $epic = Epic::fromArray(['status' => 'closed']);
-    expect($epic->isPlanningOrOpen())->toBeFalse();
+test('isPlanningOrInProgress returns false for approved status', function (): void {
+    $epic = Epic::fromArray(['status' => EpicStatus::Approved->value]);
+    expect($epic->isPlanningOrInProgress())->toBeFalse();
 });
 
-test('isPlanningOrOpen returns false for other statuses', function (): void {
-    $epic = Epic::fromArray(['status' => 'archived']);
-    expect($epic->isPlanningOrOpen())->toBeFalse();
+test('isPlanningOrInProgress returns false for other statuses', function (): void {
+    $epic = Epic::fromArray(['status' => EpicStatus::ReviewPending->value]);
+    expect($epic->isPlanningOrInProgress())->toBeFalse();
 });

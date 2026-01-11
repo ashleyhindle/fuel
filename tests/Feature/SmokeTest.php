@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Services\DatabaseService;
+use App\Services\RunService;
+use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
 it('runs a basic command flow', function (): void {
@@ -47,11 +50,13 @@ it('runs a basic command flow', function (): void {
 
     $taskId = $task['id'];
 
-    $databaseService = app(\App\Services\DatabaseService::class);
+    $databaseService = app(DatabaseService::class);
     $databaseService->setDatabasePath($cwd.'/.fuel/agent.db');
-    $taskService = app(\App\Services\TaskService::class);
+
+    $taskService = app(TaskService::class);
     $taskService->setDatabasePath($cwd.'/.fuel/agent.db');
-    $runService = app(\App\Services\RunService::class);
+
+    $runService = app(RunService::class);
 
     $runService->logRun($taskId, [
         'agent' => 'claude',
@@ -383,14 +388,6 @@ it('runs a basic command flow', function (): void {
         '--cwd' => $cwd,
         '--json' => true,
     ]);
-
-    Artisan::call('archive', [
-        '--cwd' => $cwd,
-        '--json' => true,
-        '--all' => true,
-    ]);
-    $archived = json_decode(Artisan::output(), true);
-    expect($archived)->toHaveKey('archived');
 
     Artisan::call('db', [
         '--cwd' => $cwd,

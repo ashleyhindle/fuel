@@ -42,8 +42,8 @@
     },
     "scripts": {
         "test": "pest",
-        "test:coverage": "XDEBUG_MODE=coverage pest --coverage --min=60",
-        "test:type-coverage": "pest --type-coverage --min=99",
+        "test:coverage": "XDEBUG_MODE=coverage php -d memory_limit=-1 vendor/bin/pest --parallel --coverage --min=60 --compact",
+        "test:type-coverage": "php -d memory_limit=-1 vendor/bin/pest --type-coverage --min=100 --compact",
         "format": "pint",
         "rector": "rector process",
         "rector:check": "rector process --dry-run",

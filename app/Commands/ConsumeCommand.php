@@ -80,6 +80,7 @@ class ConsumeCommand extends Command
         if ($this->option('cwd')) {
             $this->taskService->setDatabasePath($this->fuelContext->getDatabasePath());
         }
+
         $this->taskService->initialize();
 
         // Validate config early before entering TUI

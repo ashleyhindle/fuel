@@ -56,7 +56,7 @@ class ResumeSessionCommand extends Command
                 }
 
                 if (count($matches) > 1) {
-                    $matchedIds = array_map(fn ($r): string => $r->run_id ?? '', array_values($matches));
+                    $matchedIds = array_map(fn (object $r): string => $r->run_id ?? '', array_values($matches));
 
                     return $this->outputError(
                         sprintf("Ambiguous run ID '%s'. Matches: ", $runId).implode(', ', $matchedIds)

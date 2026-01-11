@@ -281,6 +281,7 @@ class TaskService
             $params[] = json_encode($labels);
             $task['labels'] = $labels;
         }
+
         $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid', 'last_review_issues'];
 
         foreach ($data as $key => $value) {
@@ -302,6 +303,7 @@ class TaskService
             $params[] = $data['updated_at'];
             $task['updated_at'] = $data['updated_at'];
         }
+
         $params[] = $shortId;
         $this->db->query(
             'UPDATE tasks SET '.implode(', ', $updates).' WHERE short_id = ?',

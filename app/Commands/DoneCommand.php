@@ -94,7 +94,7 @@ class DoneCommand extends Command
                 }
             }
 
-            foreach ($epicCompletions as $epicId => $completion) {
+            foreach (array_keys($epicCompletions) as $epicId) {
                 $this->newLine();
                 $this->info(sprintf('Epic %s completed!', $epicId));
             }

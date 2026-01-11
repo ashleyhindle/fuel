@@ -69,7 +69,7 @@ class EpicsCommand extends Command
 
             // Build table rows with progress tracking
             $headers = ['ID', 'Title', 'Status', 'Progress', 'Created'];
-            $rows = array_map(function ($epic) use ($epicService): array {
+            $rows = array_map(function (Epic $epic) use ($epicService): array {
                 $tasks = $epicService->getTasksForEpic($epic->id);
                 $totalCount = count($tasks);
                 $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));

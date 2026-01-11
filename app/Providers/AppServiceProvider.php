@@ -17,6 +17,7 @@ use App\Services\ProcessManager;
 use App\Services\ReviewService;
 use App\Services\RunService;
 use App\Services\TaskService;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -38,37 +39,37 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(FuelContext::class, fn (): FuelContext => new FuelContext);
 
         // DatabaseService must be registered before TaskService (TaskService depends on it)
-        $this->app->singleton(DatabaseService::class, fn ($app): DatabaseService => new DatabaseService(
+        $this->app->singleton(DatabaseService::class, fn (Application $app): DatabaseService => new DatabaseService(
             $app->make(FuelContext::class)->getDatabasePath()
         ));
 
-        $this->app->singleton(TaskService::class, fn ($app): TaskService => new TaskService(
+        $this->app->singleton(TaskService::class, fn (Application $app): TaskService => new TaskService(
             $app->make(DatabaseService::class)
         ));
 
-        $this->app->singleton(ConfigService::class, fn ($app): ConfigService => new ConfigService(
+        $this->app->singleton(ConfigService::class, fn (Application $app): ConfigService => new ConfigService(
             $app->make(FuelContext::class)
         ));
 
-        $this->app->singleton(BacklogService::class, fn ($app): BacklogService => new BacklogService(
+        $this->app->singleton(BacklogService::class, fn (Application $app): BacklogService => new BacklogService(
             $app->make(FuelContext::class)
         ));
 
-        $this->app->singleton(RunService::class, fn ($app): RunService => new RunService(
+        $this->app->singleton(RunService::class, fn (Application $app): RunService => new RunService(
             $app->make(DatabaseService::class)
         ));
 
-        $this->app->singleton(ProcessManagerInterface::class, fn ($app): ProcessManager => new ProcessManager(
+        $this->app->singleton(ProcessManagerInterface::class, fn (Application $app): ProcessManager => new ProcessManager(
             configService: $app->make(ConfigService::class),
             fuelContext: $app->make(FuelContext::class),
             healthTracker: $app->make(AgentHealthTrackerInterface::class),
         ));
 
-        $this->app->singleton(ProcessManager::class, fn ($app): ProcessManager => $app->make(ProcessManagerInterface::class));
+        $this->app->singleton(ProcessManager::class, fn (Application $app): ProcessManager => $app->make(ProcessManagerInterface::class));
 
         $this->app->singleton(AgentHealthTrackerInterface::class, AgentHealthTracker::class);
 
-        $this->app->singleton(ReviewServiceInterface::class, fn ($app): ReviewService => new ReviewService(
+        $this->app->singleton(ReviewServiceInterface::class, fn (Application $app): ReviewService => new ReviewService(
             processManager: $app->make(ProcessManagerInterface::class),
             taskService: $app->make(TaskService::class),
             configService: $app->make(ConfigService::class),

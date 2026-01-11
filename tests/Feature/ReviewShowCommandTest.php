@@ -37,9 +37,11 @@ afterEach(function (): void {
             if ($item === '.') {
                 continue;
             }
+
             if ($item === '..') {
                 continue;
             }
+
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);

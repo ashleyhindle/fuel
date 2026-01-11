@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Process\ProcessResult;
 use App\Process\ProcessStatus;
 use App\Services\ConfigService;
+use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use Illuminate\Support\Facades\File;
 use Mockery;
@@ -37,7 +38,7 @@ class ProcessManagerTest extends TestCase
         $mockConfig->shouldReceive('getAgentLimit')
             ->andReturn(10); // Higher limit for feature tests
 
-        $this->processManager = new ProcessManager($mockConfig, new \App\Services\FuelContext($this->testDir.'/.fuel'));
+        $this->processManager = new ProcessManager($mockConfig, new FuelContext($this->testDir.'/.fuel'));
     }
 
     protected function tearDown(): void
