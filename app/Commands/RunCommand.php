@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
+use App\Services\OutputParser;
 use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -25,6 +26,7 @@ class RunCommand extends Command
         {--prompt= : Custom prompt (defaults to standard consume prompt)}
         {--no-start : Don\'t mark task as in_progress before running}
         {--no-done : Don\'t auto-complete task on success}
+        {--raw : Show raw JSON output instead of formatted}
         {--json : Output as JSON}';
 
     protected $description = 'Run a single task with an agent, streaming output to terminal';
@@ -34,6 +36,7 @@ class RunCommand extends Command
         private ConfigService $configService,
         private RunService $runService,
         private ProcessManager $processManager,
+        private OutputParser $outputParser,
     ) {
         parent::__construct();
     }
@@ -147,6 +150,7 @@ class RunCommand extends Command
         $stderrPath = $cwd.'/.fuel/processes/'.$taskId.'/stderr.log';
         $lastStdoutPos = 0;
         $lastStderrPos = 0;
+        $rawMode = $this->option('raw');
 
         while ($this->processManager->isRunning($taskId)) {
             // Read and output any new stdout
@@ -154,7 +158,7 @@ class RunCommand extends Command
                 $stdout = file_get_contents($stdoutPath);
                 if (strlen($stdout) > $lastStdoutPos) {
                     $newOutput = substr($stdout, $lastStdoutPos);
-                    $this->getOutput()->write(OutputFormatter::escape($newOutput));
+                    $this->outputChunk($newOutput, $rawMode);
                     $lastStdoutPos = strlen($stdout);
                 }
             }
@@ -176,7 +180,7 @@ class RunCommand extends Command
         if (file_exists($stdoutPath)) {
             $stdout = file_get_contents($stdoutPath);
             if (strlen($stdout) > $lastStdoutPos) {
-                $this->getOutput()->write(OutputFormatter::escape(substr($stdout, $lastStdoutPos)));
+                $this->outputChunk(substr($stdout, $lastStdoutPos), $rawMode);
             }
         }
 
@@ -354,5 +358,26 @@ PROMPT;
         $secs = $seconds % 60;
 
         return sprintf('%dm %ds', $minutes, $secs);
+    }
+
+    /**
+     * Output a chunk of agent output, either raw or parsed.
+     */
+    private function outputChunk(string $chunk, bool $raw): void
+    {
+        if ($raw) {
+            $this->getOutput()->write(OutputFormatter::escape($chunk));
+
+            return;
+        }
+
+        // Parse and format JSONL events
+        $events = $this->outputParser->parseChunk($chunk);
+        foreach ($events as $event) {
+            $formatted = $this->outputParser->format($event);
+            if ($formatted !== null) {
+                $this->line($formatted);
+            }
+        }
     }
 }
