@@ -16,6 +16,7 @@ use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Services\ConfigService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -65,6 +66,7 @@ class ConsumeCommand extends Command
         private RunService $runService,
         private ProcessManager $processManager,
         private EpicService $epicService,
+        private FuelContext $fuelContext,
         private ?AgentHealthTrackerInterface $healthTracker = null,
         private ?ReviewServiceInterface $reviewService = null,
     ) {
@@ -73,7 +75,10 @@ class ConsumeCommand extends Command
 
     public function handle(): int
     {
-        $this->configureCwd($this->taskService, $this->configService);
+        $this->configureCwd($this->fuelContext);
+        if ($this->option('cwd')) {
+            $this->taskService->setDatabasePath($this->fuelContext->getDatabasePath());
+        }
         $this->taskService->initialize();
 
         // Validate config early before entering TUI
@@ -90,12 +95,8 @@ class ConsumeCommand extends Command
             return $this->displayHealthStatus();
         }
 
-        // Set the cwd on ProcessManager so it uses the correct directory for output
-        $cwd = $this->option('cwd') ?: getcwd();
-        $this->processManager->setCwd($cwd);
-
         // Ensure processes directory exists for output capture
-        $processesDir = $cwd.'/.fuel/processes';
+        $processesDir = $this->fuelContext->getProcessesPath();
         if (! is_dir($processesDir)) {
             mkdir($processesDir, 0755, true);
         }
