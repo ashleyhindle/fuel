@@ -24,6 +24,48 @@ class RunService
     ) {}
 
     /**
+     * Create a new run for a task with status='running'.
+     * This method generates the run ID upfront so it can be used for process directories.
+     *
+     * @param  string  $taskId  Task ID (e.g., 'f-xxxxxx')
+     * @param  array<string, mixed>  $data  Run data (agent, model, started_at, session_id, cost_usd)
+     * @return string The generated run short_id (e.g., 'run-abc123')
+     */
+    public function createRun(string $taskId, array $data = []): string
+    {
+        // Resolve task short_id to integer id
+        $taskIntId = $this->resolveTaskId($taskId);
+        if ($taskIntId === null) {
+            throw new RuntimeException(sprintf('Task %s not found', $taskId));
+        }
+
+        // Generate short_id for the run upfront
+        $shortId = $this->generateShortId();
+
+        // Insert into runs table with status='running'
+        $this->databaseService->query(
+            'INSERT INTO runs (short_id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status, duration_seconds)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $shortId,
+                $taskIntId,
+                $data['agent'] ?? null,
+                $data['model'] ?? null,
+                $data['started_at'] ?? now()->toIso8601String(),
+                null, // ended_at
+                null, // exit_code
+                null, // output
+                $data['session_id'] ?? null,
+                $data['cost_usd'] ?? null,
+                self::STATUS_RUNNING,
+                null, // duration_seconds
+            ]
+        );
+
+        return $shortId;
+    }
+
+    /**
      * Log a run for a task.
      *
      * @param  string  $taskId  Task ID (e.g., 'f-xxxxxx')
