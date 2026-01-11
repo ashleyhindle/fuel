@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\TaskStatus;
 use App\Models\Task;
-use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -16,8 +16,6 @@ class TaskService
     private const VALID_SIZES = ['xs', 's', 'm', 'l', 'xl'];
 
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
-
-    private const VALID_STATUSES = ['open', 'in_progress', 'review', 'closed', 'cancelled'];
 
     private string $prefix = 'f';
 
@@ -141,7 +139,7 @@ class TaskService
                 $shortId,
                 $data['title'] ?? throw new RuntimeException('Task title is required'),
                 $data['description'] ?? null,
-                'open',
+                TaskStatus::Open->value,
                 $type,
                 $priority,
                 $size,
@@ -157,7 +155,7 @@ class TaskService
         return Task::fromArray([
             'id' => $shortId,
             'title' => $data['title'],
-            'status' => 'open',
+            'status' => TaskStatus::Open->value,
             'description' => $data['description'] ?? null,
             'type' => $type,
             'priority' => $priority,
@@ -226,7 +224,7 @@ class TaskService
 
         // Update status if provided (with validation)
         if (isset($data['status'])) {
-            $this->validateEnum($data['status'], self::VALID_STATUSES, 'status');
+            $this->validateEnum($data['status'], array_column(TaskStatus::cases(), 'value'), 'status');
             $updates[] = 'status = ?';
             $params[] = $data['status'];
             $task['status'] = $data['status'];
@@ -318,7 +316,7 @@ class TaskService
      */
     public function start(string $id): Task
     {
-        return $this->update($id, ['status' => 'in_progress']);
+        return $this->update($id, ['status' => TaskStatus::InProgress->value]);
     }
 
     /**
@@ -329,7 +327,7 @@ class TaskService
      */
     public function done(string $id, ?string $reason = null, ?string $commitHash = null): Task
     {
-        $data = ['status' => 'closed'];
+        $data = ['status' => TaskStatus::Closed->value];
         if ($reason !== null) {
             $data['reason'] = $reason;
         }
@@ -378,7 +376,7 @@ class TaskService
 
         $task = $taskModel->toArray();
         $status = $task['status'] ?? '';
-        if (! in_array($status, ['closed', 'in_progress', 'review'], true)) {
+        if (! in_array($status, [TaskStatus::Closed->value, TaskStatus::InProgress->value, TaskStatus::Review->value], true)) {
             throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
@@ -387,10 +385,10 @@ class TaskService
 
         $this->db->query(
             'UPDATE tasks SET status = ?, reason = NULL, consumed = NULL, consumed_at = NULL, consumed_exit_code = NULL, consumed_output = NULL, updated_at = ? WHERE short_id = ?',
-            ['open', $now, $shortId]
+            [TaskStatus::Open->value, $now, $shortId]
         );
 
-        $task['status'] = 'open';
+        $task['status'] = TaskStatus::Open->value;
         $task['updated_at'] = $now;
         unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
 
@@ -411,7 +409,7 @@ class TaskService
         $consumed = ! empty($task['consumed']);
         $status = $task['status'] ?? '';
 
-        if (! ($consumed && $status === 'in_progress')) {
+        if (! ($consumed && $status === TaskStatus::InProgress->value)) {
             throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
         }
 
@@ -420,10 +418,10 @@ class TaskService
 
         $this->db->query(
             'UPDATE tasks SET status = ?, reason = NULL, consumed = NULL, consumed_at = NULL, consumed_exit_code = NULL, consumed_output = NULL, consume_pid = NULL, updated_at = ? WHERE short_id = ?',
-            ['open', $now, $shortId]
+            [TaskStatus::Open->value, $now, $shortId]
         );
 
-        $task['status'] = 'open';
+        $task['status'] = TaskStatus::Open->value;
         $task['updated_at'] = $now;
         unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output'], $task['consume_pid']);
 
@@ -461,7 +459,7 @@ class TaskService
         $blockedIds = $this->getBlockedIds($tasks);
 
         return $tasks
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'open')
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
             ->filter(fn (Task $t): bool => ! in_array($t->id, $blockedIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
@@ -489,7 +487,7 @@ class TaskService
         $blockedIds = $this->getBlockedIds($tasks);
 
         return $tasks
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'open')
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
             ->filter(fn (Task $t): bool => in_array($t->id, $blockedIds, true))
             ->sortBy([
                 ['priority', 'asc'],
@@ -514,7 +512,7 @@ class TaskService
             foreach ($blockedBy as $blockerId) {
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
-                    if ($blocker !== null && ($blocker->status ?? '') !== 'closed') {
+                    if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
                         $blockedIds[] = $task->id;
                         break;
                     }
@@ -543,12 +541,12 @@ class TaskService
         }
 
         // Case 2: in_progress + consumed + null PID (spawn failed or PID lost)
-        if ($status === 'in_progress' && $consumed && $pid === null) {
+        if ($status === TaskStatus::InProgress->value && $consumed && $pid === null) {
             return true;
         }
 
         // Case 3: in_progress + PID that is dead
-        if ($status === 'in_progress' && $pid !== null) {
+        if ($status === TaskStatus::InProgress->value && $pid !== null) {
             $pidInt = (int) $pid;
             if (in_array($pidInt, $excludePids, true)) {
                 return false;
@@ -646,7 +644,7 @@ class TaskService
         foreach ($blockedBy as $blockerId) {
             if (is_string($blockerId)) {
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && ($blocker->status ?? '') !== 'closed') {
+                if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
                     $blockers->push($blocker);
                 }
             }
@@ -693,150 +691,6 @@ class TaskService
     public function setDatabasePath(string $path): void
     {
         $this->db->setDatabasePath($path);
-    }
-
-    /**
-     * Get the archive storage path.
-     */
-    public function getArchivePath(): string
-    {
-        return dirname($this->db->getPath()).'/archive.jsonl';
-    }
-
-    /**
-     * Archive closed tasks older than N days (or all closed tasks if $all is true).
-     *
-     * @param  int  $days  Age threshold in days (ignored if $all is true)
-     * @param  bool  $all  Archive all closed tasks regardless of age
-     * @return array<string, mixed>
-     */
-    public function archiveTasks(int $days = 30, bool $all = false): array
-    {
-        $tasks = $this->all();
-        $this->getArchivePath();
-
-        $cutoffDate = null;
-        if (! $all) {
-            $cutoffDate = now()->subDays($days);
-        }
-
-        $tasksToArchive = $tasks->filter(function (Task $task) use ($cutoffDate, $all): bool {
-            if (($task->status ?? '') !== 'closed') {
-                return false;
-            }
-
-            if ($all) {
-                return true;
-            }
-
-            $updatedAt = $task->updated_at ?? null;
-            if ($updatedAt === null) {
-                return false;
-            }
-
-            try {
-                $taskDate = Carbon::parse($updatedAt);
-
-                return $taskDate->lt($cutoffDate);
-            } catch (\Exception) {
-                return false;
-            }
-        });
-
-        if ($tasksToArchive->isEmpty()) {
-            return ['archived' => 0, 'archived_tasks' => []];
-        }
-
-        $archivedTasks = $this->readArchive();
-
-        $archivedTaskIds = $archivedTasks->pluck('id')->toArray();
-        foreach ($tasksToArchive as $task) {
-            if (! in_array($task->id, $archivedTaskIds, true)) {
-                $archivedTasks->push($task->toArray());
-            }
-        }
-
-        $this->writeArchive($archivedTasks);
-
-        // Delete archived tasks from SQLite
-        $archivedIds = $tasksToArchive->pluck('id')->toArray();
-        if (! empty($archivedIds)) {
-            $placeholders = implode(',', array_fill(0, count($archivedIds), '?'));
-            $this->db->query(sprintf('DELETE FROM tasks WHERE short_id IN (%s)', $placeholders), $archivedIds);
-        }
-
-        return [
-            'archived' => $tasksToArchive->count(),
-            'archived_tasks' => $tasksToArchive->map(fn (Task $t): array => $t->toArray())->values()->toArray(),
-        ];
-    }
-
-    /**
-     * Read tasks from archive file.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function readArchive(): Collection
-    {
-        $archivePath = $this->getArchivePath();
-
-        if (! file_exists($archivePath)) {
-            return collect();
-        }
-
-        $content = file_get_contents($archivePath);
-        if ($content === false || trim($content) === '') {
-            return collect();
-        }
-
-        $tasks = collect();
-        $lines = explode("\n", trim($content));
-
-        foreach ($lines as $lineNumber => $line) {
-            if (trim($line) === '') {
-                continue;
-            }
-
-            $task = json_decode($line, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new RuntimeException(
-                    'Failed to parse archive.jsonl on line '.($lineNumber + 1).': '.json_last_error_msg()
-                );
-            }
-
-            $tasks->push($task);
-        }
-
-        return $tasks;
-    }
-
-    /**
-     * Write tasks to archive file.
-     *
-     * @param  Collection<int, array<string, mixed>>  $tasks
-     */
-    private function writeArchive(Collection $tasks): void
-    {
-        $archivePath = $this->getArchivePath();
-        $dir = dirname($archivePath);
-
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        $sorted = $tasks->sortBy('id')->values();
-
-        $content = $sorted
-            ->map(fn (array $task): string => (string) json_encode($task, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE))
-            ->implode("\n");
-
-        if ($content !== '') {
-            $content .= "\n";
-        }
-
-        $tempPath = $archivePath.'.tmp';
-        file_put_contents($tempPath, $content);
-        rename($tempPath, $archivePath);
     }
 
     /**
