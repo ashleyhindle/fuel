@@ -311,3 +311,25 @@ Once Phase 3-4 are done, Fuel can build itself:
 - DatabaseService becomes thin connection/migration manager
 - Improves testability and separation of concerns
 
+### Unify Reviews as Async Agent Jobs
+Current review tracking has weaknesses:
+- `$pendingReviews` is in-memory, lost if ConsumeCommand crashes
+- Review subprocesses can become orphaned
+- Task `status='review'` is a band-aid (task state leaking review concerns)
+- Recovery relies on `recoverStuckReviews()` heuristics
+- Review agent output isn't returning valid JSON for parsing (issues field not populated correctly)
+
+Proposed fix - unified "agent_jobs" model:
+- Single SQLite table for all agent work: `jobs(id, type, task_id, agent, pid, status, started_at, ...)`
+- `type` = 'task' | 'review' | 'epic_review'
+- All state persisted (no in-memory loss on crash)
+- Recovery becomes deterministic: "find jobs where status=running but pid is dead"
+- Reviews and task work tracked uniformly
+- Epic completion reviews fit the same model
+
+Benefits:
+- No orphaned processes
+- Crash recovery is straightforward
+- Queries like "find all running jobs" work across types
+- Cleaner separation: tasks are work items, jobs are execution attempts
+
