@@ -47,7 +47,7 @@ class BackfillRunsCommand extends Command
              WHERE r.model IS NULL OR r.cost_usd IS NULL'
         );
 
-        if (empty($runs)) {
+        if ($runs === []) {
             $this->info('No runs need backfilling');
 
             return self::SUCCESS;
@@ -101,7 +101,7 @@ class BackfillRunsCommand extends Command
                 $params[] = $data['cost_usd'];
             }
 
-            if (empty($updates)) {
+            if ($updates === []) {
                 $skipped++;
 
                 continue;
@@ -171,9 +171,11 @@ class BackfillRunsCommand extends Command
             if ($char === "\n" && $lastLine !== '') {
                 break;
             }
+
             if ($char !== "\n") {
                 $lastLine = $char.$lastLine;
             }
+
             fseek($handle, --$pos);
         }
 
@@ -203,6 +205,7 @@ class BackfillRunsCommand extends Command
                             $primaryModel = $model;
                         }
                     }
+
                     $result['model'] = $primaryModel;
                 }
             }

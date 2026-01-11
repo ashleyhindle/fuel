@@ -833,6 +833,7 @@ class ProcessManager implements ProcessManagerInterface
                             $primaryModel = $model;
                         }
                     }
+
                     $result['model'] = $primaryModel;
                 }
             }
@@ -847,10 +848,8 @@ class ProcessManager implements ProcessManagerInterface
             }
 
             // Check init line for model
-            if ($type === 'system' && ($data['subtype'] ?? '') === 'init') {
-                if ($result['model'] === null && isset($data['model'])) {
-                    $result['model'] = $data['model'];
-                }
+            if ($type === 'system' && ($data['subtype'] ?? '') === 'init' && ($result['model'] === null && isset($data['model']))) {
+                $result['model'] = $data['model'];
             }
         }
 
@@ -860,7 +859,7 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         // If we didn't find model in result, check the first line for init
-        if ($result['model'] === null && ! empty($lines)) {
+        if ($result['model'] === null && $lines !== []) {
             $firstLine = trim($lines[0]);
             $data = json_decode($firstLine, true);
             if (is_array($data) && ($data['type'] ?? '') === 'system' && ($data['subtype'] ?? '') === 'init') {
