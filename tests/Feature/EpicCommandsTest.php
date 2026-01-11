@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\EpicStatus;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -70,7 +71,7 @@ describe('epic:add command', function (): void {
         expect($epic['title'])->toBe('Title Only Epic');
         expect($epic['description'])->toBeNull();
         expect($epic['id'])->toStartWith('e-');
-        expect($epic['status'])->toBe('planning');
+        expect($epic['status'])->toBe(EpicStatus::Planning->value);
     });
 
     it('creates epic with description', function (): void {
@@ -95,7 +96,7 @@ describe('epic:add command', function (): void {
         ]);
         $output = Artisan::output();
 
-        expect($output)->toContain('"status": "planning"');
+        expect($output)->toContain('"status": "'.EpicStatus::Planning->value.'"');
         expect($output)->toContain('"title": "JSON epic"');
         expect($output)->toContain('"id": "e-');
     });
@@ -197,7 +198,7 @@ describe('epic status derivation via commands', function (): void {
 
         $fetchedEpic = $this->epicService->getEpic($epic['id']);
 
-        expect($fetchedEpic['status'])->toBe('planning');
+        expect($fetchedEpic['status'])->toBe(EpicStatus::Planning->value);
     });
 
     it('epic status is in_progress when task is open', function (): void {
@@ -212,7 +213,7 @@ describe('epic status derivation via commands', function (): void {
 
         $fetchedEpic = $this->epicService->getEpic($epic['id']);
 
-        expect($fetchedEpic['status'])->toBe('in_progress');
+        expect($fetchedEpic['status'])->toBe(EpicStatus::InProgress->value);
     });
 
     it('epic status is in_progress when task is in_progress', function (): void {
@@ -233,7 +234,7 @@ describe('epic status derivation via commands', function (): void {
 
         $fetchedEpic = $this->epicService->getEpic($epic['id']);
 
-        expect($fetchedEpic['status'])->toBe('in_progress');
+        expect($fetchedEpic['status'])->toBe(EpicStatus::InProgress->value);
     });
 
     it('epic status is review_pending when all tasks are closed', function (): void {
@@ -254,13 +255,13 @@ describe('epic status derivation via commands', function (): void {
 
         $fetchedEpic = $this->epicService->getEpic($epic['id']);
 
-        expect($fetchedEpic['status'])->toBe('review_pending');
+        expect($fetchedEpic['status'])->toBe(EpicStatus::ReviewPending->value);
     });
 
     it('epic status transitions correctly through task lifecycle', function (): void {
         $epic = $this->epicService->createEpic('Lifecycle Epic');
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe('planning');
+        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::Planning->value);
 
         Artisan::call('add', [
             'title' => 'Lifecycle task',
@@ -270,20 +271,20 @@ describe('epic status derivation via commands', function (): void {
         ]);
         $task = json_decode(Artisan::output(), true);
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe('in_progress');
+        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::InProgress->value);
 
         $this->artisan('start', [
             'id' => $task['id'],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe('in_progress');
+        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::InProgress->value);
 
         $this->artisan('done', [
             'ids' => [$task['id']],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe('review_pending');
+        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::ReviewPending->value);
     });
 });
