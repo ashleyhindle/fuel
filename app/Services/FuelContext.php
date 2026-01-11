@@ -18,11 +18,6 @@ class FuelContext
         return $this->basePath.'/agent.db';
     }
 
-    public function getBacklogPath(): string
-    {
-        return $this->basePath.'/backlog.jsonl';
-    }
-
     public function getRunsPath(): string
     {
         return $this->basePath.'/runs';

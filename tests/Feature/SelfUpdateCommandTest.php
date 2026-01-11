@@ -1,7 +1,6 @@
 <?php
 
 use App\Commands\SelfUpdateCommand;
-use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -63,8 +62,6 @@ describe('OS detection mapping', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -172,8 +169,6 @@ describe('Architecture detection mapping', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -296,8 +291,6 @@ describe('Error handling for unsupported OS', function (): void {
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
-
         $this->taskService = $this->app->make(TaskService::class);
     });
 
@@ -370,8 +363,6 @@ describe('Binary URL construction', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -493,8 +484,6 @@ describe('GitHub API URL construction', function (): void {
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
-
         $this->taskService = $this->app->make(TaskService::class);
     });
 
@@ -577,8 +566,6 @@ describe('Download flow and HTTP handling', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -673,8 +660,6 @@ describe('File operations', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });

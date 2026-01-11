@@ -822,7 +822,7 @@ it('promote() changes task status from someday to open', function (): void {
 it('promote() works with partial ID', function (): void {
     $task = $this->taskService->create(['title' => 'Future feature']);
     $this->taskService->update($task->id, ['status' => 'someday']);
-    $partialId = substr($task->id, 2, 3);
+    $partialId = substr((string) $task->id, 2, 3);
 
     $promoted = $this->taskService->promote($partialId);
 
@@ -855,7 +855,7 @@ it('defer() changes task status to someday', function (): void {
 
 it('defer() works with partial ID', function (): void {
     $task = $this->taskService->create(['title' => 'Task to defer']);
-    $partialId = substr($task->id, 2, 3);
+    $partialId = substr((string) $task->id, 2, 3);
 
     $deferred = $this->taskService->defer($partialId);
 

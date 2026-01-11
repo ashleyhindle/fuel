@@ -9,7 +9,6 @@ use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
-use App\Services\BacklogService;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
@@ -48,10 +47,6 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(ConfigService::class, fn (Application $app): ConfigService => new ConfigService(
-            $app->make(FuelContext::class)
-        ));
-
-        $this->app->singleton(BacklogService::class, fn (Application $app): BacklogService => new BacklogService(
             $app->make(FuelContext::class)
         ));
 

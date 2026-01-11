@@ -85,7 +85,7 @@ class TaskService
     private function validateEnum(mixed $value, array $validValues, string $fieldName): void
     {
         if (! in_array($value, $validValues, true)) {
-            $valueStr = is_object($value) ? get_class($value) : (string) $value;
+            $valueStr = is_object($value) ? $value::class : (string) $value;
             throw new RuntimeException(
                 sprintf("Invalid %s '%s'. Must be one of: ", $fieldName, $valueStr).implode(', ', $validValues)
             );

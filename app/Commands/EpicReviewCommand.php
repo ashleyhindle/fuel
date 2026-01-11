@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use Symfony\Component\Console\Output\OutputInterface;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
@@ -238,7 +239,7 @@ class EpicReviewCommand extends Command
             if ($gitDiff !== null) {
                 $this->line('<fg=cyan>Full Diff:</>');
                 $this->newLine();
-                $this->output->writeln($gitDiff, \Symfony\Component\Console\Output\OutputInterface::OUTPUT_RAW);
+                $this->output->writeln($gitDiff, OutputInterface::OUTPUT_RAW);
                 $this->newLine();
             }
         } else {
@@ -429,10 +430,11 @@ class EpicReviewCommand extends Command
                 $commit['timestamp'] = 0;
             }
         }
+
         unset($commit);
 
         // Sort by timestamp ascending (oldest first)
-        usort($commits, fn ($a, $b) => $a['timestamp'] <=> $b['timestamp']);
+        usort($commits, fn (array $a, array $b): int => $a['timestamp'] <=> $b['timestamp']);
 
         return $commits;
     }

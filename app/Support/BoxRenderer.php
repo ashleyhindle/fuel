@@ -14,7 +14,7 @@ class BoxRenderer
     private const BOX_WIDTH = 50;
 
     public function __construct(
-        private OutputStyle $output
+        private readonly OutputStyle $output
     ) {}
 
     /**
@@ -52,10 +52,9 @@ class BoxRenderer
         ?string $emoji = null,
         ?int $width = null
     ): array {
-        $width = $width ?? self::BOX_WIDTH;
-        $contentWidth = $width - 4; // Account for borders and padding
+        $width ??= self::BOX_WIDTH; // Account for borders and padding
 
-        $header = $emoji ? "{$emoji} {$title}" : $title;
+        $header = $emoji ? sprintf('%s %s', $emoji, $title) : $title;
 
         $boxLines = [];
 
@@ -63,7 +62,7 @@ class BoxRenderer
         $boxLines[] = $this->topBorder($width);
 
         // Header line
-        $boxLines[] = $this->contentLine($header, $width, true);
+        $boxLines[] = $this->contentLine($header, $width);
 
         // Separator
         $boxLines[] = $this->separator($width);
@@ -91,7 +90,7 @@ class BoxRenderer
      */
     public function horizontalRule(?int $width = null): string
     {
-        $width = $width ?? self::BOX_WIDTH;
+        $width ??= self::BOX_WIDTH;
 
         return '├'.str_repeat('─', $width - 2).'┤';
     }
@@ -150,9 +149,8 @@ class BoxRenderer
      *
      * @param  string  $text  The text content
      * @param  int  $width  Total box width
-     * @param  bool  $isHeader  Whether this is a header line (affects padding)
      */
-    private function contentLine(string $text, int $width, bool $isHeader = false): string
+    private function contentLine(string $text, int $width): string
     {
         // Strip ANSI codes to calculate visible length
         $visibleText = $this->stripAnsi($text);

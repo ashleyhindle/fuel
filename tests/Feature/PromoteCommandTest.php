@@ -121,6 +121,7 @@ describe('promote command', function (): void {
             'title' => 'Feature to promote',
         ]);
         $item = $this->taskService->update($item['id'], ['status' => TaskStatus::Someday->value]);
+
         $partialId = substr((string) $item['id'], 2, 3);
 
         Artisan::call('promote', [
@@ -185,11 +186,13 @@ describe('promote command', function (): void {
             'description' => 'First description',
         ]);
         $item1 = $this->taskService->update($item1['id'], ['status' => TaskStatus::Someday->value]);
+
         $item2 = $this->taskService->create([
             'title' => 'Second feature',
             'description' => 'Second description',
         ]);
         $item2 = $this->taskService->update($item2['id'], ['status' => TaskStatus::Someday->value]);
+
         $item3 = $this->taskService->create([
             'title' => 'Third feature',
             'description' => 'Third description',
@@ -226,6 +229,7 @@ describe('promote command', function (): void {
             'title' => 'JSON feature 1',
         ]);
         $item1 = $this->taskService->update($item1['id'], ['status' => TaskStatus::Someday->value]);
+
         $item2 = $this->taskService->create([
             'title' => 'JSON feature 2',
         ]);
@@ -253,6 +257,7 @@ describe('promote command', function (): void {
             'title' => 'Valid feature',
         ]);
         $item1 = $this->taskService->update($item1['id'], ['status' => TaskStatus::Someday->value]);
+
         $item2 = $this->taskService->create([
             'title' => 'Another valid feature',
         ]);

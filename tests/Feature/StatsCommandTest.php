@@ -265,13 +265,13 @@ describe('stats command', function (): void {
 
         // Create tasks completed on consecutive days
         for ($i = 0; $i < 5; $i++) {
-            $task = $this->taskService->create(['title' => "Task $i"]);
+            $task = $this->taskService->create(['title' => 'Task ' . $i]);
             $this->taskService->done($task['id']);
 
             // Update the task's updated_at to be $i days ago
             // Get the integer ID from the task
             $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
-            $db->query("UPDATE tasks SET updated_at = datetime('now', '-$i days') WHERE id = ?", [(int) $taskIntId['id']]);
+            $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
@@ -298,10 +298,10 @@ describe('stats command', function (): void {
         // Rest: 0 tasks
         for ($day = 1; $day <= 3; $day++) {
             for ($count = 0; $count < $day; $count++) {
-                $task = $this->taskService->create(['title' => "Day $day Task $count"]);
+                $task = $this->taskService->create(['title' => sprintf('Day %d Task %d', $day, $count)]);
                 $this->taskService->done($task['id']);
                 $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
-                $db->query("UPDATE tasks SET updated_at = datetime('now', '-$day days') WHERE id = ?", [(int) $taskIntId['id']]);
+                $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $day), [(int) $taskIntId['id']]);
             }
         }
 
@@ -363,7 +363,7 @@ describe('stats command', function (): void {
         expect($output)->toContain('Total: 4');
         expect($output)->toContain('Planning: 2');
         expect($output)->toContain('In Progress: 1');
-        expect($output)->toContain('Done: 1');
+        expect($output)->toContain('Approved: 1');
     });
 
     it('displays task type counts correctly', function (): void {
@@ -400,7 +400,7 @@ describe('stats command', function (): void {
 
         // Create 10 complex tasks to earn "Complex Crusher" badge
         for ($i = 0; $i < 10; $i++) {
-            $task = $this->taskService->create(['title' => "Complex task $i", 'complexity' => 'complex']);
+            $task = $this->taskService->create(['title' => 'Complex task ' . $i, 'complexity' => 'complex']);
             $this->taskService->done($task['id']);
         }
 
@@ -566,20 +566,20 @@ describe('stats command', function (): void {
 
         // Create first streak: 3 days (7, 8, 9 days ago)
         for ($i = 7; $i <= 9; $i++) {
-            $task = $this->taskService->create(['title' => "Streak 1 Day $i"]);
+            $task = $this->taskService->create(['title' => 'Streak 1 Day ' . $i]);
             $this->taskService->done($task['id']);
             $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
-            $db->query("UPDATE tasks SET updated_at = datetime('now', '-$i days') WHERE id = ?", [(int) $taskIntId['id']]);
+            $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
         // Gap: no tasks 5-6 days ago
 
         // Create second streak: 5 days (0, 1, 2, 3, 4 days ago) - current streak
         for ($i = 0; $i <= 4; $i++) {
-            $task = $this->taskService->create(['title' => "Streak 2 Day $i"]);
+            $task = $this->taskService->create(['title' => 'Streak 2 Day ' . $i]);
             $this->taskService->done($task['id']);
             $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
-            $db->query("UPDATE tasks SET updated_at = datetime('now', '-$i days') WHERE id = ?", [(int) $taskIntId['id']]);
+            $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);

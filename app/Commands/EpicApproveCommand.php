@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -61,7 +62,7 @@ class EpicApproveCommand extends Command
                 $this->outputJson($epics[0]->toArray());
             } else {
                 // Multiple epics - return array
-                $this->outputJson(array_map(fn ($epic) => $epic->toArray(), $epics));
+                $this->outputJson(array_map(fn (Epic $epic): array => $epic->toArray(), $epics));
             }
         } else {
             foreach ($epics as $epic) {

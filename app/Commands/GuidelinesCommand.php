@@ -163,7 +163,7 @@ fuel epic:reviewed <e-id>               # Mark as human-reviewed
 
 ### Backlog Management
 
-The backlog (`.fuel/backlog.jsonl`) is for **rough ideas and future work** that isn't ready to implement yet. Tasks are for **work ready to implement now**.
+The backlog is for **rough ideas and future work** that isn't ready to implement yet. Tasks are for **work ready to implement now**.
 
 **When to use backlog vs tasks:**
 
@@ -175,23 +175,23 @@ The backlog (`.fuel/backlog.jsonl`) is for **rough ideas and future work** that 
 ```bash
 fuel add "Future idea" --someday          # Add to backlog (ignores other options)
 fuel backlog                              # List all backlog items
-fuel promote <b-id>                      # Promote backlog item to task (adds --priority, --type, etc.)
+fuel promote <f-id>                      # Promote backlog item to task (adds --priority, --type, etc.)
 fuel defer <f-id>                         # Move a task to backlog
-fuel remove <b-id>                        # Delete a backlog item
+fuel remove <f-id>                        # Delete a backlog item
 ```
 
 **Promoting backlog to tasks:**
 
 When a backlog item is ready to work on:
 1. Review the backlog: `fuel backlog`
-2. Promote with task metadata: `fuel promote <b-id> --priority=2 --type=feature --complexity=moderate`
-3. The backlog item is removed and a new task is created with the same title/description
+2. Promote with task metadata: `fuel promote <f-id> --priority=2 --type=feature --complexity=moderate`
+3. The backlog item status is updated from 'someday' to 'open'
 
 **Deferring tasks:**
 
 If a task isn't ready to work on (needs more planning, blocked externally, wrong priority):
 1. `fuel defer <f-id>` - Moves task to backlog, preserving title and description
-2. Later, promote it back when ready: `fuel promote <b-id> --priority=...`
+2. Later, promote it back when ready: `fuel promote <f-id> --priority=...`
 
 ### Needs-Human Workflow
 
