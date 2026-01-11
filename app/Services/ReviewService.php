@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Process\ProcessOutput;
 use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Prompts\ReviewPrompt;
@@ -175,8 +176,7 @@ class ReviewService implements ReviewServiceInterface
     /**
      * Get the review result for a completed review.
      *
-     * Parses review process output to determine result.
-     * Checks if follow-up tasks were created (tasks blocked-by this one with review-fix label).
+     * Parses structured JSON from review agent output to determine result.
      *
      * @param  string  $taskId  The task ID to get the result for
      * @return ReviewResult|null The review result, or null if review not complete
@@ -190,41 +190,33 @@ class ReviewService implements ReviewServiceInterface
         $reviewTaskId = 'review-'.$taskId;
         $output = $this->processManager->getOutput($reviewTaskId);
 
-        // Check for follow-up tasks created by the reviewer
-        // These are tasks with review-fix label that are blocked by this task
-        $allTasks = $this->taskService->all();
-        $followUpTaskIds = $allTasks
-            ->filter(function (array $t) use ($taskId): bool {
-                // Check if task has review-fix label
-                $labels = $t['labels'] ?? [];
-                if (! is_array($labels) || ! in_array('review-fix', $labels, true)) {
-                    return false;
-                }
+        // Parse structured JSON from review agent output
+        $parsedResult = $this->parseReviewOutput($output);
 
-                // Check if blocked by the reviewed task
-                $blockedBy = $t['blocked_by'] ?? [];
-
-                return is_array($blockedBy) && in_array($taskId, $blockedBy, true);
-            })
-            ->pluck('id')
-            ->values()
-            ->toArray();
-
-        // Determine if review passed
-        // Review passes if no follow-up tasks were created
-        $passed = empty($followUpTaskIds);
-
-        // Derive issues from follow-up task titles (simple, reliable approach)
-        // The review agent creates follow-up tasks with descriptive titles - use those
         $issues = [];
-        if (! $passed) {
-            $issues[] = 'review_issues_found';
+        $passed = true;
+
+        if ($parsedResult !== null) {
+            // Use parsed JSON result
+            $passed = $parsedResult['passed'];
+            $issues = $parsedResult['issues'];
+        } else {
+            // No valid JSON found - check if the review agent ran `fuel done`
+            // If so, the task status would be 'closed', meaning review passed
+            $task = $this->taskService->find($taskId);
+            if ($task !== null && ($task['status'] === 'closed' || $task['status'] === 'done')) {
+                $passed = true;
+            } else {
+                // No JSON and task not done - review failed or agent crashed
+                $passed = false;
+                $issues[] = 'Review agent did not output structured result';
+            }
         }
 
         // Record review completed in database
         $reviewId = $this->pendingReviews[$taskId]['reviewId'] ?? null;
         if ($reviewId !== null) {
-            $this->databaseService->recordReviewCompleted($reviewId, $passed, $issues, $followUpTaskIds);
+            $this->databaseService->recordReviewCompleted($reviewId, $passed, $issues);
         }
 
         // Remove from pending reviews
@@ -234,9 +226,103 @@ class ReviewService implements ReviewServiceInterface
             taskId: $taskId,
             passed: $passed,
             issues: $issues,
-            followUpTaskIds: $followUpTaskIds,
             completedAt: Carbon::now('UTC')->toIso8601String()
         );
+    }
+
+    /**
+     * Parse structured JSON from review agent output.
+     *
+     * Looks for JSON like: {"result": "pass|fail", "issues": [...]}
+     *
+     * @return array{passed: bool, issues: array<string>}|null Parsed result or null if no valid JSON found
+     */
+    private function parseReviewOutput(ProcessOutput $output): ?array
+    {
+        $combined = $output->getCombined();
+
+        // Find all positions where JSON might start with {"result"
+        // Then try to parse valid JSON from each position
+        $pattern = '/\{"result"\s*:\s*"(pass|fail)"/';
+        if (! preg_match_all($pattern, $combined, $matches, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        // Try each match position, keeping the last valid one
+        $lastValidData = null;
+        foreach ($matches[0] as $match) {
+            $startPos = $match[1];
+            $substring = substr($combined, $startPos);
+
+            // Try to find valid JSON by looking for balanced braces
+            $braceCount = 0;
+            $inString = false;
+            $escape = false;
+            $endPos = 0;
+
+            for ($i = 0; $i < strlen($substring); $i++) {
+                $char = $substring[$i];
+
+                if ($escape) {
+                    $escape = false;
+
+                    continue;
+                }
+
+                if ($char === '\\' && $inString) {
+                    $escape = true;
+
+                    continue;
+                }
+
+                if ($char === '"' && ! $escape) {
+                    $inString = ! $inString;
+
+                    continue;
+                }
+
+                if (! $inString) {
+                    if ($char === '{') {
+                        $braceCount++;
+                    } elseif ($char === '}') {
+                        $braceCount--;
+                        if ($braceCount === 0) {
+                            $endPos = $i + 1;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if ($endPos > 0) {
+                $jsonStr = substr($substring, 0, $endPos);
+                $data = json_decode($jsonStr, true);
+                if ($data !== null && isset($data['result'], $data['issues'])) {
+                    $lastValidData = $data;
+                }
+            }
+        }
+
+        if ($lastValidData === null) {
+            return null;
+        }
+
+        $passed = $lastValidData['result'] === 'pass';
+        $issues = [];
+
+        if (isset($lastValidData['issues']) && is_array($lastValidData['issues'])) {
+            foreach ($lastValidData['issues'] as $issue) {
+                if (is_array($issue) && isset($issue['description'])) {
+                    $issues[] = $issue['description'];
+                } elseif (is_array($issue) && isset($issue['type'])) {
+                    $issues[] = $issue['type'];
+                } elseif (is_string($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        return ['passed' => $passed, 'issues' => $issues];
     }
 
     /**

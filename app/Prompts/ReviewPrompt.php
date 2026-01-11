@@ -28,6 +28,7 @@ class ReviewPrompt
 
         return <<<PROMPT
 # Review Task: {$taskId}
+You are reviewing work. You MUST only review, you are not allowed to make any file edits, you MUST respond with one message with valid JSON as described below.
 
 You are reviewing the work done on task **{$taskId}**: {$title}
 
@@ -51,26 +52,16 @@ You are reviewing the work done on task **{$taskId}**: {$title}
 
 ## Review Checklist
 
-Complete each check in order. If any check fails, create the appropriate follow-up task and stop.
+Complete each check and note any issues found.
 
 ### 1. CHECK UNCOMMITTED CHANGES
 
-Look at the git status output above. If there are uncommitted changes (modified files, untracked files that should be committed):
-
-```bash
-fuel add 'Commit uncommitted changes from {$taskId}' --blocked-by={$taskId} --priority=0 --complexity=trivial --labels=review-fix
-```
+Look at the git status output above. Are there uncommitted changes (modified files, untracked files that should be committed)?
 
 ### 2. VERIFY RELEVANT TESTS
 
 If the changes affect code that has tests, run those relevant tests to verify they pass.
 Don't run the entire test suite - only tests related to the files that were changed.
-
-If relevant tests fail:
-
-```bash
-fuel add 'Fix failing tests from {$taskId}' --blocked-by={$taskId} --priority=0 --complexity=simple --labels=review-fix --description='[Describe which tests failed and why]'
-```
 
 ### 3. CHECK TASK COMPLETION
 
@@ -80,30 +71,43 @@ Compare the git diff to the task description above.
 - Are there any missing requirements from the description?
 - Is the implementation complete?
 
-If the task is incomplete, create a follow-up task with specific missing items:
+---
 
-```bash
-fuel add 'Complete missing work from {$taskId}: [describe what is missing]' --blocked-by={$taskId} --priority=0 --complexity=simple --labels=review-fix --description='[Specific details of what is missing or incomplete]'
-```
+## REQUIRED: Output Your Review Result
 
-### 4. REPORT RESULT
+After completing your review, you MUST output a JSON block with your findings.
+This is REQUIRED - the system parses this output to track review results.
 
-**If ALL checks pass** (no uncommitted changes, tests pass, task is complete):
-
+**If ALL checks pass**, run:
 ```bash
 fuel done {$taskId}
 ```
 
-**If ANY issues were found**: The follow-up tasks you created handle the issues. The original task stays in review status - do NOT mark it as done.
+Then output:
+```json
+{"result": "pass", "issues": []}
+```
 
----
+**If ANY issues were found**, output (do NOT run fuel done):
+```json
+{"result": "fail", "issues": [{"type": "TYPE", "description": "DESCRIPTION"}]}
+```
 
-## Important Notes
+Issue types: `uncommitted_changes`, `tests_failing`, `incomplete`, `other`
 
-- Only create follow-up tasks for actual issues found
-- Be specific in follow-up task descriptions
-- Use `--blocked-by={$taskId}` so follow-ups are properly linked
-- Use `--labels=review-fix` to track review-created tasks
+Examples:
+
+```json
+{"result": "fail", "issues": [{"type": "uncommitted_changes", "description": "Modified files not committed: src/Service.php, src/Controller.php"}, {"type": "tests_failing", "description": "UserServiceTest::testCreate failed - expected 200, got 500"}]}
+```
+
+```json
+{"result": "fail", "issues": [{"type": "tests_failing", "description": "UserServiceTest::testCreate failed - expected 200, got 500"}]}
+```
+
+```json
+{"result": "fail", "issues": [{"type": "incomplete", "description": "Missing validation for email field as specified in requirements"}]}
+```
 PROMPT;
     }
 

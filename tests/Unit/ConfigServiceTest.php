@@ -738,17 +738,18 @@ it('builds agent command directly', function (): void {
     expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet', '--verbose']);
 });
 
-it('returns null when review_agent is not set', function (): void {
+it('returns primary agent when review is not set', function (): void {
     $config = makeConfig();
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    expect($this->configService->getReviewAgent())->toBeNull();
+    // Falls back to primary when review is not set
+    expect($this->configService->getReviewAgent())->toBe('claude');
 });
 
 it('returns review agent name when set', function (): void {
     $config = makeConfig();
-    $config['review_agent'] = 'claude-sonnet';
+    $config['review'] = 'claude-sonnet';
 
     file_put_contents($this->configPath, Yaml::dump($config));
 

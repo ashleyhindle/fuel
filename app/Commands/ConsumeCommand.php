@@ -558,11 +558,6 @@ PROMPT;
                             $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
                         }
                     }
-
-                    // If follow-up tasks were created, show them
-                    if (! empty($result->followUpTaskIds)) {
-                        $statusLines[] = $this->formatStatus('📝', sprintf('Follow-up tasks created: %s', implode(', ', $result->followUpTaskIds)), 'cyan');
-                    }
                 }
 
                 $this->invalidateTaskCache();

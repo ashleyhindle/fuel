@@ -16,8 +16,8 @@ it('contains the task ID in the prompt', function (): void {
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
     expect($prompt)->toContain('f-abc123');
-    // Task ID should appear multiple times (in fuel commands)
-    expect(substr_count($prompt, 'f-abc123'))->toBeGreaterThan(3);
+    // Task ID should appear multiple times (in header and fuel done command)
+    expect(substr_count($prompt, 'f-abc123'))->toBeGreaterThanOrEqual(3);
 });
 
 it('contains the task title in the prompt', function (): void {
@@ -105,12 +105,6 @@ it('contains fuel commands in the prompt', function (): void {
 
     // Check for fuel done command
     expect($prompt)->toContain('fuel done f-abc123');
-
-    // Check for fuel add commands with proper options
-    expect($prompt)->toContain('fuel add');
-    expect($prompt)->toContain('--blocked-by=f-abc123');
-    expect($prompt)->toContain('--priority=0');
-    expect($prompt)->toContain('--labels=review-fix');
 });
 
 it('contains review checklist sections', function (): void {
@@ -123,9 +117,9 @@ it('contains review checklist sections', function (): void {
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
     expect($prompt)->toContain('CHECK UNCOMMITTED CHANGES');
-    expect($prompt)->toContain('CHECK TESTS PASS');
+    expect($prompt)->toContain('VERIFY RELEVANT TESTS');
     expect($prompt)->toContain('CHECK TASK COMPLETION');
-    expect($prompt)->toContain('REPORT RESULT');
+    expect($prompt)->toContain('Output Your Review Result');
 });
 
 it('truncates large diffs', function (): void {
@@ -197,7 +191,7 @@ it('handles missing task fields gracefully', function (): void {
     expect($prompt)->toContain('No description provided');
 });
 
-it('includes guidance for finding test commands', function (): void {
+it('includes guidance for running tests', function (): void {
     $task = [
         'id' => 'f-abc123',
         'title' => 'Test task',
@@ -206,12 +200,11 @@ it('includes guidance for finding test commands', function (): void {
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
-    expect($prompt)->toContain('package.json');
-    expect($prompt)->toContain('composer.json');
-    expect($prompt)->toContain('Makefile');
+    // Should include guidance about running relevant tests
+    expect($prompt)->toContain('only tests related to the files that were changed');
 });
 
-it('includes instruction to not mark done when issues found', function (): void {
+it('includes instruction to not run fuel done when issues found', function (): void {
     $task = [
         'id' => 'f-abc123',
         'title' => 'Test task',
@@ -220,5 +213,5 @@ it('includes instruction to not mark done when issues found', function (): void 
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
-    expect($prompt)->toContain('do NOT mark it as done');
+    expect($prompt)->toContain('do NOT run fuel done');
 });

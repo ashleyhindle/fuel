@@ -414,7 +414,7 @@ it('throws exception when task not found during trigger', function (): void {
         ->toThrow(RuntimeException::class, "Task 'f-nonexistent' not found");
 });
 
-it('gets review result when review is complete', function (): void {
+it('gets review result when review passes with JSON output', function (): void {
     // Create main task
     $task = $this->taskService->create(['title' => 'Review result test']);
     $taskId = $task['id'];
@@ -441,12 +441,12 @@ it('gets review result when review is complete', function (): void {
         ->with('review-'.$taskId)
         ->andReturn(false);
 
-    // Mock output
+    // Mock output with passing JSON
     $this->processManager
         ->shouldReceive('getOutput')
         ->with('review-'.$taskId)
         ->andReturn(new ProcessOutput(
-            stdout: 'Review completed successfully',
+            stdout: 'Review completed successfully. {"result": "pass", "issues": []}',
             stderr: '',
             stdoutPath: '/tmp/stdout.log',
             stderrPath: '/tmp/stderr.log'
@@ -469,21 +469,13 @@ it('gets review result when review is complete', function (): void {
     expect($result->taskId)->toBe($taskId);
     expect($result->passed)->toBeTrue();
     expect($result->issues)->toBeEmpty();
-    expect($result->followUpTaskIds)->toBeEmpty();
     expect($result->completedAt)->not->toBeEmpty();
 });
 
-it('detects follow-up tasks created by reviewer', function (): void {
+it('detects issues from JSON output', function (): void {
     // Create main task
     $task = $this->taskService->create(['title' => 'Main task']);
     $taskId = $task['id'];
-
-    // Create a follow-up task that is blocked by the main task and has review-fix label
-    $followUpTask = $this->taskService->create([
-        'title' => 'Fix failing tests from '.$taskId,
-        'labels' => ['review-fix'],
-        'blocked_by' => [$taskId],
-    ]);
 
     // Mock spawn
     $this->processManager
@@ -507,12 +499,13 @@ it('detects follow-up tasks created by reviewer', function (): void {
         ->with('review-'.$taskId)
         ->andReturn(false);
 
-    // Mock output with test failure message
+    // Mock output with failing JSON containing issues
+    $jsonOutput = '{"result": "fail", "issues": [{"type": "tests_failing", "description": "3 tests failed in UserServiceTest"}]}';
     $this->processManager
         ->shouldReceive('getOutput')
         ->with('review-'.$taskId)
         ->andReturn(new ProcessOutput(
-            stdout: 'Tests failed during review',
+            stdout: 'Running review... '.$jsonOutput,
             stderr: '',
             stdoutPath: '/tmp/stdout.log',
             stderrPath: '/tmp/stderr.log'
@@ -533,8 +526,7 @@ it('detects follow-up tasks created by reviewer', function (): void {
 
     expect($result)->not->toBeNull();
     expect($result->passed)->toBeFalse();
-    expect($result->followUpTaskIds)->toContain($followUpTask['id']);
-    expect($result->issues)->toContain('review_issues_found');
+    expect($result->issues)->toContain('3 tests failed in UserServiceTest');
 });
 
 it('returns null for getReviewResult when review not complete', function (): void {
@@ -605,17 +597,10 @@ it('generates review prompt via getReviewPrompt', function (): void {
     expect($prompt)->toContain('M file.txt');
 });
 
-it('detects issues when follow-up task exists', function (): void {
+it('detects multiple issues from JSON output', function (): void {
     // Create main task
     $task = $this->taskService->create(['title' => 'Task with issues']);
     $taskId = $task['id'];
-
-    // Create follow-up task (this is how issues are detected now)
-    $this->taskService->create([
-        'title' => 'Fix issues from review',
-        'labels' => ['review-fix'],
-        'blocked_by' => [$taskId],
-    ]);
 
     // Mock spawn
     $this->processManager
@@ -638,11 +623,13 @@ it('detects issues when follow-up task exists', function (): void {
         ->with('review-'.$taskId)
         ->andReturn(false);
 
+    // JSON with multiple issues
+    $jsonOutput = '{"result": "fail", "issues": [{"type": "uncommitted_changes", "description": "Modified files not committed: src/Service.php"}, {"type": "tests_failing", "description": "Unit tests failed"}]}';
     $this->processManager
         ->shouldReceive('getOutput')
         ->with('review-'.$taskId)
         ->andReturn(new ProcessOutput(
-            stdout: 'Review completed with issues',
+            stdout: $jsonOutput,
             stderr: '',
             stdoutPath: '/tmp/stdout.log',
             stderrPath: '/tmp/stderr.log'
@@ -662,7 +649,67 @@ it('detects issues when follow-up task exists', function (): void {
     $result = $reviewService->getReviewResult($taskId);
 
     expect($result->passed)->toBeFalse();
-    expect($result->issues)->toContain('review_issues_found');
+    expect($result->issues)->toHaveCount(2);
+    expect($result->issues)->toContain('Modified files not committed: src/Service.php');
+    expect($result->issues)->toContain('Unit tests failed');
+});
+
+it('falls back to checking task status when no JSON output', function (): void {
+    // Create main task
+    $task = $this->taskService->create(['title' => 'Task without JSON']);
+    $taskId = $task['id'];
+
+    // Mock spawn
+    $this->processManager
+        ->shouldReceive('spawn')
+        ->once()
+        ->andReturn(new Process(
+            id: 'p-test01',
+            taskId: 'review-'.$taskId,
+            agent: 'review-agent',
+            command: 'echo test',
+            cwd: getcwd(),
+            pid: 12345,
+            status: ProcessStatus::Running,
+            exitCode: null,
+            startedAt: new DateTimeImmutable
+        ));
+
+    $this->processManager
+        ->shouldReceive('isRunning')
+        ->with('review-'.$taskId)
+        ->andReturn(false);
+
+    // No JSON output - just regular text
+    $this->processManager
+        ->shouldReceive('getOutput')
+        ->with('review-'.$taskId)
+        ->andReturn(new ProcessOutput(
+            stdout: 'Review completed, ran fuel done',
+            stderr: '',
+            stdoutPath: '/tmp/stdout.log',
+            stderrPath: '/tmp/stderr.log'
+        ));
+
+    $reviewService = new ReviewService(
+        $this->processManager,
+        $this->taskService,
+        $this->configService,
+        $this->reviewPrompt,
+        $this->databaseService,
+        $this->runService
+    );
+
+    $reviewService->triggerReview($taskId, 'test-agent');
+
+    // Simulate review agent running `fuel done` (sets status to 'closed')
+    $this->taskService->done($taskId);
+
+    $result = $reviewService->getReviewResult($taskId);
+
+    // Task was closed, so review passes even without JSON
+    expect($result->passed)->toBeTrue();
+    expect($result->issues)->toBeEmpty();
 });
 
 it('recovers stuck reviews for tasks in review status with no active process', function (): void {

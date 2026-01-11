@@ -903,14 +903,12 @@ describe('consume command review integration', function () {
             taskId: $taskId,
             passed: true,
             issues: [],
-            followUpTaskIds: [],
             completedAt: now()->toIso8601String()
         );
 
         // Verify the result indicates passing
         expect($reviewResult->passed)->toBeTrue();
         expect($reviewResult->issues)->toBe([]);
-        expect($reviewResult->followUpTaskIds)->toBe([]);
 
         // Simulate what checkCompletedReviews does when review passes
         Artisan::call('done', [
@@ -946,27 +944,18 @@ describe('consume command review integration', function () {
         $taskId = $task['id'];
         $this->taskService->update($taskId, ['status' => 'review']);
 
-        // Create follow-up tasks (what a reviewer might create)
-        $followUp = $this->taskService->create([
-            'title' => 'Fix uncommitted changes',
-            'labels' => ['review-fix'],
-            'blocked_by' => [$taskId],
-        ]);
-
         // Create a ReviewResult that failed
         $reviewResult = new \App\Process\ReviewResult(
             taskId: $taskId,
             passed: false,
-            issues: ['uncommitted_changes', 'tests_failing'],
-            followUpTaskIds: [$followUp['id']],
+            issues: ['Modified files not committed: src/Service.php', 'Tests failed in UserServiceTest'],
             completedAt: now()->toIso8601String()
         );
 
         // Verify the result indicates failure
         expect($reviewResult->passed)->toBeFalse();
-        expect($reviewResult->issues)->toContain('uncommitted_changes');
-        expect($reviewResult->issues)->toContain('tests_failing');
-        expect($reviewResult->followUpTaskIds)->toContain($followUp['id']);
+        expect($reviewResult->issues)->toContain('Modified files not committed: src/Service.php');
+        expect($reviewResult->issues)->toContain('Tests failed in UserServiceTest');
 
         // Task should stay in 'review' status (don't call done)
         $reviewTask = $this->taskService->find($taskId);
@@ -1054,54 +1043,6 @@ describe('consume command review integration', function () {
         expect($closedTask['labels'])->toContain('auto-closed');
     });
 
-    it('shows follow-up tasks when review creates them', function () {
-        // Create config
-        $config = [
-            'agents' => [
-                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
-            ],
-            'complexity' => [
-                'trivial' => 'echo',
-            ],
-            'primary' => 'echo',
-        ];
-        file_put_contents($this->configPath, Yaml::dump($config));
-
-        // Create a task
-        $task = $this->taskService->create([
-            'title' => 'Original task',
-            'complexity' => 'trivial',
-        ]);
-        $taskId = $task['id'];
-        $this->taskService->update($taskId, ['status' => 'review']);
-
-        // Create follow-up tasks (simulating what a review agent would create)
-        $followUp1 = $this->taskService->create([
-            'title' => 'Fix tests',
-            'labels' => ['review-fix'],
-        ]);
-        $this->taskService->addDependency($followUp1['id'], $taskId);
-
-        $followUp2 = $this->taskService->create([
-            'title' => 'Commit changes',
-            'labels' => ['review-fix'],
-        ]);
-        $this->taskService->addDependency($followUp2['id'], $taskId);
-
-        // Create a ReviewResult with follow-up tasks
-        $reviewResult = new \App\Process\ReviewResult(
-            taskId: $taskId,
-            passed: false,
-            issues: ['tests_failing', 'uncommitted_changes'],
-            followUpTaskIds: [$followUp1['id'], $followUp2['id']],
-            completedAt: now()->toIso8601String()
-        );
-
-        // Verify follow-up tasks are included
-        expect($reviewResult->followUpTaskIds)->toHaveCount(2);
-        expect($reviewResult->followUpTaskIds)->toContain($followUp1['id']);
-        expect($reviewResult->followUpTaskIds)->toContain($followUp2['id']);
-    });
 });
 
 describe('consume command epic context in prompt', function () {

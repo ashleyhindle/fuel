@@ -42,7 +42,7 @@ function createTestTask(DatabaseService $service, string $shortId): void
 it('creates reviews table with correct schema', function () {
     $columns = $this->service->fetchAll('PRAGMA table_info(reviews)');
 
-    expect($columns)->toHaveCount(10);
+    expect($columns)->toHaveCount(9);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'short_id',
@@ -50,7 +50,6 @@ it('creates reviews table with correct schema', function () {
         'agent',
         'status',
         'issues',
-        'followup_task_ids',
         'started_at',
         'completed_at',
         'run_id',
@@ -107,13 +106,12 @@ it('records review completed with pass', function () {
 
     $reviewId = $this->service->recordReviewStarted('f-123456', 'claude');
 
-    $this->service->recordReviewCompleted($reviewId, true, [], []);
+    $this->service->recordReviewCompleted($reviewId, true, []);
 
     $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
 
     expect($review['status'])->toBe('passed');
     expect($review['issues'])->toBe('[]');
-    expect($review['followup_task_ids'])->toBe('[]');
     expect($review['completed_at'])->not->toBeNull();
 });
 
@@ -123,16 +121,14 @@ it('records review completed with failures and issues', function () {
 
     $reviewId = $this->service->recordReviewStarted('f-123456', 'claude');
 
-    $issues = ['uncommitted_changes', 'tests_failing'];
-    $followupTaskIds = ['f-abc123', 'f-def456'];
+    $issues = ['Modified files not committed: src/Service.php', 'Tests failed in UserServiceTest'];
 
-    $this->service->recordReviewCompleted($reviewId, false, $issues, $followupTaskIds);
+    $this->service->recordReviewCompleted($reviewId, false, $issues);
 
     $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
 
     expect($review['status'])->toBe('failed');
     expect(json_decode($review['issues'], true))->toBe($issues);
-    expect(json_decode($review['followup_task_ids'], true))->toBe($followupTaskIds);
     expect($review['completed_at'])->not->toBeNull();
 });
 
@@ -146,8 +142,8 @@ it('gets reviews for task with correct data', function () {
     $reviewId3 = $this->service->recordReviewStarted('f-123456', 'claude');
 
     // Complete some reviews
-    $this->service->recordReviewCompleted($reviewId1, true, [], []);
-    $this->service->recordReviewCompleted($reviewId2, false, ['tests_failing'], ['f-follow1']);
+    $this->service->recordReviewCompleted($reviewId1, true, []);
+    $this->service->recordReviewCompleted($reviewId2, false, ['Tests failed in ServiceTest']);
 
     $reviews = $this->service->getReviewsForTask('f-123456');
 
@@ -166,13 +162,11 @@ it('gets reviews for task with correct data', function () {
 
     // Find review2 and check JSON fields are decoded
     $review2 = collect($reviews)->firstWhere('id', $reviewId2);
-    expect($review2['issues'])->toBe(['tests_failing']);
-    expect($review2['followup_task_ids'])->toBe(['f-follow1']);
+    expect($review2['issues'])->toBe(['Tests failed in ServiceTest']);
 
     // Find review3 (pending) and check empty arrays
     $review3 = collect($reviews)->firstWhere('id', $reviewId3);
     expect($review3['issues'])->toBe([]);
-    expect($review3['followup_task_ids'])->toBe([]);
 });
 
 it('gets reviews for task returns empty array when no reviews exist', function () {
@@ -194,8 +188,8 @@ it('gets pending reviews returns only pending reviews', function () {
     $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
 
     // Complete reviews 1 and 3
-    $this->service->recordReviewCompleted($reviewId1, true, [], []);
-    $this->service->recordReviewCompleted($reviewId3, false, ['uncommitted_changes'], []);
+    $this->service->recordReviewCompleted($reviewId1, true, []);
+    $this->service->recordReviewCompleted($reviewId3, false, ['Uncommitted changes detected']);
 
     $pendingReviews = $this->service->getPendingReviews();
 
@@ -230,7 +224,7 @@ it('gets pending reviews returns empty array when no pending reviews exist', fun
     createTestTask($this->service, 'f-task1');
 
     $reviewId = $this->service->recordReviewStarted('f-task1', 'claude');
-    $this->service->recordReviewCompleted($reviewId, true, [], []);
+    $this->service->recordReviewCompleted($reviewId, true, []);
 
     $pendingReviews = $this->service->getPendingReviews();
 
@@ -243,12 +237,11 @@ it('decodes json fields correctly for null values', function () {
 
     $reviewId = $this->service->recordReviewStarted('f-123456', 'claude');
 
-    // Review is pending, so issues and followup_task_ids are NULL in DB
+    // Review is pending, so issues is NULL in DB
     $reviews = $this->service->getReviewsForTask('f-123456');
 
     expect($reviews)->toHaveCount(1);
     expect($reviews[0]['issues'])->toBe([]);
-    expect($reviews[0]['followup_task_ids'])->toBe([]);
 });
 
 it('gets all reviews returns all reviews ordered by started_at descending', function () {
@@ -296,13 +289,13 @@ it('gets all reviews filters by status', function () {
     createTestTask($this->service, 'f-task3');
 
     $reviewId1 = $this->service->recordReviewStarted('f-task1', 'claude');
-    $this->service->recordReviewCompleted($reviewId1, true, [], []);
+    $this->service->recordReviewCompleted($reviewId1, true, []);
 
     $reviewId2 = $this->service->recordReviewStarted('f-task2', 'gemini');
     // Leave as pending
 
     $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
-    $this->service->recordReviewCompleted($reviewId3, false, ['tests_failing'], []);
+    $this->service->recordReviewCompleted($reviewId3, false, ['Tests failed']);
 
     $failedReviews = $this->service->getAllReviews('failed');
     expect($failedReviews)->toHaveCount(1);
@@ -336,12 +329,12 @@ it('gets all reviews with status and limit', function () {
     for ($i = 1; $i <= 10; $i++) {
         createTestTask($this->service, "f-passed{$i}");
         $reviewId = $this->service->recordReviewStarted("f-passed{$i}", 'claude');
-        $this->service->recordReviewCompleted($reviewId, true, [], []);
+        $this->service->recordReviewCompleted($reviewId, true, []);
     }
     for ($i = 1; $i <= 10; $i++) {
         createTestTask($this->service, "f-failed{$i}");
         $reviewId = $this->service->recordReviewStarted("f-failed{$i}", 'claude');
-        $this->service->recordReviewCompleted($reviewId, false, ['tests_failing'], []);
+        $this->service->recordReviewCompleted($reviewId, false, ['Tests failed']);
     }
 
     $failedReviews = $this->service->getAllReviews('failed', 5);
