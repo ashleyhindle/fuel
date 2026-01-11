@@ -718,11 +718,28 @@ class DatabaseService
                 }
 
                 // Log migration summary
-                error_log("Migrated {$imported} backlog items to tasks with status=someday");
+                error_log(sprintf('Migrated %d backlog items to tasks with status=someday', $imported));
 
                 // Delete backlog files after successful import
                 @unlink($backlogPath);
                 @unlink($lockPath);
+            },
+            14 => function (PDO $pdo): void {
+                // v14: Remove legacy 'size' column from tasks (replaced by 'complexity')
+                // Check if column exists before attempting to drop
+                $tableInfo = $pdo->query('PRAGMA table_info(tasks)')->fetchAll();
+                $hasSize = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'size') {
+                        $hasSize = true;
+                        break;
+                    }
+                }
+
+                if ($hasSize) {
+                    // SQLite 3.35+ supports ALTER TABLE DROP COLUMN
+                    $pdo->exec('ALTER TABLE tasks DROP COLUMN size');
+                }
             },
         ];
     }

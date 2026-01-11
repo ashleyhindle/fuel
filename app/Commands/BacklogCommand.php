@@ -22,7 +22,7 @@ class BacklogCommand extends Command
         $items = $taskService->backlog();
 
         if ($this->option('json')) {
-            $this->outputJson($items->map(fn ($item) => $item->toArray())->values()->toArray());
+            $this->outputJson($items->map(fn ($item): array => $item->toArray())->values()->toArray());
         } else {
             if ($items->isEmpty()) {
                 $this->info('No backlog items.');
