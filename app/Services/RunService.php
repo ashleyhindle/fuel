@@ -310,6 +310,64 @@ class RunService
     }
 
     /**
+     * Get aggregated statistics for all runs.
+     *
+     * @return array{
+     *     total_runs: int,
+     *     by_status: array{running: int, completed: int, failed: int},
+     *     by_agent: array<string, int>,
+     *     by_model: array<string, int>
+     * }
+     */
+    public function getStats(): array
+    {
+        // Get all runs with their agent, model, and status
+        $runs = $this->databaseService->fetchAll(
+            'SELECT agent, model, status FROM runs'
+        );
+
+        $totalRuns = count($runs);
+        $byStatus = [
+            'running' => 0,
+            'completed' => 0,
+            'failed' => 0,
+        ];
+        $byAgent = [];
+        $byModel = [];
+
+        foreach ($runs as $run) {
+            // Count by status
+            $status = $run['status'] ?? self::STATUS_RUNNING;
+            if (isset($byStatus[$status])) {
+                $byStatus[$status]++;
+            }
+
+            // Count by agent (skip if agent is null)
+            if ($run['agent'] !== null) {
+                $agent = (string) $run['agent'];
+                $byAgent[$agent] = ($byAgent[$agent] ?? 0) + 1;
+            }
+
+            // Count by model (skip if model is null)
+            if ($run['model'] !== null) {
+                $model = (string) $run['model'];
+                $byModel[$model] = ($byModel[$model] ?? 0) + 1;
+            }
+        }
+
+        // Sort by count descending
+        arsort($byAgent);
+        arsort($byModel);
+
+        return [
+            'total_runs' => $totalRuns,
+            'by_status' => $byStatus,
+            'by_agent' => $byAgent,
+            'by_model' => $byModel,
+        ];
+    }
+
+    /**
      * Resolve a task short_id to its integer id.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')

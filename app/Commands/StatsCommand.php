@@ -251,27 +251,34 @@ class StatsCommand extends Command
 
         // Top Agents
         $this->line('│ Top Agents:                             │');
-        $agentRank = 1;
-        foreach (array_slice($stats['by_agent'], 0, 3, true) as $agent => $count) {
-            $agentLine = sprintf('│   %d. %s (%d runs)', $agentRank, $agent, $count);
-            // Pad to 41 chars total (39 content + 2 border)
-            $padding = 41 - mb_strlen($agentLine) - 1;
-            $this->line($agentLine.str_repeat(' ', $padding).'│');
-            $agentRank++;
+        if (empty($stats['by_agent'])) {
+            $this->line('│   (no agent data)                       │');
+        } else {
+            $agentRank = 1;
+            foreach (array_slice($stats['by_agent'], 0, 3, true) as $agent => $count) {
+                $agentLine = sprintf('│   %d. %s (%d runs)', $agentRank, $agent, $count);
+                // Pad to 41 chars total (39 content + 2 border)
+                $padding = 41 - mb_strlen($agentLine) - 1;
+                $this->line($agentLine.str_repeat(' ', $padding).'│');
+                $agentRank++;
+            }
         }
 
-        // If fewer than 3 agents, no need to pad - just continue
         $this->line('│                                         │');
 
         // Top Models
         $this->line('│ Top Models:                             │');
-        $modelRank = 1;
-        foreach (array_slice($stats['by_model'], 0, 3, true) as $model => $count) {
-            $modelLine = sprintf('│   %d. %s (%d)', $modelRank, $model, $count);
-            // Pad to 41 chars total
-            $padding = 41 - mb_strlen($modelLine) - 1;
-            $this->line($modelLine.str_repeat(' ', $padding).'│');
-            $modelRank++;
+        if (empty($stats['by_model'])) {
+            $this->line('│   (no model data)                       │');
+        } else {
+            $modelRank = 1;
+            foreach (array_slice($stats['by_model'], 0, 3, true) as $model => $count) {
+                $modelLine = sprintf('│   %d. %s (%d)', $modelRank, $model, $count);
+                // Pad to 41 chars total
+                $padding = 41 - mb_strlen($modelLine) - 1;
+                $this->line($modelLine.str_repeat(' ', $padding).'│');
+                $modelRank++;
+            }
         }
 
         $this->line('└─────────────────────────────────────────┘');
