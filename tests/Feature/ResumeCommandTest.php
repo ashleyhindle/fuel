@@ -152,7 +152,7 @@ describe('resume command', function (): void {
         ]);
 
         $runs = $runService->getRuns($task['id']);
-        $runId = $runs[0]['run_id'] ?? '';
+        $runId = $runs[0]->run_id ?? '';
         $partialRunId = substr($runId, 0, 6); // First 6 chars
 
         // This will fail because exec() replaces the process, but we can test validation passes
