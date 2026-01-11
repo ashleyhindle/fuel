@@ -576,4 +576,294 @@ class StatsCommand extends Command
             return "\e[38;2;57;211;83m";
         }
     }
+
+    private function renderStreaksAndAchievements(DatabaseService $db): void
+    {
+        $currentStreak = $this->calculateStreak($db);
+        $longestStreak = $this->getLongestStreak($db);
+        $earnedBadges = $this->getEarnedBadges($db);
+
+        // Get task counts
+        $today = $this->getTasksCompletedToday($db);
+        $thisWeek = $this->getTasksCompletedThisWeek($db);
+        $thisMonth = $this->getTasksCompletedThisMonth($db);
+        $allTime = $this->getTasksCompletedAllTime($db);
+
+        $this->line('┌─────────────────────────────────────────┐');
+        $this->line('│ <fg=yellow>🔥 STREAKS & ACHIEVEMENTS</>               │');
+        $this->line('├─────────────────────────────────────────┤');
+        $this->line(sprintf('│ 🔥 Current Streak: <fg=yellow>%d days</>%-*s │', $currentStreak, max(0, 24 - strlen((string) $currentStreak)), ''));
+        $this->line(sprintf('│ 🏆 Longest Streak: <fg=yellow>%d days</>%-*s │', $longestStreak, max(0, 24 - strlen((string) $longestStreak)), ''));
+        $this->line('│                                         │');
+        $this->line(sprintf(
+            '│ Today: %d ✅  This Week: %d ✅%-*s │',
+            $today,
+            $thisWeek,
+            max(0, 23 - strlen((string) $today) - strlen((string) $thisWeek)),
+            ''
+        ));
+        $this->line(sprintf(
+            '│ This Month: %d ✅  All Time: %d ✅%-*s │',
+            $thisMonth,
+            $allTime,
+            max(0, 17 - strlen((string) $thisMonth) - strlen((string) $allTime)),
+            ''
+        ));
+        $this->line('│                                         │');
+        $this->line('│ <fg=cyan>🎖️  Badges:</>                              │');
+
+        if (empty($earnedBadges)) {
+            $this->line('│   <fg=gray>(no badges earned yet)</>                │');
+        } else {
+            foreach ($earnedBadges as $badge) {
+                $line = sprintf('│   %s %s', $badge['emoji'], $badge['name']);
+                // Calculate visible length (strip color tags and ANSI codes)
+                $stripped = preg_replace('/<[^>]+>/', '', $line);
+                $text = $stripped ?? $line;
+                // Count emoji characters that display as 2 columns wide
+                $emojiCount = preg_match_all('/[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]/u', $text);
+                $visibleLength = mb_strlen($text) + $emojiCount;
+                $padding = 41 - $visibleLength;
+                $this->line($line.str_repeat(' ', max(0, $padding)).'│');
+            }
+        }
+
+        $this->line('└─────────────────────────────────────────┘');
+    }
+
+    /**
+     * Calculate the current streak (consecutive days with at least 1 task completed).
+     */
+    private function calculateStreak(DatabaseService $db): int
+    {
+        $query = "SELECT DATE(updated_at) as day
+                  FROM tasks
+                  WHERE status = 'closed'
+                  ORDER BY day DESC";
+        $results = $db->fetchAll($query);
+
+        if (empty($results)) {
+            return 0;
+        }
+
+        $streak = 0;
+        $today = new \DateTime;
+        $today->setTime(0, 0, 0);
+        $checkDate = clone $today;
+
+        // Group dates to get unique days
+        $uniqueDays = array_unique(array_column($results, 'day'));
+
+        foreach ($uniqueDays as $dayStr) {
+            $taskDate = new \DateTime($dayStr);
+            $taskDate->setTime(0, 0, 0);
+
+            // Check if this date matches the expected streak date
+            if ($taskDate->format('Y-m-d') === $checkDate->format('Y-m-d')) {
+                $streak++;
+                $checkDate->modify('-1 day');
+            } elseif ($taskDate < $checkDate) {
+                // Gap found, streak is broken
+                break;
+            }
+        }
+
+        return $streak;
+    }
+
+    /**
+     * Get the longest streak ever recorded.
+     */
+    private function getLongestStreak(DatabaseService $db): int
+    {
+        $query = "SELECT DATE(updated_at) as day
+                  FROM tasks
+                  WHERE status = 'closed'
+                  ORDER BY day ASC";
+        $results = $db->fetchAll($query);
+
+        if (empty($results)) {
+            return 0;
+        }
+
+        $uniqueDays = array_unique(array_column($results, 'day'));
+        $maxStreak = 0;
+        $currentStreak = 0;
+        $previousDate = null;
+
+        foreach ($uniqueDays as $dayStr) {
+            $currentDate = new \DateTime($dayStr);
+
+            if ($previousDate === null) {
+                $currentStreak = 1;
+            } else {
+                $diff = $previousDate->diff($currentDate);
+                if ($diff->days === 1) {
+                    // Consecutive day
+                    $currentStreak++;
+                } else {
+                    // Gap found, reset streak
+                    $maxStreak = max($maxStreak, $currentStreak);
+                    $currentStreak = 1;
+                }
+            }
+
+            $previousDate = $currentDate;
+        }
+
+        return max($maxStreak, $currentStreak);
+    }
+
+    /**
+     * Get earned badges based on achievements.
+     */
+    private function getEarnedBadges(DatabaseService $db): array
+    {
+        $badges = [];
+
+        // Century Club: 100+ total tasks completed
+        $totalCompleted = $this->getTasksCompletedAllTime($db);
+        if ($totalCompleted >= 100) {
+            $badges[] = [
+                'emoji' => '<fg=yellow>🌟</>',
+                'name' => '<fg=yellow>Century Club (100+ tasks)</>',
+            ];
+        }
+
+        // Speed Demon: 10+ tasks completed in single day
+        $maxInDay = $this->getMaxTasksInSingleDay($db);
+        if ($maxInDay >= 10) {
+            $badges[] = [
+                'emoji' => '<fg=cyan>⚡</>',
+                'name' => '<fg=cyan>Speed Demon (10+ in one day)</>',
+            ];
+        }
+
+        // Complex Crusher: 10+ complex tasks completed
+        $complexCompleted = $this->getComplexTasksCompleted($db);
+        if ($complexCompleted >= 10) {
+            $badges[] = [
+                'emoji' => '<fg=magenta>🦾</>',
+                'name' => '<fg=magenta>Complex Crusher (10+ complex)</>',
+            ];
+        }
+
+        // Documenter: 10+ docs tasks completed
+        $docsCompleted = $this->getDocsTasksCompleted($db);
+        if ($docsCompleted >= 10) {
+            $badges[] = [
+                'emoji' => '<fg=blue>📚</>',
+                'name' => '<fg=blue>Documenter (10+ docs)</>',
+            ];
+        }
+
+        // Bug Hunter: 25+ bugs fixed
+        $bugsFixed = $this->getBugsFixed($db);
+        if ($bugsFixed >= 25) {
+            $badges[] = [
+                'emoji' => '<fg=red>🐛</>',
+                'name' => '<fg=red>Bug Hunter (25+ bugs fixed)</>',
+            ];
+        }
+
+        // On Fire: 7+ day streak
+        $currentStreak = $this->calculateStreak($db);
+        if ($currentStreak >= 7) {
+            $badges[] = [
+                'emoji' => '<fg=red>🔥</>',
+                'name' => '<fg=red>On Fire (7+ day streak)</>',
+            ];
+        }
+
+        return $badges;
+    }
+
+    private function getTasksCompletedToday(DatabaseService $db): int
+    {
+        $query = "SELECT COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'
+                  AND DATE(updated_at) = DATE('now')";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
+
+    private function getTasksCompletedThisWeek(DatabaseService $db): int
+    {
+        $query = "SELECT COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'
+                  AND updated_at >= date('now', '-7 days')";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
+
+    private function getTasksCompletedThisMonth(DatabaseService $db): int
+    {
+        $query = "SELECT COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'
+                  AND updated_at >= date('now', '-30 days')";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
+
+    private function getTasksCompletedAllTime(DatabaseService $db): int
+    {
+        $query = "SELECT COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
+
+    private function getMaxTasksInSingleDay(DatabaseService $db): int
+    {
+        $query = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'
+                  GROUP BY DATE(updated_at)
+                  ORDER BY cnt DESC
+                  LIMIT 1";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
+
+    private function getComplexTasksCompleted(DatabaseService $db): int
+    {
+        $query = "SELECT COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'
+                  AND complexity = 'complex'";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
+
+    private function getDocsTasksCompleted(DatabaseService $db): int
+    {
+        $query = "SELECT COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'
+                  AND type = 'docs'";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
+
+    private function getBugsFixed(DatabaseService $db): int
+    {
+        $query = "SELECT COUNT(*) as cnt
+                  FROM tasks
+                  WHERE status = 'closed'
+                  AND type = 'bug'";
+        $result = $db->fetchAll($query);
+
+        return (int) ($result[0]['cnt'] ?? 0);
+    }
 }
