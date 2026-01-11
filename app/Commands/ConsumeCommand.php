@@ -181,19 +181,14 @@ class ConsumeCommand extends Command
                 $readyTasks = $this->getCachedReadyTasks();
 
                 if ($readyTasks->isNotEmpty() && ! $this->processManager->isShuttingDown()) {
-                    // Score and sort tasks by priority, complexity, and size
-                    $scoredTasks = $readyTasks->map(fn (Task $task): array => [
-                        'task' => $task,
-                        'score' => $this->calculateTaskScore($task),
-                    ])->sortBy([
-                        ['score', 'asc'], // Lower score = higher priority
-                        ['task.priority', 'asc'],
-                        ['task.created_at', 'asc'],
+                    // Sort tasks by priority then creation date (FIFO within priority)
+                    $sortedTasks = $readyTasks->sortBy([
+                        ['priority', 'asc'],
+                        ['created_at', 'asc'],
                     ])->values();
 
                     // Try to spawn tasks until we can't spawn any more
-                    foreach ($scoredTasks as $scoredTask) {
-                        $task = $scoredTask['task'];
+                    foreach ($sortedTasks as $task) {
 
                         // Try to spawn this task
                         $spawned = $this->trySpawnTask(
@@ -1087,32 +1082,6 @@ PROMPT;
         }
 
         return $statusLines;
-    }
-
-    /**
-     * Calculate a score for task selection based on priority and complexity.
-     * Lower score = higher priority (should be selected first).
-     *
-     * @param  array<string, mixed>  $task
-     */
-    private function calculateTaskScore(Task $task): int
-    {
-        // Priority score (0-4, lower is better)
-        $priority = $task->priority ?? 2;
-        $priorityScore = $priority * 100;
-
-        // Complexity score (trivial=0, simple=1, moderate=2, complex=3)
-        $complexityMap = [
-            'trivial' => 0,
-            'simple' => 1,
-            'moderate' => 2,
-            'complex' => 3,
-        ];
-        $complexity = $task->complexity ?? 'simple';
-        $complexityScore = $complexityMap[$complexity] ?? 1;
-        $complexityScore *= 10;
-
-        return $priorityScore + $complexityScore;
     }
 
     /**
