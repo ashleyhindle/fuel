@@ -69,6 +69,7 @@ class EpicReviewCommand extends Command
             $gitStats = null;
             $gitDiff = null;
             $commitMessages = [];
+            $commitSubjects = [];
 
             if ($commits !== []) {
                 // Sort commits by git timestamp to ensure correct chronological order
@@ -87,6 +88,9 @@ class EpicReviewCommand extends Command
 
                 // Get commit subjects (first line only) for table display
                 $commitSubjects = $this->getCommitSubjects($commitHashes);
+
+                // Get full commit messages
+                $commitMessages = $this->getCommitMessages($commitHashes);
             }
 
             // JSON output
@@ -96,6 +100,7 @@ class EpicReviewCommand extends Command
                     'tasks' => array_map(fn (Task $task): array => $task->toArray(), $tasks),
                     'commits' => $commits,
                     'git_stats' => $gitStats,
+                    'commit_messages' => $commitMessages,
                 ];
 
                 if ($this->option('diff')) {
@@ -207,8 +212,17 @@ class EpicReviewCommand extends Command
 
         // Git information
         if ($commits !== []) {
+            // Commits section
+            $this->newLine();
+            $this->line('<fg=cyan>Commits</>');
+            $this->newLine();
+            foreach ($commits as $commit) {
+                $this->line(sprintf('  <fg=green>%s</> - <fg=blue>%s</>', $commit['hash'], $commit['task_title']));
+            }
+
             // Git stats
             if ($gitStats !== null) {
+                $this->newLine();
                 $this->line('<fg=cyan>Diff Stats:</>');
                 $this->newLine();
                 // Indent all lines of git stats output
@@ -312,7 +326,7 @@ class EpicReviewCommand extends Command
      * Get the first run started_at time for each task.
      *
      * @param  array<int>  $taskIds
-     * @return array<int, string>  Task ID => first run started_at
+     * @return array<int, string> Task ID => first run started_at
      */
     private function getTaskFirstRunTimes(DatabaseService $dbService, array $taskIds): array
     {
@@ -375,7 +389,7 @@ class EpicReviewCommand extends Command
      * Get commit subject lines (first line only) for a list of commit hashes.
      *
      * @param  array<string>  $commitHashes
-     * @return array<string, string>  Hash => subject line
+     * @return array<string, string> Hash => subject line
      */
     private function getCommitSubjects(array $commitHashes): array
     {
