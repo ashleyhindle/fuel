@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\ProcessOutput;
 use App\Process\ProcessType;
@@ -117,7 +118,7 @@ class ReviewService implements ReviewServiceInterface
         );
 
         // 7. Update task status to 'review'
-        $this->taskService->update($taskId, ['status' => 'review']);
+        $this->taskService->update($taskId, ['status' => TaskStatus::Review->value]);
 
         // 8. Get the latest run_id for this task
         $runId = $this->databaseService->getLatestRunId($taskId);
@@ -205,7 +206,7 @@ class ReviewService implements ReviewServiceInterface
             // No valid JSON found - check if the review agent ran `fuel done`
             // If so, the task status would be 'closed', meaning review passed
             $task = $this->taskService->find($taskId);
-            if ($task instanceof Task && ($task->status === 'closed' || $task->status === 'done')) {
+            if ($task instanceof Task && $task->status === TaskStatus::Closed->value) {
                 $passed = true;
             } else {
                 // No JSON and task not done - review failed or agent crashed
@@ -341,7 +342,7 @@ class ReviewService implements ReviewServiceInterface
 
         // Find all tasks in 'review' status
         $allTasks = $this->taskService->all();
-        $reviewTasks = $allTasks->filter(fn (Task $task): bool => ($task->status ?? '') === 'review');
+        $reviewTasks = $allTasks->filter(fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Review->value);
 
         foreach ($reviewTasks as $task) {
             $taskId = $task->id;
@@ -370,7 +371,7 @@ class ReviewService implements ReviewServiceInterface
                     $recovered[] = $taskId;
                 } else {
                     // No review agent configured - mark task as closed
-                    $this->taskService->update($taskId, ['status' => 'closed']);
+                    $this->taskService->update($taskId, ['status' => TaskStatus::Closed->value]);
                 }
             } catch (\Throwable) {
                 // Failed to re-trigger, skip this task
