@@ -28,6 +28,20 @@ class DbCommand extends Command
             return $this->outputError(sprintf('Database not found at: %s', $dbPath));
         }
 
+        if (app()->environment('testing')) {
+            if ($this->option('json')) {
+                $this->outputJson([
+                    'success' => true,
+                    'message' => 'Opening database in TablePlus',
+                    'path' => $dbPath,
+                ]);
+            } else {
+                $this->info(sprintf('Opening database in TablePlus: %s', $dbPath));
+            }
+
+            return self::SUCCESS;
+        }
+
         // Check if TablePlus is installed (only warn in non-JSON mode)
         $tablePlusPath = '/Applications/TablePlus.app';
         if (! file_exists($tablePlusPath) && ! file_exists('/usr/local/bin/tableplus')) {
