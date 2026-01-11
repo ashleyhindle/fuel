@@ -11,63 +11,14 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Yaml\Yaml;
 
+require_once __DIR__.'/Concerns/CommandTestSetup.php';
+
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    // Create FuelContext pointing to test directory
-    $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn () => $context);
-
-    // Store the database path for tests that check file existence
-    $this->dbPath = $context->getDatabasePath();
-
-    // Bind our test DatabaseService instance
-    $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
-
-    // Bind our test TaskService instance
-    $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
-
-    // Bind our test RunService instance
-    $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-    // Bind our test BacklogService instance
-    $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
-
-    $this->taskService = $this->app->make(TaskService::class);
+    setupCommandTest($this);
 });
 
 afterEach(function (): void {
-    // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir): void {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $items = scandir($dir);
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-            if ($item === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $deleteDir($path);
-            } else {
-                if (file_exists($path)) {
-                    unlink($path);
-                }
-            }
-        }
-
-        rmdir($dir);
-    };
-
-    $deleteDir($this->tempDir);
+    cleanupCommandTest($this->tempDir);
 });
 
 // Add Command Tests
@@ -4653,21 +4604,8 @@ describe('resume command', function (): void {
             ->assertExitCode(1);
     });
 
-    it('shows error when run has no agent', function (): void {
-        $this->taskService->initialize();
-        $task = $this->taskService->create(['title' => 'Test task']);
-
-        $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
-            'started_at' => '2026-01-07T10:00:00+00:00',
-            'session_id' => 'test-session-123',
-            // No agent
-        ]);
-
-        $this->artisan('resume', ['id' => $task['id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('has no agent')
-            ->assertExitCode(1);
-    });
+    // Note: Test for "run has no agent" removed because the database schema
+    // has `agent TEXT NOT NULL`, making this condition impossible.
 
     it('shows error when agent is unknown', function (): void {
         $this->taskService->initialize();
