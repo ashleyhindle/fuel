@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Task;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use RuntimeException;
@@ -30,26 +31,24 @@ class TaskService
     /**
      * Load all tasks from SQLite.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, Task>
      */
     public function all(): Collection
     {
         $rows = $this->db->fetchAll('SELECT * FROM tasks ORDER BY short_id');
 
-        return collect($rows)->map(fn (array $row): array => $this->rowToTask($row));
+        return collect($rows)->map(fn (array $row): Task => Task::fromArray($this->rowToTask($row)));
     }
 
     /**
      * Find a task by ID (supports partial ID matching).
-     *
-     * @return array<string, mixed>|null
      */
-    public function find(string $id): ?array
+    public function find(string $id): ?Task
     {
         // Try exact match first
         $row = $this->db->fetchOne('SELECT * FROM tasks WHERE short_id = ?', [$id]);
         if ($row !== null) {
-            return $this->rowToTask($row);
+            return Task::fromArray($this->rowToTask($row));
         }
 
         // Try partial match (prefix matching)
@@ -60,7 +59,7 @@ class TaskService
         );
 
         if (count($rows) === 1) {
-            return $this->rowToTask($rows[0]);
+            return Task::fromArray($this->rowToTask($rows[0]));
         }
 
         if (count($rows) > 1) {
@@ -93,9 +92,8 @@ class TaskService
      * Create a new task.
      *
      * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
      */
-    public function create(array $data): array
+    public function create(array $data): Task
     {
         // Validate type enum
         $type = $data['type'] ?? 'task';
@@ -161,7 +159,7 @@ class TaskService
             ]
         );
 
-        return [
+        return Task::fromArray([
             'id' => $shortId,
             'title' => $data['title'],
             'status' => 'open',
@@ -175,22 +173,22 @@ class TaskService
             'epic_id' => $data['epic_id'] ?? null,
             'created_at' => $now,
             'updated_at' => $now,
-        ];
+        ]);
     }
 
     /**
      * Update a task with new data.
      *
      * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
      */
-    public function update(string $id, array $data): array
+    public function update(string $id, array $data): Task
     {
-        $task = $this->find($id);
-        if ($task === null) {
+        $taskModel = $this->find($id);
+        if ($taskModel === null) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
+        $task = $taskModel->toArray();
         $shortId = $task['id'];
         $updates = [];
         $params = [];
@@ -321,15 +319,13 @@ class TaskService
             );
         }
 
-        return $task;
+        return Task::fromArray($task);
     }
 
     /**
      * Mark a task as in progress (claim it).
-     *
-     * @return array<string, mixed>
      */
-    public function start(string $id): array
+    public function start(string $id): Task
     {
         return $this->update($id, ['status' => 'in_progress']);
     }
@@ -339,9 +335,8 @@ class TaskService
      *
      * @param  string|null  $reason  Optional reason for completion
      * @param  string|null  $commitHash  Optional git commit hash
-     * @return array<string, mixed>
      */
-    public function done(string $id, ?string $reason = null, ?string $commitHash = null): array
+    public function done(string $id, ?string $reason = null, ?string $commitHash = null): Task
     {
         $data = ['status' => 'closed'];
         if ($reason !== null) {
@@ -361,13 +356,13 @@ class TaskService
      * Set or clear the last review issues on a task.
      *
      * @param  array<string>|null  $issues  Array of issue strings, or null to clear
-     * @return array<string, mixed>
      */
-    public function setLastReviewIssues(string $id, ?array $issues): array
+    public function setLastReviewIssues(string $id, ?array $issues): Task
     {
         $encodedIssues = $issues !== null ? json_encode($issues) : null;
 
-        $task = $this->update($id, ['last_review_issues' => $encodedIssues]);
+        $taskModel = $this->update($id, ['last_review_issues' => $encodedIssues]);
+        $task = $taskModel->toArray();
 
         // Ensure the returned task has the decoded array, not the JSON string
         if ($issues !== null) {
@@ -376,21 +371,20 @@ class TaskService
             unset($task['last_review_issues']);
         }
 
-        return $task;
+        return Task::fromArray($task);
     }
 
     /**
      * Reopen a closed or in_progress task (set status back to open).
-     *
-     * @return array<string, mixed>
      */
-    public function reopen(string $id): array
+    public function reopen(string $id): Task
     {
-        $task = $this->find($id);
-        if ($task === null) {
+        $taskModel = $this->find($id);
+        if ($taskModel === null) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
+        $task = $taskModel->toArray();
         $status = $task['status'] ?? '';
         if ($status !== 'closed' && $status !== 'in_progress' && $status !== 'review') {
             throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
@@ -408,21 +402,20 @@ class TaskService
         $task['updated_at'] = $now;
         unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
 
-        return $task;
+        return Task::fromArray($task);
     }
 
     /**
      * Retry a failed task by moving it back to open status.
-     *
-     * @return array<string, mixed>
      */
-    public function retry(string $id): array
+    public function retry(string $id): Task
     {
-        $task = $this->find($id);
-        if ($task === null) {
+        $taskModel = $this->find($id);
+        if ($taskModel === null) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
+        $task = $taskModel->toArray();
         $consumed = ! empty($task['consumed']);
         $status = $task['status'] ?? '';
 
@@ -442,13 +435,13 @@ class TaskService
         $task['updated_at'] = $now;
         unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output'], $task['consume_pid']);
 
-        return $task;
+        return Task::fromArray($task);
     }
 
     /**
      * Get tasks that are ready (open with no open blockers).
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, Task>
      */
     public function ready(): Collection
     {
@@ -458,7 +451,7 @@ class TaskService
     /**
      * Get tasks that are blocked (open with unresolved dependencies).
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, Task>
      */
     public function blocked(): Collection
     {
@@ -468,18 +461,18 @@ class TaskService
     /**
      * Compute ready tasks from a given collection (for snapshot-based operations).
      *
-     * @param  Collection<int, array<string, mixed>>  $tasks
-     * @return Collection<int, array<string, mixed>>
+     * @param  Collection<int, Task>  $tasks
+     * @return Collection<int, Task>
      */
     public function readyFrom(Collection $tasks): Collection
     {
         $blockedIds = $this->getBlockedIds($tasks);
 
         return $tasks
-            ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
-            ->filter(fn (array $t): bool => ! in_array($t['id'], $blockedIds, true))
-            ->filter(function (array $t): bool {
-                $labels = $t['labels'] ?? [];
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'open')
+            ->filter(fn (Task $t): bool => ! in_array($t->id, $blockedIds, true))
+            ->filter(function (Task $t): bool {
+                $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
                     return true;
                 }
@@ -496,16 +489,16 @@ class TaskService
     /**
      * Compute blocked tasks from a given collection (for snapshot-based operations).
      *
-     * @param  Collection<int, array<string, mixed>>  $tasks
-     * @return Collection<int, array<string, mixed>>
+     * @param  Collection<int, Task>  $tasks
+     * @return Collection<int, Task>
      */
     public function blockedFrom(Collection $tasks): Collection
     {
         $blockedIds = $this->getBlockedIds($tasks);
 
         return $tasks
-            ->filter(fn (array $t): bool => ($t['status'] ?? '') === 'open')
-            ->filter(fn (array $t): bool => in_array($t['id'], $blockedIds, true))
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'open')
+            ->filter(fn (Task $t): bool => in_array($t->id, $blockedIds, true))
             ->sortBy([
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
@@ -516,7 +509,7 @@ class TaskService
     /**
      * Get IDs of tasks that are blocked by open dependencies.
      *
-     * @param  Collection<int, array<string, mixed>>  $tasks
+     * @param  Collection<int, Task>  $tasks
      * @return array<string>
      */
     public function getBlockedIds(Collection $tasks): array
@@ -525,12 +518,12 @@ class TaskService
         $blockedIds = [];
 
         foreach ($tasks as $task) {
-            $blockedBy = $task['blocked_by'] ?? [];
+            $blockedBy = $task->blocked_by ?? [];
             foreach ($blockedBy as $blockerId) {
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
-                    if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
-                        $blockedIds[] = $task['id'];
+                    if ($blocker !== null && ($blocker->status ?? '') !== 'closed') {
+                        $blockedIds[] = $task->id;
                         break;
                     }
                 }
@@ -543,15 +536,14 @@ class TaskService
     /**
      * Check if a single task is failed/stuck.
      *
-     * @param  array<string, mixed>  $task
      * @param  array<int>  $excludePids  PIDs to exclude
      */
-    public function isFailed(array $task, array $excludePids = []): bool
+    public function isFailed(Task $task, array $excludePids = []): bool
     {
-        $consumed = ! empty($task['consumed']);
-        $exitCode = $task['consumed_exit_code'] ?? null;
-        $status = $task['status'] ?? '';
-        $pid = $task['consume_pid'] ?? null;
+        $consumed = ! empty($task->consumed);
+        $exitCode = $task->consumed_exit_code ?? null;
+        $status = $task->status ?? '';
+        $pid = $task->consume_pid ?? null;
 
         // Case 1: Explicit failure (consumed with non-zero exit code)
         if ($consumed && $exitCode !== null && $exitCode !== 0) {
@@ -580,26 +572,24 @@ class TaskService
      * Find failed/stuck tasks that need retry.
      *
      * @param  array<int>  $excludePids  PIDs to exclude
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, Task>
      */
     public function failed(array $excludePids = []): Collection
     {
         return $this->all()
-            ->filter(fn (array $task): bool => $this->isFailed($task, $excludePids))
+            ->filter(fn (Task $task): bool => $this->isFailed($task, $excludePids))
             ->values();
     }
 
     /**
      * Add a dependency to a task.
-     *
-     * @return array<string, mixed>
      */
-    public function addDependency(string $taskId, string $dependsOnId): array
+    public function addDependency(string $taskId, string $dependsOnId): Task
     {
         $tasks = $this->all();
 
-        $task = $this->findInCollection($tasks, $taskId);
-        if ($task === null) {
+        $taskModel = $this->findInCollection($tasks, $taskId);
+        if ($taskModel === null) {
             throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
@@ -608,8 +598,8 @@ class TaskService
             throw new RuntimeException(sprintf("Dependency target '%s' not found", $dependsOnId));
         }
 
-        $resolvedTaskId = $task['id'];
-        $resolvedDependsOnId = $dependsOnTask['id'];
+        $resolvedTaskId = $taskModel->id;
+        $resolvedDependsOnId = $dependsOnTask->id;
 
         if ($resolvedTaskId === $resolvedDependsOnId) {
             throw new RuntimeException('A task cannot depend on itself');
@@ -619,13 +609,13 @@ class TaskService
             throw new RuntimeException('Circular dependency detected! Adding this dependency would create a cycle.');
         }
 
-        $blockedBy = $task['blocked_by'] ?? [];
+        $blockedBy = $taskModel->blocked_by ?? [];
         if (! is_array($blockedBy)) {
             $blockedBy = [];
         }
 
         if (in_array($resolvedDependsOnId, $blockedBy, true)) {
-            return $task;
+            return $taskModel;
         }
 
         $blockedBy[] = $resolvedDependsOnId;
@@ -636,16 +626,17 @@ class TaskService
             [json_encode($blockedBy), $now, $resolvedTaskId]
         );
 
+        $task = $taskModel->toArray();
         $task['blocked_by'] = $blockedBy;
         $task['updated_at'] = $now;
 
-        return $task;
+        return Task::fromArray($task);
     }
 
     /**
      * Get tasks that block the given task (open blockers).
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, Task>
      */
     public function getBlockers(string $taskId): Collection
     {
@@ -658,12 +649,12 @@ class TaskService
         }
 
         $blockers = collect();
-        $blockedBy = $task['blocked_by'] ?? [];
+        $blockedBy = $task->blocked_by ?? [];
 
         foreach ($blockedBy as $blockerId) {
             if (is_string($blockerId)) {
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && ($blocker['status'] ?? '') !== 'closed') {
+                if ($blocker !== null && ($blocker->status ?? '') !== 'closed') {
                     $blockers->push($blocker);
                 }
             }
@@ -732,8 +723,8 @@ class TaskService
             $cutoffDate = now()->subDays($days);
         }
 
-        $tasksToArchive = $tasks->filter(function (array $task) use ($cutoffDate, $all): bool {
-            if (($task['status'] ?? '') !== 'closed') {
+        $tasksToArchive = $tasks->filter(function (Task $task) use ($cutoffDate, $all): bool {
+            if (($task->status ?? '') !== 'closed') {
                 return false;
             }
 
@@ -741,7 +732,7 @@ class TaskService
                 return true;
             }
 
-            $updatedAt = $task['updated_at'] ?? null;
+            $updatedAt = $task->updated_at ?? null;
             if ($updatedAt === null) {
                 return false;
             }
@@ -763,8 +754,8 @@ class TaskService
 
         $archivedTaskIds = $archivedTasks->pluck('id')->toArray();
         foreach ($tasksToArchive as $task) {
-            if (! in_array($task['id'], $archivedTaskIds, true)) {
-                $archivedTasks->push($task);
+            if (! in_array($task->id, $archivedTaskIds, true)) {
+                $archivedTasks->push($task->toArray());
             }
         }
 
@@ -779,7 +770,7 @@ class TaskService
 
         return [
             'archived' => $tasksToArchive->count(),
-            'archived_tasks' => $tasksToArchive->values()->toArray(),
+            'archived_tasks' => $tasksToArchive->map(fn (Task $t): array => $t->toArray())->values()->toArray(),
         ];
     }
 
@@ -853,32 +844,28 @@ class TaskService
 
     /**
      * Delete a task.
-     *
-     * @return array<string, mixed>
      */
-    public function delete(string $id): array
+    public function delete(string $id): Task
     {
         $task = $this->find($id);
         if ($task === null) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $this->db->query('DELETE FROM tasks WHERE short_id = ?', [$task['id']]);
+        $this->db->query('DELETE FROM tasks WHERE short_id = ?', [$task->id]);
 
         return $task;
     }
 
     /**
      * Remove a dependency between tasks.
-     *
-     * @return array<string, mixed>
      */
-    public function removeDependency(string $fromId, string $toId): array
+    public function removeDependency(string $fromId, string $toId): Task
     {
         $tasks = $this->all();
 
-        $fromTask = $this->findInCollection($tasks, $fromId);
-        if ($fromTask === null) {
+        $fromTaskModel = $this->findInCollection($tasks, $fromId);
+        if ($fromTaskModel === null) {
             throw new RuntimeException(sprintf("Task '%s' not found", $fromId));
         }
 
@@ -887,12 +874,12 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $toId));
         }
 
-        $blockedBy = $fromTask['blocked_by'] ?? [];
+        $blockedBy = $fromTaskModel->blocked_by ?? [];
         if (! is_array($blockedBy)) {
             $blockedBy = [];
         }
 
-        $resolvedToId = $toTask['id'];
+        $resolvedToId = $toTask->id;
         $found = false;
         $newBlockedBy = [];
         foreach ($blockedBy as $blockerId) {
@@ -910,19 +897,20 @@ class TaskService
         $now = now()->toIso8601String();
         $this->db->query(
             'UPDATE tasks SET blocked_by = ?, updated_at = ? WHERE short_id = ?',
-            [json_encode($newBlockedBy), $now, $fromTask['id']]
+            [json_encode($newBlockedBy), $now, $fromTaskModel->id]
         );
 
+        $fromTask = $fromTaskModel->toArray();
         $fromTask['blocked_by'] = $newBlockedBy;
         $fromTask['updated_at'] = $now;
 
-        return $fromTask;
+        return Task::fromArray($fromTask);
     }
 
     /**
      * Validate that adding a dependency won't create a cycle.
      *
-     * @param  Collection<int, array<string, mixed>>  $tasks
+     * @param  Collection<int, Task>  $tasks
      */
     private function validateNoCycles(Collection $tasks, string $taskId, string $dependsOnId): bool
     {
@@ -945,7 +933,7 @@ class TaskService
 
             $currentTask = $taskMap->get($current);
             if ($currentTask !== null) {
-                $blockedBy = $currentTask['blocked_by'] ?? [];
+                $blockedBy = $currentTask->blocked_by ?? [];
                 foreach ($blockedBy as $blockerId) {
                     if (is_string($blockerId) && ! in_array($blockerId, $visited, true)) {
                         $queue[] = $blockerId;
@@ -960,18 +948,17 @@ class TaskService
     /**
      * Find a task in a collection by ID (supports partial matching).
      *
-     * @param  Collection<int, array<string, mixed>>  $tasks
-     * @return array<string, mixed>|null
+     * @param  Collection<int, Task>  $tasks
      */
-    private function findInCollection(Collection $tasks, string $id): ?array
+    private function findInCollection(Collection $tasks, string $id): ?Task
     {
         $task = $tasks->firstWhere('id', $id);
         if ($task !== null) {
             return $task;
         }
 
-        $matches = $tasks->filter(function (array $task) use ($id): bool {
-            $taskId = $task['id'];
+        $matches = $tasks->filter(function (Task $task) use ($id): bool {
+            $taskId = $task->id;
             if (! is_string($taskId)) {
                 return false;
             }
