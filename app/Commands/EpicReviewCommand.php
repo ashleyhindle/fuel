@@ -71,6 +71,8 @@ class EpicReviewCommand extends Command
             $commitMessages = [];
 
             if ($commits !== []) {
+                // Sort commits by git timestamp to ensure correct chronological order
+                $commits = $this->sortCommitsByTimestamp($commits);
                 $commitHashes = array_column($commits, 'hash');
                 $firstCommit = $commitHashes[0];
                 $lastCommit = $commitHashes[count($commitHashes) - 1];
@@ -83,8 +85,8 @@ class EpicReviewCommand extends Command
                     $gitDiff = $this->getGitDiff($firstCommit, $lastCommit);
                 }
 
-                // Get commit messages
-                $commitMessages = $this->getCommitMessages($commitHashes);
+                // Get commit subjects (first line only) for table display
+                $commitSubjects = $this->getCommitSubjects($commitHashes);
             }
 
             // JSON output
@@ -100,7 +102,7 @@ class EpicReviewCommand extends Command
                     $output['git_diff'] = $gitDiff;
                 }
 
-                $output['commit_messages'] = $commitMessages;
+                $output['commit_subjects'] = $commitSubjects;
 
                 $this->outputJson($output);
 
@@ -108,10 +110,10 @@ class EpicReviewCommand extends Command
             }
 
             // Text output
-            $this->displayEpicReview($epic, $tasks, $commits, $gitStats, $gitDiff, $commitMessages);
+            $this->displayEpicReview($epic, $tasks, $commits, $gitStats, $gitDiff, $commitSubjects ?? []);
 
-            // Prompt to mark as reviewed (unless --no-prompt is set)
-            if (! $this->option('no-prompt') && $this->confirm('Mark this epic as reviewed?', false)) {
+            // Prompt to mark as reviewed (unless --no-prompt is set or output is piped)
+            if (! $this->option('no-prompt') && posix_isatty(STDOUT) && $this->confirm('Mark this epic as reviewed?', false)) {
                 $epicService->markAsReviewed($epic->id);
                 $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
             }
@@ -129,7 +131,7 @@ class EpicReviewCommand extends Command
      *
      * @param  array<array<string, mixed>>  $tasks
      * @param  array<array<string, mixed>>  $commits
-     * @param  array<array<string, mixed>>  $commitMessages
+     * @param  array<string, string>  $commitSubjects  Hash => subject line
      */
     private function displayEpicReview(
         object $epic,
@@ -137,7 +139,7 @@ class EpicReviewCommand extends Command
         array $commits,
         ?string $gitStats,
         ?string $gitDiff,
-        array $commitMessages
+        array $commitSubjects
     ): void {
         // Epic header
         $this->newLine();
@@ -164,33 +166,33 @@ class EpicReviewCommand extends Command
         if ($tasks === []) {
             $this->line('  <fg=yellow>No tasks linked to this epic.</>');
         } else {
+            $termWidth = $this->getTerminalWidth();
+            // Reserve space for ID (~10), Title (~40), Status (~12), borders/padding (~25)
+            $commitMaxWidth = max(20, $termWidth - 87);
+
             $headers = ['ID', 'Title', 'Status', 'Commit'];
-            $rows = array_map(fn (Task $task): array => [
-                $task->id ?? '',
-                $task->title ?? '',
-                $task->status ?? TaskStatus::Open->value,
-                $task->commit_hash ?? '-',
-            ], $tasks);
+            $rows = array_map(function (Task $task) use ($commitSubjects, $commitMaxWidth): array {
+                $commit = '-';
+                if (isset($task->commit_hash) && $task->commit_hash !== '') {
+                    $commit = $commitSubjects[$task->commit_hash] ?? $task->commit_hash;
+                    if (strlen($commit) > $commitMaxWidth) {
+                        $commit = substr($commit, 0, $commitMaxWidth - 3).'...';
+                    }
+                }
+
+                return [
+                    $task->id ?? '',
+                    $task->title ?? '',
+                    $task->status ?? TaskStatus::Open->value,
+                    $commit,
+                ];
+            }, $tasks);
 
             $this->table($headers, $rows);
         }
 
-        // Commit information
+        // Git information
         if ($commits !== []) {
-            $this->newLine();
-            $this->line(sprintf('<fg=cyan>Commits</> (%d total):', count($commits)));
-            $this->newLine();
-
-            foreach ($commitMessages as $commitInfo) {
-                $this->line(sprintf('  <fg=yellow>%s</>', $commitInfo['hash']));
-                $lines = explode("\n", trim((string) $commitInfo['message']));
-                foreach ($lines as $line) {
-                    $this->line(sprintf('    %s', $line));
-                }
-
-                $this->newLine();
-            }
-
             // Git stats
             if ($gitStats !== null) {
                 $this->line('<fg=cyan>Diff Stats:</>');
@@ -242,7 +244,7 @@ class EpicReviewCommand extends Command
     private function getGitDiff(string $firstCommit, string $lastCommit): string
     {
         try {
-            $process = new Process(['git', 'diff', $firstCommit.'^..'.$lastCommit]);
+            $process = new Process(['git', 'diff', '--color=always', $firstCommit.'^..'.$lastCommit]);
             $process->run();
 
             if ($process->isSuccessful()) {
@@ -290,5 +292,86 @@ class EpicReviewCommand extends Command
         }
 
         return $messages;
+    }
+
+    /**
+     * Get terminal width from COLUMNS env var or stty size.
+     */
+    private function getTerminalWidth(): int
+    {
+        // Try COLUMNS env var first
+        $columns = getenv('COLUMNS');
+        if ($columns !== false && is_numeric($columns)) {
+            return (int) $columns;
+        }
+
+        // Try stty size
+        try {
+            $process = new Process(['stty', 'size']);
+            $process->run();
+            if ($process->isSuccessful()) {
+                $parts = explode(' ', trim($process->getOutput()));
+                if (count($parts) === 2 && is_numeric($parts[1])) {
+                    return (int) $parts[1];
+                }
+            }
+        } catch (\Throwable) {
+            // Ignore
+        }
+
+        // Default fallback
+        return 120;
+    }
+
+    /**
+     * Get commit subject lines (first line only) for a list of commit hashes.
+     *
+     * @param  array<string>  $commitHashes
+     * @return array<string, string>  Hash => subject line
+     */
+    private function getCommitSubjects(array $commitHashes): array
+    {
+        $subjects = [];
+
+        foreach ($commitHashes as $hash) {
+            try {
+                $process = new Process(['git', 'log', '-1', '--pretty=format:%h %s', $hash]);
+                $process->run();
+
+                $subjects[$hash] = $process->isSuccessful()
+                    ? trim($process->getOutput())
+                    : $hash;
+            } catch (\Throwable) {
+                $subjects[$hash] = $hash;
+            }
+        }
+
+        return $subjects;
+    }
+
+    /**
+     * Sort commits by their git timestamp (oldest first).
+     *
+     * @param  array<array<string, mixed>>  $commits
+     * @return array<array<string, mixed>>
+     */
+    private function sortCommitsByTimestamp(array $commits): array
+    {
+        // Get timestamps for each commit
+        foreach ($commits as &$commit) {
+            try {
+                $process = new Process(['git', 'log', '-1', '--format=%ct', $commit['hash']]);
+                $process->run();
+                $commit['timestamp'] = $process->isSuccessful() ? (int) trim($process->getOutput()) : 0;
+            } catch (\Throwable) {
+                $commit['timestamp'] = 0;
+            }
+        }
+        unset($commit);
+
+        // Sort by timestamp ascending (oldest first)
+        usort($commits, fn ($a, $b) => $a['timestamp'] <=> $b['timestamp']);
+
+        return $commits;
     }
 }
