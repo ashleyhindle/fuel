@@ -11,7 +11,7 @@ The original design spec is archived in `FUEL-PLAN-ORIGINAL.md` (outdated - kept
 <fuel>
 ## Fuel Task Management
 
-This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/agent.db` (SQLite database).
+This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/agent.db`.
 
 ### Quick Reference
 
@@ -64,12 +64,12 @@ Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 ### Task Options
 
 ```bash
-fuel add "Title" --description="..." --type=bug|feature|task|epic|chore|docs|test|refactor --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
+fuel add "Title" --description="..." --type=bug|fix|feature|task|epic|chore|docs|test|refactor --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
 ```
 
 ### Writing Good Descriptions
 
-Descriptions should be explicit enough for a less capable agent to complete without guessing. Include: files to modify (exact paths), what to change (methods, patterns), expected behavior, and patterns to follow.
+Descriptions should be explicit enough for a less capable agent to complete without guessing. Include: files to modify (exact paths), what to change (methods, patterns), expected behavior, and patterns to follow. **Give one clear solution, not options—subagents execute, they don't decide.**
 
 **Bad**: "Fix the ID display bug"
 **Good**: "BoardCommand.php:320 uses substr($id, 5, 4) for old format. Change to substr($id, 2, 6) for f-xxxxxx format."
@@ -98,13 +98,14 @@ Blocked tasks won't appear in `fuel ready` until blockers are closed.
 **Workflow:**
 1. `fuel epic:add "Feature name" --description="What and why"`
 2. Break down into tasks, linking each: `fuel add "Task" --epic=e-xxxx`
-3. Tasks get worked and reviewed individually
-4. When ALL tasks close → epic review triggers → human inbox notification
+3. Create a final review task: `fuel add "Review: Feature name" --epic=e-xxxx --blocked-by=f-task1,f-task2,...`
+4. Work tasks individually; review task auto-unblocks when all dependencies close
+5. Complete review task to close out the epic
 
 ```bash
 fuel epic:add "Add user preferences"    # Create epic (note the ID)
-fuel add "Add preferences API" --epic=e-xxxx  # Link task
-fuel add "Add preferences UI" --epic=e-xxxx   # Link another
+fuel add "Add preferences API" --epic=e-xxxx -e e-xxxx  # Link task
+fuel add "Add preferences UI" --epic=e-xxxx             # Link another
 fuel epics                               # List all epics with status
 fuel epic:show <e-id>                   # View epic + linked tasks
 fuel epic:reviewed <e-id>               # Mark as human-reviewed
@@ -188,12 +189,11 @@ When parallel tasks share an interface, define it in a parent task's description
 
 ### Key Services
 - **TaskService** - SQLite task storage with partial ID matching
-- **RunService** - Agent run history per task (`.fuel/runs/`)
+- **RunService** - Agent run history (SQLite)
 - **ConfigService** - Agent routing by complexity (`.fuel/config.yaml`)
 
 ### Data Storage
-- `.fuel/agent.db` - SQLite database (tasks, epics, reviews, agent health)
-- `.fuel/runs/<task-id>.jsonl` - Run history per task
+- `.fuel/agent.db` - SQLite database (tasks, epics, reviews, runs, agent health)
 - `.fuel/config.yaml` - Agent configuration
 - `.fuel/backlog.jsonl` - Backlog items (rough ideas, future work)
 
