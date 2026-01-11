@@ -656,6 +656,74 @@ class DatabaseService
                     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
                 }
             },
+            13 => function (PDO $pdo): void {
+                // v13: Migrate backlog.jsonl items to tasks with status=someday
+                $backlogPath = getcwd().'/.fuel/backlog.jsonl';
+                $lockPath = $backlogPath.'.lock';
+
+                // Skip if backlog.jsonl doesn't exist (already migrated or never used)
+                if (! file_exists($backlogPath)) {
+                    return;
+                }
+
+                // Read and parse backlog items
+                $content = file_get_contents($backlogPath);
+                if ($content === false || trim($content) === '') {
+                    // Empty backlog - just delete the file
+                    @unlink($backlogPath);
+                    @unlink($lockPath);
+
+                    return;
+                }
+
+                $lines = explode("\n", trim($content));
+                $imported = 0;
+
+                foreach ($lines as $line) {
+                    if (trim($line) === '') {
+                        continue;
+                    }
+
+                    $item = json_decode($line, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        // Log error but continue with other items
+                        error_log('Failed to parse backlog item: '.$line);
+
+                        continue;
+                    }
+
+                    // Generate new f-xxxxxx ID (using same 6-char hash approach)
+                    $hash = hash('sha256', uniqid('f-', true).microtime(true));
+                    $shortId = 'f-'.substr($hash, 0, 6);
+
+                    // Insert task with status=someday
+                    $stmt = $pdo->prepare('
+                        INSERT INTO tasks (short_id, title, description, status, type, priority, complexity, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ');
+
+                    $stmt->execute([
+                        $shortId,
+                        $item['title'] ?? 'Untitled',
+                        $item['description'] ?? null,
+                        'someday',                      // status=someday for backlog items
+                        'task',                         // default type
+                        2,                              // default priority
+                        'moderate',                     // default complexity
+                        $item['created_at'] ?? date('c'),
+                        date('c'),
+                    ]);
+
+                    $imported++;
+                }
+
+                // Log migration summary
+                error_log("Migrated {$imported} backlog items to tasks with status=someday");
+
+                // Delete backlog files after successful import
+                @unlink($backlogPath);
+                @unlink($lockPath);
+            },
         ];
     }
 

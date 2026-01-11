@@ -201,7 +201,7 @@ it('auto-migrates on first getConnection call', function (): void {
 
     // Verify schema_version table exists and has correct version
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(12);
+    expect($version['version'])->toBe(13);
 
     // Verify tables were created
     $tables = $this->service->fetchAll(
@@ -259,7 +259,7 @@ it('runs only pending migrations when upgrading', function (): void {
 
     // Version should be updated to latest
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(12);
+    expect($version['version'])->toBe(13);
 
     // Epics table should be recreated
     $tables = $newService->fetchAll(
@@ -280,5 +280,123 @@ it('handles fresh database with no schema_version table', function (): void {
 
     // Should have all tables now
     $version = $newService->fetchOne('SELECT version FROM schema_version LIMIT 1');
-    expect($version['version'])->toBe(12);
+    expect($version['version'])->toBe(13);
+});
+
+it('migrates backlog.jsonl items to tasks with status=someday', function (): void {
+    // Setup: Create .fuel directory and backlog.jsonl file
+    $fuelDir = $this->tempDir.'/.fuel';
+    mkdir($fuelDir, 0755, true);
+
+    $backlogPath = $fuelDir.'/backlog.jsonl';
+    $lockPath = $backlogPath.'.lock';
+
+    // Create backlog.jsonl with test items
+    $backlogItems = [
+        json_encode([
+            'id' => 'b-7d1601',
+            'title' => 'Test backlog item 1',
+            'description' => 'First test description',
+            'created_at' => '2026-01-10T10:00:00+00:00',
+        ]),
+        json_encode([
+            'id' => 'b-812288',
+            'title' => 'Test backlog item 2',
+            'description' => null,
+            'created_at' => '2026-01-10T11:00:00+00:00',
+        ]),
+    ];
+    file_put_contents($backlogPath, implode("\n", $backlogItems)."\n");
+    touch($lockPath);
+
+    // Change working directory to temp dir so migration finds the backlog file
+    $oldCwd = getcwd();
+    chdir($this->tempDir);
+
+    try {
+        // Trigger migration by getting connection
+        $this->service->getConnection();
+
+        // Verify backlog files were deleted
+        expect(file_exists($backlogPath))->toBeFalse();
+        expect(file_exists($lockPath))->toBeFalse();
+
+        // Verify tasks were created with status=someday
+        $tasks = $this->service->fetchAll("SELECT * FROM tasks WHERE status = 'someday' ORDER BY created_at");
+        expect($tasks)->toHaveCount(2);
+
+        // Check first task
+        expect($tasks[0]['title'])->toBe('Test backlog item 1');
+        expect($tasks[0]['description'])->toBe('First test description');
+        expect($tasks[0]['status'])->toBe('someday');
+        expect($tasks[0]['type'])->toBe('task');
+        expect($tasks[0]['priority'])->toBe(2);
+        expect($tasks[0]['complexity'])->toBe('moderate');
+        expect($tasks[0]['short_id'])->toStartWith('f-');
+        expect($tasks[0]['created_at'])->toBe('2026-01-10T10:00:00+00:00');
+
+        // Check second task
+        expect($tasks[1]['title'])->toBe('Test backlog item 2');
+        expect($tasks[1]['description'])->toBeNull();
+        expect($tasks[1]['status'])->toBe('someday');
+        expect($tasks[1]['short_id'])->toStartWith('f-');
+    } finally {
+        chdir($oldCwd);
+    }
+});
+
+it('handles empty backlog.jsonl during migration', function (): void {
+    // Setup: Create .fuel directory and empty backlog.jsonl file
+    $fuelDir = $this->tempDir.'/.fuel';
+    mkdir($fuelDir, 0755, true);
+
+    $backlogPath = $fuelDir.'/backlog.jsonl';
+    $lockPath = $backlogPath.'.lock';
+
+    file_put_contents($backlogPath, '');
+    touch($lockPath);
+
+    // Change working directory to temp dir
+    $oldCwd = getcwd();
+    chdir($this->tempDir);
+
+    try {
+        // Trigger migration
+        $this->service->getConnection();
+
+        // Verify files were deleted
+        expect(file_exists($backlogPath))->toBeFalse();
+        expect(file_exists($lockPath))->toBeFalse();
+
+        // Verify no tasks were created
+        $tasks = $this->service->fetchAll("SELECT * FROM tasks WHERE status = 'someday'");
+        expect($tasks)->toBeEmpty();
+    } finally {
+        chdir($oldCwd);
+    }
+});
+
+it('is idempotent when backlog.jsonl does not exist', function (): void {
+    // Setup: Create .fuel directory but no backlog.jsonl
+    $fuelDir = $this->tempDir.'/.fuel';
+    mkdir($fuelDir, 0755, true);
+
+    // Change working directory to temp dir
+    $oldCwd = getcwd();
+    chdir($this->tempDir);
+
+    try {
+        // Trigger migration (should be no-op)
+        $this->service->getConnection();
+
+        // Verify migration completed successfully
+        $version = $this->service->fetchOne('SELECT version FROM schema_version LIMIT 1');
+        expect($version['version'])->toBe(13);
+
+        // No errors should occur and no tasks should be created
+        $tasks = $this->service->fetchAll("SELECT * FROM tasks WHERE status = 'someday'");
+        expect($tasks)->toBeEmpty();
+    } finally {
+        chdir($oldCwd);
+    }
 });

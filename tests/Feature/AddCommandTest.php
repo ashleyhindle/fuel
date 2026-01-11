@@ -1,6 +1,5 @@
 <?php
 
-use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -25,8 +24,6 @@ describe('add command', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -468,8 +465,6 @@ describe('add command', function (): void {
     });
 
     it('adds item to backlog with --someday flag', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-
         Artisan::call('add', [
             'title' => 'Future idea',
             '--someday' => true,
@@ -477,24 +472,19 @@ describe('add command', function (): void {
         ]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Added to backlog: b-');
+        expect($output)->toContain('Created task: f-');
         expect($output)->toContain('Title: Future idea');
+        expect($output)->toContain('Status: someday');
 
-        // Verify it's in backlog, not tasks
-        $backlogService->initialize();
-        $all = $backlogService->all();
-        expect($all->count())->toBe(1);
-        expect($all->first()['title'])->toBe('Future idea');
-
-        // Verify it's NOT in tasks
+        // Verify it's in tasks with status=someday
         $this->taskService->initialize();
         $tasks = $this->taskService->all();
-        expect($tasks->count())->toBe(0);
+        expect($tasks->count())->toBe(1);
+        expect($tasks->first()['title'])->toBe('Future idea');
+        expect($tasks->first()['status'])->toBe('someday');
     });
 
     it('adds item to backlog with --someday and --description flags', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-
         Artisan::call('add', [
             'title' => 'Future enhancement',
             '--description' => 'This is a future idea',
@@ -505,17 +495,16 @@ describe('add command', function (): void {
         $output = Artisan::output();
         $item = json_decode($output, true);
 
-        expect($item['id'])->toStartWith('b-');
+        expect($item['id'])->toStartWith('f-');
         expect($item['title'])->toBe('Future enhancement');
         expect($item['description'])->toBe('This is a future idea');
-        expect($item)->not->toHaveKey('status');
-        expect($item)->not->toHaveKey('priority');
-        expect($item)->not->toHaveKey('type');
+        expect($item['status'])->toBe('someday');
+        // Task fields are present (with defaults if not specified)
+        expect($item)->toHaveKey('priority');
+        expect($item)->toHaveKey('type');
     });
 
-    it('ignores task-specific flags when --someday is used', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-
+    it('respects task-specific flags when --someday is used', function (): void {
         Artisan::call('add', [
             'title' => 'Backlog item',
             '--someday' => true,
@@ -529,14 +518,14 @@ describe('add command', function (): void {
         $output = Artisan::output();
         $item = json_decode($output, true);
 
-        // Backlog items should only have id, title, description, created_at
-        expect($item['id'])->toStartWith('b-');
+        // Someday tasks have all task fields
+        expect($item['id'])->toStartWith('f-');
         expect($item['title'])->toBe('Backlog item');
-        expect($item)->not->toHaveKey('priority');
-        expect($item)->not->toHaveKey('type');
-        expect($item)->not->toHaveKey('labels');
-        expect($item)->not->toHaveKey('complexity');
-        expect($item)->not->toHaveKey('status');
+        expect($item['status'])->toBe('someday');
+        expect($item['priority'])->toBe(4);
+        expect($item['type'])->toBe('feature');
+        expect($item['labels'])->toBe(['urgent']);
+        expect($item['complexity'])->toBe('complex');
     });
 
     it('outputs JSON when --json flag is used with --someday', function (): void {
@@ -550,13 +539,12 @@ describe('add command', function (): void {
         $item = json_decode($output, true);
 
         expect($item)->toBeArray();
-        expect($item['id'])->toStartWith('b-');
+        expect($item['id'])->toStartWith('f-');
         expect($item['title'])->toBe('JSON backlog item');
+        expect($item['status'])->toBe('someday');
     });
 
     it('adds item to backlog with --backlog flag (alias for --someday)', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-
         Artisan::call('add', [
             'title' => 'Future idea via backlog',
             '--backlog' => true,
@@ -564,18 +552,15 @@ describe('add command', function (): void {
         ]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Added to backlog: b-');
+        expect($output)->toContain('Created task: f-');
         expect($output)->toContain('Title: Future idea via backlog');
+        expect($output)->toContain('Status: someday');
 
-        // Verify it's in backlog, not tasks
-        $backlogService->initialize();
-        $all = $backlogService->all();
-        expect($all->count())->toBe(1);
-        expect($all->first()['title'])->toBe('Future idea via backlog');
-
-        // Verify it's NOT in tasks
+        // Verify it's in tasks with status=someday
         $this->taskService->initialize();
         $tasks = $this->taskService->all();
-        expect($tasks->count())->toBe(0);
+        expect($tasks->count())->toBe(1);
+        expect($tasks->first()['title'])->toBe('Future idea via backlog');
+        expect($tasks->first()['status'])->toBe('someday');
     });
 });
