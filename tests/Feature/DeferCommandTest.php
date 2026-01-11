@@ -1,6 +1,6 @@
 <?php
 
-use App\Services\BacklogService;
+use App\Enums\TaskStatus;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -24,8 +24,6 @@ describe('defer command', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -61,7 +59,6 @@ describe('defer command', function (): void {
     });
 
     it('defers task to backlog', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
         $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'Task to defer',
@@ -78,24 +75,17 @@ describe('defer command', function (): void {
         expect($output)->toContain('Deferred task:');
         expect($output)->toContain($task['id']);
         expect($output)->toContain('Task to defer');
-        expect($output)->toContain('Added to backlog: b-');
 
-        // Verify task removed
-        expect($this->taskService->find($task['id']))->toBeNull();
-
-        // Verify added to backlog
-        $backlogService->initialize();
-        $all = $backlogService->all();
-        expect($all->count())->toBe(1);
-        $backlogItem = $all->first();
-        expect($backlogItem['title'])->toBe('Task to defer');
-        expect($backlogItem['description'])->toBe('Task description');
-        // Backlog items don't have priority
-        expect($backlogItem)->not->toHaveKey('priority');
+        // Verify task still exists with status=someday
+        $deferredTask = $this->taskService->find($task['id']);
+        expect($deferredTask)->not->toBeNull();
+        expect($deferredTask->status)->toBe(TaskStatus::Someday->value);
+        expect($deferredTask->title)->toBe('Task to defer');
+        expect($deferredTask->description)->toBe('Task description');
+        expect($deferredTask->priority)->toBe(2);
     });
 
     it('defers task with partial ID', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to defer']);
         $partialId = substr((string) $task['id'], 2, 3);
@@ -107,14 +97,14 @@ describe('defer command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Deferred task:');
-        expect($output)->toContain('Added to backlog: b-');
 
-        // Verify task removed
-        expect($this->taskService->find($task['id']))->toBeNull();
+        // Verify task still exists with status=someday
+        $deferredTask = $this->taskService->find($task['id']);
+        expect($deferredTask)->not->toBeNull();
+        expect($deferredTask->status)->toBe(TaskStatus::Someday->value);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON task']);
 
@@ -127,8 +117,8 @@ describe('defer command', function (): void {
         $result = json_decode($output, true);
 
         expect($result['task_id'])->toBe($task['id']);
-        expect($result['backlog_item']['id'])->toStartWith('b-');
-        expect($result['backlog_item']['title'])->toBe('JSON task');
+        expect($result['title'])->toBe('JSON task');
+        expect($result['status'])->toBe(TaskStatus::Someday->value);
     });
 
     it('returns error when task not found', function (): void {
@@ -140,19 +130,24 @@ describe('defer command', function (): void {
             ->assertExitCode(1);
     });
 
-    it('returns error when ID is not a task', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-        $backlogService->initialize();
+    it('can defer task that is already someday', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Already deferred']);
 
-        $item = $backlogService->add('Backlog item');
+        // Defer once
+        $this->taskService->defer($task['id']);
 
-        // When deferring a backlog item ID, it first tries to find it as a task
-        // Since it doesn't exist in tasks, it returns "Task not found"
-        $this->artisan('defer', [
-            'id' => $item['id'],
+        // Defer again - should succeed (idempotent)
+        Artisan::call('defer', [
+            'id' => $task['id'],
             '--cwd' => $this->tempDir,
-        ])
-            ->expectsOutputToContain(sprintf("Task '%s' not found", $item['id']))
-            ->assertExitCode(1);
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Deferred task:');
+
+        $deferredTask = $this->taskService->find($task['id']);
+        expect($deferredTask)->not->toBeNull();
+        expect($deferredTask->status)->toBe(TaskStatus::Someday->value);
     });
 });
