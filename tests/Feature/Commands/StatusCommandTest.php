@@ -19,7 +19,7 @@ describe('status command', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 

@@ -1,5 +1,9 @@
 <?php
 
+use App\Repositories\EpicRepository;
+use App\Repositories\TaskRepository;
+use App\Services\DatabaseService;
+use App\Services\TaskService;
 use Tests\TestCase;
 
 /*
@@ -45,4 +49,13 @@ expect()->extend('toBeOne', fn () => $this->toBe(1));
 function something(): void
 {
     // ..
+}
+
+function makeTaskService(DatabaseService $databaseService): TaskService
+{
+    return new TaskService(
+        $databaseService,
+        new TaskRepository($databaseService),
+        new EpicRepository($databaseService)
+    );
 }

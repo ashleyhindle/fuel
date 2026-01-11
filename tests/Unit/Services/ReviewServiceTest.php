@@ -16,7 +16,6 @@ use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\ReviewService;
 use App\Services\RunService;
-use App\Services\TaskService;
 use Tests\TestCase;
 
 uses(TestCase::class);
@@ -65,7 +64,7 @@ YAML;
     $this->databaseService = new DatabaseService($this->context->getDatabasePath());
     $this->databaseService->initialize();
 
-    $this->taskService = new TaskService($this->databaseService);
+    $this->taskService = makeTaskService($this->databaseService);
     $this->configService = new ConfigService($this->context);
     $this->reviewPrompt = new ReviewPrompt;
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);

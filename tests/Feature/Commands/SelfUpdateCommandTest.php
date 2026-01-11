@@ -59,7 +59,7 @@ describe('OS detection mapping', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
@@ -166,7 +166,7 @@ describe('Architecture detection mapping', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
@@ -287,7 +287,7 @@ describe('Error handling for unsupported OS', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
@@ -360,7 +360,7 @@ describe('Binary URL construction', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
@@ -480,7 +480,7 @@ describe('GitHub API URL construction', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
@@ -563,7 +563,7 @@ describe('Download flow and HTTP handling', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
@@ -657,7 +657,7 @@ describe('File operations', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 

@@ -7,7 +7,6 @@ use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
-use App\Services\TaskService;
 use Carbon\Carbon;
 
 beforeEach(function (): void {
@@ -16,7 +15,7 @@ beforeEach(function (): void {
     $this->context = new FuelContext($this->tempDir.'/.fuel');
 
     $this->db = new DatabaseService($this->context->getDatabasePath());
-    $this->taskService = new TaskService($this->db);
+    $this->taskService = makeTaskService($this->db);
     $this->service = new EpicService($this->db, $this->taskService);
 });
 

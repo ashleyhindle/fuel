@@ -6,6 +6,8 @@ namespace App\Services;
 
 use App\Enums\TaskStatus;
 use App\Models\Task;
+use App\Repositories\EpicRepository;
+use App\Repositories\TaskRepository;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -17,7 +19,11 @@ class TaskService
 
     private string $prefix = 'f';
 
-    public function __construct(private readonly DatabaseService $db) {}
+    public function __construct(
+        private readonly DatabaseService $db,
+        private readonly TaskRepository $taskRepository,
+        private readonly EpicRepository $epicRepository
+    ) {}
 
     /**
      * Load all tasks from SQLite.
@@ -26,7 +32,7 @@ class TaskService
      */
     public function all(): Collection
     {
-        $rows = $this->db->fetchAll('SELECT * FROM tasks ORDER BY short_id');
+        $rows = $this->taskRepository->allOrderedByShortId();
 
         return collect($rows)->map(fn (array $row): Task => Task::fromArray($this->rowToTask($row)));
     }
@@ -38,7 +44,7 @@ class TaskService
      */
     public function backlog(): Collection
     {
-        $rows = $this->db->fetchAll('SELECT * FROM tasks WHERE status = ? ORDER BY created_at', [TaskStatus::Someday->value]);
+        $rows = $this->taskRepository->getBacklogTasks();
 
         return collect($rows)->map(fn (array $row): Task => Task::fromArray($this->rowToTask($row)));
     }
@@ -49,27 +55,15 @@ class TaskService
     public function find(string $id): ?Task
     {
         // Try exact match first
-        $row = $this->db->fetchOne('SELECT * FROM tasks WHERE short_id = ?', [$id]);
+        $row = $this->taskRepository->findByShortId($id);
         if ($row !== null) {
             return Task::fromArray($this->rowToTask($row));
         }
 
-        // Try partial match (prefix matching)
-        // Support both old 'fuel-' prefix and new 'f-' prefix for backward compatibility
-        $rows = $this->db->fetchAll(
-            'SELECT * FROM tasks WHERE short_id LIKE ? OR short_id LIKE ? OR short_id LIKE ?',
-            [$id.'%', $this->prefix.'-'.$id.'%', 'fuel-'.$id.'%']
-        );
-
-        if (count($rows) === 1) {
-            return Task::fromArray($this->rowToTask($rows[0]));
-        }
-
-        if (count($rows) > 1) {
-            $ids = array_column($rows, 'short_id');
-            throw new RuntimeException(
-                sprintf("Ambiguous task ID '%s'. Matches: ", $id).implode(', ', $ids)
-            );
+        // Try partial match
+        $row = $this->taskRepository->findWithPartialMatch($id, $this->prefix);
+        if ($row !== null) {
+            return Task::fromArray($this->rowToTask($row));
         }
 
         return null;
@@ -138,29 +132,25 @@ class TaskService
         // Look up epic integer ID if provided
         $epicId = null;
         if (isset($data['epic_id']) && $data['epic_id'] !== null) {
-            $epicId = $this->resolveEpicId($data['epic_id']);
+            $epicId = $this->epicRepository->resolveToIntegerId($data['epic_id']);
         }
 
         $blockedBy = $data['blocked_by'] ?? [];
 
-        $this->db->query(
-            'INSERT INTO tasks (short_id, title, description, status, type, priority, complexity, labels, blocked_by, epic_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [
-                $shortId,
-                $data['title'] ?? throw new RuntimeException('Task title is required'),
-                $data['description'] ?? null,
-                $status,
-                $type,
-                $priority,
-                $complexity,
-                json_encode($labels),
-                json_encode($blockedBy),
-                $epicId,
-                $now,
-                $now,
-            ]
-        );
+        $this->taskRepository->insert([
+            'short_id' => $shortId,
+            'title' => $data['title'] ?? throw new RuntimeException('Task title is required'),
+            'description' => $data['description'] ?? null,
+            'status' => $status,
+            'type' => $type,
+            'priority' => $priority,
+            'complexity' => $complexity,
+            'labels' => json_encode($labels),
+            'blocked_by' => json_encode($blockedBy),
+            'epic_id' => $epicId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
         return Task::fromArray([
             'id' => $shortId,
@@ -193,7 +183,6 @@ class TaskService
         $task = $taskModel->toArray();
         $shortId = $task['id'];
         $updates = [];
-        $params = [];
 
         // Field mapping: data key => [column, validator, use_array_key_exists]
         $fieldMap = [
@@ -215,8 +204,7 @@ class TaskService
                     ($config['validator'])($value);
                 }
 
-                $updates[] = $config['column'].' = ?';
-                $params[] = $value;
+                $updates[$config['column']] = $value;
                 $task[$key] = $value;
             }
         }
@@ -230,8 +218,7 @@ class TaskService
                 );
             }
 
-            $updates[] = 'priority = ?';
-            $params[] = $priority;
+            $updates['priority'] = $priority;
             $task['priority'] = $priority;
         }
 
@@ -239,11 +226,10 @@ class TaskService
         if (array_key_exists('epic_id', $data)) {
             $epicId = null;
             if ($data['epic_id'] !== null) {
-                $epicId = $this->resolveEpicId($data['epic_id']);
+                $epicId = $this->epicRepository->resolveToIntegerId($data['epic_id']);
             }
 
-            $updates[] = 'epic_id = ?';
-            $params[] = $epicId;
+            $updates['epic_id'] = $epicId;
             $task['epic_id'] = $data['epic_id'];
         }
 
@@ -266,8 +252,7 @@ class TaskService
                 $labels = array_values(array_filter($labels, fn (string $label): bool => ! in_array($label, $data['remove_labels'], true)));
             }
 
-            $updates[] = 'labels = ?';
-            $params[] = json_encode($labels);
+            $updates['labels'] = json_encode($labels);
             $task['labels'] = $labels;
         }
 
@@ -275,8 +260,7 @@ class TaskService
         $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid', 'last_review_issues'];
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
-                $updates[] = $key.' = ?';
-                $params[] = $value;
+                $updates[$key] = $value;
                 $task[$key] = $value;
             }
         }
@@ -284,20 +268,14 @@ class TaskService
         // Update updated_at only if not explicitly provided
         if (! isset($data['updated_at'])) {
             $now = now()->toIso8601String();
-            $updates[] = 'updated_at = ?';
-            $params[] = $now;
+            $updates['updated_at'] = $now;
             $task['updated_at'] = $now;
         } else {
-            $updates[] = 'updated_at = ?';
-            $params[] = $data['updated_at'];
+            $updates['updated_at'] = $data['updated_at'];
             $task['updated_at'] = $data['updated_at'];
         }
 
-        $params[] = $shortId;
-        $this->db->query(
-            'UPDATE tasks SET '.implode(', ', $updates).' WHERE short_id = ?',
-            $params
-        );
+        $this->taskRepository->updateByShortId($shortId, $updates);
 
         return Task::fromArray($task);
     }
@@ -400,10 +378,15 @@ class TaskService
         $shortId = $task['id'];
         $now = now()->toIso8601String();
 
-        $this->db->query(
-            'UPDATE tasks SET status = ?, reason = NULL, consumed = NULL, consumed_at = NULL, consumed_exit_code = NULL, consumed_output = NULL, updated_at = ? WHERE short_id = ?',
-            [TaskStatus::Open->value, $now, $shortId]
-        );
+        $this->taskRepository->updateByShortId($shortId, [
+            'status' => TaskStatus::Open->value,
+            'reason' => null,
+            'consumed' => null,
+            'consumed_at' => null,
+            'consumed_exit_code' => null,
+            'consumed_output' => null,
+            'updated_at' => $now,
+        ]);
 
         $task['status'] = TaskStatus::Open->value;
         $task['updated_at'] = $now;
@@ -433,10 +416,16 @@ class TaskService
         $shortId = $task['id'];
         $now = now()->toIso8601String();
 
-        $this->db->query(
-            'UPDATE tasks SET status = ?, reason = NULL, consumed = NULL, consumed_at = NULL, consumed_exit_code = NULL, consumed_output = NULL, consume_pid = NULL, updated_at = ? WHERE short_id = ?',
-            [TaskStatus::Open->value, $now, $shortId]
-        );
+        $this->taskRepository->updateByShortId($shortId, [
+            'status' => TaskStatus::Open->value,
+            'reason' => null,
+            'consumed' => null,
+            'consumed_at' => null,
+            'consumed_exit_code' => null,
+            'consumed_output' => null,
+            'consume_pid' => null,
+            'updated_at' => $now,
+        ]);
 
         $task['status'] = TaskStatus::Open->value;
         $task['updated_at'] = $now;
@@ -628,10 +617,7 @@ class TaskService
         $blockedBy[] = $resolvedDependsOnId;
         $now = now()->toIso8601String();
 
-        $this->db->query(
-            'UPDATE tasks SET blocked_by = ?, updated_at = ? WHERE short_id = ?',
-            [json_encode($blockedBy), $now, $resolvedTaskId]
-        );
+        $this->taskRepository->updateBlockedBy($resolvedTaskId, $blockedBy);
 
         $task = $taskModel->toArray();
         $task['blocked_by'] = $blockedBy;
@@ -678,7 +664,7 @@ class TaskService
         $length = 6;
         $maxAttempts = 100;
 
-        $existingIds = array_column($this->db->fetchAll('SELECT short_id FROM tasks'), 'short_id');
+        $existingIds = $this->taskRepository->getAllShortIds();
 
         $attempts = 0;
         while ($attempts < $maxAttempts) {
@@ -720,7 +706,7 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $this->db->query('DELETE FROM tasks WHERE short_id = ?', [$task->id]);
+        $this->taskRepository->deleteByShortId($task->id);
 
         return $task;
     }
@@ -763,10 +749,7 @@ class TaskService
         }
 
         $now = now()->toIso8601String();
-        $this->db->query(
-            'UPDATE tasks SET blocked_by = ?, updated_at = ? WHERE short_id = ?',
-            [json_encode($newBlockedBy), $now, $fromTaskModel->id]
-        );
+        $this->taskRepository->updateBlockedBy($fromTaskModel->id, $newBlockedBy);
 
         $fromTask = $fromTaskModel->toArray();
         $fromTask['blocked_by'] = $newBlockedBy;
@@ -873,8 +856,7 @@ class TaskService
 
         // Add epic_id if present (map back to short_id for public interface)
         if (isset($row['epic_id']) && $row['epic_id'] !== null) {
-            $epic = $this->db->fetchOne('SELECT short_id FROM epics WHERE id = ?', [$row['epic_id']]);
-            $task['epic_id'] = $epic !== null ? $epic['short_id'] : null;
+            $task['epic_id'] = $this->epicRepository->resolveToShortId((int) $row['epic_id']);
         } else {
             $task['epic_id'] = null;
         }
@@ -913,15 +895,5 @@ class TaskService
         }
 
         return $task;
-    }
-
-    /**
-     * Resolve an epic ID (short_id string) to integer ID.
-     */
-    private function resolveEpicId(string $epicShortId): ?int
-    {
-        $epic = $this->db->fetchOne('SELECT id FROM epics WHERE short_id = ?', [$epicShortId]);
-
-        return $epic !== null ? (int) $epic['id'] : null;
     }
 }

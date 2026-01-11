@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-    $taskService = new TaskService($databaseService);
+    $taskService = makeTaskService($databaseService);
     $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
 
     $runService = new RunService($databaseService);

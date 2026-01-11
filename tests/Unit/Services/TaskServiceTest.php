@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\DatabaseService;
-use App\Services\TaskService;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
@@ -10,7 +9,7 @@ beforeEach(function (): void {
     $this->databaseService = new DatabaseService($this->dbPath);
     $this->databaseService->initialize();
 
-    $this->taskService = new TaskService($this->databaseService);
+    $this->taskService = makeTaskService($this->databaseService);
 });
 
 afterEach(function (): void {

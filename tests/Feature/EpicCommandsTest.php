@@ -18,7 +18,7 @@ beforeEach(function (): void {
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     $this->db = new DatabaseService($context->getDatabasePath());
-    $this->taskService = new TaskService($this->db);
+    $this->taskService = makeTaskService($this->db);
     $this->epicService = new EpicService($this->db, $this->taskService);
 
     $this->app->singleton(TaskService::class, fn (): TaskService => $this->taskService);
