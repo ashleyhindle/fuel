@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Review;
-use Carbon\Carbon;
 use PDO;
 use PDOException;
 use RuntimeException;
@@ -993,30 +992,6 @@ class DatabaseService
     }
 
     /**
-     * Record that a review has started.
-     *
-     * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
-     * @param  string  $agent  The agent performing the review
-     * @param  int|null  $runId  The run integer ID being reviewed
-     * @return string The review short_id (e.g., 'r-xxxxxx')
-     */
-    public function recordReviewStarted(string $taskShortId, string $agent, ?int $runId = null): string
-    {
-        $shortId = 'r-'.bin2hex(random_bytes(3));
-        $startedAt = Carbon::now('UTC')->toIso8601String();
-
-        // Resolve task short_id to integer id
-        $taskIntId = $this->resolveTaskId($taskShortId);
-
-        $this->query(
-            'INSERT INTO reviews (short_id, task_id, agent, status, started_at, run_id) VALUES (?, ?, ?, ?, ?, ?)',
-            [$shortId, $taskIntId, $agent, 'pending', $startedAt, $runId]
-        );
-
-        return $shortId;
-    }
-
-    /**
      * Resolve a task short_id to its integer id.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
@@ -1060,18 +1035,6 @@ class DatabaseService
     }
 
     /**
-     * Get the integer ID for a run by its short_id.
-     * Public method for external use.
-     *
-     * @param  string  $runShortId  The run short_id (e.g., 'run-xxxxxx')
-     * @return int|null The integer id, or null if run not found
-     */
-    public function getRunIntegerId(string $runShortId): ?int
-    {
-        return $this->resolveRunId($runShortId);
-    }
-
-    /**
      * Get a single review by its short_id.
      *
      * @param  string  $reviewShortId  The review short_id (e.g., 'r-xxxxxx')
@@ -1101,24 +1064,6 @@ class DatabaseService
         }
 
         return Review::fromArray($this->decodeReviewJsonFields($review));
-    }
-
-    /**
-     * Record that a review has completed.
-     *
-     * @param  string  $reviewShortId  The review short_id (e.g., 'r-xxxxxx')
-     * @param  bool  $passed  Whether the review passed
-     * @param  array  $issues  Array of issue descriptions found
-     */
-    public function recordReviewCompleted(string $reviewShortId, bool $passed, array $issues): void
-    {
-        $status = $passed ? 'passed' : 'failed';
-        $completedAt = Carbon::now('UTC')->toIso8601String();
-
-        $this->query(
-            'UPDATE reviews SET status = ?, issues = ?, completed_at = ? WHERE short_id = ?',
-            [$status, json_encode($issues), $completedAt, $reviewShortId]
-        );
     }
 
     /**
