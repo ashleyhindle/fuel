@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
+use App\Models\Run;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -49,18 +50,17 @@ class RunsCommand extends Command
                 }
 
                 // Calculate duration
-                $duration = $this->calculateDuration($latestRun['started_at'] ?? null, $latestRun['ended_at'] ?? null);
-
-                // Prepare run data with duration
-                $runData = $latestRun;
-                $runData['duration'] = $duration;
+                $duration = $this->calculateDuration($latestRun->started_at, $latestRun->ended_at);
 
                 if ($this->option('json')) {
+                    // Convert to array and add duration for JSON output
+                    $runData = $latestRun->toArray();
+                    $runData['duration'] = $duration;
                     $this->outputJson($runData);
                 } else {
                     $this->info(sprintf('Latest run for task %s:', $taskId));
                     $this->newLine();
-                    $this->displayRunDetails($runData, true);
+                    $this->displayRunDetails($latestRun, $duration, true);
                 }
             } else {
                 $runs = $runService->getRuns($taskId);
@@ -69,36 +69,37 @@ class RunsCommand extends Command
                     return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
                 }
 
-                // Calculate duration for each run
-                $runsWithDuration = array_map(function (array $run): array {
-                    $duration = $this->calculateDuration($run['started_at'] ?? null, $run['ended_at'] ?? null);
-                    $run['duration'] = $duration;
-
-                    return $run;
-                }, $runs);
-
                 if ($this->option('json')) {
+                    // Convert runs to arrays with duration for JSON output
+                    $runsWithDuration = array_map(function (Run $run): array {
+                        $duration = $this->calculateDuration($run->started_at, $run->ended_at);
+                        $runData = $run->toArray();
+                        $runData['duration'] = $duration;
+
+                        return $runData;
+                    }, $runs);
                     $this->outputJson($runsWithDuration);
                 } else {
                     $this->info(sprintf('Runs for task %s (', $taskId).count($runs).'):');
                     $this->newLine();
 
                     $headers = ['Run ID', 'Agent', 'Model', 'Started At', 'Duration', 'Exit', 'Cost', 'Session'];
-                    $rows = array_map(function (array $run): array {
-                        $sessionId = $run['session_id'] ?? '';
+                    $rows = array_map(function (Run $run): array {
+                        $duration = $this->calculateDuration($run->started_at, $run->ended_at);
+                        $sessionId = $run->session_id ?? '';
                         $shortSession = $sessionId ? substr($sessionId, 0, 8).'...' : '';
 
                         return [
-                            $run['run_id'] ?? '',
-                            $run['agent'] ?? '',
-                            $run['model'] ?? '',
-                            $this->formatDateTime($run['started_at'] ?? ''),
-                            $run['duration'] ?? '',
-                            $run['exit_code'] !== null ? (string) $run['exit_code'] : '',
-                            isset($run['cost_usd']) ? '$'.number_format($run['cost_usd'], 2) : '',
+                            $run->run_id ?? '',
+                            $run->agent ?? '',
+                            $run->model ?? '',
+                            $this->formatDateTime($run->started_at ?? ''),
+                            $duration,
+                            $run->exit_code !== null ? (string) $run->exit_code : '',
+                            $run->cost_usd !== null ? '$'.number_format($run->cost_usd, 2) : '',
                             $shortSession,
                         ];
-                    }, $runsWithDuration);
+                    }, $runs);
 
                     $this->table($headers, $rows);
                 }
@@ -130,57 +131,55 @@ class RunsCommand extends Command
 
     /**
      * Display detailed run information.
-     *
-     * @param  array<string, mixed>  $run
      */
-    private function displayRunDetails(array $run, bool $showOutput = false): void
+    private function displayRunDetails(Run $run, string $duration, bool $showOutput = false): void
     {
-        $this->line('  Run ID: '.$run['run_id']);
+        $this->line('  Run ID: '.$run->run_id);
 
-        if (isset($run['agent']) && $run['agent'] !== null) {
-            $this->line('  Agent: '.$run['agent']);
+        if ($run->agent !== null) {
+            $this->line('  Agent: '.$run->agent);
         }
 
-        if (isset($run['model']) && $run['model'] !== null) {
-            $this->line('  Model: '.$run['model']);
+        if ($run->model !== null) {
+            $this->line('  Model: '.$run->model);
         }
 
-        if (isset($run['started_at']) && $run['started_at'] !== null) {
-            $this->line('  Started: '.$this->formatDateTime($run['started_at']));
+        if ($run->started_at !== null) {
+            $this->line('  Started: '.$this->formatDateTime($run->started_at));
         }
 
-        if (isset($run['ended_at']) && $run['ended_at'] !== null) {
-            $this->line('  Ended: '.$this->formatDateTime($run['ended_at']));
+        if ($run->ended_at !== null) {
+            $this->line('  Ended: '.$this->formatDateTime($run->ended_at));
         }
 
-        if (isset($run['duration']) && $run['duration'] !== '') {
-            $this->line('  Duration: '.$run['duration']);
+        if ($duration !== '') {
+            $this->line('  Duration: '.$duration);
         }
 
-        if (isset($run['exit_code']) && $run['exit_code'] !== null) {
-            $exitColor = $run['exit_code'] === 0 ? 'green' : 'red';
-            $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $run['exit_code']));
+        if ($run->exit_code !== null) {
+            $exitColor = $run->exit_code === 0 ? 'green' : 'red';
+            $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $run->exit_code));
         }
 
-        if (isset($run['cost_usd']) && $run['cost_usd'] !== null) {
-            $this->line('  Cost: $'.number_format($run['cost_usd'], 4));
+        if ($run->cost_usd !== null) {
+            $this->line('  Cost: $'.number_format($run->cost_usd, 4));
         }
 
-        if (isset($run['session_id']) && $run['session_id'] !== null) {
-            $this->line('  Session: '.$run['session_id']);
+        if ($run->session_id !== null) {
+            $this->line('  Session: '.$run->session_id);
 
-            $agent = Agent::fromString($run['agent'] ?? null);
+            $agent = Agent::fromString($run->agent);
             if ($agent instanceof Agent) {
                 $this->newLine();
-                $this->line('  <fg=green>Resume:</> '.$agent->resumeCommand($run['session_id']));
+                $this->line('  <fg=green>Resume:</> '.$agent->resumeCommand($run->session_id));
             }
         }
 
-        if ($showOutput && isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
+        if ($showOutput && $run->output !== null && $run->output !== '') {
             $this->newLine();
             $this->line('  <fg=cyan>── Output ──</>');
             // Indent each line of output
-            $outputLines = explode("\n", (string) $run['output']);
+            $outputLines = explode("\n", $run->output);
             foreach ($outputLines as $line) {
                 $this->line('  '.OutputFormatter::escape($line));
             }
