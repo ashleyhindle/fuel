@@ -9,28 +9,16 @@ use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Repositories\EpicRepository;
-use App\Repositories\TaskRepository;
 use Carbon\Carbon;
 use RuntimeException;
 
 class EpicService
 {
-    private readonly TaskService $taskService;
-
-    private readonly EpicRepository $epicRepository;
-
     public function __construct(
         private readonly DatabaseService $db,
-        ?TaskService $taskService = null,
-        ?EpicRepository $epicRepository = null
-    ) {
-        $this->taskService = $taskService ?? new TaskService(
-            $this->db,
-            new TaskRepository($this->db),
-            $epicRepository ?? new EpicRepository($this->db)
-        );
-        $this->epicRepository = $epicRepository ?? new EpicRepository($this->db);
-    }
+        private readonly TaskService $taskService,
+        private readonly EpicRepository $epicRepository
+    ) {}
 
     public function createEpic(string $title, ?string $description = null): Epic
     {
