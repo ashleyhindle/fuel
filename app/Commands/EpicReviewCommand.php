@@ -126,13 +126,12 @@ class EpicReviewCommand extends Command
     /**
      * Display the epic review in text format.
      *
-     * @param  array<string, mixed>  $epic
      * @param  array<array<string, mixed>>  $tasks
      * @param  array<array<string, mixed>>  $commits
      * @param  array<array<string, mixed>>  $commitMessages
      */
     private function displayEpicReview(
-        array $epic,
+        object $epic,
         array $tasks,
         array $commits,
         ?string $gitStats,

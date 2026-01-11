@@ -121,7 +121,7 @@ class AddCommand extends Command
             if ($epicRecord === null) {
                 return $this->outputError(sprintf("Epic '%s' not found", $epic));
             }
-            $data['epic_id'] = $epicRecord['id'];
+            $data['epic_id'] = $epicRecord->id;
         }
 
         try {

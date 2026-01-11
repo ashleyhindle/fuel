@@ -404,14 +404,14 @@ describe('add command', function (): void {
 
         Artisan::call('add', [
             'title' => 'Task with epic',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['epic_id'])->toBe($epic['id']);
+        expect($task['epic_id'])->toBe($epic->id);
     });
 
     it('creates task with -e flag (epic shortcut)', function (): void {
@@ -422,14 +422,14 @@ describe('add command', function (): void {
 
         Artisan::call('add', [
             'title' => 'Task with epic shortcut',
-            '-e' => $epic['id'],
+            '-e' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['epic_id'])->toBe($epic['id']);
+        expect($task['epic_id'])->toBe($epic->id);
     });
 
     it('validates epic exists when using --epic flag', function (): void {
@@ -454,7 +454,7 @@ describe('add command', function (): void {
             '--type' => 'feature',
             '--priority' => '2',
             '--labels' => 'backend',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -466,7 +466,7 @@ describe('add command', function (): void {
         expect($task['type'])->toBe('feature');
         expect($task['priority'])->toBe(2);
         expect($task['labels'])->toBe(['backend']);
-        expect($task['epic_id'])->toBe($epic['id']);
+        expect($task['epic_id'])->toBe($epic->id);
     });
 
     it('supports partial epic IDs in --epic flag', function (): void {
@@ -474,7 +474,7 @@ describe('add command', function (): void {
         $databaseService->initialize();
         $epicService = new EpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
-        $partialId = substr($epic['id'], 2, 3); // Just hash part
+        $partialId = substr($epic->id, 2, 3); // Just hash part
 
         Artisan::call('add', [
             'title' => 'Task with partial epic ID',
@@ -485,7 +485,7 @@ describe('add command', function (): void {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['epic_id'])->toBe($epic['id']);
+        expect($task['epic_id'])->toBe($epic->id);
     });
 
     it('adds item to backlog with --someday flag', function (): void {
