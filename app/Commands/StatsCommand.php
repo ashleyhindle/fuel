@@ -37,7 +37,8 @@ class StatsCommand extends Command
     public function handle(
         TaskService $taskService,
         RunService $runService,
-        EpicService $epicService
+        EpicService $epicService,
+        DatabaseService $databaseService
     ): int {
         $this->configureCwd($taskService);
 
@@ -47,9 +48,9 @@ class StatsCommand extends Command
         $this->line('');
         $this->renderRunStats($runService);
         $this->line('');
-        $this->renderTrends($taskService, $runService);
+        $this->renderTrends($databaseService);
         $this->line('');
-        $this->renderActivityHeatmap($taskService, $runService);
+        $this->renderActivityHeatmap($databaseService);
 
         return self::SUCCESS;
     }
@@ -301,9 +302,19 @@ class StatsCommand extends Command
         $this->line('└─────────────────────────────────────────┘');
     }
 
-    private function renderActivityHeatmap(TaskService $taskService, RunService $runService): void
+    private function renderTrends(TaskService $taskService, RunService $runService): void
     {
-        $activityData = $this->getActivityByDay($taskService, $runService);
+        // TODO: Implement trends - assigned to another agent
+        $this->line('┌─────────────────────────────────────────┐');
+        $this->line('│ 📈 TRENDS                               │');
+        $this->line('├─────────────────────────────────────────┤');
+        $this->line('│ Coming soon...                          │');
+        $this->line('└─────────────────────────────────────────┘');
+    }
+
+    private function renderActivityHeatmap(DatabaseService $db): void
+    {
+        $activityData = $this->getActivityByDay($db);
 
         $this->line('┌─────────────────────────────────────────────────────┐');
         $this->line('│ 📊 ACTIVITY (last 12 weeks)                         │');
@@ -316,24 +327,22 @@ class StatsCommand extends Command
         $this->line('└─────────────────────────────────────────────────────┘');
     }
 
-    private function getActivityByDay(TaskService $taskService, RunService $runService): array
+    private function getActivityByDay(DatabaseService $db): array
     {
-        $db = $taskService->getDb();
-
         // Get tasks completed per day
         $taskQuery = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
                       FROM tasks
                       WHERE status = 'done'
                       AND updated_at >= date('now', '-84 days')
                       GROUP BY DATE(updated_at)";
-        $taskResults = $db->query($taskQuery)->fetchAll(\PDO::FETCH_ASSOC);
+        $taskResults = $db->fetchAll($taskQuery);
 
         // Get runs per day
         $runQuery = "SELECT DATE(started_at) as day, COUNT(*) as cnt
                      FROM runs
                      WHERE started_at >= date('now', '-84 days')
                      GROUP BY DATE(started_at)";
-        $runResults = $db->query($runQuery)->fetchAll(\PDO::FETCH_ASSOC);
+        $runResults = $db->fetchAll($runQuery);
 
         // Merge data
         $activity = [];
@@ -356,7 +365,7 @@ class StatsCommand extends Command
 
         // Start from 84 days ago
         $startDate = new \DateTime('-84 days');
-        $today = new \DateTime();
+        $today = new \DateTime;
 
         for ($i = 0; $i < 84; $i++) {
             $date = clone $startDate;
@@ -366,7 +375,9 @@ class StatsCommand extends Command
                 break;
             }
 
-            $dayOfWeek = (int) $date->format('N') % 7; // 0=Sun, 1=Mon, ..., 6=Sat
+            // N format: 1=Mon, 2=Tue, ..., 7=Sun
+            // Convert to: 0=Sun, 1=Mon, ..., 6=Sat
+            $dayOfWeek = (int) $date->format('N') % 7; // 7 % 7 = 0 (Sun), 1 % 7 = 1 (Mon), etc.
             $weekIndex = (int) floor($i / 7);
 
             $dateStr = $date->format('Y-m-d');
@@ -376,11 +387,11 @@ class StatsCommand extends Command
         $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
         foreach ($grid as $dayIdx => $weeks) {
-            $line = '│ ' . str_pad($days[$dayIdx], 4) . ' ';
+            $line = '│ '.str_pad($days[$dayIdx], 4).' ';
 
             foreach ($weeks as $count) {
                 $color = $this->getHeatmapColor($count, $maxCount);
-                $line .= $color . '█' . "\e[0m";
+                $line .= $color.'█'."\e[0m";
             }
 
             // Pad to align with border
