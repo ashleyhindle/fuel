@@ -1,6 +1,5 @@
 <?php
 
-use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -25,8 +24,6 @@ describe('show command', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -202,8 +199,13 @@ describe('show command', function (): void {
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task['id']);
 
+        $runService = $this->app->make(RunService::class);
+        $runShortId = $runService->createRun($task['id'], [
+            'agent' => 'test-agent',
+        ]);
+
         // Create processes directory and stdout.log with some content
-        $processDir = $this->tempDir.'/.fuel/processes/'.$task['id'];
+        $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
         mkdir($processDir, 0755, true);
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Line 1\nLine 2\nLine 3\n");
@@ -211,7 +213,7 @@ describe('show command', function (): void {
         Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Run Output (live)');
+        expect($output)->toContain('(live output)');
         expect($output)->toContain('Showing live output (tail)...');
         expect($output)->toContain('Line 1');
         expect($output)->toContain('Line 2');
@@ -223,8 +225,13 @@ describe('show command', function (): void {
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task['id']);
 
+        $runService = $this->app->make(RunService::class);
+        $runShortId = $runService->createRun($task['id'], [
+            'agent' => 'test-agent',
+        ]);
+
         // Create processes directory and stdout.log with 60 lines
-        $processDir = $this->tempDir.'/.fuel/processes/'.$task['id'];
+        $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
         mkdir($processDir, 0755, true);
         $stdoutPath = $processDir.'/stdout.log';
         $lines = [];
@@ -237,7 +244,7 @@ describe('show command', function (): void {
         Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Run Output (live)');
+        expect($output)->toContain('(live output)');
         expect($output)->toContain('Showing live output (tail)...');
         // Should contain last 50 lines (11-60)
         expect($output)->toContain('Line 11');
@@ -263,7 +270,14 @@ describe('show command', function (): void {
         $this->taskService->done($task['id']);
 
         // Create stdout.log (should be ignored for closed tasks)
-        $processDir = $this->tempDir.'/.fuel/processes/'.$task['id'];
+        $databaseService = $this->app->make(DatabaseService::class);
+        $run = $databaseService->fetchOne(
+            'SELECT short_id FROM runs WHERE task_id = (SELECT id FROM tasks WHERE short_id = ?) ORDER BY id DESC LIMIT 1',
+            [$task['id']]
+        );
+        $runShortId = $run['short_id'];
+
+        $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
         mkdir($processDir, 0755, true);
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Live output\n");

@@ -44,11 +44,13 @@ class ProcessManagerTest extends TestCase
 
     public function test_spawn_creates_process_with_correct_properties(): void
     {
+        $runId = 'run-test01';
         $process = $this->processManager->spawn(
             taskId: 'f-test01',
             agent: 'claude',
             command: 'sleep 0.1',
-            cwd: '/tmp'
+            cwd: '/tmp',
+            runId: $runId
         );
 
         // Check process properties
@@ -64,7 +66,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNull($process->completedAt);
 
         // Verify output directory and files are created
-        $outputDir = $this->testDir.'/.fuel/processes/f-test01';
+        $outputDir = $this->testDir.'/.fuel/processes/'.$runId;
         $this->assertTrue(File::exists($outputDir));
         $this->assertTrue(File::exists($outputDir.'/stdout.log'));
         $this->assertTrue(File::exists($outputDir.'/stderr.log'));
@@ -179,11 +181,13 @@ class ProcessManagerTest extends TestCase
     {
         // For this test, we need a command that produces output
         // Since our mock uses 'sleep', we'll just check that output files are created
+        $runId = 'run-test01';
         $this->processManager->spawn(
             taskId: 'f-test01',
             agent: 'claude',
             command: 'sleep 0.01',
-            cwd: '/tmp'
+            cwd: '/tmp',
+            runId: $runId
         );
 
         // Wait for the process to complete
@@ -201,8 +205,8 @@ class ProcessManagerTest extends TestCase
 
         // Verify output - check that we got the ProcessOutput object with paths at least
         $this->assertInstanceOf(ProcessOutput::class, $output);
-        $this->assertStringContainsString('.fuel/processes/f-test01/stdout.log', $output->stdoutPath);
-        $this->assertStringContainsString('.fuel/processes/f-test01/stderr.log', $output->stderrPath);
+        $this->assertStringContainsString('.fuel/processes/'.$runId.'/stdout.log', $output->stdoutPath);
+        $this->assertStringContainsString('.fuel/processes/'.$runId.'/stderr.log', $output->stderrPath);
 
         // Check that output is captured (may be empty if sh doesn't work as expected)
         // At least check that the stdout and stderr properties exist

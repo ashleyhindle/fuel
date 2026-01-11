@@ -70,11 +70,13 @@ class ProcessManagerTest extends TestCase
 
     public function test_captures_stdout_to_file(): void
     {
+        $runId = 'run-stdout01';
         $this->processManager->spawn(
             taskId: 'f-stdout',
             agent: 'claude',
             command: 'echo "stdout content"',
-            cwd: '/tmp'
+            cwd: '/tmp',
+            runId: $runId
         );
 
         // Wait for completion
@@ -83,7 +85,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNotNull($result);
 
         // Verify stdout file content
-        $stdoutPath = $this->testDir.'/.fuel/processes/f-stdout/stdout.log';
+        $stdoutPath = $this->testDir.'/.fuel/processes/'.$runId.'/stdout.log';
         $this->assertTrue(File::exists($stdoutPath));
         $content = File::get($stdoutPath);
         $this->assertStringContainsString('stdout content', $content);
@@ -91,11 +93,13 @@ class ProcessManagerTest extends TestCase
 
     public function test_captures_stderr_to_file(): void
     {
+        $runId = 'run-stderr01';
         $this->processManager->spawn(
             taskId: 'f-stderr',
             agent: 'claude',
             command: 'sh -c "echo error >&2"',
-            cwd: '/tmp'
+            cwd: '/tmp',
+            runId: $runId
         );
 
         // Wait for completion
@@ -104,7 +108,7 @@ class ProcessManagerTest extends TestCase
         $this->assertNotNull($result);
 
         // Verify stderr file content
-        $stderrPath = $this->testDir.'/.fuel/processes/f-stderr/stderr.log';
+        $stderrPath = $this->testDir.'/.fuel/processes/'.$runId.'/stderr.log';
         $this->assertTrue(File::exists($stderrPath));
         $content = File::get($stderrPath);
         $this->assertStringContainsString('error', $content);
