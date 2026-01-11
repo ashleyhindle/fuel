@@ -436,10 +436,10 @@ it('gets review result when review passes with JSON output', function (): void {
         ->with('review-'.$taskId)
         ->andReturn(false);
 
-    // Mock output with passing JSON
+    // Mock output with passing JSON (accepts any run ID since it's generated dynamically)
     $this->processManager
         ->shouldReceive('getOutput')
-        ->with('review-'.$taskId)
+        ->with(Mockery::any())
         ->andReturn(new ProcessOutput(
             stdout: 'Review completed successfully. {"result": "pass", "issues": []}',
             stderr: '',
@@ -494,11 +494,11 @@ it('detects issues from JSON output', function (): void {
         ->with('review-'.$taskId)
         ->andReturn(false);
 
-    // Mock output with failing JSON containing issues
+    // Mock output with failing JSON containing issues (accepts any run ID since it's generated dynamically)
     $jsonOutput = '{"result": "fail", "issues": [{"type": "tests_failing", "description": "3 tests failed in UserServiceTest"}]}';
     $this->processManager
         ->shouldReceive('getOutput')
-        ->with('review-'.$taskId)
+        ->with(Mockery::any())
         ->andReturn(new ProcessOutput(
             stdout: 'Running review... '.$jsonOutput,
             stderr: '',
@@ -618,11 +618,11 @@ it('detects multiple issues from JSON output', function (): void {
         ->with('review-'.$taskId)
         ->andReturn(false);
 
-    // JSON with multiple issues
+    // JSON with multiple issues (accepts any run ID since it's generated dynamically)
     $jsonOutput = '{"result": "fail", "issues": [{"type": "uncommitted_changes", "description": "Modified files not committed: src/Service.php"}, {"type": "tests_failing", "description": "Unit tests failed"}]}';
     $this->processManager
         ->shouldReceive('getOutput')
-        ->with('review-'.$taskId)
+        ->with(Mockery::any())
         ->andReturn(new ProcessOutput(
             stdout: $jsonOutput,
             stderr: '',
@@ -675,10 +675,10 @@ it('falls back to checking task status when no JSON output', function (): void {
         ->with('review-'.$taskId)
         ->andReturn(false);
 
-    // No JSON output - just regular text
+    // No JSON output - just regular text (accepts any run ID since it's generated dynamically)
     $this->processManager
         ->shouldReceive('getOutput')
-        ->with('review-'.$taskId)
+        ->with(Mockery::any())
         ->andReturn(new ProcessOutput(
             stdout: 'Review completed, ran fuel done',
             stderr: '',

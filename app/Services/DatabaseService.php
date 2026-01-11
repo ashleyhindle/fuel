@@ -1032,6 +1032,31 @@ class DatabaseService
     }
 
     /**
+     * Resolve a run short_id to its integer id.
+     *
+     * @param  string  $runShortId  The run short_id (e.g., 'run-xxxxxx')
+     * @return int|null The integer id, or null if run not found
+     */
+    private function resolveRunId(string $runShortId): ?int
+    {
+        $run = $this->fetchOne('SELECT id FROM runs WHERE short_id = ?', [$runShortId]);
+
+        return $run !== null ? (int) $run['id'] : null;
+    }
+
+    /**
+     * Get the integer ID for a run by its short_id.
+     * Public method for external use.
+     *
+     * @param  string  $runShortId  The run short_id (e.g., 'run-xxxxxx')
+     * @return int|null The integer id, or null if run not found
+     */
+    public function getRunIntegerId(string $runShortId): ?int
+    {
+        return $this->resolveRunId($runShortId);
+    }
+
+    /**
      * Get a single review by its short_id.
      *
      * @param  string  $reviewShortId  The review short_id (e.g., 'r-xxxxxx')

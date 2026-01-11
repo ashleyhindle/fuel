@@ -20,7 +20,7 @@ use Symfony\Component\Process\Process;
  */
 class ReviewService implements ReviewServiceInterface
 {
-    /** @var array<string, array{reviewId: string, timestamp: int}> Task IDs currently being reviewed with review ID and start timestamp */
+    /** @var array<string, array{reviewId: string, timestamp: int, runId: string}> Task IDs currently being reviewed with review ID, start timestamp, and run ID */
     private array $pendingReviews = [];
 
     public function __construct(
@@ -107,27 +107,36 @@ class ReviewService implements ReviewServiceInterface
         // Build command string with proper escaping
         $command = implode(' ', array_map(escapeshellarg(...), $commandParts));
 
-        // 6. Spawn review process with special task ID format for reviews
+        // 6. Create run entry for the review (upfront so we have run ID for directory)
+        $runShortId = $this->runService->createRun($taskId, [
+            'agent' => $reviewAgent,
+            'started_at' => date('c'),
+        ]);
+
+        // 7. Spawn review process with run-based directory
         $reviewTaskId = 'review-'.$taskId;
         $this->processManager->spawn(
             $reviewTaskId,
             $reviewAgent,
             $command,
             getcwd(),
-            ProcessType::Review
+            ProcessType::Review,
+            $runShortId  // Pass run short_id for run-based directory
         );
 
-        // 7. Update task status to 'review'
+        // 8. Update task status to 'review'
         $this->taskService->update($taskId, ['status' => TaskStatus::Review->value]);
 
-        // 8. Get the latest run_id for this task
-        $runId = $this->databaseService->getLatestRunId($taskId);
+        // 9. Record review started in database (need to get integer ID for database)
+        $runIntId = $this->databaseService->getRunIntegerId($runShortId);
+        $reviewId = $this->databaseService->recordReviewStarted($taskId, $reviewAgent, $runIntId);
 
-        // 9. Record review started in database
-        $reviewId = $this->databaseService->recordReviewStarted($taskId, $reviewAgent, $runId);
-
-        // 10. Track pending review with review ID
-        $this->pendingReviews[$taskId] = ['reviewId' => $reviewId, 'timestamp' => Carbon::now('UTC')->timestamp];
+        // 10. Track pending review with review ID and run short ID
+        $this->pendingReviews[$taskId] = [
+            'reviewId' => $reviewId,
+            'timestamp' => Carbon::now('UTC')->timestamp,
+            'runId' => $runShortId,  // Store run short_id for directory access
+        ];
 
         return true;
     }
@@ -189,8 +198,14 @@ class ReviewService implements ReviewServiceInterface
             return null;
         }
 
-        $reviewTaskId = 'review-'.$taskId;
-        $output = $this->processManager->getOutput($reviewTaskId);
+        // Get run ID from pending reviews to access run-based directory
+        $runId = $this->pendingReviews[$taskId]['runId'] ?? null;
+        if ($runId === null) {
+            // Fallback to old task-based directory for backward compatibility
+            $runId = 'review-'.$taskId;
+        }
+
+        $output = $this->processManager->getOutput($runId);
 
         // Parse structured JSON from review agent output
         $parsedResult = $this->parseReviewOutput($output);
