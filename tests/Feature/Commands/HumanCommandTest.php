@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -23,11 +24,13 @@ describe('human command', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $taskService = makeTaskService($databaseService);
+        $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
+        $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($databaseService, $taskService));
 
         $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
 
-        $this->taskService = $this->app->make(TaskService::class);
+        $this->taskService = $taskService;
     });
 
     afterEach(function (): void {
@@ -223,8 +226,7 @@ describe('human command', function (): void {
 
     it('shows epics with status review_pending', function (): void {
         $this->taskService->initialize();
-        $dbService = app(DatabaseService::class);
-        $epicService = makeEpicService($dbService, $this->taskService);
+        $epicService = $this->app->make(EpicService::class);
 
         // Create an epic
         $epic = $epicService->createEpic('Test epic', 'Test description');

@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -20,11 +21,13 @@ describe('add command', function (): void {
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $taskService = makeTaskService($databaseService);
+        $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
+        $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($databaseService, $taskService));
 
         $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
 
-        $this->taskService = $this->app->make(TaskService::class);
+        $this->taskService = $taskService;
     });
 
     afterEach(function (): void {
@@ -371,7 +374,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService, $this->taskService);
+        $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -390,7 +393,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService, $this->taskService);
+        $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -419,7 +422,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService, $this->taskService);
+        $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -447,7 +450,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = makeEpicService($databaseService, $this->taskService);
+        $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
         $partialId = substr($epic->id, 2, 3); // Just hash part
 

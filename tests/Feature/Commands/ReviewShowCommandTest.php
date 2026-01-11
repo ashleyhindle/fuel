@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Artisan;
 /**
  * Helper to create a review for a task using the repository.
  */
-function createReviewForTask(
+function createReviewForShowCommandTask(
     ReviewRepository $reviewRepo,
     string $taskShortId,
     string $reviewShortId,
@@ -96,7 +96,7 @@ it('shows review details', function (): void {
     );
 
     $reviewId = 'r-abc123';
-    createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude-sonnet');
+    createReviewForShowCommandTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude-sonnet');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
@@ -116,7 +116,7 @@ it('shows failed review with issues', function (): void {
     );
 
     $reviewId = 'r-def456';
-    createReviewForTask($this->reviewRepo, 'f-def456', $reviewId, 'cursor-composer');
+    createReviewForShowCommandTask($this->reviewRepo, 'f-def456', $reviewId, 'cursor-composer');
     $this->reviewRepo->markAsCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing']);
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
@@ -136,7 +136,7 @@ it('supports partial ID matching', function (): void {
     );
 
     $reviewId = 'r-xyz789';
-    createReviewForTask($this->reviewRepo, 'f-xyz789', $reviewId, 'amp-free');
+    createReviewForShowCommandTask($this->reviewRepo, 'f-xyz789', $reviewId, 'amp-free');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     $partialId = substr((string) $reviewId, 2, 4);
@@ -155,7 +155,7 @@ it('outputs JSON format with --json option', function (): void {
     );
 
     $reviewId = 'r-json01';
-    createReviewForTask($this->reviewRepo, 'f-json01', $reviewId, 'gemini');
+    createReviewForShowCommandTask($this->reviewRepo, 'f-json01', $reviewId, 'gemini');
     $this->reviewRepo->markAsCompleted($reviewId, false, ['task_incomplete']);
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir, '--json' => true]);
@@ -188,7 +188,7 @@ it('shows agent output from stdout.log', function (): void {
     $runId = (int) $run['id'];
 
     $reviewId = 'r-stdout';
-    createReviewForTask($this->reviewRepo, 'f-stdout1', $reviewId, 'claude', $runId);
+    createReviewForShowCommandTask($this->reviewRepo, 'f-stdout1', $reviewId, 'claude', $runId);
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     // Use run-based directory path
@@ -212,7 +212,7 @@ it('delegates from fuel show r-xxx', function (): void {
     );
 
     $reviewId = 'r-delega';
-    createReviewForTask($this->reviewRepo, 'f-delega', $reviewId, 'amp');
+    createReviewForShowCommandTask($this->reviewRepo, 'f-delega', $reviewId, 'amp');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     Artisan::call('show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
@@ -229,7 +229,7 @@ it('shows pending status for in-progress reviews', function (): void {
     );
 
     $reviewId = 'r-pend01';
-    createReviewForTask($this->reviewRepo, 'f-pend01', $reviewId, 'claude');
+    createReviewForShowCommandTask($this->reviewRepo, 'f-pend01', $reviewId, 'claude');
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
     $output = Artisan::output();

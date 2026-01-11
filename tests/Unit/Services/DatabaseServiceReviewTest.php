@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\Review;
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 
@@ -113,7 +112,7 @@ it('records review started and returns review id', function (): void {
     expect($reviewId)->toStartWith('r-');
     expect($reviewId)->toHaveLength(8); // 'r-' + 6 hex chars
 
-    $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
+    $review = $this->reviewRepo->findByShortId($reviewId);
 
     expect($review)->not->toBeNull();
     // task_id is now an integer FK - verify it's not null (the task exists)
@@ -133,7 +132,7 @@ it('records review completed with pass', function (): void {
 
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
-    $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
+    $review = $this->reviewRepo->findByShortId($reviewId);
 
     expect($review['status'])->toBe('passed');
     expect($review['issues'])->toBe('[]');
@@ -151,7 +150,7 @@ it('records review completed with failures and issues', function (): void {
 
     $this->reviewRepo->markAsCompleted($reviewId, false, $issues);
 
-    $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
+    $review = $this->reviewRepo->findByShortId($reviewId);
 
     expect($review['status'])->toBe('failed');
     expect(json_decode((string) $review['issues'], true))->toBe($issues);
@@ -174,37 +173,37 @@ it('gets reviews for task with correct data', function (): void {
     $this->reviewRepo->markAsCompleted($reviewId1, true, []);
     $this->reviewRepo->markAsCompleted($reviewId2, false, ['Tests failed in ServiceTest']);
 
-    $reviews = $this->service->getReviewsForTask('f-123456');
+    $taskId = $this->reviewRepo->resolveTaskId('f-123456');
+    if ($taskId === null) {
+        throw new RuntimeException("Task 'f-123456' not found.");
+    }
+
+    $reviews = $this->reviewRepo->findByTaskId($taskId);
 
     expect($reviews)->toHaveCount(3);
 
-    // Verify all items are Review models
-    foreach ($reviews as $review) {
-        expect($review)->toBeInstanceOf(Review::class);
-    }
-
-    // Extract the review IDs (now short_ids in the public interface)
-    $reviewIds = array_map(fn ($r) => $r->id, $reviews);
+    // Extract the review IDs (short_ids in the repository)
+    $reviewIds = array_column($reviews, 'short_id');
     expect($reviewIds)->toContain($reviewId1);
     expect($reviewIds)->toContain($reviewId2);
     expect($reviewIds)->toContain($reviewId3);
 
-    // Verify task_id is returned as short_id
+    // Verify task_id is returned as integer FK
     foreach ($reviews as $review) {
-        expect($review->task_id)->toBe('f-123456');
+        expect($review['task_id'])->toBe($taskId);
     }
 
-    // Find review2 and check JSON fields are decoded via issues() method
-    $review2 = collect($reviews)->first(fn ($r): bool => $r->id === $reviewId2);
-    expect($review2->issues())->toBe(['Tests failed in ServiceTest']);
+    // Find review2 and check JSON fields are decoded
+    $review2 = collect($reviews)->first(fn (array $review): bool => $review['short_id'] === $reviewId2);
+    expect(json_decode((string) $review2['issues'], true))->toBe(['Tests failed in ServiceTest']);
 
     // Find review3 (pending) and check empty arrays
-    $review3 = collect($reviews)->first(fn ($r): bool => $r->id === $reviewId3);
-    expect($review3->issues())->toBe([]);
+    $review3 = collect($reviews)->first(fn (array $review): bool => $review['short_id'] === $reviewId3);
+    expect($review3['issues'])->toBeNull();
 });
 
 it('gets reviews for task returns empty array when no reviews exist', function (): void {
-    $reviews = $this->service->getReviewsForTask('f-nonexistent');
+    $reviews = $this->reviewRepo->findByTaskId(9999);
 
     expect($reviews)->toBe([]);
 });
@@ -228,13 +227,13 @@ it('gets pending reviews returns only pending reviews', function (): void {
     $this->reviewRepo->markAsCompleted($reviewId1, true, []);
     $this->reviewRepo->markAsCompleted($reviewId3, false, ['Uncommitted changes detected']);
 
-    $pendingReviews = $this->service->getPendingReviews();
+    $pendingReviews = $this->reviewRepo->getPendingReviews();
 
     expect($pendingReviews)->toHaveCount(1);
-    expect($pendingReviews[0])->toBeInstanceOf(Review::class);
-    expect($pendingReviews[0]->id)->toBe($reviewId2);
-    expect($pendingReviews[0]->status)->toBe('pending');
-    expect($pendingReviews[0]->task_id)->toBe('f-task2');
+    $taskId = $this->reviewRepo->resolveTaskId('f-task2');
+    expect($pendingReviews[0]['short_id'])->toBe($reviewId2);
+    expect($pendingReviews[0]['status'])->toBe('pending');
+    expect($pendingReviews[0]['task_id'])->toBe($taskId);
 });
 
 it('gets pending reviews returns all pending reviews', function (): void {
@@ -250,11 +249,11 @@ it('gets pending reviews returns all pending reviews', function (): void {
     createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
 
-    $pendingReviews = $this->service->getPendingReviews();
+    $pendingReviews = $this->reviewRepo->getPendingReviews();
 
     expect($pendingReviews)->toHaveCount(3);
 
-    $reviewIds = array_map(fn ($r) => $r->id, $pendingReviews);
+    $reviewIds = array_column($pendingReviews, 'short_id');
     expect($reviewIds)->toContain($reviewId1);
     expect($reviewIds)->toContain($reviewId2);
     expect($reviewIds)->toContain($reviewId3);
@@ -268,7 +267,7 @@ it('gets pending reviews returns empty array when no pending reviews exist', fun
     createReviewForTask($this->reviewRepo, 'f-task1', $reviewId, 'claude');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
-    $pendingReviews = $this->service->getPendingReviews();
+    $pendingReviews = $this->reviewRepo->getPendingReviews();
 
     expect($pendingReviews)->toBe([]);
 });
@@ -281,11 +280,15 @@ it('decodes json fields correctly for null values', function (): void {
     createReviewForTask($this->reviewRepo, 'f-123456', $reviewId, 'claude');
 
     // Review is pending, so issues is NULL in DB
-    $reviews = $this->service->getReviewsForTask('f-123456');
+    $taskId = $this->reviewRepo->resolveTaskId('f-123456');
+    if ($taskId === null) {
+        throw new RuntimeException("Task 'f-123456' not found.");
+    }
+
+    $reviews = $this->reviewRepo->findByTaskId($taskId);
 
     expect($reviews)->toHaveCount(1);
-    expect($reviews[0])->toBeInstanceOf(Review::class);
-    expect($reviews[0]->issues())->toBe([]);
+    expect($reviews[0]['issues'])->toBeNull();
 });
 
 it('gets all reviews returns all reviews ordered by started_at descending', function (): void {
@@ -320,18 +323,14 @@ it('gets all reviews returns all reviews ordered by started_at descending', func
         [$twoMinutesAgo->format('c'), $reviewId3]
     );
 
-    $reviews = $this->service->getAllReviews();
+    $reviews = $this->reviewRepo->getAllWithLimit();
 
     expect($reviews)->toHaveCount(3);
-    // Verify all are Review models
-    foreach ($reviews as $review) {
-        expect($review)->toBeInstanceOf(Review::class);
-    }
 
     // Should be ordered by started_at DESC, so newest first
-    expect($reviews[0]->id)->toBe($reviewId2); // 1 minute ago (newest)
-    expect($reviews[1]->id)->toBe($reviewId3); // 2 minutes ago
-    expect($reviews[2]->id)->toBe($reviewId1); // 3 minutes ago (oldest)
+    expect($reviews[0]['short_id'])->toBe($reviewId2); // 1 minute ago (newest)
+    expect($reviews[1]['short_id'])->toBe($reviewId3); // 2 minutes ago
+    expect($reviews[2]['short_id'])->toBe($reviewId1); // 3 minutes ago (oldest)
 });
 
 it('gets all reviews filters by status', function (): void {
@@ -352,20 +351,17 @@ it('gets all reviews filters by status', function (): void {
     createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
     $this->reviewRepo->markAsCompleted($reviewId3, false, ['Tests failed']);
 
-    $failedReviews = $this->service->getAllReviews('failed');
+    $failedReviews = $this->reviewRepo->findByStatus('failed');
     expect($failedReviews)->toHaveCount(1);
-    expect($failedReviews[0])->toBeInstanceOf(Review::class);
-    expect($failedReviews[0]->id)->toBe($reviewId3);
+    expect($failedReviews[0]['short_id'])->toBe($reviewId3);
 
-    $pendingReviews = $this->service->getAllReviews('pending');
+    $pendingReviews = $this->reviewRepo->findByStatus('pending');
     expect($pendingReviews)->toHaveCount(1);
-    expect($pendingReviews[0])->toBeInstanceOf(Review::class);
-    expect($pendingReviews[0]->id)->toBe($reviewId2);
+    expect($pendingReviews[0]['short_id'])->toBe($reviewId2);
 
-    $passedReviews = $this->service->getAllReviews('passed');
+    $passedReviews = $this->reviewRepo->findByStatus('passed');
     expect($passedReviews)->toHaveCount(1);
-    expect($passedReviews[0])->toBeInstanceOf(Review::class);
-    expect($passedReviews[0]->id)->toBe($reviewId1);
+    expect($passedReviews[0]['short_id'])->toBe($reviewId1);
 });
 
 it('gets all reviews respects limit', function (): void {
@@ -376,10 +372,10 @@ it('gets all reviews respects limit', function (): void {
         createReviewForTask($this->reviewRepo, 'f-task'.$i, $reviewId, 'claude');
     }
 
-    $reviews = $this->service->getAllReviews(null, 10);
+    $reviews = $this->reviewRepo->getAllWithLimit(10);
     expect($reviews)->toHaveCount(10);
 
-    $reviews = $this->service->getAllReviews(null, 5);
+    $reviews = $this->reviewRepo->getAllWithLimit(5);
     expect($reviews)->toHaveCount(5);
 });
 
@@ -399,10 +395,9 @@ it('gets all reviews with status and limit', function (): void {
         $this->reviewRepo->markAsCompleted($reviewId, false, ['Tests failed']);
     }
 
-    $failedReviews = $this->service->getAllReviews('failed', 5);
+    $failedReviews = $this->reviewRepo->findByStatusWithLimit('failed', 5);
     expect($failedReviews)->toHaveCount(5);
-    expect($failedReviews[0])->toBeInstanceOf(Review::class);
-    expect($failedReviews[0]->status)->toBe('failed');
+    expect($failedReviews[0]['status'])->toBe('failed');
 });
 
 it('allows reviews with null task_id when task does not exist', function (): void {
@@ -416,7 +411,7 @@ it('allows reviews with null task_id when task does not exist', function (): voi
     expect($reviewId)->toStartWith('r-');
 
     // The review should be created with null task_id
-    $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
+    $review = $this->reviewRepo->findByShortId($reviewId);
     expect($review)->not->toBeNull();
     expect($review['task_id'])->toBeNull();
 });
@@ -431,9 +426,8 @@ it('returns null task_id for reviews with orphaned tasks', function (): void {
     $this->service->query('DELETE FROM tasks WHERE short_id = ?', ['f-orphan']);
 
     // Get all reviews - the task_id should resolve to null
-    $reviews = $this->service->getAllReviews();
-    expect($reviews)->toHaveCount(1);
-    expect($reviews[0])->toBeInstanceOf(Review::class);
-    expect($reviews[0]->id)->toBe($reviewId);
-    expect($reviews[0]->task_id)->toBeNull();
+    $review = $this->reviewRepo->findByShortId($reviewId);
+    expect($review)->not->toBeNull();
+    $resolvedShortId = $this->reviewRepo->resolveTaskShortId((int) $review['task_id']);
+    expect($resolvedShortId)->toBeNull();
 });
