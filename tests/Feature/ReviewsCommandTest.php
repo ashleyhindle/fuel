@@ -123,8 +123,8 @@ it('shows recent reviews with correct format', function (): void {
 it('shows only last 10 reviews by default', function (): void {
     // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
-        createTaskForReview($this->databaseService, 'f-task' . $i);
-        $reviewId = $this->databaseService->recordReviewStarted('f-task' . $i, 'claude');
+        createTaskForReview($this->databaseService, 'f-task'.$i);
+        $reviewId = $this->databaseService->recordReviewStarted('f-task'.$i, 'claude');
         $this->databaseService->recordReviewCompleted($reviewId, true, []);
     }
 
@@ -139,8 +139,8 @@ it('shows only last 10 reviews by default', function (): void {
 it('shows all reviews with --all option', function (): void {
     // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
-        createTaskForReview($this->databaseService, 'f-task' . $i);
-        $reviewId = $this->databaseService->recordReviewStarted('f-task' . $i, 'claude');
+        createTaskForReview($this->databaseService, 'f-task'.$i);
+        $reviewId = $this->databaseService->recordReviewStarted('f-task'.$i, 'claude');
         $this->databaseService->recordReviewCompleted($reviewId, true, []);
     }
 

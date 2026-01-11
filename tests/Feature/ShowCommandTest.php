@@ -1,11 +1,11 @@
 <?php
 
-use App\Services\FuelContext;
-use App\Services\TaskService;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\RunService;
+use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
 // Show Command Tests
@@ -238,7 +238,7 @@ describe('show command', function (): void {
         $stdoutPath = $processDir.'/stdout.log';
         $lines = [];
         for ($i = 1; $i <= 60; $i++) {
-            $lines[] = 'Line ' . $i;
+            $lines[] = 'Line '.$i;
         }
 
         file_put_contents($stdoutPath, implode("\n", $lines)."\n");

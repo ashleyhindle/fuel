@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Task;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
 use App\Models\Run;
+use App\Models\Task;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -36,7 +36,7 @@ class RunsCommand extends Command
             // Validate task exists
             $task = $taskService->find($this->argument('id'));
 
-            if (!$task instanceof Task) {
+            if (! $task instanceof Task) {
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
@@ -46,7 +46,7 @@ class RunsCommand extends Command
             if ($this->option('last')) {
                 $latestRun = $runService->getLatestRun($taskId);
 
-                if (!$latestRun instanceof Run) {
+                if (! $latestRun instanceof Run) {
                     return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
                 }
 

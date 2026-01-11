@@ -46,7 +46,7 @@ class TreeCommand extends Command
         $treeData = $this->buildTreeData($tasks, $taskMap);
 
         if ($this->option('json')) {
-            $this->outputJson(array_map(fn(array $item): array => [
+            $this->outputJson(array_map(fn (array $item): array => [
                 'task' => $item['task']->toArray(),
                 'blocks' => array_map(
                     fn (Task $task): array => $task->toArray(),

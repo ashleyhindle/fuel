@@ -29,11 +29,11 @@ beforeEach(function (): void {
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
 
-    $this->app->singleton(TaskService::class, fn(): TaskService => new TaskService($databaseService));
+    $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
-    $this->app->singleton(RunService::class, fn(): RunService => new RunService($databaseService));
+    $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-    $this->app->singleton(ConfigService::class, fn(): ConfigService => new ConfigService($context));
+    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
 
     // Create a mock ReviewServiceInterface
     $this->mockReviewService = \Mockery::mock(ReviewServiceInterface::class);
@@ -183,7 +183,7 @@ it('uses config review agent when no run exists', function (): void {
 
     // Reload config service (create new instance to clear cache)
     $context = $this->app->make(FuelContext::class);
-    $this->app->singleton(ConfigService::class, fn(): ConfigService => new ConfigService($context));
+    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
     $this->configService = $this->app->make(ConfigService::class);
 
     // Create a task without runs and set status to closed

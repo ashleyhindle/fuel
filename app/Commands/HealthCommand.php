@@ -148,7 +148,7 @@ class HealthCommand extends Command
      */
     private function formatDateTime(?DateTimeImmutable $dateTime): string
     {
-        if (!$dateTime instanceof \DateTimeImmutable) {
+        if (! $dateTime instanceof \DateTimeImmutable) {
             return '-';
         }
 
@@ -163,7 +163,7 @@ class HealthCommand extends Command
      */
     private function formatForJson(array $allHealth): array
     {
-        return array_map(fn(AgentHealth $health): array => [
+        return array_map(fn (AgentHealth $health): array => [
             'agent' => $health->agent,
             'status' => $this->getStatusLabel($health),
             'consecutive_failures' => $health->consecutiveFailures,

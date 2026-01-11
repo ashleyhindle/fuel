@@ -44,9 +44,7 @@ class ProcessManager implements ProcessManagerInterface
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
         /** The working directory where .fuel is located */
         private ?string $cwd = null
-    )
-    {
-    }
+    ) {}
 
     /**
      * Set the working directory for process output.

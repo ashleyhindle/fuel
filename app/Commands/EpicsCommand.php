@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
+use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;

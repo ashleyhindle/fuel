@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Review;
 use App\Models\Task;
-use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
@@ -43,7 +43,7 @@ class ReviewShowCommand extends Command
 
         $review = $dbService->getReview($reviewId);
 
-        if (!$review instanceof Review) {
+        if (! $review instanceof Review) {
             return $this->outputError(sprintf("Review '%s' not found", $reviewId));
         }
 

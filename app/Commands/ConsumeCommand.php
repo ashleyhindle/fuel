@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Process\ReviewResult;
-use App\Enums\FailureType;
-use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Enums\FailureType;
+use App\Models\Epic;
 use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Process\ProcessType;
+use App\Process\ReviewResult;
 use App\Services\ConfigService;
 use App\Services\EpicService;
 use App\Services\ProcessManager;
@@ -427,7 +427,7 @@ PROMPT;
         if (! $dryrun && $this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
             $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
             $formatted = $backoffSeconds < 60
-                ? $backoffSeconds . 's'
+                ? $backoffSeconds.'s'
                 : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
 
             // Only show message once per backoff period (check if already shown recently)
@@ -545,14 +545,14 @@ PROMPT;
      */
     private function checkCompletedReviews(array &$statusLines): void
     {
-        if (!$this->reviewService instanceof ReviewServiceInterface) {
+        if (! $this->reviewService instanceof ReviewServiceInterface) {
             return;
         }
 
         foreach ($this->reviewService->getPendingReviews() as $taskId) {
             if ($this->reviewService->isReviewComplete($taskId)) {
                 $result = $this->reviewService->getReviewResult($taskId);
-                if (!$result instanceof ReviewResult) {
+                if (! $result instanceof ReviewResult) {
                     continue;
                 }
 
@@ -689,7 +689,7 @@ PROMPT;
 
         // Check task status
         $task = $this->taskService->find($taskId);
-        if (!$task instanceof Task) {
+        if (! $task instanceof Task) {
             // Task was deleted?
             $statusLines[] = $this->formatStatus('?', sprintf('%s completed but task not found (%s)', $taskId, $durationStr), 'yellow');
 
@@ -1195,7 +1195,7 @@ PROMPT;
      */
     private function displayHealthStatus(): int
     {
-        if (!$this->healthTracker instanceof AgentHealthTrackerInterface) {
+        if (! $this->healthTracker instanceof AgentHealthTrackerInterface) {
             $this->error('Health tracker not available');
 
             return self::FAILURE;
@@ -1253,7 +1253,7 @@ PROMPT;
             $backoffSeconds = $health->getBackoffSeconds();
             if ($backoffSeconds > 0) {
                 $formatted = $backoffSeconds < 60
-                    ? $backoffSeconds . 's'
+                    ? $backoffSeconds.'s'
                     : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                 $line .= sprintf(' <fg=yellow>backoff: %s</>', $formatted);
             }
@@ -1277,7 +1277,7 @@ PROMPT;
      */
     private function checkAgentHealthChanges(array &$statusLines): void
     {
-        if (!$this->healthTracker instanceof AgentHealthTrackerInterface) {
+        if (! $this->healthTracker instanceof AgentHealthTrackerInterface) {
             return;
         }
 
@@ -1306,7 +1306,7 @@ PROMPT;
             // Agent entered backoff
             if ($backoffChanged && $inBackoff && ! $previous['in_backoff']) {
                 $formatted = $backoffSeconds < 60
-                    ? $backoffSeconds . 's'
+                    ? $backoffSeconds.'s'
                     : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                 $statusLines[] = $this->formatStatus('⏳', sprintf('%s entered backoff (%s remaining)', $agentName, $formatted), 'yellow');
             }
@@ -1353,7 +1353,7 @@ PROMPT;
      */
     private function getHealthStatusLines(): array
     {
-        if (!$this->healthTracker instanceof AgentHealthTrackerInterface) {
+        if (! $this->healthTracker instanceof AgentHealthTrackerInterface) {
             return [];
         }
 
@@ -1385,7 +1385,7 @@ PROMPT;
                 // Show agents in backoff (yellow)
                 if ($inBackoff) {
                     $formatted = $backoffSeconds < 60
-                        ? $backoffSeconds . 's'
+                        ? $backoffSeconds.'s'
                         : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                     $unhealthyAgents[] = $this->formatStatus(
                         '⏳',

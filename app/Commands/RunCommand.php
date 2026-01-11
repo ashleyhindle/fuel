@@ -60,8 +60,8 @@ class RunCommand extends Command
         $taskId = $this->argument('id');
         $task = $this->taskService->find($taskId);
 
-        if (!$task instanceof Task) {
-            return $this->outputError('Task not found: ' . $taskId);
+        if (! $task instanceof Task) {
+            return $this->outputError('Task not found: '.$taskId);
         }
 
         $taskId = $task->id; // Use full ID after partial match
@@ -69,8 +69,8 @@ class RunCommand extends Command
         $status = $task->status;
         $blockedBy = $task->blocked_by ?? [];
 
-        $this->info('Task: ' . $taskId);
-        $this->line('Title: ' . $taskTitle);
+        $this->info('Task: '.$taskId);
+        $this->line('Title: '.$taskTitle);
 
         // Show warnings for blocked/in_progress/done tasks but continue anyway
         if ($blockedBy !== []) {
@@ -98,7 +98,7 @@ class RunCommand extends Command
             }
         }
 
-        $this->info('Agent: ' . $agentName);
+        $this->info('Agent: '.$agentName);
 
         // Build prompt
         $fullPrompt = $this->option('prompt') ?? $this->buildPrompt($task, $cwd);

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
@@ -90,7 +90,7 @@ class RemoveCommand extends Command
             if ($hasTaskPrefix) {
                 $task = $taskService->find($id);
 
-                if (!$task instanceof Task) {
+                if (! $task instanceof Task) {
                     return $this->outputError(sprintf("Task '%s' not found", $id));
                 }
 

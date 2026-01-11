@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Task;
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;

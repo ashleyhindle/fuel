@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
-use Mockery\MockInterface;
 use App\Services\ConfigService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
+use Mockery\MockInterface;
 
 /**
  * Provides common JSON output and --cwd handling for Fuel commands.

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Task;
-use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Epic;
+use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\OutputParser;
@@ -66,7 +66,7 @@ class ShowCommand extends Command
         try {
             $task = $taskService->find($id);
 
-            if (!$task instanceof Task) {
+            if (! $task instanceof Task) {
                 return $this->outputError(sprintf("Task '%s' not found", $id));
             }
 

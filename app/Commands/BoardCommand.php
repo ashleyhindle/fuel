@@ -546,7 +546,7 @@ class BoardCommand extends Command
         ?ConfigService $configService = null,
         ?AgentHealthTrackerInterface $healthTracker = null
     ): void {
-        if (!$configService instanceof ConfigService || !$healthTracker instanceof AgentHealthTrackerInterface) {
+        if (! $configService instanceof ConfigService || ! $healthTracker instanceof AgentHealthTrackerInterface) {
             return;
         }
 
@@ -566,7 +566,7 @@ class BoardCommand extends Command
             if ($status === 'unhealthy') {
                 $backoffSeconds = $health->getBackoffSeconds();
                 $formatted = $backoffSeconds < 60
-                    ? $backoffSeconds . 's'
+                    ? $backoffSeconds.'s'
                     : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                 $unhealthyAgents[] = sprintf(
                     '<fg=red>%s</> (%d failures, backoff: %s)',
@@ -578,7 +578,7 @@ class BoardCommand extends Command
                 $backoffSeconds = $health->getBackoffSeconds();
                 if ($backoffSeconds > 0) {
                     $formatted = $backoffSeconds < 60
-                        ? $backoffSeconds . 's'
+                        ? $backoffSeconds.'s'
                         : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
                     $degradedAgents[] = sprintf(
                         '<fg=yellow>%s</> (%d failures, backoff: %s)',

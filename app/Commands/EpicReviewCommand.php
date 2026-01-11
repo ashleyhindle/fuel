@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Epic;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
+use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -45,7 +45,7 @@ class EpicReviewCommand extends Command
             // Load epic and validate it exists
             $epic = $epicService->getEpic($this->argument('epicId'));
 
-            if (!$epic instanceof Epic) {
+            if (! $epic instanceof Epic) {
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('epicId')));
             }
 
@@ -110,7 +110,7 @@ class EpicReviewCommand extends Command
             $this->displayEpicReview($epic, $tasks, $commits, $gitStats, $gitDiff, $commitMessages);
 
             // Prompt to mark as reviewed (unless --no-prompt is set)
-            if (!$this->option('no-prompt') && $this->confirm('Mark this epic as reviewed?', false)) {
+            if (! $this->option('no-prompt') && $this->confirm('Mark this epic as reviewed?', false)) {
                 $epicService->markAsReviewed($epic->id);
                 $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
             }
@@ -164,7 +164,7 @@ class EpicReviewCommand extends Command
             $this->line('  <fg=yellow>No tasks linked to this epic.</>');
         } else {
             $headers = ['ID', 'Title', 'Status', 'Commit'];
-            $rows = array_map(fn(Task $task): array => [
+            $rows = array_map(fn (Task $task): array => [
                 $task->id ?? '',
                 $task->title ?? '',
                 $task->status ?? 'open',

@@ -502,12 +502,13 @@ class EpicService
 
             // Also check description in case title format changed
             $description = $task->description ?? '';
+
             return str_contains($description, $epicId);
         });
     }
 
     /**
-     * Create a needs-human task for epic review.
+     * Create a review task for epic completion.
      *
      * @param  array<string, mixed>  $epic  The epic data
      * @param  string  $summary  The generated summary
@@ -522,7 +523,7 @@ class EpicService
             'description' => $summary,
             'type' => 'task',
             'priority' => 1,
-            'labels' => ['needs-human', 'epic-review'],
+            'labels' => ['epic-review'],
             'complexity' => 'simple',
         ]);
     }
@@ -672,12 +673,12 @@ class EpicService
 
             $summary .= sprintf('- [%s] %s (%s)', $taskId, $taskTitle, $taskStatus);
             if ($commitHash !== 'no commit') {
-                $summary .= ' - commit: ' . $commitHash;
+                $summary .= ' - commit: '.$commitHash;
             }
 
             $summary .= "\n";
         }
 
-        return $summary . "\n## Git Changes Summary\n\n```\n{$gitDiff}\n```\n";
+        return $summary."\n## Git Changes Summary\n\n```\n{$gitDiff}\n```\n";
     }
 }

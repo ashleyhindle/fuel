@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use Carbon\Carbon;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
+use Carbon\Carbon;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-epic-test-'.uniqid();

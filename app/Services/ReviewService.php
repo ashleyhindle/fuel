@@ -48,7 +48,7 @@ class ReviewService implements ReviewServiceInterface
     {
         // 1. Get task details
         $task = $this->taskService->find($taskId);
-        if (!$task instanceof Task) {
+        if (! $task instanceof Task) {
             throw new \RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 

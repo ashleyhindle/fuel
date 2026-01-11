@@ -1,9 +1,9 @@
 <?php
 
-use App\Services\FuelContext;
-use App\Services\DatabaseService;
-use App\Services\RunService;
 use App\Services\BacklogService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
+use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Console\Command\Command;

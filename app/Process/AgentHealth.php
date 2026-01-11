@@ -26,7 +26,7 @@ final readonly class AgentHealth
      */
     public function isAvailable(): bool
     {
-        if (!$this->backoffUntil instanceof \DateTimeImmutable) {
+        if (! $this->backoffUntil instanceof \DateTimeImmutable) {
             return true;
         }
 
@@ -39,7 +39,7 @@ final readonly class AgentHealth
      */
     public function getBackoffSeconds(): int
     {
-        if (!$this->backoffUntil instanceof \DateTimeImmutable) {
+        if (! $this->backoffUntil instanceof \DateTimeImmutable) {
             return 0;
         }
 

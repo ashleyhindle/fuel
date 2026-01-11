@@ -21,9 +21,7 @@ class TaskService
 
     private string $prefix = 'f';
 
-    public function __construct(private readonly DatabaseService $db)
-    {
-    }
+    public function __construct(private readonly DatabaseService $db) {}
 
     /**
      * Load all tasks from SQLite.
@@ -181,7 +179,7 @@ class TaskService
     public function update(string $id, array $data): Task
     {
         $taskModel = $this->find($id);
-        if (!$taskModel instanceof Task) {
+        if (! $taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
@@ -289,7 +287,7 @@ class TaskService
 
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
-                $updates[] = $key . ' = ?';
+                $updates[] = $key.' = ?';
                 $params[] = $value;
                 $task[$key] = $value;
             }
@@ -374,13 +372,13 @@ class TaskService
     public function reopen(string $id): Task
     {
         $taskModel = $this->find($id);
-        if (!$taskModel instanceof Task) {
+        if (! $taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
         $task = $taskModel->toArray();
         $status = $task['status'] ?? '';
-        if (!in_array($status, ['closed', 'in_progress', 'review'], true)) {
+        if (! in_array($status, ['closed', 'in_progress', 'review'], true)) {
             throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
@@ -405,7 +403,7 @@ class TaskService
     public function retry(string $id): Task
     {
         $taskModel = $this->find($id);
-        if (!$taskModel instanceof Task) {
+        if (! $taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
@@ -583,12 +581,12 @@ class TaskService
         $tasks = $this->all();
 
         $taskModel = $this->findInCollection($tasks, $taskId);
-        if (!$taskModel instanceof Task) {
+        if (! $taskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
         $dependsOnTask = $this->findInCollection($tasks, $dependsOnId);
-        if (!$dependsOnTask instanceof Task) {
+        if (! $dependsOnTask instanceof Task) {
             throw new RuntimeException(sprintf("Dependency target '%s' not found", $dependsOnId));
         }
 
@@ -638,7 +636,7 @@ class TaskService
         $taskMap = $tasks->keyBy('id');
 
         $task = $this->findInCollection($tasks, $taskId);
-        if (!$task instanceof Task) {
+        if (! $task instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
@@ -847,7 +845,7 @@ class TaskService
     public function delete(string $id): Task
     {
         $task = $this->find($id);
-        if (!$task instanceof Task) {
+        if (! $task instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
@@ -864,12 +862,12 @@ class TaskService
         $tasks = $this->all();
 
         $fromTaskModel = $this->findInCollection($tasks, $fromId);
-        if (!$fromTaskModel instanceof Task) {
+        if (! $fromTaskModel instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $fromId));
         }
 
         $toTask = $this->findInCollection($tasks, $toId);
-        if (!$toTask instanceof Task) {
+        if (! $toTask instanceof Task) {
             throw new RuntimeException(sprintf("Task '%s' not found", $toId));
         }
 

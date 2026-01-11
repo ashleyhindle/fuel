@@ -101,7 +101,7 @@ final readonly class CompletionResult
     public function isRetryable(): bool
     {
         $failureType = $this->toFailureType();
-        if (!$failureType instanceof FailureType) {
+        if (! $failureType instanceof FailureType) {
             return false; // Success, no retry needed
         }
 

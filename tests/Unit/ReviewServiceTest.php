@@ -86,7 +86,7 @@ it('triggers a review by spawning a process', function (): void {
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $reviewTaskId === 'review-'.$taskId
+        ->withArgs(fn ($reviewTaskId, $agent, $command, $cwd, $processType): bool => $reviewTaskId === 'review-'.$taskId
             && $agent === 'review-agent'
             && str_contains((string) $command, 'echo')
             && $cwd === getcwd()
@@ -282,7 +282,7 @@ it('uses configured review agent instead of completing agent', function (): void
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $agent === 'review-agent' && $processType === ProcessType::Review)
+        ->withArgs(fn ($reviewTaskId, $agent, $command, $cwd, $processType): bool => $agent === 'review-agent' && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-test',
             taskId: 'review-'.$taskId,
@@ -342,7 +342,7 @@ YAML;
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $agent === 'test-agent' && $processType === ProcessType::Review)
+        ->withArgs(fn ($reviewTaskId, $agent, $command, $cwd, $processType): bool => $agent === 'test-agent' && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-test',
             taskId: 'review-'.$taskId,
@@ -731,7 +731,7 @@ it('recovers stuck reviews for tasks in review status with no active process', f
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
-        ->withArgs(fn($reviewTaskId, $agent, $command, $cwd, $processType): bool => $reviewTaskId === 'review-'.$taskId && $processType === ProcessType::Review)
+        ->withArgs(fn ($reviewTaskId, $agent, $command, $cwd, $processType): bool => $reviewTaskId === 'review-'.$taskId && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-recover',
             taskId: 'review-'.$taskId,

@@ -44,7 +44,7 @@ class DbCommand extends Command
 
         // Check if TablePlus is installed (only warn in non-JSON mode)
         $tablePlusPath = '/Applications/TablePlus.app';
-        if (! file_exists($tablePlusPath) && !file_exists('/usr/local/bin/tableplus') && ! $this->option('json')) {
+        if (! file_exists($tablePlusPath) && ! file_exists('/usr/local/bin/tableplus') && ! $this->option('json')) {
             $this->warn('TablePlus not found. Attempting to open anyway...');
         }
 

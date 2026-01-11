@@ -14,9 +14,7 @@ class BacklogService
 
     private int $lockRetryDelayMs = 100;
 
-    public function __construct(private readonly FuelContext $context)
-    {
-    }
+    public function __construct(private readonly FuelContext $context) {}
 
     /**
      * Get the storage path.

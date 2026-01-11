@@ -1,10 +1,10 @@
 <?php
 
-use App\Services\FuelContext;
-use App\Services\DatabaseService;
-use App\Services\TaskService;
-use App\Services\RunService;
 use App\Services\BacklogService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
+use App\Services\RunService;
+use App\Services\TaskService;
 
 // Ready Command Tests
 describe('ready command', function (): void {

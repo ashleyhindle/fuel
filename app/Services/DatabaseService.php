@@ -39,7 +39,7 @@ class DatabaseService
      */
     public function getConnection(): PDO
     {
-        if (!$this->connection instanceof \PDO) {
+        if (! $this->connection instanceof \PDO) {
             try {
                 $this->connection = new PDO('sqlite:'.$this->dbPath);
                 $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

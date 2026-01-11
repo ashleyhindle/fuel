@@ -22,9 +22,7 @@ class ConfigService
     /** @var array<string, mixed>|null */
     private ?array $config = null;
 
-    public function __construct(private readonly FuelContext $context)
-    {
-    }
+    public function __construct(private readonly FuelContext $context) {}
 
     /**
      * Reload configuration from disk.

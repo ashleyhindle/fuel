@@ -331,8 +331,8 @@ it('gets all reviews filters by status', function (): void {
 it('gets all reviews respects limit', function (): void {
     // Create tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
-        createTestTask($this->service, 'f-task' . $i);
-        $this->service->recordReviewStarted('f-task' . $i, 'claude');
+        createTestTask($this->service, 'f-task'.$i);
+        $this->service->recordReviewStarted('f-task'.$i, 'claude');
     }
 
     $reviews = $this->service->getAllReviews(null, 10);
@@ -345,14 +345,14 @@ it('gets all reviews respects limit', function (): void {
 it('gets all reviews with status and limit', function (): void {
     // Create 10 passed and 10 failed reviews
     for ($i = 1; $i <= 10; $i++) {
-        createTestTask($this->service, 'f-passed' . $i);
-        $reviewId = $this->service->recordReviewStarted('f-passed' . $i, 'claude');
+        createTestTask($this->service, 'f-passed'.$i);
+        $reviewId = $this->service->recordReviewStarted('f-passed'.$i, 'claude');
         $this->service->recordReviewCompleted($reviewId, true, []);
     }
 
     for ($i = 1; $i <= 10; $i++) {
-        createTestTask($this->service, 'f-failed' . $i);
-        $reviewId = $this->service->recordReviewStarted('f-failed' . $i, 'claude');
+        createTestTask($this->service, 'f-failed'.$i);
+        $reviewId = $this->service->recordReviewStarted('f-failed'.$i, 'claude');
         $this->service->recordReviewCompleted($reviewId, false, ['Tests failed']);
     }
 

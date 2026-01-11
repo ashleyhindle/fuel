@@ -1,11 +1,11 @@
 <?php
 
-use App\Services\FuelContext;
-use App\Services\DatabaseService;
-use App\Services\TaskService;
-use App\Services\RunService;
-use App\Services\BacklogService;
 use App\Commands\SelfUpdateCommand;
+use App\Services\BacklogService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
+use App\Services\RunService;
+use App\Services\TaskService;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();

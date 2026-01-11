@@ -100,7 +100,7 @@ class RunService
         );
 
         // Transform to Run models (short_id becomes run_id for backward compatibility)
-        return array_map(fn(array $run): Run => Run::fromArray([
+        return array_map(fn (array $run): Run => Run::fromArray([
             'run_id' => $run['short_id'],
             'agent' => $run['agent'],
             'model' => $run['model'],

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Task;
-use App\Models\Run;
 use App\Contracts\ReviewServiceInterface;
+use App\Models\Run;
+use App\Models\Task;
 use App\Services\ConfigService;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -28,8 +28,8 @@ class ReviewCommand extends Command
 
         // Resolve partial ID
         $task = $taskService->find($taskId);
-        if (!$task instanceof Task) {
-            $this->error('Task not found: ' . $taskId);
+        if (! $task instanceof Task) {
+            $this->error('Task not found: '.$taskId);
 
             return self::FAILURE;
         }
