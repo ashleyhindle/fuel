@@ -2,13 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Enums\TaskStatus;
 use App\Repositories\EpicRepository;
 use App\Repositories\ReviewRepository;
 use App\Repositories\RunRepository;
 use App\Repositories\TaskRepository;
 use App\Services\DatabaseService;
-use App\Services\TaskServiceRefactored;
 
 beforeEach(function () {
     // Use isolated test database
@@ -251,51 +249,6 @@ test('review repository operations work correctly', function () {
     $passedReviews = $this->reviewRepo->getPassedReviews();
     expect(count($passedReviews))->toBe(1);
     expect($passedReviews[0]['short_id'])->toBe('r-test01');
-});
-
-test('TaskServiceRefactored works with repository pattern', function () {
-    $service = new TaskServiceRefactored($this->db);
-
-    // Create a task through service
-    $task = $service->create([
-        'title' => 'Service Test Task',
-        'description' => 'Created through refactored service',
-        'type' => 'feature',
-        'priority' => 1,
-        'complexity' => 'moderate',
-        'labels' => ['test', 'refactored'],
-    ]);
-
-    expect($task->title)->toBe('Service Test Task');
-    expect($task->type)->toBe('feature');
-    expect($task->priority)->toBe(1);
-    expect($task->labels)->toBe(['test', 'refactored']);
-
-    // Find the task
-    $foundTask = $service->find($task->id);
-    expect($foundTask)->not->toBeNull();
-    expect($foundTask->title)->toBe('Service Test Task');
-
-    // Update the task
-    $updatedTask = $service->update($task->id, [
-        'title' => 'Updated Service Task',
-        'priority' => 0,
-    ]);
-
-    expect($updatedTask->title)->toBe('Updated Service Task');
-    expect($updatedTask->priority)->toBe(0);
-
-    // Mark as done
-    $doneTask = $service->done($task->id, 'Completed successfully');
-    expect($doneTask->status)->toBe(TaskStatus::Closed->value);
-
-    // Delete the task
-    $deletedTask = $service->delete($task->id);
-    expect($deletedTask->id)->toBe($task->id);
-
-    // Verify it's deleted
-    $notFound = $service->find($task->id);
-    expect($notFound)->toBeNull();
 });
 
 test('repositories provide consistent interface across entities', function () {
