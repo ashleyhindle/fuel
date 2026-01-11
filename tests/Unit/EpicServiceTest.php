@@ -344,7 +344,7 @@ it('triggers completion when all tasks are closed', function (): void {
     $result = $this->service->checkEpicCompletion($epic->id);
 
     expect($result['completed'])->toBeTrue();
-    expect($result['review_task_id'])->not->toBeNull();
+    expect($result['review_task_id'])->toBeNull();
 
     $updatedEpic = $this->service->getEpic($epic->id);
     expect($updatedEpic->status)->toBe('review_pending');
@@ -368,7 +368,7 @@ it('triggers completion when tasks are closed or cancelled', function (): void {
     $result = $this->service->checkEpicCompletion($epic->id);
 
     expect($result['completed'])->toBeTrue();
-    expect($result['review_task_id'])->not->toBeNull();
+    expect($result['review_task_id'])->toBeNull();
 });
 
 it('returns false for non-existent epic', function (): void {
@@ -377,7 +377,7 @@ it('returns false for non-existent epic', function (): void {
     expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
 });
 
-it('prevents duplicate review tasks when checkEpicCompletion called multiple times', function (): void {
+it('does not create review tasks when checkEpicCompletion called multiple times', function (): void {
     $epic = $this->service->createEpic('Epic for idempotency test');
 
     $task1 = $this->taskService->create([
@@ -392,22 +392,20 @@ it('prevents duplicate review tasks when checkEpicCompletion called multiple tim
     $this->taskService->done($task1['id']);
     $this->taskService->done($task2['id']);
 
-    // First call creates review task
+    // First call marks completion
     $result1 = $this->service->checkEpicCompletion($epic->id);
     expect($result1['completed'])->toBeTrue();
-    expect($result1['review_task_id'])->not->toBeNull();
+    expect($result1['review_task_id'])->toBeNull();
 
-    $firstReviewTaskId = $result1['review_task_id'];
-
-    // Second call should return same review task (idempotency)
+    // Second call should remain completed without creating tasks
     $result2 = $this->service->checkEpicCompletion($epic->id);
     expect($result2['completed'])->toBeTrue();
-    expect($result2['review_task_id'])->toBe($firstReviewTaskId);
+    expect($result2['review_task_id'])->toBeNull();
 
-    // Verify only one review task exists
+    // Verify no review tasks exist
     $allTasks = $this->taskService->all();
     $reviewTasks = $allTasks->filter(fn (Task $task): bool => in_array('epic-review', $task->labels ?? [], true));
-    expect($reviewTasks->count())->toBe(1);
+    expect($reviewTasks->count())->toBe(0);
 });
 
 it('approves an epic', function (): void {

@@ -9,7 +9,6 @@ use App\Models\Epic;
 use App\Models\Task;
 use Carbon\Carbon;
 use RuntimeException;
-use Symfony\Component\Process\Process;
 
 class EpicService
 {
@@ -424,10 +423,10 @@ class EpicService
     }
 
     /**
-     * Check if all tasks in an epic are complete and create review task if needed.
+     * Check if all tasks in an epic are complete.
      *
      * @param  string  $epicId  The epic ID to check
-     * @return array{completed: bool, review_task_id: string|null} Whether the epic is complete and review task ID if created
+     * @return array{completed: bool, review_task_id: string|null} Whether the epic is complete (review_task_id is always null)
      */
     public function checkEpicCompletion(string $epicId): array
     {
@@ -461,224 +460,6 @@ class EpicService
             return ['completed' => false, 'review_task_id' => null];
         }
 
-        // Check if a review task already exists for this epic (idempotency)
-        $existingReviewTask = $this->findExistingReviewTask($resolvedId);
-        if ($existingReviewTask instanceof Task) {
-            return ['completed' => true, 'review_task_id' => $existingReviewTask->id];
-        }
-
-        // Map short_id to id for public interface compatibility (needed for createEpicReviewTask)
-        $epic['id'] = $epic['short_id'];
-
-        // Create review task
-        $gitDiff = $this->getCombinedGitDiff($tasks);
-        $summary = $this->generateEpicSummary($epic, $tasks, $gitDiff);
-        $reviewTask = $this->createEpicReviewTask($epic, $summary);
-
-        return ['completed' => true, 'review_task_id' => $reviewTask->id];
-    }
-
-    /**
-     * Find an existing review task for an epic.
-     *
-     * @param  string  $epicId  The epic short_id
-     * @return Task|null The review task if found
-     */
-    private function findExistingReviewTask(string $epicId): ?Task
-    {
-        $allTasks = $this->taskService->all();
-
-        return $allTasks->first(function (Task $task) use ($epicId): bool {
-            $labels = $task->labels ?? [];
-            if (! is_array($labels) || ! in_array('epic-review', $labels, true)) {
-                return false;
-            }
-
-            // Check if epic ID is in the title (format: "Review completed epic: ... ({$epicId})")
-            $title = $task->title ?? '';
-            if (str_contains($title, sprintf('(%s)', $epicId))) {
-                return true;
-            }
-
-            // Also check description in case title format changed
-            $description = $task->description ?? '';
-
-            return str_contains($description, $epicId);
-        });
-    }
-
-    /**
-     * Create a review task for epic completion.
-     *
-     * @param  array<string, mixed>  $epic  The epic data
-     * @param  string  $summary  The generated summary
-     * @return Task The created review task
-     */
-    private function createEpicReviewTask(array $epic, string $summary): Task
-    {
-        $title = sprintf('Review completed epic: %s (%s)', $epic['title'], $epic['id']);
-
-        return $this->taskService->create([
-            'title' => $title,
-            'description' => $summary,
-            'type' => 'task',
-            'priority' => 1,
-            'labels' => ['epic-review'],
-            'complexity' => 'simple',
-        ]);
-    }
-
-    /**
-     * Get combined git diff from all commits associated with epic's tasks.
-     *
-     * @param  array<Task>  $tasks  The tasks in the epic
-     */
-    private function getCombinedGitDiff(array $tasks): string
-    {
-        $commits = [];
-        foreach ($tasks as $task) {
-            $commitHash = $task->commit_hash ?? null;
-            if (is_string($commitHash) && $commitHash !== '') {
-                $commits[] = $commitHash;
-            }
-        }
-
-        if ($commits === []) {
-            return 'No commits associated with tasks in this epic.';
-        }
-
-        $diffOutput = '';
-        $errors = [];
-
-        foreach ($commits as $commit) {
-            try {
-                // Check if git is available
-                $gitCheckProcess = new Process(['git', '--version']);
-                $gitCheckProcess->run();
-                if (! $gitCheckProcess->isSuccessful()) {
-                    $errors[] = [
-                        'commit' => $commit,
-                        'reason' => 'Git is not available',
-                        'details' => $gitCheckProcess->getErrorOutput() ?: 'Git command failed',
-                    ];
-
-                    continue;
-                }
-
-                // Try to get the commit diff
-                $process = new Process(['git', 'show', '--stat', $commit]);
-                $process->run();
-
-                if ($process->isSuccessful()) {
-                    $diffOutput .= "=== Commit: {$commit} ===\n";
-                    $diffOutput .= $process->getOutput()."\n";
-                } else {
-                    // Process failed - analyze the error
-                    $errorOutput = $process->getErrorOutput();
-                    $reason = $this->classifyGitError($errorOutput);
-                    $errors[] = [
-                        'commit' => $commit,
-                        'reason' => $reason,
-                        'details' => trim($errorOutput) ?: 'Unknown error',
-                    ];
-                }
-            } catch (\Throwable $e) {
-                // Exception occurred - determine the cause
-                $reason = 'Exception occurred';
-                $details = $e->getMessage();
-
-                // Check if it's a "command not found" type error
-                if (str_contains($details, 'not found') || str_contains($details, 'No such file')) {
-                    $reason = 'Git is not available';
-                }
-
-                $errors[] = [
-                    'commit' => $commit,
-                    'reason' => $reason,
-                    'details' => $details,
-                ];
-            }
-        }
-
-        // Build the output with error information
-        if ($diffOutput === '' && $errors === []) {
-            return 'Unable to retrieve git diffs for commits: '.implode(', ', $commits);
-        }
-
-        if ($errors !== []) {
-            $diffOutput .= "\n=== Errors retrieving commits ===\n";
-            foreach ($errors as $error) {
-                $diffOutput .= sprintf(
-                    "Commit %s: %s (%s)\n",
-                    $error['commit'],
-                    $error['reason'],
-                    $error['details']
-                );
-            }
-        }
-
-        return $diffOutput;
-    }
-
-    /**
-     * Classify git error output to determine the specific failure reason.
-     *
-     * @param  string  $errorOutput  The error output from git command
-     * @return string A human-readable reason for the failure
-     */
-    private function classifyGitError(string $errorOutput): string
-    {
-        $errorLower = strtolower($errorOutput);
-
-        // Check for invalid hash format
-        if (preg_match('/ambiguous argument|bad object|not a valid object name/i', $errorLower)) {
-            return 'Invalid commit hash';
-        }
-
-        // Check for commit not found in repository
-        if (preg_match('/unknown revision|not found|does not exist/i', $errorLower)) {
-            return 'Commit not found in repository';
-        }
-
-        // Check for git not available
-        if (preg_match('/command not found|not found|no such file/i', $errorLower)) {
-            return 'Git is not available';
-        }
-
-        // Generic failure
-        return 'Failed to retrieve commit';
-    }
-
-    /**
-     * Generate a summary of what was accomplished in the epic.
-     *
-     * @param  array<string, mixed>  $epic  The epic data
-     * @param  array<Task>  $tasks  The tasks in the epic
-     * @param  string  $gitDiff  The combined git diff
-     */
-    private function generateEpicSummary(array $epic, array $tasks, string $gitDiff): string
-    {
-        $title = $epic['title'] ?? 'Untitled Epic';
-        $description = $epic['description'] ?? 'No description';
-
-        $summary = "# Epic Completion Review: {$title}\n\n";
-        $summary .= "## Epic Description\n{$description}\n\n";
-        $summary .= '## Completed Tasks ('.count($tasks)." total)\n\n";
-
-        foreach ($tasks as $task) {
-            $taskTitle = $task->title ?? 'Untitled';
-            $taskId = $task->id ?? 'unknown';
-            $taskStatus = $task->status ?? 'unknown';
-            $commitHash = $task->commit_hash ?? 'no commit';
-
-            $summary .= sprintf('- [%s] %s (%s)', $taskId, $taskTitle, $taskStatus);
-            if ($commitHash !== 'no commit') {
-                $summary .= ' - commit: '.$commitHash;
-            }
-
-            $summary .= "\n";
-        }
-
-        return $summary."\n## Git Changes Summary\n\n```\n{$gitDiff}\n```\n";
+        return ['completed' => true, 'review_task_id' => null];
     }
 }

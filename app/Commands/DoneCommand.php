@@ -96,7 +96,11 @@ class DoneCommand extends Command
 
             foreach ($epicCompletions as $epicId => $completion) {
                 $this->newLine();
-                $this->info(sprintf('Epic %s completed! Review task created: %s', $epicId, $completion['review_task_id']));
+                if (! empty($completion['review_task_id'])) {
+                    $this->info(sprintf('Epic %s completed! Review task created: %s', $epicId, $completion['review_task_id']));
+                } else {
+                    $this->info(sprintf('Epic %s completed!', $epicId));
+                }
             }
         }
 
