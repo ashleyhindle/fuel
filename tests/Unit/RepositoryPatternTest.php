@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use App\Repositories\TaskRepository;
+use App\Enums\TaskStatus;
 use App\Repositories\EpicRepository;
-use App\Repositories\RunRepository;
 use App\Repositories\ReviewRepository;
+use App\Repositories\RunRepository;
+use App\Repositories\TaskRepository;
 use App\Services\DatabaseService;
 use App\Services\TaskServiceRefactored;
-use App\Enums\TaskStatus;
 
 beforeEach(function () {
     // Use isolated test database
@@ -321,4 +321,30 @@ test('repositories provide consistent interface across entities', function () {
         expect(method_exists($repo, 'existsByShortId'))->toBeTrue();
         expect(method_exists($repo, 'count'))->toBeTrue();
     }
+});
+
+test('repositories can be resolved via dependency injection', function () {
+    // Test that all repositories can be resolved from the container
+    // This verifies they're registered in AppServiceProvider and can be injected
+    $taskRepo = app(TaskRepository::class);
+    expect($taskRepo)->toBeInstanceOf(TaskRepository::class);
+    expect($taskRepo)->toHaveProperty('db');
+
+    $epicRepo = app(EpicRepository::class);
+    expect($epicRepo)->toBeInstanceOf(EpicRepository::class);
+    expect($epicRepo)->toHaveProperty('db');
+
+    $runRepo = app(RunRepository::class);
+    expect($runRepo)->toBeInstanceOf(RunRepository::class);
+    expect($runRepo)->toHaveProperty('db');
+
+    $reviewRepo = app(ReviewRepository::class);
+    expect($reviewRepo)->toBeInstanceOf(ReviewRepository::class);
+    expect($reviewRepo)->toHaveProperty('db');
+
+    // Verify they can be used for basic operations
+    expect(method_exists($taskRepo, 'all'))->toBeTrue();
+    expect(method_exists($epicRepo, 'all'))->toBeTrue();
+    expect(method_exists($runRepo, 'all'))->toBeTrue();
+    expect(method_exists($reviewRepo, 'all'))->toBeTrue();
 });
