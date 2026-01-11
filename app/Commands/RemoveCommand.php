@@ -33,12 +33,7 @@ class RemoveCommand extends Command
     public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService): int
     {
         // Configure context with --cwd if provided
-        $this->configureCwd($context);
-
-        // Reconfigure DatabaseService if context path changed
-        if ($this->option('cwd')) {
-            $dbService->setDatabasePath($context->getDatabasePath());
-        }
+        $this->configureCwd($context, $dbService);
 
         $id = $this->argument('id');
 

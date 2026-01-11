@@ -9,6 +9,8 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
 use App\Models\Run;
 use App\Models\Task;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -36,9 +38,14 @@ class RunsCommand extends Command
         parent::__construct();
     }
 
-    public function handle(TaskService $taskService, RunService $runService): int
+    public function handle(
+        FuelContext $context,
+        DatabaseService $databaseService,
+        TaskService $taskService,
+        RunService $runService
+    ): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($context, $databaseService);
 
         try {
             // Validate task exists

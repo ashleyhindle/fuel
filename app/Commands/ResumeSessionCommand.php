@@ -9,6 +9,8 @@ use App\Enums\Agent;
 use App\Models\Run;
 use App\Models\Task;
 use App\Services\ConfigService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -27,9 +29,15 @@ class ResumeSessionCommand extends Command
 
     protected $description = 'Resume a task session interactively or with a prompt';
 
-    public function handle(TaskService $taskService, RunService $runService, ConfigService $configService): int
+    public function handle(
+        FuelContext $context,
+        DatabaseService $databaseService,
+        TaskService $taskService,
+        RunService $runService,
+        ConfigService $configService
+    ): int
     {
-        $this->configureCwd($taskService, $configService);
+        $this->configureCwd($context, $databaseService);
 
         try {
             $task = $taskService->find($this->argument('id'));

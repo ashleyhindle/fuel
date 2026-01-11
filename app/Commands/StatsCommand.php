@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use App\Support\BoxRenderer;
@@ -35,6 +36,7 @@ class StatsCommand extends Command
     protected $description = 'Display project statistics and metrics';
 
     public function handle(
+        FuelContext $context,
         TaskService $taskService,
         RunService $runService,
         EpicService $epicService,
@@ -43,7 +45,7 @@ class StatsCommand extends Command
         // Clear screen for clean dashboard experience
         $this->output->write("\e[2J\e[H");
 
-        $this->configureCwd($taskService);
+        $this->configureCwd($context, $databaseService);
 
         // Detect terminal width
         $termWidth = $this->detectTerminalWidth();

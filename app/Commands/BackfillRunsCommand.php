@@ -24,7 +24,7 @@ class BackfillRunsCommand extends Command
 
     public function handle(DatabaseService $databaseService, FuelContext $fuelContext): int
     {
-        $this->configureCwd($fuelContext);
+        $this->configureCwd($fuelContext, $databaseService);
         $cwd = $this->option('cwd') ?: getcwd();
 
         $dryRun = $this->option('dry-run');

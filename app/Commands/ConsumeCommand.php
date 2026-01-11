@@ -17,6 +17,7 @@ use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
+use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
@@ -69,6 +70,7 @@ class ConsumeCommand extends Command
         private ProcessManager $processManager,
         private EpicService $epicService,
         private FuelContext $fuelContext,
+        private DatabaseService $databaseService,
         private BackoffStrategy $backoffStrategy,
         private ?AgentHealthTrackerInterface $healthTracker = null,
         private ?ReviewServiceInterface $reviewService = null,
@@ -78,10 +80,7 @@ class ConsumeCommand extends Command
 
     public function handle(): int
     {
-        $this->configureCwd($this->fuelContext);
-        if ($this->option('cwd')) {
-            $this->taskService->setDatabasePath($this->fuelContext->getDatabasePath());
-        }
+        $this->configureCwd($this->fuelContext, $this->databaseService);
 
         $this->taskService->initialize();
 

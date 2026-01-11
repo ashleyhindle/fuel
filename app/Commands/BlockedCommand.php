@@ -6,6 +6,8 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -19,9 +21,9 @@ class BlockedCommand extends Command
 
     protected $description = 'Show open tasks with unresolved dependencies';
 
-    public function handle(TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($context, $databaseService);
 
         $tasks = $taskService->blocked();
 

@@ -32,11 +32,7 @@ class SummaryCommand extends Command
 
     public function handle(FuelContext $context, TaskService $taskService, RunService $runService, DatabaseService $dbService): int
     {
-        $this->configureCwd($context);
-
-        if ($this->option('cwd')) {
-            $dbService->setDatabasePath($context->getDatabasePath());
-        }
+        $this->configureCwd($context, $dbService);
 
         try {
             // Validate task exists

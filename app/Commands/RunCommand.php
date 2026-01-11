@@ -9,6 +9,7 @@ use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
+use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\ProcessManager;
@@ -40,6 +41,7 @@ class RunCommand extends Command
         private RunService $runService,
         private ProcessManager $processManager,
         private OutputParser $outputParser,
+        private DatabaseService $databaseService,
         private FuelContext $fuelContext,
     ) {
         parent::__construct();
@@ -47,7 +49,7 @@ class RunCommand extends Command
 
     public function handle(): int
     {
-        $this->configureCwd($this->fuelContext);
+        $this->configureCwd($this->fuelContext, $this->databaseService);
         $this->taskService->initialize();
 
         $cwd = $this->option('cwd') ?: getcwd();

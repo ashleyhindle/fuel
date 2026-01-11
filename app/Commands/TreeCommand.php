@@ -7,6 +7,8 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
@@ -21,9 +23,9 @@ class TreeCommand extends Command
 
     protected $description = 'Show pending tasks as a dependency tree';
 
-    public function handle(TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($context, $databaseService);
 
         $tasks = $taskService->all()
             ->filter(fn (Task $t): bool => ($t->status ?? '') !== TaskStatus::Closed->value)

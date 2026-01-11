@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -27,9 +29,9 @@ class UpdateCommand extends Command
 
     protected $description = 'Update task fields';
 
-    public function handle(TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($context, $databaseService);
 
         $updateData = [];
 

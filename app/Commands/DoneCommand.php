@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
+use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
@@ -27,10 +28,11 @@ class DoneCommand extends Command
 
     public function handle(
         FuelContext $context,
+        DatabaseService $databaseService,
         TaskService $taskService,
         EpicService $epicService
     ): int {
-        $this->configureCwd($context);
+        $this->configureCwd($context, $databaseService);
 
         $ids = $this->argument('ids');
         $reason = $this->option('reason');

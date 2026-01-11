@@ -28,11 +28,7 @@ class HumanCommand extends Command
 
     public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
     {
-        $this->configureCwd($context);
-
-        if ($this->option('cwd')) {
-            $dbService->setDatabasePath($context->getDatabasePath());
-        }
+        $this->configureCwd($context, $dbService);
 
         $epicService = new EpicService($dbService, $taskService);
 

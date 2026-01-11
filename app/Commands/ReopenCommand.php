@@ -6,6 +6,8 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -21,9 +23,9 @@ class ReopenCommand extends Command
 
     protected $description = 'Reopen one or more closed or in_progress tasks (set status back to open)';
 
-    public function handle(TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
     {
-        $this->configureCwd($taskService);
+        $this->configureCwd($context, $databaseService);
 
         $ids = $this->argument('ids');
         $tasks = [];

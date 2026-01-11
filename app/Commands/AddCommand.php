@@ -37,12 +37,7 @@ class AddCommand extends Command
     public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService, EpicService $epicService): int
     {
         // Configure context with --cwd if provided
-        $this->configureCwd($context);
-
-        // Reconfigure DatabaseService if context path changed
-        if ($this->option('cwd')) {
-            $dbService->setDatabasePath($context->getDatabasePath());
-        }
+        $this->configureCwd($context, $dbService);
 
         // Initialize task service
         $taskService->initialize();

@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
-use App\Services\ConfigService;
+use App\Services\DatabaseService;
 use App\Services\FuelContext;
-use App\Services\TaskService;
-use Mockery\MockInterface;
 
 /**
  * Provides common JSON output and --cwd handling for Fuel commands.
@@ -20,25 +18,14 @@ trait HandlesJsonOutput
 {
     /**
      * Configure services with --cwd option if provided.
-     *
-     * Accepts either FuelContext (new pattern) or TaskService (legacy pattern).
-     * The new pattern should be preferred for all new code.
      */
-    protected function configureCwd(FuelContext|TaskService $contextOrService, ?ConfigService $configService = null): void
+    protected function configureCwd(FuelContext $context, ?DatabaseService $databaseService = null): void
     {
         if ($cwd = $this->option('cwd')) {
-            if ($contextOrService instanceof FuelContext) {
-                $contextOrService->basePath = $cwd.'/.fuel';
-            }
+            $context->basePath = $cwd.'/.fuel';
 
-            // Legacy TaskService pattern - TaskService now uses SQLite via DI, no direct path setting needed
-            // The database service will be reconfigured by commands that need it
-            if (
-                $contextOrService instanceof TaskService
-                && (! interface_exists(MockInterface::class) || ! $contextOrService instanceof MockInterface)
-                && method_exists($contextOrService, 'setDatabasePath')
-            ) {
-                $contextOrService->setDatabasePath($cwd.'/.fuel/agent.db');
+            if ($databaseService instanceof DatabaseService) {
+                $databaseService->setDatabasePath($context->getDatabasePath());
             }
         }
     }

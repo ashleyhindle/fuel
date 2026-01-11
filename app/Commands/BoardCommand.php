@@ -10,6 +10,8 @@ use App\Contracts\AgentHealthTrackerInterface;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\ConfigService;
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
@@ -34,12 +36,14 @@ class BoardCommand extends Command
     private TaskService $taskService;
 
     public function handle(
+        FuelContext $context,
+        DatabaseService $databaseService,
         TaskService $taskService,
         ?ConfigService $configService = null,
         ?AgentHealthTrackerInterface $healthTracker = null
     ): int {
         $this->taskService = $taskService;
-        $this->configureCwd($taskService);
+        $this->configureCwd($context);
 
         // Live mode by default, unless --once is passed or --json is used
         if (! $this->option('once') && ! $this->option('json')) {

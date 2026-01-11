@@ -29,11 +29,7 @@ class ReviewShowCommand extends Command
 
     public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, RunService $runService): int
     {
-        $this->configureCwd($context);
-
-        if ($this->option('cwd')) {
-            $dbService->setDatabasePath($context->getDatabasePath());
-        }
+        $this->configureCwd($context, $dbService);
 
         $reviewId = $this->argument('id');
 

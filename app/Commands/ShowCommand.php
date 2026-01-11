@@ -10,6 +10,7 @@ use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -36,7 +37,12 @@ class ShowCommand extends Command
         parent::__construct();
     }
 
-    public function handle(TaskService $taskService, RunService $runService): int
+    public function handle(
+        FuelContext $context,
+        DatabaseService $databaseService,
+        TaskService $taskService,
+        RunService $runService
+    ): int
     {
         $id = $this->argument('id');
 
@@ -57,12 +63,8 @@ class ShowCommand extends Command
             ]);
         }
 
-        $this->configureCwd($taskService);
-
-        // Configure EpicService with --cwd if provided
-        $cwd = $this->option('cwd') ?: getcwd();
-        $dbService = new DatabaseService($cwd.'/.fuel/agent.db');
-        $epicService = new EpicService($dbService, $taskService);
+        $this->configureCwd($context, $databaseService);
+        $epicService = new EpicService($databaseService, $taskService);
 
         try {
             $task = $taskService->find($id);
@@ -232,7 +234,7 @@ class ShowCommand extends Command
                 }
 
                 // Reviews
-                $reviews = $dbService->getReviewsForTask($task->id);
+                $reviews = $databaseService->getReviewsForTask($task->id);
                 if ($reviews !== []) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Reviews ──</>');
