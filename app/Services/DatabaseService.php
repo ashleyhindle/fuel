@@ -502,6 +502,146 @@ class DatabaseService
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)');
                 $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
             },
+            11 => function (PDO $pdo): void {
+                // v11: Remove followup_task_ids column from reviews table
+                // Reviews now use structured JSON output from agents instead of follow-up tasks
+                $tableInfo = $pdo->query('PRAGMA table_info(reviews)')->fetchAll();
+                $hasFollowupColumn = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'followup_task_ids') {
+                        $hasFollowupColumn = true;
+                        break;
+                    }
+                }
+
+                if ($hasFollowupColumn) {
+                    // Recreate table without followup_task_ids column
+                    $pdo->exec('
+                        CREATE TABLE reviews_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            short_id TEXT UNIQUE NOT NULL,
+                            task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+                            agent TEXT,
+                            status TEXT DEFAULT \'pending\',
+                            issues TEXT,
+                            started_at TEXT,
+                            completed_at TEXT,
+                            run_id INTEGER
+                        )
+                    ');
+
+                    // Copy data without followup_task_ids
+                    $pdo->exec('
+                        INSERT INTO reviews_new (id, short_id, task_id, agent, status, issues, started_at, completed_at, run_id)
+                        SELECT id, short_id, task_id, agent, status, issues, started_at, completed_at, run_id
+                        FROM reviews
+                    ');
+
+                    $pdo->exec('DROP TABLE reviews');
+                    $pdo->exec('ALTER TABLE reviews_new RENAME TO reviews');
+
+                    // Recreate indexes
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_id)');
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reviews_run_id ON reviews(run_id)');
+                }
+            },
+            12 => function (PDO $pdo): void {
+                // v12: Migrate runs to integer PK with short_id column
+                // Check if runs table exists and has old schema (id as TEXT primary key)
+                $tableInfo = $pdo->query('PRAGMA table_info(runs)')->fetchAll();
+                $hasOldSchema = false;
+                foreach ($tableInfo as $column) {
+                    if ($column['name'] === 'id' && strtoupper($column['type']) === 'TEXT') {
+                        $hasOldSchema = true;
+                        break;
+                    }
+                }
+
+                if ($hasOldSchema) {
+                    // Create new runs table with proper schema
+                    $pdo->exec('
+                        CREATE TABLE runs_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            short_id TEXT UNIQUE NOT NULL,
+                            task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+                            agent TEXT NOT NULL,
+                            status TEXT DEFAULT \'running\',
+                            exit_code INTEGER,
+                            started_at TEXT,
+                            ended_at TEXT,
+                            duration_seconds INTEGER,
+                            session_id TEXT,
+                            error_type TEXT,
+                            model TEXT,
+                            output TEXT,
+                            cost_usd REAL
+                        )
+                    ');
+
+                    // Copy data from old table (old id becomes short_id)
+                    $pdo->exec('
+                        INSERT INTO runs_new (short_id, task_id, agent, status, exit_code, started_at, ended_at, duration_seconds, session_id, error_type, model, output, cost_usd)
+                        SELECT id, task_id, agent, status, exit_code, started_at, ended_at, duration_seconds, session_id, error_type, model, output, cost_usd
+                        FROM runs
+                    ');
+
+                    // Build run short_id -> integer id lookup for updating reviews
+                    $runLookup = [];
+                    $runRows = $pdo->query('SELECT id, short_id FROM runs_new')->fetchAll();
+                    foreach ($runRows as $row) {
+                        $runLookup[$row['short_id']] = (int) $row['id'];
+                    }
+
+                    // Update reviews.run_id to point to new integer IDs
+                    // Before migration: run_id contains TEXT "run-xxxxxx" values (SQLite stores them as-is)
+                    // After migration: run_id should contain INTEGER references to runs.id
+                    $reviewsWithRunId = $pdo->query('SELECT id, run_id FROM reviews WHERE run_id IS NOT NULL')->fetchAll();
+                    $stmt = $pdo->prepare('UPDATE reviews SET run_id = ? WHERE id = ?');
+                    foreach ($reviewsWithRunId as $review) {
+                        $oldRunId = $review['run_id'];
+                        // Skip if run_id is already purely numeric (already migrated or empty)
+                        if (is_numeric($oldRunId) && ! str_contains((string) $oldRunId, '-')) {
+                            continue;
+                        }
+                        // Look up new integer id by the old string run_id (e.g., "run-xxxxxx")
+                        $newRunId = $runLookup[$oldRunId] ?? null;
+                        $stmt->execute([$newRunId, $review['id']]);
+                    }
+
+                    $pdo->exec('DROP TABLE runs');
+                    $pdo->exec('ALTER TABLE runs_new RENAME TO runs');
+
+                    // Recreate indexes
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_short_id ON runs(short_id)');
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)');
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
+                } else {
+                    // Fresh install or already migrated - create with new schema
+                    $pdo->exec('
+                        CREATE TABLE IF NOT EXISTS runs (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            short_id TEXT UNIQUE NOT NULL,
+                            task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+                            agent TEXT NOT NULL,
+                            status TEXT DEFAULT \'running\',
+                            exit_code INTEGER,
+                            started_at TEXT,
+                            ended_at TEXT,
+                            duration_seconds INTEGER,
+                            session_id TEXT,
+                            error_type TEXT,
+                            model TEXT,
+                            output TEXT,
+                            cost_usd REAL
+                        )
+                    ');
+
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_short_id ON runs(short_id)');
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)');
+                    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
+                }
+            },
         ];
     }
 
@@ -552,11 +692,6 @@ class DatabaseService
         if ($ranMigrationV4) {
             $this->importTasksFromJsonl();
         }
-
-        // Auto-import runs from JSONL after migration v10 updates runs table schema
-        if ($ranMigrationV10) {
-            $this->importRunsFromJsonl();
-        }
     }
 
     /**
@@ -567,10 +702,11 @@ class DatabaseService
     {
         $pdo = $this->getConnection();
 
-        // Create runs table
+        // Create runs table (new schema with integer PK and short_id)
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS runs (
-                id TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                short_id TEXT UNIQUE NOT NULL,
                 task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
                 agent TEXT NOT NULL,
                 status TEXT DEFAULT \'running\',
@@ -599,7 +735,8 @@ class DatabaseService
             )
         ');
 
-        // Create indexes
+        // Create indexes for runs table
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_short_id ON runs(short_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent)');
 
@@ -612,7 +749,6 @@ class DatabaseService
                 agent TEXT,
                 status TEXT DEFAULT \'pending\',
                 issues TEXT,
-                followup_task_ids TEXT,
                 started_at TEXT,
                 completed_at TEXT,
                 run_id INTEGER
@@ -796,134 +932,6 @@ class DatabaseService
     }
 
     /**
-     * Import runs from JSONL files into SQLite runs table.
-     * Only imports if .fuel/runs/ directory exists with .jsonl files.
-     *
-     * @return int Number of runs imported
-     */
-    public function importRunsFromJsonl(): int
-    {
-        // Derive runs directory path from database path
-        $runsDir = dirname($this->dbPath).'/runs';
-
-        // Check if runs directory exists
-        if (! is_dir($runsDir)) {
-            return 0;
-        }
-
-        // Get all .jsonl files in runs directory
-        $jsonlFiles = glob($runsDir.'/*.jsonl');
-        if ($jsonlFiles === false || empty($jsonlFiles)) {
-            return 0;
-        }
-
-        // Build task short_id -> integer id lookup
-        $taskLookup = [];
-        $tasks = $this->fetchAll('SELECT id, short_id FROM tasks');
-        foreach ($tasks as $task) {
-            $taskLookup[$task['short_id']] = (int) $task['id'];
-        }
-
-        $imported = 0;
-        $this->beginTransaction();
-        try {
-            foreach ($jsonlFiles as $jsonlPath) {
-                // Extract task short_id from filename (e.g., "f-xxxxxx.jsonl" -> "f-xxxxxx")
-                $filename = basename($jsonlPath);
-                $taskShortId = str_replace('.jsonl', '', $filename);
-
-                // Resolve task short_id to integer id
-                $taskIntId = $taskLookup[$taskShortId] ?? null;
-                if ($taskIntId === null) {
-                    // Task no longer exists, skip this run file
-                    continue;
-                }
-
-                // Read and import runs from this JSONL file
-                $handle = fopen($jsonlPath, 'r');
-                if ($handle === false) {
-                    continue;
-                }
-
-                while (($line = fgets($handle)) !== false) {
-                    $line = trim($line);
-                    if ($line === '') {
-                        continue;
-                    }
-
-                    $run = json_decode($line, true);
-                    if (! is_array($run) || ! isset($run['run_id'])) {
-                        continue;
-                    }
-
-                    // Check if run already exists (skip duplicates)
-                    $existing = $this->fetchOne('SELECT id FROM runs WHERE id = ?', [$run['run_id']]);
-                    if ($existing !== null) {
-                        continue;
-                    }
-
-                    // Calculate duration_seconds if we have both timestamps
-                    $durationSeconds = null;
-                    if (isset($run['started_at'], $run['ended_at'])) {
-                        $start = strtotime($run['started_at']);
-                        $end = strtotime($run['ended_at']);
-                        if ($start !== false && $end !== false) {
-                            $durationSeconds = $end - $start;
-                        }
-                    }
-
-                    // Determine status based on ended_at
-                    $status = isset($run['ended_at']) ? 'completed' : 'running';
-
-                    // Insert run into database
-                    $this->query(
-                        'INSERT INTO runs (id, task_id, agent, status, exit_code, started_at, ended_at, duration_seconds, session_id, error_type, model, output, cost_usd)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [
-                            $run['run_id'],
-                            $taskIntId,
-                            $run['agent'] ?? null,
-                            $status,
-                            $run['exit_code'] ?? null,
-                            $run['started_at'] ?? null,
-                            $run['ended_at'] ?? null,
-                            $durationSeconds,
-                            $run['session_id'] ?? null,
-                            null, // error_type (not present in old JSONL format)
-                            $run['model'] ?? null,
-                            $run['output'] ?? null,
-                            $run['cost_usd'] ?? null,
-                        ]
-                    );
-                    $imported++;
-                }
-
-                fclose($handle);
-
-                // After successful import, delete the .jsonl file and its .lock file
-                unlink($jsonlPath);
-                $lockPath = $jsonlPath.'.lock';
-                if (file_exists($lockPath)) {
-                    unlink($lockPath);
-                }
-            }
-
-            $this->commit();
-
-            // Delete runs directory if it's now empty
-            $remainingFiles = glob($runsDir.'/*');
-            if ($remainingFiles === false || empty($remainingFiles)) {
-                rmdir($runsDir);
-            }
-        } catch (\Throwable $e) {
-            $this->rollback();
-            throw $e;
-        }
-
-        return $imported;
-    }
-
-    /**
      * Execute a query and return the PDO statement.
      */
     public function query(string $sql, array $params = []): \PDOStatement
@@ -984,9 +992,9 @@ class DatabaseService
      * Get the latest run ID for a task from the runs table.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
-     * @return string|null The run ID (e.g., 'run-xxxxxx'), or null if no runs found
+     * @return int|null The run integer ID, or null if no runs found
      */
-    public function getLatestRunId(string $taskShortId): ?string
+    public function getLatestRunId(string $taskShortId): ?int
     {
         // Resolve task short_id to integer id
         $taskIntId = $this->resolveTaskId($taskShortId);
@@ -996,11 +1004,11 @@ class DatabaseService
 
         // Get the latest run for this task, ordered by started_at descending
         $run = $this->fetchOne(
-            'SELECT id FROM runs WHERE task_id = ? ORDER BY started_at DESC LIMIT 1',
+            'SELECT id FROM runs WHERE task_id = ? ORDER BY started_at DESC, id DESC LIMIT 1',
             [$taskIntId]
         );
 
-        return $run !== null ? $run['id'] : null;
+        return $run !== null ? (int) $run['id'] : null;
     }
 
     /**
@@ -1008,10 +1016,10 @@ class DatabaseService
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
      * @param  string  $agent  The agent performing the review
-     * @param  string|null  $runId  The run ID being reviewed (e.g., 'run-xxxxxx')
+     * @param  int|null  $runId  The run integer ID being reviewed
      * @return string The review short_id (e.g., 'r-xxxxxx')
      */
-    public function recordReviewStarted(string $taskShortId, string $agent, ?string $runId = null): string
+    public function recordReviewStarted(string $taskShortId, string $agent, ?int $runId = null): string
     {
         $shortId = 'r-'.bin2hex(random_bytes(3));
         $startedAt = Carbon::now('UTC')->toIso8601String();
@@ -1062,17 +1070,16 @@ class DatabaseService
      *
      * @param  string  $reviewShortId  The review short_id (e.g., 'r-xxxxxx')
      * @param  bool  $passed  Whether the review passed
-     * @param  array  $issues  Array of issue types found (e.g., ['uncommitted_changes', 'tests_failing'])
-     * @param  array  $followupTaskIds  Array of follow-up task short_ids created (stored as JSON array)
+     * @param  array  $issues  Array of issue descriptions found
      */
-    public function recordReviewCompleted(string $reviewShortId, bool $passed, array $issues, array $followupTaskIds): void
+    public function recordReviewCompleted(string $reviewShortId, bool $passed, array $issues): void
     {
         $status = $passed ? 'passed' : 'failed';
         $completedAt = Carbon::now('UTC')->toIso8601String();
 
         $this->query(
-            'UPDATE reviews SET status = ?, issues = ?, followup_task_ids = ?, completed_at = ? WHERE short_id = ?',
-            [$status, json_encode($issues), json_encode($followupTaskIds), $completedAt, $reviewShortId]
+            'UPDATE reviews SET status = ?, issues = ?, completed_at = ? WHERE short_id = ?',
+            [$status, json_encode($issues), $completedAt, $reviewShortId]
         );
     }
 
@@ -1080,7 +1087,7 @@ class DatabaseService
      * Get all reviews for a specific task.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
-     * @return array Array of review records with issues and followup_task_ids decoded from JSON, task_id returned as short_id
+     * @return array Array of review records with issues and issues decoded from JSON, task_id returned as short_id
      */
     public function getReviewsForTask(string $taskShortId): array
     {
@@ -1101,7 +1108,7 @@ class DatabaseService
     /**
      * Get all pending reviews.
      *
-     * @return array Array of pending review records with issues and followup_task_ids decoded from JSON, task_id returned as short_id
+     * @return array Array of pending review records with issues and issues decoded from JSON, task_id returned as short_id
      */
     public function getPendingReviews(): array
     {
@@ -1118,7 +1125,7 @@ class DatabaseService
      *
      * @param  string|null  $status  Filter by status ('pending', 'passed', 'failed') or null for all
      * @param  int|null  $limit  Limit the number of results (null for no limit)
-     * @return array Array of review records with issues and followup_task_ids decoded from JSON, task_id returned as short_id
+     * @return array Array of review records with issues and issues decoded from JSON, task_id returned as short_id
      */
     public function getAllReviews(?string $status = null, ?int $limit = null): array
     {
@@ -1167,11 +1174,6 @@ class DatabaseService
         $result['issues'] = $review['issues'] !== null ? json_decode($review['issues'], true) : [];
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new RuntimeException('Failed to decode issues JSON: '.json_last_error_msg());
-        }
-
-        $result['followup_task_ids'] = $review['followup_task_ids'] !== null ? json_decode($review['followup_task_ids'], true) : [];
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Failed to decode followup_task_ids JSON: '.json_last_error_msg());
         }
 
         return $result;

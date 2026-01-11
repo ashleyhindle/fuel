@@ -36,8 +36,8 @@ class RunService
             throw new RuntimeException(sprintf('Task %s not found', $taskId));
         }
 
-        // Generate run_id
-        $runId = $this->generateRunId();
+        // Generate short_id for the run
+        $shortId = $this->generateShortId();
 
         // Truncate output to 10KB if present
         $output = $data['output'] ?? null;
@@ -55,12 +55,12 @@ class RunService
             }
         }
 
-        // Insert into runs table - all runs start as STATUS_RUNNING
+        // Insert into runs table - id auto-increments, all runs start as STATUS_RUNNING
         $this->databaseService->query(
-            'INSERT INTO runs (id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status, duration_seconds)
+            'INSERT INTO runs (short_id, task_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, status, duration_seconds)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
-                $runId,
+                $shortId,
                 $taskIntId,
                 $data['agent'] ?? null,
                 $data['model'] ?? null,
@@ -91,17 +91,17 @@ class RunService
         }
 
         $runs = $this->databaseService->fetchAll(
-            'SELECT id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
+            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
              FROM runs
              WHERE task_id = ?
              ORDER BY started_at ASC',
             [$taskIntId]
         );
 
-        // Transform to match old JSONL format (id becomes run_id)
+        // Transform to public format (short_id becomes run_id for backward compatibility)
         return array_map(function (array $run): array {
             return [
-                'run_id' => $run['id'],
+                'run_id' => $run['short_id'],
                 'agent' => $run['agent'],
                 'model' => $run['model'],
                 'started_at' => $run['started_at'],
@@ -130,10 +130,10 @@ class RunService
         }
 
         $run = $this->databaseService->fetchOne(
-            'SELECT id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
+            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
              FROM runs
              WHERE task_id = ?
-             ORDER BY started_at DESC, ROWID DESC
+             ORDER BY started_at DESC, id DESC
              LIMIT 1',
             [$taskIntId]
         );
@@ -142,9 +142,9 @@ class RunService
             return null;
         }
 
-        // Transform to match old JSONL format (id becomes run_id)
+        // Transform to public format (short_id becomes run_id for backward compatibility)
         return [
-            'run_id' => $run['id'],
+            'run_id' => $run['short_id'],
             'agent' => $run['agent'],
             'model' => $run['model'],
             'started_at' => $run['started_at'],
@@ -173,7 +173,7 @@ class RunService
 
         // Get the latest run ID and started_at (needed for duration calculation)
         $latestRun = $this->databaseService->fetchOne(
-            'SELECT id, started_at FROM runs WHERE task_id = ? ORDER BY started_at DESC, ROWID DESC LIMIT 1',
+            'SELECT id, started_at FROM runs WHERE task_id = ? ORDER BY started_at DESC, id DESC LIMIT 1',
             [$taskIntId]
         );
 
@@ -283,9 +283,9 @@ class RunService
     }
 
     /**
-     * Generate a unique run ID.
+     * Generate a unique short_id for a run.
      */
-    private function generateRunId(): string
+    private function generateShortId(): string
     {
         $length = 6;
         $maxAttempts = 100;
@@ -293,19 +293,19 @@ class RunService
         $attempts = 0;
         while ($attempts < $maxAttempts) {
             $hash = hash('sha256', uniqid('run-', true).microtime(true));
-            $id = 'run-'.substr($hash, 0, $length);
+            $shortId = 'run-'.substr($hash, 0, $length);
 
-            // Check if ID already exists in database
-            $existing = $this->databaseService->fetchOne('SELECT id FROM runs WHERE id = ?', [$id]);
+            // Check if short_id already exists in database
+            $existing = $this->databaseService->fetchOne('SELECT id FROM runs WHERE short_id = ?', [$shortId]);
             if ($existing === null) {
-                return $id;
+                return $shortId;
             }
 
             $attempts++;
         }
 
         throw new RuntimeException(
-            sprintf('Failed to generate unique run ID after %d attempts. This is extremely unlikely.', $maxAttempts)
+            sprintf('Failed to generate unique run short_id after %d attempts. This is extremely unlikely.', $maxAttempts)
         );
     }
 
