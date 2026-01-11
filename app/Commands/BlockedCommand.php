@@ -15,8 +15,7 @@ class BlockedCommand extends Command
 
     protected $signature = 'blocked
         {--cwd= : Working directory (defaults to current directory)}
-        {--json : Output as JSON}
-        {--size= : Filter by size (xs|s|m|l|xl)}';
+        {--json : Output as JSON}';
 
     protected $description = 'Show open tasks with unresolved dependencies';
 
@@ -25,11 +24,6 @@ class BlockedCommand extends Command
         $this->configureCwd($taskService);
 
         $tasks = $taskService->blocked();
-
-        // Apply size filter if provided
-        if ($size = $this->option('size')) {
-            $tasks = $tasks->filter(fn (Task $t): bool => ($t->size ?? 'm') === $size);
-        }
 
         if ($this->option('json')) {
             $this->outputJson($tasks->values()->map(fn (Task $task): array => $task->toArray())->toArray());

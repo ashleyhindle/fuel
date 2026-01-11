@@ -114,20 +114,4 @@ describe('blocked command', function (): void {
         expect($output)->toContain('Blocked task');
         expect($output)->not->toContain('Blocker task');
     });
-
-    it('blocked filters by size when --size option is provided', function (): void {
-        $this->taskService->initialize();
-        $blocker = $this->taskService->create(['title' => 'Blocker task']);
-        $blockedSmall = $this->taskService->create(['title' => 'Small blocked task', 'size' => 's']);
-        $blockedLarge = $this->taskService->create(['title' => 'Large blocked task', 'size' => 'l']);
-
-        // Add dependencies
-        $this->taskService->addDependency($blockedSmall['id'], $blocker['id']);
-        $this->taskService->addDependency($blockedLarge['id'], $blocker['id']);
-
-        $this->artisan('blocked', ['--cwd' => $this->tempDir, '--size' => 's'])
-            ->expectsOutputToContain('Small blocked task')
-            ->doesntExpectOutputToContain('Large blocked task')
-            ->assertExitCode(0);
-    });
 });

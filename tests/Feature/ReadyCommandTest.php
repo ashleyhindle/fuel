@@ -107,17 +107,6 @@ describe('ready command', function (): void {
             ->expectsOutput('[]')
             ->assertExitCode(0);
     });
-
-    it('filters by --size flag', function (): void {
-        $this->taskService->initialize();
-        $this->taskService->create(['title' => 'Small task', 'size' => 's']);
-        $this->taskService->create(['title' => 'Large task', 'size' => 'xl']);
-
-        $this->artisan('ready', ['--size' => 's', '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Small task')
-            ->doesntExpectOutputToContain('Large task')
-            ->assertExitCode(0);
-    });
 });
 
 describe('ready command with dependencies', function (): void {

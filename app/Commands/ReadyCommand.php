@@ -15,8 +15,7 @@ class ReadyCommand extends Command
 
     protected $signature = 'ready
         {--cwd= : Working directory (defaults to current directory)}
-        {--json : Output as JSON}
-        {--size= : Filter by size (xs|s|m|l|xl)}';
+        {--json : Output as JSON}';
 
     protected $description = 'Show all open (non-done) tasks';
 
@@ -25,11 +24,6 @@ class ReadyCommand extends Command
         $this->configureCwd($taskService);
 
         $tasks = $taskService->ready();
-
-        // Apply size filter if provided
-        if ($size = $this->option('size')) {
-            $tasks = $tasks->filter(fn (Task $t): bool => ($t->size ?? 'm') === $size);
-        }
 
         if ($this->option('json')) {
             $this->outputJson($tasks->values()->map(fn (Task $t): array => $t->toArray())->toArray());

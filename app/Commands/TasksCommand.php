@@ -22,8 +22,7 @@ class TasksCommand extends Command
         {--status= : Filter by status (open|closed)}
         {--type= : Filter by type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Filter by priority (0-4)}
-        {--labels= : Filter by labels (comma-separated)}
-        {--size= : Filter by size (xs|s|m|l|xl)}';
+        {--labels= : Filter by labels (comma-separated)}';
 
     protected $description = 'List tasks with optional filters';
 
@@ -64,10 +63,6 @@ class TasksCommand extends Command
             });
         }
 
-        if ($size = $this->option('size')) {
-            $tasks = $tasks->filter(fn (Task $t): bool => ($t->size ?? 'm') === $size);
-        }
-
         // Sort by created_at
         $tasks = $tasks->sortBy('created_at')->values();
 
@@ -84,14 +79,13 @@ class TasksCommand extends Command
             $this->newLine();
 
             // Display all schema fields in a table
-            $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Size', 'Labels', 'Created'];
+            $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Created'];
             $rows = $tasks->map(fn (Task $t): array => [
                 $t->id,
                 $t->title,
                 $t->status ?? TaskStatus::Open->value,
                 $t->type ?? 'task',
                 $t->priority ?? 2,
-                $t->size ?? 'm',
                 isset($t->labels) && ! empty($t->labels) && is_array($t->labels) ? implode(', ', $t->labels) : '',
                 $t->created_at,
             ])->toArray();

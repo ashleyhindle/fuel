@@ -180,7 +180,6 @@ describe('tasks command', function (): void {
             'type' => 'feature',
             'priority' => 3,
             'labels' => ['test'],
-            'size' => 'l',
         ]);
 
         Artisan::call('tasks', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -188,24 +187,10 @@ describe('tasks command', function (): void {
         $tasks = json_decode($output, true);
 
         expect($tasks)->toHaveCount(1);
-        expect($tasks[0])->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'blocked_by', 'created_at', 'updated_at']);
+        expect($tasks[0])->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'blocked_by', 'created_at', 'updated_at']);
         expect($tasks[0]['description'])->toBe('Full description');
         expect($tasks[0]['type'])->toBe('feature');
         expect($tasks[0]['priority'])->toBe(3);
         expect($tasks[0]['labels'])->toBe(['test']);
-        expect($tasks[0]['size'])->toBe('l');
-    });
-
-    it('filters by --size flag', function (): void {
-        $this->taskService->initialize();
-        $this->taskService->create(['title' => 'Small task', 'size' => 'xs']);
-        $this->taskService->create(['title' => 'Medium task', 'size' => 'm']);
-        $this->taskService->create(['title' => 'Large task', 'size' => 'xl']);
-
-        $this->artisan('tasks', ['--size' => 'xl', '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Large task')
-            ->doesntExpectOutputToContain('Small task')
-            ->doesntExpectOutputToContain('Medium task')
-            ->assertExitCode(0);
     });
 });
