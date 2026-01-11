@@ -129,7 +129,7 @@ it('validates task status enum', function (): void {
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Valid statuses
-    $validStatuses = ['open', 'in_progress', 'review', 'closed', 'cancelled'];
+    $validStatuses = ['open', 'in_progress', 'review', 'closed', 'cancelled', 'someday'];
     foreach ($validStatuses as $status) {
         $updated = $this->taskService->update($task->id, ['status' => $status]);
         expect($updated->status)->toBe($status);
@@ -755,4 +755,144 @@ it('returns task without last_review_issues key when field is null', function ()
 
     $reloaded = $this->taskService->find($task->id);
     expect(isset($reloaded->last_review_issues))->toBeFalse();
+});
+
+// =============================================================================
+// Backlog Management Tests (status=someday)
+// =============================================================================
+
+it('backlog() returns only tasks with status=someday', function (): void {
+    $openTask = $this->taskService->create(['title' => 'Open task']);
+    $somedayTask1 = $this->taskService->create(['title' => 'Someday task 1']);
+    $this->taskService->update($somedayTask1->id, ['status' => 'someday']);
+    $somedayTask2 = $this->taskService->create(['title' => 'Someday task 2']);
+    $this->taskService->update($somedayTask2->id, ['status' => 'someday']);
+    $closedTask = $this->taskService->create(['title' => 'Closed task']);
+    $this->taskService->done($closedTask->id);
+
+    $backlog = $this->taskService->backlog();
+
+    expect($backlog)->toHaveCount(2);
+    expect($backlog->pluck('title')->toArray())->toContain('Someday task 1');
+    expect($backlog->pluck('title')->toArray())->toContain('Someday task 2');
+    expect($backlog->pluck('title')->toArray())->not->toContain('Open task');
+    expect($backlog->pluck('title')->toArray())->not->toContain('Closed task');
+});
+
+it('backlog() returns empty collection when no someday tasks exist', function (): void {
+    $this->taskService->create(['title' => 'Open task']);
+    $closed = $this->taskService->create(['title' => 'Closed task']);
+    $this->taskService->done($closed->id);
+
+    $backlog = $this->taskService->backlog();
+
+    expect($backlog)->toBeEmpty();
+});
+
+it('backlog() orders tasks by created_at', function (): void {
+    $task1 = $this->taskService->create(['title' => 'First someday']);
+    $this->taskService->update($task1->id, ['status' => 'someday']);
+
+    sleep(1); // Ensure different timestamps
+
+    $task2 = $this->taskService->create(['title' => 'Second someday']);
+    $this->taskService->update($task2->id, ['status' => 'someday']);
+
+    $backlog = $this->taskService->backlog();
+
+    expect($backlog)->toHaveCount(2);
+    expect($backlog->first()->title)->toBe('First someday');
+    expect($backlog->last()->title)->toBe('Second someday');
+});
+
+it('promote() changes task status from someday to open', function (): void {
+    $task = $this->taskService->create(['title' => 'Future idea']);
+    $this->taskService->update($task->id, ['status' => 'someday']);
+
+    $promoted = $this->taskService->promote($task->id);
+
+    expect($promoted->status)->toBe('open');
+    expect($promoted->title)->toBe('Future idea');
+
+    // Verify it's persisted
+    $reloaded = $this->taskService->find($task->id);
+    expect($reloaded->status)->toBe('open');
+});
+
+it('promote() works with partial ID', function (): void {
+    $task = $this->taskService->create(['title' => 'Future feature']);
+    $this->taskService->update($task->id, ['status' => 'someday']);
+    $partialId = substr($task->id, 2, 3);
+
+    $promoted = $this->taskService->promote($partialId);
+
+    expect($promoted->id)->toBe($task->id);
+    expect($promoted->status)->toBe('open');
+});
+
+it('promote() throws exception when task not found', function (): void {
+    $this->taskService->promote('f-nonexistent');
+})->throws(RuntimeException::class, "Task 'f-nonexistent' not found");
+
+it('promote() throws exception when task status is not someday', function (): void {
+    $task = $this->taskService->create(['title' => 'Open task']);
+
+    $this->taskService->promote($task->id);
+})->throws(RuntimeException::class, 'is not a backlog item');
+
+it('defer() changes task status to someday', function (): void {
+    $task = $this->taskService->create(['title' => 'Task to defer']);
+
+    $deferred = $this->taskService->defer($task->id);
+
+    expect($deferred->status)->toBe('someday');
+    expect($deferred->title)->toBe('Task to defer');
+
+    // Verify it's persisted
+    $reloaded = $this->taskService->find($task->id);
+    expect($reloaded->status)->toBe('someday');
+});
+
+it('defer() works with partial ID', function (): void {
+    $task = $this->taskService->create(['title' => 'Task to defer']);
+    $partialId = substr($task->id, 2, 3);
+
+    $deferred = $this->taskService->defer($partialId);
+
+    expect($deferred->id)->toBe($task->id);
+    expect($deferred->status)->toBe('someday');
+});
+
+it('defer() works on already someday tasks (idempotent)', function (): void {
+    $task = $this->taskService->create(['title' => 'Already someday']);
+    $this->taskService->update($task->id, ['status' => 'someday']);
+
+    $deferred = $this->taskService->defer($task->id);
+
+    expect($deferred->status)->toBe('someday');
+});
+
+it('defer() throws exception when task not found', function (): void {
+    $this->taskService->defer('f-nonexistent');
+})->throws(RuntimeException::class, "Task 'f-nonexistent' not found");
+
+it('defer() preserves task metadata when changing status', function (): void {
+    $task = $this->taskService->create([
+        'title' => 'Complex task',
+        'description' => 'Detailed description',
+        'type' => 'feature',
+        'priority' => 3,
+        'labels' => ['backend', 'urgent'],
+        'complexity' => 'moderate',
+    ]);
+
+    $deferred = $this->taskService->defer($task->id);
+
+    expect($deferred->status)->toBe('someday');
+    expect($deferred->title)->toBe('Complex task');
+    expect($deferred->description)->toBe('Detailed description');
+    expect($deferred->type)->toBe('feature');
+    expect($deferred->priority)->toBe(3);
+    expect($deferred->labels)->toBe(['backend', 'urgent']);
+    expect($deferred->complexity)->toBe('moderate');
 });
