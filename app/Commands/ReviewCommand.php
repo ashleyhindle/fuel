@@ -77,8 +77,8 @@ class ReviewCommand extends Command
     ): string {
         // Try to get agent from latest run
         $latestRun = $runService->getLatestRun($taskId);
-        if ($latestRun !== null && isset($latestRun['agent']) && $latestRun['agent'] !== null) {
-            return $latestRun['agent'];
+        if ($latestRun !== null && isset($latestRun->agent) && $latestRun->agent !== null) {
+            return $latestRun->agent;
         }
 
         // Fallback to config review agent or primary agent
