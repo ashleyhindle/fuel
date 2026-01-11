@@ -224,7 +224,7 @@ class EpicReviewCommand extends Command
             if ($gitDiff !== null) {
                 $this->line('<fg=cyan>Full Diff:</>');
                 $this->newLine();
-                $this->line($gitDiff);
+                $this->output->writeln($gitDiff, \Symfony\Component\Console\Output\OutputInterface::OUTPUT_RAW);
                 $this->newLine();
             }
         } else {
