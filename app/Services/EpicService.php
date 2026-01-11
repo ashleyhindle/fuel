@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\EpicStatus;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use Carbon\Carbon;
@@ -96,6 +97,8 @@ class EpicService
     {
         $this->db->initialize();
 
+        // SQL uses string literals for TaskStatus values: 'closed', 'cancelled'
+        // These correspond to TaskStatus::Closed->value and TaskStatus::Cancelled->value
         $sql = "
             SELECT e.*
             FROM epics e
@@ -257,8 +260,8 @@ class EpicService
         // Reopen tasks in the epic that were closed (move back to in_progress)
         $tasks = $this->getTasksForEpic($resolvedId);
         foreach ($tasks as $task) {
-            if (($task->status ?? '') === 'closed') {
-                $this->taskService->update($task->id, ['status' => 'open']);
+            if (($task->status ?? '') === TaskStatus::Closed->value) {
+                $this->taskService->update($task->id, ['status' => TaskStatus::Open->value]);
             }
         }
 
@@ -336,7 +339,7 @@ class EpicService
             $hasActiveTask = false;
             foreach ($tasks as $task) {
                 $status = $task->status ?? '';
-                if ($status === 'open' || $status === 'in_progress') {
+                if ($status === TaskStatus::Open->value || $status === TaskStatus::InProgress->value) {
                     $hasActiveTask = true;
                     break;
                 }
@@ -362,7 +365,7 @@ class EpicService
         $hasActiveTask = false;
         foreach ($tasks as $task) {
             $status = $task->status ?? '';
-            if ($status === 'open' || $status === 'in_progress') {
+            if ($status === TaskStatus::Open->value || $status === TaskStatus::InProgress->value) {
                 $hasActiveTask = true;
                 break;
             }
@@ -376,7 +379,7 @@ class EpicService
         $allClosed = true;
         foreach ($tasks as $task) {
             $status = $task->status ?? '';
-            if ($status !== 'closed') {
+            if ($status !== TaskStatus::Closed->value) {
                 $allClosed = false;
                 break;
             }
@@ -450,7 +453,7 @@ class EpicService
         $allClosed = true;
         foreach ($tasks as $task) {
             $status = $task->status ?? '';
-            if ($status !== 'closed' && $status !== 'cancelled') {
+            if ($status !== TaskStatus::Closed->value && $status !== TaskStatus::Cancelled->value) {
                 $allClosed = false;
                 break;
             }
