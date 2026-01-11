@@ -11,4 +11,5 @@ enum TaskStatus: string
     case Review = 'review';
     case Closed = 'closed';
     case Cancelled = 'cancelled';
+    case Someday = 'someday';
 }
