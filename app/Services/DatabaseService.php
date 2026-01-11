@@ -686,8 +686,6 @@ class DatabaseService
 
                     $item = json_decode($line, true);
                     if (json_last_error() !== JSON_ERROR_NONE) {
-                        // Log error but continue with other items
-                        error_log('Failed to parse backlog item: '.$line);
 
                         continue;
                     }
