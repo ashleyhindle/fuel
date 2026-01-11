@@ -122,10 +122,10 @@ describe('epic:show command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic', 'Test Description');
 
-        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Epic: '.$epic['id']);
+        expect($output)->toContain('Epic: '.$epic->id);
         expect($output)->toContain('Title: Test Epic');
         expect($output)->toContain('Description: Test Description');
         expect($output)->toContain('Status: planning');
@@ -143,21 +143,21 @@ describe('epic:show command', function (): void {
             'title' => 'Task 1',
             'type' => 'feature',
             'priority' => 1,
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
         $task2 = $taskService->create([
             'title' => 'Task 2',
             'type' => 'bug',
             'priority' => 2,
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
         // Update task2 to closed status
         $taskService->update($task2['id'], ['status' => 'closed']);
 
-        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Epic: '.$epic['id']);
+        expect($output)->toContain('Epic: '.$epic->id);
         expect($output)->toContain('Title: Epic with Tasks');
         expect($output)->toContain('Description: Epic Description');
         expect($output)->toContain('Linked Tasks (2):');
@@ -184,27 +184,27 @@ describe('epic:show command', function (): void {
         $epic = $epicService->createEpic('Epic with Progress');
         $task1 = $taskService->create([
             'title' => 'Task 1',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
         $task2 = $taskService->create([
             'title' => 'Task 2',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
         $task3 = $taskService->create([
             'title' => 'Task 3',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
         // Update tasks to closed status
         $taskService->update($task1['id'], ['status' => 'closed']);
         $taskService->update($task2['id'], ['status' => 'closed']);
 
-        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Progress: 2/3 complete'); // 2 completed out of 3 total
 
         // Check JSON output
-        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:show', ['id' => $epic->id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -220,15 +220,15 @@ describe('epic:show command', function (): void {
         $task = $taskService->create([
             'title' => 'JSON Task',
             'status' => 'open',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
 
-        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:show', ['id' => $epic->id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
         expect($data)->toBeArray();
-        expect($data['id'])->toBe($epic['id']);
+        expect($data['id'])->toBe($epic->id);
         expect($data['title'])->toBe('JSON Epic');
         expect($data['description'])->toBe('JSON Description');
         expect($data['status'])->toBe('in_progress');
@@ -248,12 +248,12 @@ describe('epic:show command', function (): void {
         $epic = $epicService->createEpic('Partial ID Epic');
 
         // Use partial ID (without e- prefix)
-        $partialId = substr($epic['id'], 2);
+        $partialId = substr($epic->id, 2);
 
         Artisan::call('epic:show', ['id' => $partialId, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Epic: '.$epic['id']);
+        expect($output)->toContain('Epic: '.$epic->id);
         expect($output)->toContain('Title: Partial ID Epic');
     });
 
@@ -274,14 +274,14 @@ describe('epic:show command', function (): void {
         $task1 = $taskService->create([
             'title' => 'Unblocked P0',
             'priority' => 0,
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
 
         // Task 2: Blocked, priority 0 (should appear after all unblocked tasks)
         $task2 = $taskService->create([
             'title' => 'Blocked P0',
             'priority' => 0,
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
             'blocked_by' => [$blocker['id']],
         ]);
 
@@ -289,7 +289,7 @@ describe('epic:show command', function (): void {
         $task3 = $taskService->create([
             'title' => 'Unblocked P1',
             'priority' => 1,
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
 
         // Task 4: Unblocked, priority 0, created later (add delay to ensure different timestamp)
@@ -297,10 +297,10 @@ describe('epic:show command', function (): void {
         $task4 = $taskService->create([
             'title' => 'Unblocked P0 Later',
             'priority' => 0,
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
 
-        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:show', ['id' => $epic->id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -342,11 +342,11 @@ describe('epic:show command', function (): void {
         $blockedTask = $taskService->create([
             'title' => 'Blocked Task',
             'status' => 'open',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
             'blocked_by' => [$blocker['id']],
         ]);
 
-        Artisan::call('epic:show', ['id' => $epic['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         // Check that blocked indicator appears (yellow "blocked" text)

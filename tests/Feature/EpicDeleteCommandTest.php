@@ -114,12 +114,12 @@ describe('epic:delete command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic', 'Test Description');
 
-        Artisan::call('epic:delete', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->id, '--cwd' => $this->tempDir, '--force' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Deleted epic: '.$epic['id']);
+        expect($output)->toContain('Deleted epic: '.$epic->id);
 
-        $deletedEpic = $epicService->getEpic($epic['id']);
+        $deletedEpic = $epicService->getEpic($epic->id);
         expect($deletedEpic)->toBeNull();
     });
 
@@ -134,12 +134,12 @@ describe('epic:delete command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('JSON Epic', 'JSON Description');
 
-        Artisan::call('epic:delete', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
         expect($data)->toBeArray();
-        expect($data['id'])->toBe($epic['id']);
+        expect($data['id'])->toBe($epic->id);
         expect($data['deleted'])->toBeArray();
         expect($data['deleted']['title'])->toBe('JSON Epic');
         expect($data['unlinked_tasks'])->toBeArray();
@@ -150,14 +150,14 @@ describe('epic:delete command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Partial ID Epic');
 
-        $partialId = substr($epic['id'], 2);
+        $partialId = substr($epic->id, 2);
 
         Artisan::call('epic:delete', ['id' => $partialId, '--cwd' => $this->tempDir, '--force' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Deleted epic: '.$epic['id']);
+        expect($output)->toContain('Deleted epic: '.$epic->id);
 
-        $deletedEpic = $epicService->getEpic($epic['id']);
+        $deletedEpic = $epicService->getEpic($epic->id);
         expect($deletedEpic)->toBeNull();
     });
 
@@ -168,17 +168,17 @@ describe('epic:delete command', function (): void {
         $epic = $epicService->createEpic('Epic with Tasks');
         $task1 = $taskService->create([
             'title' => 'Task 1',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
         $task2 = $taskService->create([
             'title' => 'Task 2',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
 
-        Artisan::call('epic:delete', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->id, '--cwd' => $this->tempDir, '--force' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Deleted epic: '.$epic['id']);
+        expect($output)->toContain('Deleted epic: '.$epic->id);
         expect($output)->toContain('Unlinked tasks:');
         expect($output)->toContain($task1['id']);
         expect($output)->toContain($task2['id']);
@@ -188,7 +188,7 @@ describe('epic:delete command', function (): void {
         expect($updatedTask1['epic_id'])->toBeNull();
         expect($updatedTask2['epic_id'])->toBeNull();
 
-        $deletedEpic = $epicService->getEpic($epic['id']);
+        $deletedEpic = $epicService->getEpic($epic->id);
         expect($deletedEpic)->toBeNull();
     });
 
@@ -199,19 +199,19 @@ describe('epic:delete command', function (): void {
         $epic = $epicService->createEpic('Epic with Tasks JSON');
         $task1 = $taskService->create([
             'title' => 'Task 1',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
         $task2 = $taskService->create([
             'title' => 'Task 2',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->id,
         ]);
 
-        Artisan::call('epic:delete', ['id' => $epic['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
         expect($data)->toBeArray();
-        expect($data['id'])->toBe($epic['id']);
+        expect($data['id'])->toBe($epic->id);
         expect($data['unlinked_tasks'])->toContain($task1['id']);
         expect($data['unlinked_tasks'])->toContain($task2['id']);
     });

@@ -128,14 +128,14 @@ describe('add command with --epic flag', function (): void {
 
         Artisan::call('add', [
             'title' => 'Task for epic',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['epic_id'])->toBe($epic['id']);
+        expect($task['epic_id'])->toBe($epic->id);
     });
 
     it('fails when epic does not exist', function (): void {
@@ -152,7 +152,7 @@ describe('add command with --epic flag', function (): void {
 
     it('supports partial epic ID matching', function (): void {
         $epic = $this->epicService->createEpic('Test Epic');
-        $partialId = substr($epic['id'], 2, 4);
+        $partialId = substr($epic->id, 2, 4);
 
         Artisan::call('add', [
             'title' => 'Task with partial epic ID',
@@ -163,7 +163,7 @@ describe('add command with --epic flag', function (): void {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['epic_id'])->toBe($epic['id']);
+        expect($task['epic_id'])->toBe($epic->id);
     });
 
     it('task is returned by getTasksForEpic', function (): void {
@@ -171,19 +171,19 @@ describe('add command with --epic flag', function (): void {
 
         Artisan::call('add', [
             'title' => 'Epic task 1',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
         Artisan::call('add', [
             'title' => 'Epic task 2',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
-        $tasks = $this->epicService->getTasksForEpic($epic['id']);
+        $tasks = $this->epicService->getTasksForEpic($epic->id);
 
         expect($tasks)->toHaveCount(2);
         $titles = array_column($tasks, 'title');
@@ -196,9 +196,9 @@ describe('epic status derivation via commands', function (): void {
     it('epic status is planning when no tasks', function (): void {
         $epic = $this->epicService->createEpic('Empty Epic');
 
-        $fetchedEpic = $this->epicService->getEpic($epic['id']);
+        $fetchedEpic = $this->epicService->getEpic($epic->id);
 
-        expect($fetchedEpic['status'])->toBe(EpicStatus::Planning->value);
+        expect($fetchedEpic->status)->toBe(EpicStatus::Planning->value);
     });
 
     it('epic status is in_progress when task is open', function (): void {
@@ -206,14 +206,14 @@ describe('epic status derivation via commands', function (): void {
 
         Artisan::call('add', [
             'title' => 'Open task',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
-        $fetchedEpic = $this->epicService->getEpic($epic['id']);
+        $fetchedEpic = $this->epicService->getEpic($epic->id);
 
-        expect($fetchedEpic['status'])->toBe(EpicStatus::InProgress->value);
+        expect($fetchedEpic->status)->toBe(EpicStatus::InProgress->value);
     });
 
     it('epic status is in_progress when task is in_progress', function (): void {
@@ -221,7 +221,7 @@ describe('epic status derivation via commands', function (): void {
 
         Artisan::call('add', [
             'title' => 'Active task',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -232,9 +232,9 @@ describe('epic status derivation via commands', function (): void {
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
-        $fetchedEpic = $this->epicService->getEpic($epic['id']);
+        $fetchedEpic = $this->epicService->getEpic($epic->id);
 
-        expect($fetchedEpic['status'])->toBe(EpicStatus::InProgress->value);
+        expect($fetchedEpic->status)->toBe(EpicStatus::InProgress->value);
     });
 
     it('epic status is review_pending when all tasks are closed', function (): void {
@@ -242,7 +242,7 @@ describe('epic status derivation via commands', function (): void {
 
         Artisan::call('add', [
             'title' => 'Task to complete',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -253,38 +253,38 @@ describe('epic status derivation via commands', function (): void {
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
-        $fetchedEpic = $this->epicService->getEpic($epic['id']);
+        $fetchedEpic = $this->epicService->getEpic($epic->id);
 
-        expect($fetchedEpic['status'])->toBe(EpicStatus::ReviewPending->value);
+        expect($fetchedEpic->status)->toBe(EpicStatus::ReviewPending->value);
     });
 
     it('epic status transitions correctly through task lifecycle', function (): void {
         $epic = $this->epicService->createEpic('Lifecycle Epic');
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::Planning->value);
+        expect($this->epicService->getEpic($epic->id)->status)->toBe(EpicStatus::Planning->value);
 
         Artisan::call('add', [
             'title' => 'Lifecycle task',
-            '--epic' => $epic['id'],
+            '--epic' => $epic->id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $task = json_decode(Artisan::output(), true);
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::InProgress->value);
+        expect($this->epicService->getEpic($epic->id)->status)->toBe(EpicStatus::InProgress->value);
 
         $this->artisan('start', [
             'id' => $task['id'],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::InProgress->value);
+        expect($this->epicService->getEpic($epic->id)->status)->toBe(EpicStatus::InProgress->value);
 
         $this->artisan('done', [
             'ids' => [$task['id']],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
-        expect($this->epicService->getEpic($epic['id'])['status'])->toBe(EpicStatus::ReviewPending->value);
+        expect($this->epicService->getEpic($epic->id)->status)->toBe(EpicStatus::ReviewPending->value);
     });
 });
