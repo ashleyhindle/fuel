@@ -2747,7 +2747,7 @@ describe('show command', function (): void {
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Line 1\nLine 2\nLine 3\n");
 
-        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output (live)');
@@ -2772,7 +2772,7 @@ describe('show command', function (): void {
         }
         file_put_contents($stdoutPath, implode("\n", $lines)."\n");
 
-        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output (live)');
@@ -2806,7 +2806,7 @@ describe('show command', function (): void {
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Live output\n");
 
-        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output');
@@ -2828,7 +2828,7 @@ describe('show command', function (): void {
             'output' => 'Run output content',
         ]);
 
-        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('show', ['id' => $task['id'], '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output');

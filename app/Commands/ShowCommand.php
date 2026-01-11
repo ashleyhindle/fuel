@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\OutputParser;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\File;
@@ -21,9 +22,16 @@ class ShowCommand extends Command
     protected $signature = 'show
         {id : The task ID (supports partial matching)}
         {--cwd= : Working directory (defaults to current directory)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--raw : Show raw JSON output instead of formatted}';
 
     protected $description = 'Show task details including all fields';
+
+    public function __construct(
+        private OutputParser $outputParser,
+    ) {
+        parent::__construct();
+    }
 
     public function handle(TaskService $taskService, RunService $runService): int
     {
@@ -187,19 +195,11 @@ class ShowCommand extends Command
                                 $this->newLine();
                                 $this->line('    <fg=cyan>── Run Output (live) ──</>');
                                 $this->line('    <fg=yellow>Showing live output (tail)...</>');
-                                // Indent each line of output
-                                $outputLines = explode("\n", $liveOutput);
-                                foreach ($outputLines as $line) {
-                                    $this->line('    '.OutputFormatter::escape($line));
-                                }
+                                $this->outputChunk($liveOutput, $this->option('raw'));
                             } elseif (isset($run['output']) && $run['output'] !== null && $run['output'] !== '') {
                                 $this->newLine();
                                 $this->line('    <fg=cyan>── Run Output ──</>');
-                                // Indent each line of output
-                                $outputLines = explode("\n", (string) $run['output']);
-                                foreach ($outputLines as $line) {
-                                    $this->line('    '.OutputFormatter::escape($line));
-                                }
+                                $this->outputChunk((string) $run['output'], $this->option('raw'));
                             }
                         }
 
@@ -212,11 +212,7 @@ class ShowCommand extends Command
                     $this->newLine();
                     $this->line('  <fg=cyan>── Run Output (live) ──</>');
                     $this->line('  <fg=yellow>Showing live output (tail)...</>');
-                    // Indent each line of output
-                    $outputLines = explode("\n", $liveOutput);
-                    foreach ($outputLines as $line) {
-                        $this->line('  '.OutputFormatter::escape($line));
-                    }
+                    $this->outputChunk($liveOutput, $this->option('raw'));
                 }
 
                 $this->newLine();
@@ -227,6 +223,26 @@ class ShowCommand extends Command
             return self::SUCCESS;
         } catch (RuntimeException $runtimeException) {
             return $this->outputError($runtimeException->getMessage());
+        }
+    }
+
+    /**
+     * Output a chunk of agent output, either raw or parsed.
+     */
+    private function outputChunk(string $chunk, bool $raw): void
+    {
+        if ($raw) {
+            $this->getOutput()->write(OutputFormatter::escape($chunk));
+
+            return;
+        }
+
+        $events = $this->outputParser->parseChunk($chunk);
+        foreach ($events as $event) {
+            $formatted = $this->outputParser->format($event);
+            if ($formatted !== null) {
+                $this->line($formatted);
+            }
         }
     }
 
