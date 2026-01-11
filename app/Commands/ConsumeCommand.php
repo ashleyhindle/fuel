@@ -121,15 +121,9 @@ class ConsumeCommand extends Command
         }
 
         // Detect non-interactive mode (tests, CI, etc.) - run only one iteration
-        $singleIteration = false;
-        if (function_exists('posix_isatty')) {
-            $singleIteration = ! posix_isatty(STDOUT);
-        } elseif (function_exists('stream_isatty')) {
-            $singleIteration = ! stream_isatty(STDOUT);
-        }
-        if (app()->environment('testing')) {
-            $singleIteration = true;
-        }
+        $singleIteration = (function_exists('posix_isatty') && ! posix_isatty(STDOUT)) ||
+                          (method_exists(app(), 'runningUnitTests') && app()->runningUnitTests()) ||
+                          app()->environment('testing');
 
         // Skip terminal manipulation in non-interactive mode (tests, CI)
         if (! $singleIteration) {
