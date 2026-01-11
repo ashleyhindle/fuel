@@ -261,8 +261,8 @@ class EpicService
         // Reopen tasks in the epic that were closed (move back to in_progress)
         $tasks = $this->getTasksForEpic($resolvedId);
         foreach ($tasks as $task) {
-            if (($task['status'] ?? '') === 'closed') {
-                $this->taskService->update($task['id'], ['status' => 'open']);
+            if (($task->status ?? '') === 'closed') {
+                $this->taskService->update($task->id, ['status' => 'open']);
             }
         }
 
@@ -339,7 +339,7 @@ class EpicService
             $tasks = $this->getTasksForEpic($resolvedId);
             $hasActiveTask = false;
             foreach ($tasks as $task) {
-                $status = $task['status'] ?? '';
+                $status = $task->status ?? '';
                 if ($status === 'open' || $status === 'in_progress') {
                     $hasActiveTask = true;
                     break;
@@ -365,7 +365,7 @@ class EpicService
         // Check if any task is open or in_progress
         $hasActiveTask = false;
         foreach ($tasks as $task) {
-            $status = $task['status'] ?? '';
+            $status = $task->status ?? '';
             if ($status === 'open' || $status === 'in_progress') {
                 $hasActiveTask = true;
                 break;
@@ -379,7 +379,7 @@ class EpicService
         // Check if all tasks are closed
         $allClosed = true;
         foreach ($tasks as $task) {
-            $status = $task['status'] ?? '';
+            $status = $task->status ?? '';
             if ($status !== 'closed') {
                 $allClosed = false;
                 break;
@@ -453,7 +453,7 @@ class EpicService
 
         $allClosed = true;
         foreach ($tasks as $task) {
-            $status = $task['status'] ?? '';
+            $status = $task->status ?? '';
             if ($status !== 'closed' && $status !== 'cancelled') {
                 $allClosed = false;
                 break;
@@ -467,7 +467,7 @@ class EpicService
         // Check if a review task already exists for this epic (idempotency)
         $existingReviewTask = $this->findExistingReviewTask($resolvedId);
         if ($existingReviewTask !== null) {
-            return ['completed' => true, 'review_task_id' => $existingReviewTask['id']];
+            return ['completed' => true, 'review_task_id' => $existingReviewTask->id];
         }
 
         // Map short_id to id for public interface compatibility (needed for createEpicReviewTask)
@@ -478,33 +478,33 @@ class EpicService
         $summary = $this->generateEpicSummary($epic, $tasks, $gitDiff);
         $reviewTask = $this->createEpicReviewTask($epic, $summary);
 
-        return ['completed' => true, 'review_task_id' => $reviewTask['id']];
+        return ['completed' => true, 'review_task_id' => $reviewTask->id];
     }
 
     /**
      * Find an existing review task for an epic.
      *
      * @param  string  $epicId  The epic short_id
-     * @return array<string, mixed>|null The review task if found
+     * @return Task|null The review task if found
      */
-    private function findExistingReviewTask(string $epicId): ?array
+    private function findExistingReviewTask(string $epicId): ?Task
     {
         $allTasks = $this->taskService->all();
 
-        return $allTasks->first(function (array $task) use ($epicId): bool {
-            $labels = $task['labels'] ?? [];
+        return $allTasks->first(function (Task $task) use ($epicId): bool {
+            $labels = $task->labels ?? [];
             if (! is_array($labels) || ! in_array('epic-review', $labels, true)) {
                 return false;
             }
 
             // Check if epic ID is in the title (format: "Review completed epic: ... ({$epicId})")
-            $title = $task['title'] ?? '';
+            $title = $task->title ?? '';
             if (str_contains($title, "({$epicId})")) {
                 return true;
             }
 
             // Also check description in case title format changed
-            $description = $task['description'] ?? '';
+            $description = $task->description ?? '';
             if (str_contains($description, $epicId)) {
                 return true;
             }
@@ -518,9 +518,9 @@ class EpicService
      *
      * @param  array<string, mixed>  $epic  The epic data
      * @param  string  $summary  The generated summary
-     * @return array<string, mixed> The created review task
+     * @return Task The created review task
      */
-    private function createEpicReviewTask(array $epic, string $summary): array
+    private function createEpicReviewTask(array $epic, string $summary): Task
     {
         $title = "Review completed epic: {$epic['title']} ({$epic['id']})";
 
@@ -537,14 +537,15 @@ class EpicService
     /**
      * Get combined git diff from all commits associated with epic's tasks.
      *
-     * @param  array<array<string, mixed>>  $tasks  The tasks in the epic
+     * @param  array<Task>  $tasks  The tasks in the epic
      */
     private function getCombinedGitDiff(array $tasks): string
     {
         $commits = [];
         foreach ($tasks as $task) {
-            if (isset($task['commit_hash']) && is_string($task['commit_hash']) && $task['commit_hash'] !== '') {
-                $commits[] = $task['commit_hash'];
+            $commitHash = $task->commit_hash ?? null;
+            if (is_string($commitHash) && $commitHash !== '') {
+                $commits[] = $commitHash;
             }
         }
 
@@ -659,7 +660,7 @@ class EpicService
      * Generate a summary of what was accomplished in the epic.
      *
      * @param  array<string, mixed>  $epic  The epic data
-     * @param  array<array<string, mixed>>  $tasks  The tasks in the epic
+     * @param  array<Task>  $tasks  The tasks in the epic
      * @param  string  $gitDiff  The combined git diff
      */
     private function generateEpicSummary(array $epic, array $tasks, string $gitDiff): string
@@ -672,10 +673,10 @@ class EpicService
         $summary .= '## Completed Tasks ('.count($tasks)." total)\n\n";
 
         foreach ($tasks as $task) {
-            $taskTitle = $task['title'] ?? 'Untitled';
-            $taskId = $task['id'] ?? 'unknown';
-            $taskStatus = $task['status'] ?? 'unknown';
-            $commitHash = $task['commit_hash'] ?? 'no commit';
+            $taskTitle = $task->title ?? 'Untitled';
+            $taskId = $task->id ?? 'unknown';
+            $taskStatus = $task->status ?? 'unknown';
+            $commitHash = $task->commit_hash ?? 'no commit';
 
             $summary .= "- [{$taskId}] {$taskTitle} ({$taskStatus})";
             if ($commitHash !== 'no commit') {

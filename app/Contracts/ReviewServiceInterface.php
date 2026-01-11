@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Contracts;
 
+use App\Models\Task;
 use App\Process\ReviewResult;
 
 /**
@@ -37,12 +38,12 @@ interface ReviewServiceInterface
      * Instructions to check: uncommitted changes, tests pass, task match.
      * Instructions to create follow-up tasks via 'fuel add' if issues found.
      *
-     * @param  array<string, mixed>  $task  The task array to review
+     * @param  Task  $task  The task model to review
      * @param  string  $gitDiff  The git diff output
      * @param  string  $gitStatus  The git status output
      * @return string The review prompt
      */
-    public function getReviewPrompt(array $task, string $gitDiff, string $gitStatus): string;
+    public function getReviewPrompt(Task $task, string $gitDiff, string $gitStatus): string;
 
     /**
      * Get task IDs currently being reviewed.

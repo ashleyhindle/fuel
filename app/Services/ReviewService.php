@@ -134,12 +134,12 @@ class ReviewService implements ReviewServiceInterface
     /**
      * Build the prompt for the reviewing agent.
      *
-     * @param  array<string, mixed>  $task  The task array to review
+     * @param  Task  $task  The task model to review
      * @param  string  $gitDiff  The git diff output
      * @param  string  $gitStatus  The git status output
      * @return string The review prompt
      */
-    public function getReviewPrompt(array $task, string $gitDiff, string $gitStatus): string
+    public function getReviewPrompt(Task $task, string $gitDiff, string $gitStatus): string
     {
         return $this->reviewPrompt->generate($task, $gitDiff, $gitStatus);
     }
@@ -205,7 +205,7 @@ class ReviewService implements ReviewServiceInterface
             // No valid JSON found - check if the review agent ran `fuel done`
             // If so, the task status would be 'closed', meaning review passed
             $task = $this->taskService->find($taskId);
-            if ($task !== null && ($task['status'] === 'closed' || $task['status'] === 'done')) {
+            if ($task !== null && ($task->status === 'closed' || $task->status === 'done')) {
                 $passed = true;
             } else {
                 // No JSON and task not done - review failed or agent crashed

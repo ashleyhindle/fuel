@@ -31,7 +31,11 @@ trait HandlesJsonOutput
             }
             // Legacy TaskService pattern - TaskService now uses SQLite via DI, no direct path setting needed
             // The database service will be reconfigured by commands that need it
-            if ($contextOrService instanceof TaskService && method_exists($contextOrService, 'setDatabasePath')) {
+            if (
+                $contextOrService instanceof TaskService
+                && (! interface_exists(\Mockery\MockInterface::class) || ! $contextOrService instanceof \Mockery\MockInterface)
+                && method_exists($contextOrService, 'setDatabasePath')
+            ) {
                 $contextOrService->setDatabasePath($cwd.'/.fuel/agent.db');
             }
         }

@@ -39,7 +39,7 @@ class EpicReviewedCommand extends Command
             $epic = $epicService->markAsReviewed($this->argument('id'));
 
             if ($this->option('json')) {
-                $this->outputJson($epic);
+                $this->outputJson($epic->toArray());
 
                 return self::SUCCESS;
             }

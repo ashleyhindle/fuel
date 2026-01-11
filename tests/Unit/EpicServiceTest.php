@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Epic;
+use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -401,7 +402,7 @@ it('prevents duplicate review tasks when checkEpicCompletion called multiple tim
 
     // Verify only one review task exists
     $allTasks = $this->taskService->all();
-    $reviewTasks = $allTasks->filter(fn (array $task): bool => in_array('epic-review', $task['labels'] ?? [], true));
+    $reviewTasks = $allTasks->filter(fn (Task $task): bool => in_array('epic-review', $task->labels ?? [], true));
     expect($reviewTasks->count())->toBe(1);
 });
 

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\ProcessManagerInterface;
+use App\Models\Task;
 use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessStatus;
@@ -582,11 +583,11 @@ it('generates review prompt via getReviewPrompt', function (): void {
         $this->runService
     );
 
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-test123',
         'title' => 'Test task',
         'description' => 'A test description',
-    ];
+    ]);
 
     $prompt = $reviewService->getReviewPrompt($task, 'diff content', 'M file.txt');
 

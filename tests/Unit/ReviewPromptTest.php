@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Task;
 use App\Prompts\ReviewPrompt;
 
 beforeEach(function (): void {
@@ -7,11 +8,11 @@ beforeEach(function (): void {
 });
 
 it('contains the task ID in the prompt', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'A test description',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -21,11 +22,11 @@ it('contains the task ID in the prompt', function (): void {
 });
 
 it('contains the task title in the prompt', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Implement user authentication',
         'description' => 'Add login flow',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -33,11 +34,11 @@ it('contains the task title in the prompt', function (): void {
 });
 
 it('contains the task description in the prompt', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'This is a detailed description of the task requirements.',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -45,11 +46,11 @@ it('contains the task description in the prompt', function (): void {
 });
 
 it('contains the git diff in the prompt', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     $gitDiff = <<<'DIFF'
 diff --git a/src/file.php b/src/file.php
@@ -71,11 +72,11 @@ DIFF;
 });
 
 it('contains the git status in the prompt', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     $gitStatus = <<<'STATUS'
 On branch main
@@ -95,11 +96,11 @@ STATUS;
 });
 
 it('contains fuel commands in the prompt', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -108,11 +109,11 @@ it('contains fuel commands in the prompt', function (): void {
 });
 
 it('contains review checklist sections', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -123,11 +124,11 @@ it('contains review checklist sections', function (): void {
 });
 
 it('truncates large diffs', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     // Create a diff larger than 5000 characters
     $largeDiff = str_repeat("+ Added line content here\n", 300); // ~7500 chars
@@ -145,11 +146,11 @@ it('truncates large diffs', function (): void {
 });
 
 it('does not truncate small diffs', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     $smallDiff = <<<'DIFF'
 diff --git a/src/file.php b/src/file.php
@@ -168,11 +169,11 @@ DIFF;
 });
 
 it('handles empty task description gracefully', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => null,
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -180,9 +181,9 @@ it('handles empty task description gracefully', function (): void {
 });
 
 it('handles missing task fields gracefully', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -192,11 +193,11 @@ it('handles missing task fields gracefully', function (): void {
 });
 
 it('includes guidance for running tests', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 
@@ -205,11 +206,11 @@ it('includes guidance for running tests', function (): void {
 });
 
 it('includes instruction to not run fuel done when issues found', function (): void {
-    $task = [
+    $task = Task::fromArray([
         'id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
-    ];
+    ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
 

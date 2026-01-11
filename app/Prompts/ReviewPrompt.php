@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Prompts;
 
+use App\Models\Task;
+
 class ReviewPrompt
 {
     /**
@@ -14,15 +16,15 @@ class ReviewPrompt
     /**
      * Generate the review prompt for a reviewing agent.
      *
-     * @param  array<string, mixed>  $task  The task data array
+     * @param  Task  $task  The task model
      * @param  string  $gitDiff  The git diff output
      * @param  string  $gitStatus  The git status output
      */
-    public function generate(array $task, string $gitDiff, string $gitStatus): string
+    public function generate(Task $task, string $gitDiff, string $gitStatus): string
     {
-        $taskId = $task['id'] ?? 'unknown';
-        $title = $task['title'] ?? 'Untitled task';
-        $description = $task['description'] ?? 'No description provided';
+        $taskId = $task->id ?? 'unknown';
+        $title = $task->title ?? 'Untitled task';
+        $description = $task->description ?? 'No description provided';
 
         $truncatedDiff = $this->truncateDiff($gitDiff);
 

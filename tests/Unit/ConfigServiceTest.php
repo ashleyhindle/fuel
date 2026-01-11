@@ -259,7 +259,15 @@ it('creates default config file', function (): void {
     expect($config)->toHaveKey('complexity');
     expect($config)->toHaveKey('agents');
     expect($config['complexity'])->toHaveKeys(['trivial', 'simple', 'moderate', 'complex']);
-    expect($config['agents'])->toHaveKeys(['cursor-composer', 'claude-sonnet', 'claude-opus']);
+    expect($config['agents'])->toHaveKeys([
+        'cursor-composer',
+        'cursor-opus',
+        'claude-sonnet',
+        'claude-opus',
+        'opencode-glm',
+        'opencode-minimax',
+        'amp-smart',
+    ]);
 
     // Verify agents have command field
     expect($config['agents']['cursor-composer']['command'])->toBe('cursor-agent');
@@ -267,9 +275,9 @@ it('creates default config file', function (): void {
     expect($config['agents']['claude-opus']['command'])->toBe('claude');
 
     // Verify complexity references valid agents
-    expect($config['complexity']['trivial'])->toBe('cursor-composer');
+    expect($config['complexity']['trivial'])->toBe('opencode-minimax');
     expect($config['complexity']['simple'])->toBe('cursor-composer');
-    expect($config['complexity']['moderate'])->toBe('claude-sonnet');
+    expect($config['complexity']['moderate'])->toBe('amp-smart');
     expect($config['complexity']['complex'])->toBe('claude-opus');
 });
 
