@@ -15,6 +15,7 @@ use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Process\ProcessType;
 use App\Process\ReviewResult;
+use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -68,6 +69,7 @@ class ConsumeCommand extends Command
         private ProcessManager $processManager,
         private EpicService $epicService,
         private FuelContext $fuelContext,
+        private BackoffStrategy $backoffStrategy,
         private ?AgentHealthTrackerInterface $healthTracker = null,
         private ?ReviewServiceInterface $reviewService = null,
     ) {
@@ -424,9 +426,7 @@ PROMPT;
         // Check agent health / backoff before attempting to spawn
         if (! $dryrun && $this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
             $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
-            $formatted = $backoffSeconds < 60
-                ? $backoffSeconds.'s'
-                : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+            $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
 
             // Only show message once per backoff period (check if already shown recently)
             $statusLines[] = $this->formatStatus('⏳', sprintf('%s waiting - %s in backoff (%s)', $taskId, $agentName, $formatted), 'gray');
@@ -806,7 +806,7 @@ PROMPT;
             if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
                 $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
                 if ($backoffSeconds > 0) {
-                    $backoffInfo = sprintf(', backoff %ds', $backoffSeconds);
+                    $backoffInfo = sprintf(', backoff %s', $this->backoffStrategy->formatBackoffTime($backoffSeconds));
                 }
             }
 
@@ -858,7 +858,7 @@ PROMPT;
             if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
                 $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
                 if ($backoffSeconds > 0) {
-                    $backoffInfo = sprintf(', backoff %ds', $backoffSeconds);
+                    $backoffInfo = sprintf(', backoff %s', $this->backoffStrategy->formatBackoffTime($backoffSeconds));
                 }
             }
 
@@ -1224,9 +1224,7 @@ PROMPT;
             // Add backoff info if in backoff
             $backoffSeconds = $health->getBackoffSeconds();
             if ($backoffSeconds > 0) {
-                $formatted = $backoffSeconds < 60
-                    ? $backoffSeconds.'s'
-                    : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
                 $line .= sprintf(' <fg=yellow>backoff: %s</>', $formatted);
             }
 
@@ -1277,9 +1275,7 @@ PROMPT;
 
             // Agent entered backoff
             if ($backoffChanged && $inBackoff && ! $previous['in_backoff']) {
-                $formatted = $backoffSeconds < 60
-                    ? $backoffSeconds.'s'
-                    : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
                 $statusLines[] = $this->formatStatus('⏳', sprintf('%s entered backoff (%s remaining)', $agentName, $formatted), 'yellow');
             }
 
@@ -1356,9 +1352,7 @@ PROMPT;
 
                 // Show agents in backoff (yellow)
                 if ($inBackoff) {
-                    $formatted = $backoffSeconds < 60
-                        ? $backoffSeconds.'s'
-                        : sprintf('%dm %ds', (int) ($backoffSeconds / 60), $backoffSeconds % 60);
+                    $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
                     $unhealthyAgents[] = $this->formatStatus(
                         '⏳',
                         sprintf(
