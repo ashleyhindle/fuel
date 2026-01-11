@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
-use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -34,7 +34,7 @@ class AddCommand extends Command
 
     protected $description = 'Add a new task';
 
-    public function handle(FuelContext $context, TaskService $taskService, BacklogService $backlogService, DatabaseService $dbService, EpicService $epicService): int
+    public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService, EpicService $epicService): int
     {
         // Configure context with --cwd if provided
         $this->configureCwd($context);
@@ -44,35 +44,17 @@ class AddCommand extends Command
             $dbService->setDatabasePath($context->getDatabasePath());
         }
 
-        // Handle --someday or --backlog flag: add to backlog instead of tasks
-        if ($this->option('backlog') || $this->option('someday')) {
-            $backlogService->initialize();
-
-            $title = $this->argument('title');
-            $description = $this->option('description');
-
-            try {
-                $item = $backlogService->add($title, $description);
-            } catch (RuntimeException $e) {
-                return $this->outputError($e->getMessage());
-            }
-
-            if ($this->option('json')) {
-                $this->outputJson($item);
-            } else {
-                $this->info('Added to backlog: '.$item['id']);
-                $this->line('  Title: '.$item['title']);
-            }
-
-            return self::SUCCESS;
-        }
-
-        // Existing task creation logic
+        // Initialize task service
         $taskService->initialize();
 
         $data = [
             'title' => $this->argument('title'),
         ];
+
+        // Set status to someday if --someday or --backlog flag is present
+        if ($this->option('backlog') || $this->option('someday')) {
+            $data['status'] = TaskStatus::Someday;
+        }
 
         // Add description (support both --description and -d)
         if ($description = $this->option('description')) {
@@ -131,6 +113,7 @@ class AddCommand extends Command
         } else {
             $this->info('Created task: '.$task->id);
             $this->line('  Title: '.$task->title);
+            $this->line('  Status: '.$task->status);
 
             if (! empty($task->blocked_by)) {
                 $blockerIds = is_array($task->blocked_by) ? implode(', ', $task->blocked_by) : '';
