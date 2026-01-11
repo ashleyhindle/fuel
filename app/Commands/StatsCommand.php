@@ -61,9 +61,9 @@ class StatsCommand extends Command
             $this->collectActivityHeatmap($databaseService),
         ];
 
-        // Render boxes in rows based on terminal width
+        // Render boxes in masonry column layout
         if ($maxColumns >= 2) {
-            $this->renderBoxesInRows($boxes, $maxColumns, $boxWidth);
+            $this->renderBoxesInMasonryColumns($boxes, $maxColumns, $boxWidth);
         } else {
             // Fallback to vertical layout
             foreach ($boxes as $boxLines) {
@@ -105,58 +105,69 @@ class StatsCommand extends Command
     }
 
     /**
-     * Render boxes in rows based on max columns.
+     * Render boxes in masonry column layout.
+     * Each column flows independently - no forced height matching.
      *
      * @param  array<array<string>>  $boxes  Array of box line arrays
-     * @param  int  $maxColumns  Maximum columns per row
+     * @param  int  $maxColumns  Maximum number of columns
      * @param  int  $boxWidth  Width of each box
      */
-    private function renderBoxesInRows(array $boxes, int $maxColumns, int $boxWidth): void
+    private function renderBoxesInMasonryColumns(array $boxes, int $maxColumns, int $boxWidth): void
     {
-        $rows = array_chunk($boxes, $maxColumns);
+        // Initialize columns
+        $columns = array_fill(0, $maxColumns, []);
+        $columnHeights = array_fill(0, $maxColumns, 0);
 
-        foreach ($rows as $rowIndex => $rowBoxes) {
-            // Merge boxes in this row side-by-side
-            $mergedLines = $this->mergeBoxesSideBySide($rowBoxes, $boxWidth);
+        // Distribute boxes to columns using greedy algorithm:
+        // Always add box to the column with the smallest current height
+        foreach ($boxes as $box) {
+            // Find column with smallest height
+            $minHeight = min($columnHeights);
+            $targetColumn = array_search($minHeight, $columnHeights, true);
 
-            foreach ($mergedLines as $line) {
-                $this->line($line);
-            }
-
-            // Add gap between rows (but not after the last row)
-            if ($rowIndex < count($rows) - 1) {
-                $this->line('');
-            }
+            // Add box to this column
+            $columns[$targetColumn][] = $box;
+            $columnHeights[$targetColumn] += count($box) + 1; // +1 for gap between boxes
         }
+
+        // Render columns side-by-side
+        $this->renderColumnsSideBySide($columns, $boxWidth);
     }
 
     /**
-     * Merge multiple boxes side-by-side.
+     * Render multiple columns of boxes side-by-side.
      *
-     * @param  array<array<string>>  $boxes  Array of box line arrays
+     * @param  array<array<array<string>>>  $columns  Array of columns, each containing box line arrays
      * @param  int  $boxWidth  Width of each box
-     * @return array<string> Merged lines
      */
-    private function mergeBoxesSideBySide(array $boxes, int $boxWidth): array
+    private function renderColumnsSideBySide(array $columns, int $boxWidth): void
     {
-        if (count($boxes) === 1) {
-            return $boxes[0];
-        }
-
-        // Find max number of lines across all boxes
-        $maxLines = max(array_map('count', $boxes));
-
-        $result = [];
-        for ($i = 0; $i < $maxLines; $i++) {
-            $lineparts = [];
-            foreach ($boxes as $box) {
-                // Get line from this box or use padding if box is shorter
-                $lineparts[] = $box[$i] ?? str_repeat(' ', $boxWidth);
+        // Flatten each column: combine all boxes in the column with gaps
+        $flattenedColumns = [];
+        foreach ($columns as $columnBoxes) {
+            $flatColumn = [];
+            foreach ($columnBoxes as $boxIndex => $box) {
+                $flatColumn = array_merge($flatColumn, $box);
+                // Add gap after each box except the last one
+                if ($boxIndex < count($columnBoxes) - 1) {
+                    $flatColumn[] = ''; // Empty line for gap
+                }
             }
-            $result[] = implode('  ', $lineparts);
+            $flattenedColumns[] = $flatColumn;
         }
 
-        return $result;
+        // Find max height across all columns
+        $maxHeight = max(array_map('count', $flattenedColumns));
+
+        // Output line by line, combining columns horizontally
+        for ($lineIndex = 0; $lineIndex < $maxHeight; $lineIndex++) {
+            $lineParts = [];
+            foreach ($flattenedColumns as $column) {
+                // Get line from this column or use padding if column is shorter
+                $lineParts[] = $column[$lineIndex] ?? str_repeat(' ', $boxWidth);
+            }
+            $this->line(implode('  ', $lineParts));
+        }
     }
 
     /**
