@@ -25,7 +25,7 @@ fuel show <id>                  # View task details
 fuel board --once               # Kanban view
 fuel tree                       # Tree view
 fuel backlog                    # List backlog items
-fuel promote <b-id>             # Promote backlog item to task
+fuel promote <f-id>             # Promote backlog item to task
 fuel defer <f-id>               # Move task to backlog
 fuel dep:add <id> <blocker>     # Add dependency
 fuel dep:remove <id> <blocker>  # Remove dependency
@@ -115,7 +115,7 @@ fuel epic:reviewed <e-id>               # Mark as human-reviewed
 
 ### Backlog Management
 
-The backlog (`.fuel/backlog.jsonl`) is for **rough ideas and future work** that isn't ready to implement yet. Tasks are for **work ready to implement now**.
+The backlog is for **rough ideas and future work** that isn't ready to implement yet. Tasks are for **work ready to implement now**.
 
 **When to use backlog vs tasks:**
 
@@ -127,23 +127,23 @@ The backlog (`.fuel/backlog.jsonl`) is for **rough ideas and future work** that 
 ```bash
 fuel add "Future idea" --someday          # Add to backlog (ignores other options)
 fuel backlog                              # List all backlog items
-fuel promote <b-id>                      # Promote backlog item to task (adds --priority, --type, etc.)
+fuel promote <f-id>                      # Promote backlog item to task (adds --priority, --type, etc.)
 fuel defer <f-id>                         # Move a task to backlog
-fuel remove <b-id>                        # Delete a backlog item
+fuel remove <f-id>                        # Delete a backlog item
 ```
 
 **Promoting backlog to tasks:**
 
 When a backlog item is ready to work on:
 1. Review the backlog: `fuel backlog`
-2. Promote with task metadata: `fuel promote <b-id> --priority=2 --type=feature --complexity=moderate`
-3. The backlog item is removed and a new task is created with the same title/description
+2. Promote with task metadata: `fuel promote <f-id> --priority=2 --type=feature --complexity=moderate`
+3. The task status changes from 'someday' to 'open' and is ready to work on
 
 **Deferring tasks:**
 
 If a task isn't ready to work on (needs more planning, blocked externally, wrong priority):
-1. `fuel defer <f-id>` - Moves task to backlog, preserving title and description
-2. Later, promote it back when ready: `fuel promote <b-id> --priority=...`
+1. `fuel defer <f-id>` - Changes task status to 'someday', preserving title and description
+2. Later, promote it back when ready: `fuel promote <f-id> --priority=...`
 
 ### Needs-Human Workflow
 
@@ -195,7 +195,6 @@ When parallel tasks share an interface, define it in a parent task's description
 ### Data Storage
 - `.fuel/agent.db` - SQLite database (tasks, epics, reviews, runs, agent health)
 - `.fuel/config.yaml` - Agent configuration
-- `.fuel/backlog.jsonl` - Backlog items (rough ideas, future work)
 
 ## Testing Patterns
 
