@@ -416,19 +416,19 @@ while (running) {
 |---------|---------|
 | `fuel add "..."` | Create a task |
 | `fuel ready` | Show unblocked open tasks |
-| `fuel start <id>` | Claim a task (in_progress) |
-| `fuel done <id>` | Mark task complete |
-| `fuel show <id>` | View task/epic/review details (delegates by ID prefix) |
+| `fuel start <f-id>` | Claim a task (in_progress) |
+| `fuel done <f-id>` | Mark task complete |
+| `fuel show <f-id/e-id/r-id>` | View task/epic/review details (delegates by ID prefix) |
 | `fuel board` | Kanban view |
 | `fuel consume` | Start orchestration loop |
 | `fuel epic:add "..."` | Create an epic |
 | `fuel epics` | List all epics |
-| `fuel epic:show <id>` | View epic + linked tasks |
-| `fuel epic:reviewed <id>` | Mark epic as human-reviewed |
+| `fuel epic:show <e-id>` | View epic + linked tasks |
+| `fuel epic:reviewed <e-id>` | Mark epic as human-reviewed |
 | `fuel human` | Show needs-human tasks |
 | `fuel health` | Show agent health status |
-| `fuel review <id>` | Manually trigger review |
-| `fuel review:show <id>` | View review details + agent stdout |
+| `fuel review <f-id>` | Manually trigger review of a task |
+| `fuel review:show <r-id>` | View review details + agent stdout |
 | `fuel reviews` | List recent reviews |
 
 ---
