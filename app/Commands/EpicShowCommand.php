@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -75,7 +76,7 @@ class EpicShowCommand extends Command
 
             if ($this->option('json')) {
                 $totalCount = count($sortedTasks);
-                $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => ($task->status ?? '') === 'closed'));
+                $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
                 $epicArray = $epic->toArray();
                 $epicArray['tasks'] = array_map(fn (Task $task): array => $task->toArray(), $sortedTasks);
                 $epicArray['task_count'] = $totalCount;
@@ -87,7 +88,7 @@ class EpicShowCommand extends Command
 
             // Calculate progress
             $totalCount = count($sortedTasks);
-            $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => ($task->status ?? '') === 'closed'));
+            $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
             $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
             // Display epic details
@@ -112,11 +113,11 @@ class EpicShowCommand extends Command
 
                 $headers = ['ID', 'Title', 'Status', 'Type', 'Priority'];
                 $rows = array_map(function (Task $task) use ($blockedIds): array {
-                    $status = $task->status ?? 'open';
+                    $status = $task->status ?? TaskStatus::Open->value;
                     $isBlocked = in_array($task->id ?? '', $blockedIds, true);
 
                     // Add visual indicator for blocked tasks (like tree command)
-                    if ($isBlocked && $status === 'open') {
+                    if ($isBlocked && $status === TaskStatus::Open->value) {
                         $status = '<fg=yellow>blocked</>';
                     }
 

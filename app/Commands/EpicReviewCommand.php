@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -167,7 +168,7 @@ class EpicReviewCommand extends Command
             $rows = array_map(fn (Task $task): array => [
                 $task->id ?? '',
                 $task->title ?? '',
-                $task->status ?? 'open',
+                $task->status ?? TaskStatus::Open->value,
                 $task->commit_hash ?? '-',
             ], $tasks);
 

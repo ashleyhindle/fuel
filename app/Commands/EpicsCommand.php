@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -44,7 +45,7 @@ class EpicsCommand extends Command
                 $epicsWithProgress = array_map(function (Epic $epic) use ($epicService): array {
                     $tasks = $epicService->getTasksForEpic($epic->id);
                     $totalCount = count($tasks);
-                    $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === 'closed'));
+                    $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
                     $epicArray = $epic->toArray();
                     $epicArray['task_count'] = $totalCount;
                     $epicArray['completed_count'] = $completedCount;
@@ -71,7 +72,7 @@ class EpicsCommand extends Command
             $rows = array_map(function ($epic) use ($epicService): array {
                 $tasks = $epicService->getTasksForEpic($epic->id);
                 $totalCount = count($tasks);
-                $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === 'closed'));
+                $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
                 $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
                 return [
