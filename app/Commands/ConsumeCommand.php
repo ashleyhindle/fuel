@@ -120,19 +120,34 @@ class ConsumeCommand extends Command
             return self::FAILURE;
         }
 
-        // Save terminal state and register shutdown handler BEFORE modifying terminal
-        $this->originalTty = shell_exec('stty -g');
-        register_shutdown_function([$this, 'restoreTerminal']);
+        // Detect non-interactive mode (tests, CI, etc.) - run only one iteration
+        $singleIteration = false;
+        if (function_exists('posix_isatty')) {
+            $singleIteration = ! posix_isatty(STDOUT);
+        } elseif (function_exists('stream_isatty')) {
+            $singleIteration = ! stream_isatty(STDOUT);
+        }
+        if (app()->environment('testing')) {
+            $singleIteration = true;
+        }
 
-        $this->getOutput()->write("\033[?1049h");
-        $this->inAlternateScreen = true;
-        $this->getOutput()->write("\033[?25l"); // Hide cursor
-        $this->getOutput()->write("\033[H\033[2J");
+        // Skip terminal manipulation in non-interactive mode (tests, CI)
+        if (! $singleIteration) {
+            // Save terminal state and register shutdown handler BEFORE modifying terminal
+            $this->originalTty = shell_exec('stty -g');
+            register_shutdown_function([$this, 'restoreTerminal']);
 
-        $paused = true;
+            $this->getOutput()->write("\033[?1049h");
+            $this->inAlternateScreen = true;
+            $this->getOutput()->write("\033[?25l"); // Hide cursor
+            $this->getOutput()->write("\033[H\033[2J");
 
-        shell_exec('stty -icanon -echo');
-        stream_set_blocking(STDIN, false);
+            shell_exec('stty -icanon -echo');
+            stream_set_blocking(STDIN, false);
+        }
+
+        // In non-interactive mode, start unpaused so we process tasks immediately
+        $paused = $singleIteration ? false : true;
 
         $statusLines = [];
 
@@ -185,7 +200,17 @@ class ConsumeCommand extends Command
                         );
 
                         if ($dryrun && $spawned) {
-                            // In dryrun mode, show what would happen and continue
+                            // In dryrun mode, show what would happen
+                            if ($singleIteration) {
+                                // In non-interactive mode (tests), ensure output is flushed before exiting
+                                // The prompt was already output in trySpawnTask, so we can exit immediately
+                                if (ob_get_level() > 0) {
+                                    ob_flush();
+                                }
+                                flush();
+                                break 2; // Break out of foreach and while loop
+                            }
+                            // In interactive mode, show message and wait
                             $this->newLine();
                             $this->line('<fg=gray>Press Ctrl+C to exit, or wait to see next task...</>');
                             sleep(3);
@@ -204,6 +229,11 @@ class ConsumeCommand extends Command
 
                 // Step 5: Check if we have any work or should wait
                 if (! $this->processManager->hasActiveProcesses() && $readyTasks->isEmpty()) {
+                    // In single iteration mode, exit immediately if no tasks
+                    if ($singleIteration) {
+                        break;
+                    }
+
                     // Only add waiting message if not already the last status
                     $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
                     if ($statusLines === [] || end($statusLines) !== $waitingMsg) {
@@ -245,6 +275,11 @@ class ConsumeCommand extends Command
                     $this->setTerminalTitle(sprintf('fuel: %d active', $activeCount));
                 } else {
                     $this->setTerminalTitle('fuel: Idle');
+                }
+
+                // Exit after one iteration in non-interactive mode (tests, CI, etc.)
+                if ($singleIteration) {
+                    break;
                 }
 
                 // Sleep between poll cycles
@@ -414,6 +449,8 @@ PROMPT;
             $this->setTerminalTitle('fuel: [DRYRUN] '.$taskId);
             $this->newLine();
             $this->line('<fg=cyan>== PROMPT THAT WOULD BE SENT ==</>');
+            // In single iteration mode (tests), output directly to ensure it's captured
+            // Use Laravel's line() method which handles output buffering correctly
             $this->line($fullPrompt);
 
             return true;
