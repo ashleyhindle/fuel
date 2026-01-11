@@ -59,7 +59,7 @@ class GuidelinesCommand extends Command
         return <<<'MARKDOWN'
 ## Fuel Task Management
 
-This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/tasks.jsonl`.
+This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/agent.db`.
 
 ### Quick Reference
 

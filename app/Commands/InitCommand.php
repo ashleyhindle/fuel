@@ -73,7 +73,7 @@ class InitCommand extends Command
         Artisan::call('guidelines', ['--add' => true, '--cwd' => $cwd]);
         $this->line(Artisan::output());
 
-        // Add starter task only if tasks.jsonl is empty
+        // Add starter task only if no tasks exist
         if ($taskService->all()->isEmpty()) {
             $task = $taskService->create([
                 'title' => 'Update README to mention this project uses Fuel for task management',

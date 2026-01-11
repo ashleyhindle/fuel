@@ -18,11 +18,6 @@ class FuelContext
         return $this->basePath.'/agent.db';
     }
 
-    public function getTasksJsonlPath(): string  // For migration only
-    {
-        return $this->basePath.'/tasks.jsonl';
-    }
-
     public function getBacklogPath(): string
     {
         return $this->basePath.'/backlog.jsonl';
