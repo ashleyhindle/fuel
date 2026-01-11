@@ -54,14 +54,14 @@ class HumanCommand extends Command
 
         // Get epics with status review_pending
         $allEpics = $epicService->getAllEpics();
-        $pendingEpics = array_values(array_filter($allEpics, function (array $epic): bool {
-            return ($epic['status'] ?? '') === 'review_pending';
+        $pendingEpics = array_values(array_filter($allEpics, function ($epic): bool {
+            return ($epic->status ?? '') === 'review_pending';
         }));
 
         if ($this->option('json')) {
             $this->outputJson([
                 'tasks' => $humanTasks->toArray(),
-                'epics' => array_values($pendingEpics),
+                'epics' => array_map(fn ($epic) => $epic->toArray(), $pendingEpics),
             ]);
 
             return self::SUCCESS;
@@ -80,12 +80,12 @@ class HumanCommand extends Command
 
         // Show epics pending review first
         foreach ($pendingEpics as $epic) {
-            $age = $this->formatAge($epic['created_at'] ?? null);
-            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $epic['id'], $epic['title'], $age));
-            if (! empty($epic['description'] ?? null)) {
-                $this->line('  '.$epic['description']);
+            $age = $this->formatAge($epic->created_at ?? null);
+            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $epic->id, $epic->title, $age));
+            if (! empty($epic->description ?? null)) {
+                $this->line('  '.$epic->description);
             }
-            $this->line(sprintf('  Review: <comment>fuel epic:review %s</comment>', $epic['id']));
+            $this->line(sprintf('  Review: <comment>fuel epic:review %s</comment>', $epic->id));
             $this->newLine();
         }
 

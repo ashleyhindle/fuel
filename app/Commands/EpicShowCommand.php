@@ -43,7 +43,7 @@ class EpicShowCommand extends Command
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('id')));
             }
 
-            $tasks = $epicService->getTasksForEpic($epic['id']);
+            $tasks = $epicService->getTasksForEpic($epic->id);
 
             // Sort tasks: unblocked first, then blocked; within each group by priority ASC, then created_at ASC
             $tasksCollection = collect($tasks);
@@ -76,10 +76,11 @@ class EpicShowCommand extends Command
             if ($this->option('json')) {
                 $totalCount = count($sortedTasks);
                 $completedCount = count(array_filter($sortedTasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
-                $epic['tasks'] = $sortedTasks;
-                $epic['task_count'] = $totalCount;
-                $epic['completed_count'] = $completedCount;
-                $this->outputJson($epic);
+                $epicArray = $epic->toArray();
+                $epicArray['tasks'] = $sortedTasks;
+                $epicArray['task_count'] = $totalCount;
+                $epicArray['completed_count'] = $completedCount;
+                $this->outputJson($epicArray);
 
                 return self::SUCCESS;
             }
@@ -90,16 +91,16 @@ class EpicShowCommand extends Command
             $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
             // Display epic details
-            $this->info('Epic: '.$epic['id']);
-            $this->line('  Title: '.($epic['title'] ?? ''));
-            $this->line('  Status: '.($epic['status'] ?? EpicStatus::Planning->value));
+            $this->info('Epic: '.$epic->id);
+            $this->line('  Title: '.($epic->title ?? ''));
+            $this->line('  Status: '.($epic->status ?? EpicStatus::Planning->value));
             $this->line('  Progress: '.$progress);
 
-            if (isset($epic['description']) && $epic['description'] !== null) {
-                $this->line('  Description: '.$epic['description']);
+            if (isset($epic->description) && $epic->description !== null) {
+                $this->line('  Description: '.$epic->description);
             }
 
-            $this->line('  Created: '.($epic['created_at'] ?? ''));
+            $this->line('  Created: '.($epic->created_at ?? ''));
 
             // Display linked tasks in table format
             $this->newLine();

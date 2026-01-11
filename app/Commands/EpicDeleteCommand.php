@@ -49,8 +49,8 @@ class EpicDeleteCommand extends Command
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('id')));
             }
 
-            $epicId = $epic['id'];
-            $title = $epic['title'] ?? '';
+            $epicId = $epic->id;
+            $title = $epic->title ?? '';
 
             $linkedTasks = $epicService->getTasksForEpic($epicId);
 

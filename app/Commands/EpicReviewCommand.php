@@ -48,7 +48,7 @@ class EpicReviewCommand extends Command
             }
 
             // Load all linked tasks
-            $tasks = $epicService->getTasksForEpic($epic['id']);
+            $tasks = $epicService->getTasksForEpic($epic->id);
 
             // Collect commit hashes from tasks
             $commits = [];
@@ -87,7 +87,7 @@ class EpicReviewCommand extends Command
             // JSON output
             if ($this->option('json')) {
                 $output = [
-                    'epic' => $epic,
+                    'epic' => $epic->toArray(),
                     'tasks' => $tasks,
                     'commits' => $commits,
                     'git_stats' => $gitStats,
@@ -110,8 +110,8 @@ class EpicReviewCommand extends Command
             // Prompt to mark as reviewed (unless --no-prompt is set)
             if (! $this->option('no-prompt')) {
                 if ($this->confirm('Mark this epic as reviewed?', false)) {
-                    $epicService->markAsReviewed($epic['id']);
-                    $this->info(sprintf('Epic %s marked as reviewed', $epic['id']));
+                    $epicService->markAsReviewed($epic->id);
+                    $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
                 }
             }
 
@@ -142,18 +142,18 @@ class EpicReviewCommand extends Command
         // Epic header
         $this->newLine();
         $this->info('═══════════════════════════════════════════════════════════════');
-        $this->info(sprintf('Epic Review: %s', $epic['id']));
+        $this->info(sprintf('Epic Review: %s', $epic->id));
         $this->info('═══════════════════════════════════════════════════════════════');
         $this->newLine();
 
         // Epic details
-        $this->line(sprintf('<fg=cyan>Title:</> %s', $epic['title'] ?? 'Untitled'));
-        $this->line(sprintf('<fg=cyan>Status:</> %s', $epic['status'] ?? EpicStatus::Planning->value));
+        $this->line(sprintf('<fg=cyan>Title:</> %s', $epic->title ?? 'Untitled'));
+        $this->line(sprintf('<fg=cyan>Status:</> %s', $epic->status ?? EpicStatus::Planning->value));
 
-        if (isset($epic['description']) && $epic['description'] !== null) {
+        if (isset($epic->description) && $epic->description !== null) {
             $this->newLine();
             $this->line('<fg=cyan>Description:</>');
-            $this->line($epic['description']);
+            $this->line($epic->description);
         }
 
         // Task list

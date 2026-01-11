@@ -141,13 +141,16 @@ class ConsumeCommand extends Command
         }
 
         // In non-interactive mode, start unpaused so we process tasks immediately
-        $paused = $singleIteration ? false : true;
+        $paused = true;
 
         $statusLines = [];
 
         try {
             while (! $this->processManager->isShuttingDown()) {
                 \pcntl_signal_dispatch();
+
+                // Reload config on each iteration to pick up changes
+                $this->configService->reload();
 
                 // Check for pause toggle (Shift+Tab)
                 if ($this->checkForPauseToggle()) {
@@ -1130,10 +1133,10 @@ PROMPT;
                 $lines[] = '';
                 $lines[] = '== EPIC CONTEXT ==';
                 $lines[] = 'This task is part of a larger epic:';
-                $lines[] = 'Epic: '.$epic['id'];
-                $lines[] = 'Epic Title: '.$epic['title'];
-                if (! empty($epic['description'])) {
-                    $lines[] = 'Epic Description: '.$epic['description'];
+                $lines[] = 'Epic: '.$epic->id;
+                $lines[] = 'Epic Title: '.$epic->title;
+                if (! empty($epic->description)) {
+                    $lines[] = 'Epic Description: '.$epic->description;
                 }
                 $lines[] = '';
                 $lines[] = 'You are working on a small part of this larger epic. Understanding the epic context will help you build better solutions that align with the overall goal.';

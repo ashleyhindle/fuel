@@ -41,12 +41,12 @@ class EpicRejectCommand extends Command
             $epic = $epicService->rejectEpic($this->argument('id'), $reason);
 
             if ($this->option('json')) {
-                $this->outputJson($epic);
+                $this->outputJson($epic->toArray());
 
                 return self::SUCCESS;
             }
 
-            $this->info(sprintf('Epic %s rejected - changes requested', $epic['id']));
+            $this->info(sprintf('Epic %s rejected - changes requested', $epic->id));
             if ($reason !== null) {
                 $this->line(sprintf('  Reason: %s', $reason));
             }

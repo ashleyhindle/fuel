@@ -41,17 +41,17 @@ class EpicApproveCommand extends Command
             $epic = $epicService->approveEpic($this->argument('id'), $approvedBy);
 
             if ($this->option('json')) {
-                $this->outputJson($epic);
+                $this->outputJson($epic->toArray());
 
                 return self::SUCCESS;
             }
 
-            $this->info(sprintf('Epic %s approved', $epic['id']));
-            if (isset($epic['approved_by'])) {
-                $this->line(sprintf('  Approved by: %s', $epic['approved_by']));
+            $this->info(sprintf('Epic %s approved', $epic->id));
+            if (isset($epic->approved_by)) {
+                $this->line(sprintf('  Approved by: %s', $epic->approved_by));
             }
-            if (isset($epic['approved_at'])) {
-                $this->line(sprintf('  Approved at: %s', $epic['approved_at']));
+            if (isset($epic->approved_at)) {
+                $this->line(sprintf('  Approved at: %s', $epic->approved_at));
             }
 
             return self::SUCCESS;

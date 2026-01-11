@@ -39,14 +39,15 @@ class EpicsCommand extends Command
 
             if ($this->option('json')) {
                 // For JSON output, include task count and completed count for each epic
-                $epicsWithProgress = array_map(function (array $epic) use ($epicService): array {
-                    $tasks = $epicService->getTasksForEpic($epic['id']);
+                $epicsWithProgress = array_map(function ($epic) use ($epicService): array {
+                    $tasks = $epicService->getTasksForEpic($epic->id);
                     $totalCount = count($tasks);
                     $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
-                    $epic['task_count'] = $totalCount;
-                    $epic['completed_count'] = $completedCount;
+                    $epicArray = $epic->toArray();
+                    $epicArray['task_count'] = $totalCount;
+                    $epicArray['completed_count'] = $completedCount;
 
-                    return $epic;
+                    return $epicArray;
                 }, $epics);
 
                 $this->outputJson($epicsWithProgress);
@@ -65,18 +66,18 @@ class EpicsCommand extends Command
 
             // Build table rows with progress tracking
             $headers = ['ID', 'Title', 'Status', 'Progress', 'Created'];
-            $rows = array_map(function (array $epic) use ($epicService): array {
-                $tasks = $epicService->getTasksForEpic($epic['id']);
+            $rows = array_map(function ($epic) use ($epicService): array {
+                $tasks = $epicService->getTasksForEpic($epic->id);
                 $totalCount = count($tasks);
                 $completedCount = count(array_filter($tasks, fn (array $task): bool => ($task['status'] ?? '') === 'closed'));
                 $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
                 return [
-                    $epic['id'],
-                    $epic['title'] ?? '',
-                    $epic['status'] ?? EpicStatus::Planning->value,
+                    $epic->id,
+                    $epic->title ?? '',
+                    $epic->status ?? EpicStatus::Planning->value,
                     $progress,
-                    $this->formatDate($epic['created_at'] ?? ''),
+                    $this->formatDate($epic->created_at ?? ''),
                 ];
             }, $epics);
 
