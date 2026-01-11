@@ -249,17 +249,17 @@ it('runs a basic command flow', function (): void {
     ]);
     $deferred = json_decode(Artisan::output(), true);
 
-    $backlogId = $deferred['backlog_item']['id'] ?? null;
-    expect($backlogId)->not->toBeNull();
+    $deferredTaskId = $deferred['task_id'] ?? null;
+    expect($deferredTaskId)->not->toBeNull();
 
     Artisan::call('backlog', [
         '--json' => true,
     ]);
     $backlog = json_decode(Artisan::output(), true);
-    expect(array_column($backlog, 'id'))->toContain($backlogId);
+    expect(array_column($backlog, 'id'))->toContain($deferredTaskId);
 
     Artisan::call('promote', [
-        'ids' => [$backlogId],
+        'ids' => [$deferredTaskId],
         '--cwd' => $cwd,
         '--json' => true,
         '--priority' => 2,
