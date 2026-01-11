@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use Illuminate\Support\Facades\Artisan;
@@ -17,6 +18,23 @@ function createTaskForReview(DatabaseService $service, string $shortId): void
     );
 }
 
+/**
+ * Helper to create a review for a task using the repository.
+ */
+function createReviewForTask(
+    ReviewRepository $reviewRepo,
+    string $taskShortId,
+    string $reviewShortId,
+    string $agent
+): void {
+    $taskId = $reviewRepo->resolveTaskId($taskShortId);
+    if ($taskId === null) {
+        throw new RuntimeException("Task '{$taskShortId}' not found.");
+    }
+
+    $reviewRepo->createReview($reviewShortId, $taskId, $agent);
+}
+
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir.'/.fuel', 0755, true);
@@ -28,8 +46,10 @@ beforeEach(function (): void {
     // Bind our test DatabaseService instance
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    $this->app->singleton(ReviewRepository::class, fn (): ReviewRepository => new ReviewRepository($databaseService));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
+    $this->reviewRepo = $this->app->make(ReviewRepository::class);
     $this->databaseService->initialize();
 });
 
@@ -84,22 +104,25 @@ it('shows recent reviews with correct format', function (): void {
     $oneMinuteAgo = (clone $now)->modify('-1 minute');
 
     // Create passed review
-    $reviewId1 = $this->databaseService->recordReviewStarted('f-abc123', 'claude-sonnet');
+    $reviewId1 = 'r-abc123';
+    createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId1, 'claude-sonnet');
     $this->databaseService->query(
         'UPDATE reviews SET status = ?, completed_at = ?, started_at = ? WHERE short_id = ?',
         ['passed', $now->format('c'), $twoMinutesAgo->format('c'), $reviewId1]
     );
 
     // Create failed review with issues
-    $reviewId2 = $this->databaseService->recordReviewStarted('f-def456', 'claude-opus');
-    $this->databaseService->recordReviewCompleted($reviewId2, false, ['uncommitted_changes', 'tests_failing']);
+    $reviewId2 = 'r-def456';
+    createReviewForTask($this->reviewRepo, 'f-def456', $reviewId2, 'claude-opus');
+    $this->reviewRepo->markAsCompleted($reviewId2, false, ['uncommitted_changes', 'tests_failing']);
     $this->databaseService->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$fiveMinutesAgo->format('c'), $reviewId2]
     );
 
     // Create pending review
-    $reviewId3 = $this->databaseService->recordReviewStarted('f-ghi789', 'amp-free');
+    $reviewId3 = 'r-ghi789';
+    createReviewForTask($this->reviewRepo, 'f-ghi789', $reviewId3, 'amp-free');
     $this->databaseService->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$oneMinuteAgo->format('c'), $reviewId3]
@@ -126,8 +149,9 @@ it('shows only last 10 reviews by default', function (): void {
     // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
         createTaskForReview($this->databaseService, 'f-task'.$i);
-        $reviewId = $this->databaseService->recordReviewStarted('f-task'.$i, 'claude');
-        $this->databaseService->recordReviewCompleted($reviewId, true, []);
+        $reviewId = sprintf('r-%06d', $i);
+        createReviewForTask($this->reviewRepo, 'f-task'.$i, $reviewId, 'claude');
+        $this->reviewRepo->markAsCompleted($reviewId, true, []);
     }
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir]);
@@ -142,8 +166,9 @@ it('shows all reviews with --all option', function (): void {
     // Create 15 tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
         createTaskForReview($this->databaseService, 'f-task'.$i);
-        $reviewId = $this->databaseService->recordReviewStarted('f-task'.$i, 'claude');
-        $this->databaseService->recordReviewCompleted($reviewId, true, []);
+        $reviewId = sprintf('r-%06d', $i);
+        createReviewForTask($this->reviewRepo, 'f-task'.$i, $reviewId, 'claude');
+        $this->reviewRepo->markAsCompleted($reviewId, true, []);
     }
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir, '--all' => true]);
@@ -162,16 +187,20 @@ it('filters to pending reviews only with --pending option', function (): void {
     createTaskForReview($this->databaseService, 'f-task4');
 
     // Create reviews with different statuses
-    $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId1, true, []);
+    $reviewId1 = 'r-task01';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId1, true, []);
 
-    $reviewId2 = $this->databaseService->recordReviewStarted('f-task2', 'gemini');
+    $reviewId2 = 'r-task02';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     // Leave as pending
 
-    $reviewId3 = $this->databaseService->recordReviewStarted('f-task3', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId3, false, ['tests_failing']);
+    $reviewId3 = 'r-task03';
+    createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId3, false, ['tests_failing']);
 
-    $reviewId4 = $this->databaseService->recordReviewStarted('f-task4', 'amp');
+    $reviewId4 = 'r-task04';
+    createReviewForTask($this->reviewRepo, 'f-task4', $reviewId4, 'amp');
     // Leave as pending
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir, '--pending' => true]);
@@ -192,17 +221,21 @@ it('filters to failed reviews only with --failed option', function (): void {
     createTaskForReview($this->databaseService, 'f-task4');
 
     // Create reviews with different statuses
-    $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId1, true, []);
+    $reviewId1 = 'r-fail01';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId1, true, []);
 
-    $reviewId2 = $this->databaseService->recordReviewStarted('f-task2', 'gemini');
+    $reviewId2 = 'r-fail02';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     // Leave as pending
 
-    $reviewId3 = $this->databaseService->recordReviewStarted('f-task3', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId3, false, ['tests_failing']);
+    $reviewId3 = 'r-fail03';
+    createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId3, false, ['tests_failing']);
 
-    $reviewId4 = $this->databaseService->recordReviewStarted('f-task4', 'amp');
-    $this->databaseService->recordReviewCompleted($reviewId4, false, ['uncommitted_changes']);
+    $reviewId4 = 'r-fail04';
+    createReviewForTask($this->reviewRepo, 'f-task4', $reviewId4, 'amp');
+    $this->reviewRepo->markAsCompleted($reviewId4, false, ['uncommitted_changes']);
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir, '--failed' => true]);
     $output = Artisan::output();
@@ -219,8 +252,9 @@ it('outputs JSON format with --json option', function (): void {
     createTaskForReview($this->databaseService, 'f-abc123');
 
     // Create a review
-    $reviewId = $this->databaseService->recordReviewStarted('f-abc123', 'claude-sonnet');
-    $this->databaseService->recordReviewCompleted($reviewId, false, ['tests_failing']);
+    $reviewId = 'r-json01';
+    createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude-sonnet');
+    $this->reviewRepo->markAsCompleted($reviewId, false, ['tests_failing']);
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir, '--json' => true]);
     $output = Artisan::output();
@@ -241,10 +275,12 @@ it('outputs JSON format with --json and --pending options', function (): void {
     createTaskForReview($this->databaseService, 'f-task2');
 
     // Create reviews with different statuses
-    $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId1, true, []);
+    $reviewId1 = 'r-pend01';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId1, true, []);
 
-    $reviewId2 = $this->databaseService->recordReviewStarted('f-task2', 'gemini');
+    $reviewId2 = 'r-pend02';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     // Leave as pending
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir, '--json' => true, '--pending' => true]);
@@ -263,11 +299,13 @@ it('outputs JSON format with --json and --failed options', function (): void {
     createTaskForReview($this->databaseService, 'f-task2');
 
     // Create reviews with different statuses
-    $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId1, true, []);
+    $reviewId1 = 'r-fjson1';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId1, true, []);
 
-    $reviewId2 = $this->databaseService->recordReviewStarted('f-task2', 'gemini');
-    $this->databaseService->recordReviewCompleted($reviewId2, false, ['tests_failing']);
+    $reviewId2 = 'r-fjson2';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
+    $this->reviewRepo->markAsCompleted($reviewId2, false, ['tests_failing']);
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir, '--json' => true, '--failed' => true]);
     $output = Artisan::output();
@@ -281,8 +319,9 @@ it('outputs JSON format with --json and --failed options', function (): void {
 
 it('shows issues for failed reviews in formatted output', function (): void {
     createTaskForReview($this->databaseService, 'f-abc123');
-    $reviewId = $this->databaseService->recordReviewStarted('f-abc123', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing']);
+    $reviewId = 'r-iss01';
+    createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing']);
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir]);
     $output = Artisan::output();
@@ -292,8 +331,9 @@ it('shows issues for failed reviews in formatted output', function (): void {
 
 it('does not show issues for passed reviews in formatted output', function (): void {
     createTaskForReview($this->databaseService, 'f-abc123');
-    $reviewId = $this->databaseService->recordReviewStarted('f-abc123', 'claude');
-    $this->databaseService->recordReviewCompleted($reviewId, true, []);
+    $reviewId = 'r-iss02';
+    createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     Artisan::call('reviews', ['--cwd' => $this->tempDir]);
     $output = Artisan::output();
@@ -313,19 +353,22 @@ it('orders reviews by started_at descending', function (): void {
     $twoMinutesAgo = (clone $now)->modify('-2 minutes');
     $threeMinutesAgo = (clone $now)->modify('-3 minutes');
 
-    $reviewId1 = $this->databaseService->recordReviewStarted('f-task1', 'claude');
+    $reviewId1 = 'r-ord01';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
     $this->databaseService->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$threeMinutesAgo->format('c'), $reviewId1]
     );
 
-    $reviewId2 = $this->databaseService->recordReviewStarted('f-task2', 'claude');
+    $reviewId2 = 'r-ord02';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'claude');
     $this->databaseService->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$oneMinuteAgo->format('c'), $reviewId2]
     );
 
-    $reviewId3 = $this->databaseService->recordReviewStarted('f-task3', 'claude');
+    $reviewId3 = 'r-ord03';
+    createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
     $this->databaseService->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$twoMinutesAgo->format('c'), $reviewId3]

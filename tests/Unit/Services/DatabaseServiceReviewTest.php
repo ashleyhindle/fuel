@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Review;
+use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 
 beforeEach(function (): void {
@@ -11,6 +12,7 @@ beforeEach(function (): void {
     $this->dbPath = $this->tempDir.'/test-agent.db';
     $this->service = new DatabaseService($this->dbPath);
     $this->service->initialize();
+    $this->reviewRepo = new ReviewRepository($this->service);
 });
 
 afterEach(function (): void {
@@ -40,6 +42,24 @@ function createTestTask(DatabaseService $service, string $shortId): void
         'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
         [$shortId, 'Test Task', 'open', now()->toIso8601String(), now()->toIso8601String()]
     );
+}
+
+/**
+ * Helper to create a review for a task using the repository.
+ */
+function createReviewForTask(
+    ReviewRepository $reviewRepo,
+    string $taskShortId,
+    string $reviewShortId,
+    string $agent,
+    ?int $runId = null
+): void {
+    $taskId = $reviewRepo->resolveTaskId($taskShortId);
+    if ($taskId === null) {
+        throw new RuntimeException("Task '{$taskShortId}' not found.");
+    }
+
+    $reviewRepo->createReview($reviewShortId, $taskId, $agent, $runId);
 }
 
 it('creates reviews table with correct schema', function (): void {
@@ -87,7 +107,8 @@ it('records review started and returns review id', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
-    $reviewId = $this->service->recordReviewStarted('f-123456', 'claude');
+    $reviewId = 'r-123456';
+    createReviewForTask($this->reviewRepo, 'f-123456', $reviewId, 'claude');
 
     expect($reviewId)->toStartWith('r-');
     expect($reviewId)->toHaveLength(8); // 'r-' + 6 hex chars
@@ -107,9 +128,10 @@ it('records review completed with pass', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
-    $reviewId = $this->service->recordReviewStarted('f-123456', 'claude');
+    $reviewId = 'r-pass01';
+    createReviewForTask($this->reviewRepo, 'f-123456', $reviewId, 'claude');
 
-    $this->service->recordReviewCompleted($reviewId, true, []);
+    $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
 
@@ -122,11 +144,12 @@ it('records review completed with failures and issues', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
-    $reviewId = $this->service->recordReviewStarted('f-123456', 'claude');
+    $reviewId = 'r-fail01';
+    createReviewForTask($this->reviewRepo, 'f-123456', $reviewId, 'claude');
 
     $issues = ['Modified files not committed: src/Service.php', 'Tests failed in UserServiceTest'];
 
-    $this->service->recordReviewCompleted($reviewId, false, $issues);
+    $this->reviewRepo->markAsCompleted($reviewId, false, $issues);
 
     $review = $this->service->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$reviewId]);
 
@@ -140,13 +163,16 @@ it('gets reviews for task with correct data', function (): void {
     createTestTask($this->service, 'f-123456');
 
     // Create multiple reviews for the same task
-    $reviewId1 = $this->service->recordReviewStarted('f-123456', 'claude');
-    $reviewId2 = $this->service->recordReviewStarted('f-123456', 'gemini');
-    $reviewId3 = $this->service->recordReviewStarted('f-123456', 'claude');
+    $reviewId1 = 'r-000001';
+    $reviewId2 = 'r-000002';
+    $reviewId3 = 'r-000003';
+    createReviewForTask($this->reviewRepo, 'f-123456', $reviewId1, 'claude');
+    createReviewForTask($this->reviewRepo, 'f-123456', $reviewId2, 'gemini');
+    createReviewForTask($this->reviewRepo, 'f-123456', $reviewId3, 'claude');
 
     // Complete some reviews
-    $this->service->recordReviewCompleted($reviewId1, true, []);
-    $this->service->recordReviewCompleted($reviewId2, false, ['Tests failed in ServiceTest']);
+    $this->reviewRepo->markAsCompleted($reviewId1, true, []);
+    $this->reviewRepo->markAsCompleted($reviewId2, false, ['Tests failed in ServiceTest']);
 
     $reviews = $this->service->getReviewsForTask('f-123456');
 
@@ -189,15 +215,18 @@ it('gets pending reviews returns only pending reviews', function (): void {
     createTestTask($this->service, 'f-task2');
     createTestTask($this->service, 'f-task3');
 
-    $reviewId1 = $this->service->recordReviewStarted('f-task1', 'claude');
+    $reviewId1 = 'r-101001';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
     usleep(10000);
-    $reviewId2 = $this->service->recordReviewStarted('f-task2', 'gemini');
+    $reviewId2 = 'r-101002';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     usleep(10000);
-    $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
+    $reviewId3 = 'r-101003';
+    createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
 
     // Complete reviews 1 and 3
-    $this->service->recordReviewCompleted($reviewId1, true, []);
-    $this->service->recordReviewCompleted($reviewId3, false, ['Uncommitted changes detected']);
+    $this->reviewRepo->markAsCompleted($reviewId1, true, []);
+    $this->reviewRepo->markAsCompleted($reviewId3, false, ['Uncommitted changes detected']);
 
     $pendingReviews = $this->service->getPendingReviews();
 
@@ -214,9 +243,12 @@ it('gets pending reviews returns all pending reviews', function (): void {
     createTestTask($this->service, 'f-task2');
     createTestTask($this->service, 'f-task3');
 
-    $reviewId1 = $this->service->recordReviewStarted('f-task1', 'claude');
-    $reviewId2 = $this->service->recordReviewStarted('f-task2', 'gemini');
-    $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
+    $reviewId1 = 'r-102001';
+    $reviewId2 = 'r-102002';
+    $reviewId3 = 'r-102003';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
+    createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
 
     $pendingReviews = $this->service->getPendingReviews();
 
@@ -232,8 +264,9 @@ it('gets pending reviews returns empty array when no pending reviews exist', fun
     // Create task first for FK relationship
     createTestTask($this->service, 'f-task1');
 
-    $reviewId = $this->service->recordReviewStarted('f-task1', 'claude');
-    $this->service->recordReviewCompleted($reviewId, true, []);
+    $reviewId = 'r-103001';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     $pendingReviews = $this->service->getPendingReviews();
 
@@ -244,7 +277,8 @@ it('decodes json fields correctly for null values', function (): void {
     // Create task first for FK relationship
     createTestTask($this->service, 'f-123456');
 
-    $reviewId = $this->service->recordReviewStarted('f-123456', 'claude');
+    $reviewId = 'r-null01';
+    createReviewForTask($this->reviewRepo, 'f-123456', $reviewId, 'claude');
 
     // Review is pending, so issues is NULL in DB
     $reviews = $this->service->getReviewsForTask('f-123456');
@@ -265,19 +299,22 @@ it('gets all reviews returns all reviews ordered by started_at descending', func
     $twoMinutesAgo = (clone $now)->modify('-2 minutes');
     $threeMinutesAgo = (clone $now)->modify('-3 minutes');
 
-    $reviewId1 = $this->service->recordReviewStarted('f-task1', 'claude');
+    $reviewId1 = 'r-order1';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
     $this->service->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$threeMinutesAgo->format('c'), $reviewId1]
     );
 
-    $reviewId2 = $this->service->recordReviewStarted('f-task2', 'gemini');
+    $reviewId2 = 'r-order2';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     $this->service->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$oneMinuteAgo->format('c'), $reviewId2]
     );
 
-    $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
+    $reviewId3 = 'r-order3';
+    createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
     $this->service->query(
         'UPDATE reviews SET started_at = ? WHERE short_id = ?',
         [$twoMinutesAgo->format('c'), $reviewId3]
@@ -303,14 +340,17 @@ it('gets all reviews filters by status', function (): void {
     createTestTask($this->service, 'f-task2');
     createTestTask($this->service, 'f-task3');
 
-    $reviewId1 = $this->service->recordReviewStarted('f-task1', 'claude');
-    $this->service->recordReviewCompleted($reviewId1, true, []);
+    $reviewId1 = 'r-status1';
+    createReviewForTask($this->reviewRepo, 'f-task1', $reviewId1, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId1, true, []);
 
-    $reviewId2 = $this->service->recordReviewStarted('f-task2', 'gemini');
+    $reviewId2 = 'r-status2';
+    createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     // Leave as pending
 
-    $reviewId3 = $this->service->recordReviewStarted('f-task3', 'claude');
-    $this->service->recordReviewCompleted($reviewId3, false, ['Tests failed']);
+    $reviewId3 = 'r-status3';
+    createReviewForTask($this->reviewRepo, 'f-task3', $reviewId3, 'claude');
+    $this->reviewRepo->markAsCompleted($reviewId3, false, ['Tests failed']);
 
     $failedReviews = $this->service->getAllReviews('failed');
     expect($failedReviews)->toHaveCount(1);
@@ -332,7 +372,8 @@ it('gets all reviews respects limit', function (): void {
     // Create tasks and reviews
     for ($i = 1; $i <= 15; $i++) {
         createTestTask($this->service, 'f-task'.$i);
-        $this->service->recordReviewStarted('f-task'.$i, 'claude');
+        $reviewId = sprintf('r-%06d', $i);
+        createReviewForTask($this->reviewRepo, 'f-task'.$i, $reviewId, 'claude');
     }
 
     $reviews = $this->service->getAllReviews(null, 10);
@@ -346,14 +387,16 @@ it('gets all reviews with status and limit', function (): void {
     // Create 10 passed and 10 failed reviews
     for ($i = 1; $i <= 10; $i++) {
         createTestTask($this->service, 'f-passed'.$i);
-        $reviewId = $this->service->recordReviewStarted('f-passed'.$i, 'claude');
-        $this->service->recordReviewCompleted($reviewId, true, []);
+        $reviewId = sprintf('r-p%05d', $i);
+        createReviewForTask($this->reviewRepo, 'f-passed'.$i, $reviewId, 'claude');
+        $this->reviewRepo->markAsCompleted($reviewId, true, []);
     }
 
     for ($i = 1; $i <= 10; $i++) {
         createTestTask($this->service, 'f-failed'.$i);
-        $reviewId = $this->service->recordReviewStarted('f-failed'.$i, 'claude');
-        $this->service->recordReviewCompleted($reviewId, false, ['Tests failed']);
+        $reviewId = sprintf('r-f%05d', $i);
+        createReviewForTask($this->reviewRepo, 'f-failed'.$i, $reviewId, 'claude');
+        $this->reviewRepo->markAsCompleted($reviewId, false, ['Tests failed']);
     }
 
     $failedReviews = $this->service->getAllReviews('failed', 5);
@@ -364,7 +407,11 @@ it('gets all reviews with status and limit', function (): void {
 
 it('allows reviews with null task_id when task does not exist', function (): void {
     // Record a review for a task that doesn't exist (null FK)
-    $reviewId = $this->service->recordReviewStarted('f-nonexistent', 'claude');
+    $reviewId = 'r-nullfk';
+    $this->service->query(
+        'INSERT INTO reviews (short_id, task_id, agent, status, started_at) VALUES (?, ?, ?, ?, ?)',
+        [$reviewId, null, 'claude', 'pending', now()->toIso8601String()]
+    );
 
     expect($reviewId)->toStartWith('r-');
 
@@ -377,7 +424,8 @@ it('allows reviews with null task_id when task does not exist', function (): voi
 it('returns null task_id for reviews with orphaned tasks', function (): void {
     // Create task and review
     createTestTask($this->service, 'f-orphan');
-    $reviewId = $this->service->recordReviewStarted('f-orphan', 'claude');
+    $reviewId = 'r-orphan';
+    createReviewForTask($this->reviewRepo, 'f-orphan', $reviewId, 'claude');
 
     // Delete the task
     $this->service->query('DELETE FROM tasks WHERE short_id = ?', ['f-orphan']);

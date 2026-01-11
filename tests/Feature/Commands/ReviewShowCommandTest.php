@@ -2,11 +2,30 @@
 
 declare(strict_types=1);
 
+use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
+
+/**
+ * Helper to create a review for a task using the repository.
+ */
+function createReviewForTask(
+    ReviewRepository $reviewRepo,
+    string $taskShortId,
+    string $reviewShortId,
+    string $agent,
+    ?int $runId = null
+): void {
+    $taskId = $reviewRepo->resolveTaskId($taskShortId);
+    if ($taskId === null) {
+        throw new RuntimeException("Task '{$taskShortId}' not found.");
+    }
+
+    $reviewRepo->createReview($reviewShortId, $taskId, $agent, $runId);
+}
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
@@ -17,6 +36,7 @@ beforeEach(function (): void {
 
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    $this->app->singleton(ReviewRepository::class, fn (): ReviewRepository => new ReviewRepository($databaseService));
 
     $taskService = makeTaskService($databaseService);
     $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
@@ -26,6 +46,7 @@ beforeEach(function (): void {
 
     $this->databaseService = $this->app->make(DatabaseService::class);
     $this->databaseService->initialize();
+    $this->reviewRepo = $this->app->make(ReviewRepository::class);
 
     $this->taskService = $this->app->make(TaskService::class);
     $this->runService = $this->app->make(RunService::class);
@@ -74,8 +95,9 @@ it('shows review details', function (): void {
         ['f-abc123', 'Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
     );
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-abc123', 'claude-sonnet');
-    $this->databaseService->recordReviewCompleted($reviewId, true, []);
+    $reviewId = 'r-abc123';
+    createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude-sonnet');
+    $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
     $output = Artisan::output();
@@ -93,8 +115,9 @@ it('shows failed review with issues', function (): void {
         ['f-def456', 'Failed Task', 'review', now()->toIso8601String(), now()->toIso8601String()]
     );
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-def456', 'cursor-composer');
-    $this->databaseService->recordReviewCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing']);
+    $reviewId = 'r-def456';
+    createReviewForTask($this->reviewRepo, 'f-def456', $reviewId, 'cursor-composer');
+    $this->reviewRepo->markAsCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing']);
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
     $output = Artisan::output();
@@ -112,8 +135,9 @@ it('supports partial ID matching', function (): void {
         ['f-xyz789', 'Partial Match Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
     );
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-xyz789', 'amp-free');
-    $this->databaseService->recordReviewCompleted($reviewId, true, []);
+    $reviewId = 'r-xyz789';
+    createReviewForTask($this->reviewRepo, 'f-xyz789', $reviewId, 'amp-free');
+    $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     $partialId = substr((string) $reviewId, 2, 4);
 
@@ -130,8 +154,9 @@ it('outputs JSON format with --json option', function (): void {
         ['f-json01', 'JSON Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
     );
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-json01', 'gemini');
-    $this->databaseService->recordReviewCompleted($reviewId, false, ['task_incomplete']);
+    $reviewId = 'r-json01';
+    createReviewForTask($this->reviewRepo, 'f-json01', $reviewId, 'gemini');
+    $this->reviewRepo->markAsCompleted($reviewId, false, ['task_incomplete']);
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir, '--json' => true]);
     $output = Artisan::output();
@@ -158,12 +183,13 @@ it('shows agent output from stdout.log', function (): void {
         'started_at' => now()->toIso8601String(),
     ]);
 
-    // Get the run's integer ID to pass to recordReviewStarted
+    // Get the run's integer ID to associate with the review
     $run = $this->databaseService->fetchOne('SELECT id FROM runs WHERE short_id = ?', [$runShortId]);
     $runId = (int) $run['id'];
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-stdout1', 'claude', $runId);
-    $this->databaseService->recordReviewCompleted($reviewId, true, []);
+    $reviewId = 'r-stdout';
+    createReviewForTask($this->reviewRepo, 'f-stdout1', $reviewId, 'claude', $runId);
+    $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     // Use run-based directory path
     $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
@@ -185,8 +211,9 @@ it('delegates from fuel show r-xxx', function (): void {
         ['f-delega', 'Delegation Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
     );
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-delega', 'amp');
-    $this->databaseService->recordReviewCompleted($reviewId, true, []);
+    $reviewId = 'r-delega';
+    createReviewForTask($this->reviewRepo, 'f-delega', $reviewId, 'amp');
+    $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     Artisan::call('show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
     $output = Artisan::output();
@@ -201,7 +228,8 @@ it('shows pending status for in-progress reviews', function (): void {
         ['f-pend01', 'Pending Review Task', 'review', now()->toIso8601String(), now()->toIso8601String()]
     );
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-pend01', 'claude');
+    $reviewId = 'r-pend01';
+    createReviewForTask($this->reviewRepo, 'f-pend01', $reviewId, 'claude');
 
     Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
     $output = Artisan::output();
