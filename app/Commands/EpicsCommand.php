@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\EpicStatus;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -73,7 +74,7 @@ class EpicsCommand extends Command
                 return [
                     $epic['id'],
                     $epic['title'] ?? '',
-                    $epic['status'] ?? 'planning',
+                    $epic['status'] ?? EpicStatus::Planning->value,
                     $progress,
                     $this->formatDate($epic['created_at'] ?? ''),
                 ];

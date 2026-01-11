@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\EpicStatus;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -147,7 +148,7 @@ class EpicReviewCommand extends Command
 
         // Epic details
         $this->line(sprintf('<fg=cyan>Title:</> %s', $epic['title'] ?? 'Untitled'));
-        $this->line(sprintf('<fg=cyan>Status:</> %s', $epic['status'] ?? 'planning'));
+        $this->line(sprintf('<fg=cyan>Status:</> %s', $epic['status'] ?? EpicStatus::Planning->value));
 
         if (isset($epic['description']) && $epic['description'] !== null) {
             $this->newLine();

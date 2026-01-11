@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\EpicStatus;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -91,7 +92,7 @@ class EpicShowCommand extends Command
             // Display epic details
             $this->info('Epic: '.$epic['id']);
             $this->line('  Title: '.($epic['title'] ?? ''));
-            $this->line('  Status: '.($epic['status'] ?? 'planning'));
+            $this->line('  Status: '.($epic['status'] ?? EpicStatus::Planning->value));
             $this->line('  Progress: '.$progress);
 
             if (isset($epic['description']) && $epic['description'] !== null) {
