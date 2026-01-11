@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Services\BacklogService;
+use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
 class BacklogCommand extends Command
@@ -17,12 +17,12 @@ class BacklogCommand extends Command
 
     protected $description = 'List all backlog items';
 
-    public function handle(BacklogService $backlogService): int
+    public function handle(TaskService $taskService): int
     {
-        $items = $backlogService->all();
+        $items = $taskService->backlog();
 
         if ($this->option('json')) {
-            $this->outputJson($items->values()->toArray());
+            $this->outputJson($items->map(fn ($item) => $item->toArray())->values()->toArray());
         } else {
             if ($items->isEmpty()) {
                 $this->info('No backlog items.');
@@ -35,7 +35,7 @@ class BacklogCommand extends Command
 
             $this->table(
                 ['ID', 'Title', 'Created'],
-                $items->map(fn (array $item): array => [
+                $items->map(fn ($item): array => [
                     $item['id'],
                     $item['title'],
                     $this->formatDate($item['created_at']),

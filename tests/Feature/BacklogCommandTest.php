@@ -1,6 +1,5 @@
 <?php
 
-use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -23,8 +22,6 @@ describe('backlog command', function (): void {
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
-
-        $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -60,20 +57,21 @@ describe('backlog command', function (): void {
     });
 
     it('shows no backlog items when empty', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-        $backlogService->initialize();
-
         $this->artisan('backlog')
             ->expectsOutput('No backlog items.')
             ->assertExitCode(0);
     });
 
     it('lists backlog items', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-        $backlogService->initialize();
+        $taskService = $this->app->make(TaskService::class);
 
-        $item1 = $backlogService->add('Item 1');
-        $item2 = $backlogService->add('Item 2', 'Description');
+        $item1 = $taskService->create(['title' => 'Item 1']);
+        $taskService->update($item1['id'], ['status' => 'someday']);
+        $item1 = $taskService->find($item1['id']);
+
+        $item2 = $taskService->create(['title' => 'Item 2', 'description' => 'Description']);
+        $taskService->update($item2['id'], ['status' => 'someday']);
+        $item2 = $taskService->find($item2['id']);
 
         Artisan::call('backlog');
         $output = Artisan::output();
@@ -86,11 +84,13 @@ describe('backlog command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $backlogService = $this->app->make(BacklogService::class);
-        $backlogService->initialize();
+        $taskService = $this->app->make(TaskService::class);
 
-        $item1 = $backlogService->add('Item 1');
-        $item2 = $backlogService->add('Item 2');
+        $item1 = $taskService->create(['title' => 'Item 1']);
+        $taskService->update($item1['id'], ['status' => 'someday']);
+
+        $item2 = $taskService->create(['title' => 'Item 2']);
+        $taskService->update($item2['id'], ['status' => 'someday']);
 
         Artisan::call('backlog', ['--json' => true]);
         $output = Artisan::output();
@@ -98,7 +98,7 @@ describe('backlog command', function (): void {
 
         expect($items)->toBeArray();
         expect($items)->toHaveCount(2);
-        expect($items[0]['id'])->toStartWith('b-');
-        expect($items[1]['id'])->toStartWith('b-');
+        expect($items[0]['id'])->toStartWith('f-');
+        expect($items[1]['id'])->toStartWith('f-');
     });
 });
