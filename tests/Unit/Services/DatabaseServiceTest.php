@@ -201,7 +201,7 @@ it('auto-migrates on first getConnection call', function (): void {
 
     // Verify schema_version table exists and has correct version
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(13);
+    expect($version['version'])->toBe(14);
 
     // Verify tables were created
     $tables = $this->service->fetchAll(
@@ -259,7 +259,7 @@ it('runs only pending migrations when upgrading', function (): void {
 
     // Version should be updated to latest
     $version = $connection->query('SELECT version FROM schema_version LIMIT 1')->fetch();
-    expect($version['version'])->toBe(13);
+    expect($version['version'])->toBe(14);
 
     // Epics table should be recreated
     $tables = $newService->fetchAll(
@@ -280,7 +280,7 @@ it('handles fresh database with no schema_version table', function (): void {
 
     // Should have all tables now
     $version = $newService->fetchOne('SELECT version FROM schema_version LIMIT 1');
-    expect($version['version'])->toBe(13);
+    expect($version['version'])->toBe(14);
 });
 
 it('migrates backlog.jsonl items to tasks with status=someday', function (): void {
@@ -391,7 +391,7 @@ it('is idempotent when backlog.jsonl does not exist', function (): void {
 
         // Verify migration completed successfully
         $version = $this->service->fetchOne('SELECT version FROM schema_version LIMIT 1');
-        expect($version['version'])->toBe(13);
+        expect($version['version'])->toBe(14);
 
         // No errors should occur and no tasks should be created
         $tasks = $this->service->fetchAll("SELECT * FROM tasks WHERE status = 'someday'");
