@@ -296,7 +296,7 @@ it('returns not completed when epic has no tasks', function (): void {
 
     $result = $this->service->checkEpicCompletion($epic->id);
 
-    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
+    expect($result)->toBe(['completed' => false]);
 });
 
 it('returns not completed when epic has open tasks', function (): void {
@@ -309,7 +309,7 @@ it('returns not completed when epic has open tasks', function (): void {
 
     $result = $this->service->checkEpicCompletion($epic->id);
 
-    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
+    expect($result)->toBe(['completed' => false]);
 });
 
 it('returns not completed when epic has in_progress tasks', function (): void {
@@ -323,7 +323,7 @@ it('returns not completed when epic has in_progress tasks', function (): void {
 
     $result = $this->service->checkEpicCompletion($epic->id);
 
-    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
+    expect($result)->toBe(['completed' => false]);
 });
 
 it('triggers completion when all tasks are closed', function (): void {
@@ -344,8 +344,6 @@ it('triggers completion when all tasks are closed', function (): void {
     $result = $this->service->checkEpicCompletion($epic->id);
 
     expect($result['completed'])->toBeTrue();
-    expect($result['review_task_id'])->toBeNull();
-
     $updatedEpic = $this->service->getEpic($epic->id);
     expect($updatedEpic->status)->toBe('review_pending');
 });
@@ -368,13 +366,12 @@ it('triggers completion when tasks are closed or cancelled', function (): void {
     $result = $this->service->checkEpicCompletion($epic->id);
 
     expect($result['completed'])->toBeTrue();
-    expect($result['review_task_id'])->toBeNull();
 });
 
 it('returns false for non-existent epic', function (): void {
     $result = $this->service->checkEpicCompletion('e-000000');
 
-    expect($result)->toBe(['completed' => false, 'review_task_id' => null]);
+    expect($result)->toBe(['completed' => false]);
 });
 
 it('does not create review tasks when checkEpicCompletion called multiple times', function (): void {
@@ -395,12 +392,10 @@ it('does not create review tasks when checkEpicCompletion called multiple times'
     // First call marks completion
     $result1 = $this->service->checkEpicCompletion($epic->id);
     expect($result1['completed'])->toBeTrue();
-    expect($result1['review_task_id'])->toBeNull();
 
     // Second call should remain completed without creating tasks
     $result2 = $this->service->checkEpicCompletion($epic->id);
     expect($result2['completed'])->toBeTrue();
-    expect($result2['review_task_id'])->toBeNull();
 
     // Verify no review tasks exist
     $allTasks = $this->taskService->all();

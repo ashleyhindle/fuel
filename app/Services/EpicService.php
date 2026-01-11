@@ -426,7 +426,7 @@ class EpicService
      * Check if all tasks in an epic are complete.
      *
      * @param  string  $epicId  The epic ID to check
-     * @return array{completed: bool, review_task_id: string|null} Whether the epic is complete (review_task_id is always null)
+     * @return array{completed: bool} Whether the epic is complete
      */
     public function checkEpicCompletion(string $epicId): array
     {
@@ -434,17 +434,17 @@ class EpicService
 
         $resolvedId = $this->resolveId($epicId);
         if ($resolvedId === null) {
-            return ['completed' => false, 'review_task_id' => null];
+            return ['completed' => false];
         }
 
         $epic = $this->db->fetchOne('SELECT * FROM epics WHERE short_id = ?', [$resolvedId]);
         if ($epic === null) {
-            return ['completed' => false, 'review_task_id' => null];
+            return ['completed' => false];
         }
 
         $tasks = $this->getTasksForEpic($resolvedId);
         if ($tasks === []) {
-            return ['completed' => false, 'review_task_id' => null];
+            return ['completed' => false];
         }
 
         $allClosed = true;
@@ -457,9 +457,9 @@ class EpicService
         }
 
         if (! $allClosed) {
-            return ['completed' => false, 'review_task_id' => null];
+            return ['completed' => false];
         }
 
-        return ['completed' => true, 'review_task_id' => null];
+        return ['completed' => true];
     }
 }
