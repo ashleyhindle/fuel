@@ -25,9 +25,10 @@ interface ProcessManagerInterface
      * @param  string  $command  The command to execute
      * @param  string  $cwd  The current working directory for the process
      * @param  ProcessType  $processType  The type of process (task or review)
+     * @param  string|null  $runId  The run ID for directory organization (optional)
      * @return Process The spawned process
      */
-    public function spawn(string $taskId, string $agent, string $command, string $cwd, ProcessType $processType = ProcessType::Task): Process;
+    public function spawn(string $taskId, string $agent, string $command, string $cwd, ProcessType $processType = ProcessType::Task, ?string $runId = null): Process;
 
     /**
      * Check if a process for the given task is currently running.

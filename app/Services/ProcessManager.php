@@ -418,14 +418,14 @@ class ProcessManager implements ProcessManagerInterface
     }
 
     /**
-     * Create output directory and files for a task.
+     * Create output directory and files for a run.
      *
-     * @param  string  $taskId  The task ID to create output for
+     * @param  string  $runId  The run ID to create output for
      * @return array{outputDir: string, stdoutPath: string, stderrPath: string}
      */
-    private function createOutputDirectory(string $taskId): array
+    private function createOutputDirectory(string $runId): array
     {
-        $outputDir = $this->fuelContext->getProcessesPath().'/'.$taskId;
+        $outputDir = $this->fuelContext->getProcessesPath().'/'.$runId;
 
         if (! is_dir($outputDir) && ! mkdir($outputDir, 0755, true)) {
             throw new \RuntimeException('Failed to create output directory: '.$outputDir);
@@ -510,12 +510,13 @@ class ProcessManager implements ProcessManagerInterface
      * @param  string  $command  The command to execute
      * @param  string  $cwd  The current working directory for the process
      * @param  ProcessType  $processType  The type of process (task or review)
+     * @param  string|null  $runId  The run ID for directory organization (optional)
      * @return Process The spawned process
      */
-    public function spawn(string $taskId, string $agent, string $command, string $cwd, ProcessType $processType = ProcessType::Task): Process
+    public function spawn(string $taskId, string $agent, string $command, string $cwd, ProcessType $processType = ProcessType::Task, ?string $runId = null): Process
     {
         // Create output directory and files
-        $outputPaths = $this->createOutputDirectory($taskId);
+        $outputPaths = $this->createOutputDirectory($runId ?? $taskId);
         $stdoutPath = $outputPaths['stdoutPath'];
         $stderrPath = $outputPaths['stderrPath'];
 
@@ -536,7 +537,9 @@ class ProcessManager implements ProcessManagerInterface
             time(),
             $stdoutPath,
             $stderrPath,
-            $processType
+            $processType,
+            null, // model not available in simple spawn
+            $runId
         );
 
         // Track the process
@@ -566,9 +569,10 @@ class ProcessManager implements ProcessManagerInterface
      * @param  string  $fullPrompt  The prompt to send to the agent
      * @param  string  $cwd  The current working directory
      * @param  ?string  $agentOverride  Optional agent override name
+     * @param  ?string  $runId  Optional run ID for directory organization
      * @return SpawnResult The spawn result with success status and process or error
      */
-    public function spawnForTask(array $task, string $fullPrompt, string $cwd, ?string $agentOverride = null): SpawnResult
+    public function spawnForTask(array $task, string $fullPrompt, string $cwd, ?string $agentOverride = null, ?string $runId = null): SpawnResult
     {
         $taskId = $task['id'];
         $agentName = $agentOverride;
@@ -618,7 +622,7 @@ class ProcessManager implements ProcessManagerInterface
             }
 
             // Create output directory and files
-            $outputPaths = $this->createOutputDirectory($taskId);
+            $outputPaths = $this->createOutputDirectory($runId ?? $taskId);
             $stdoutPath = $outputPaths['stdoutPath'];
             $stderrPath = $outputPaths['stderrPath'];
 
@@ -641,7 +645,10 @@ class ProcessManager implements ProcessManagerInterface
                 $agentName,
                 time(),
                 $stdoutPath,
-                $stderrPath
+                $stderrPath,
+                ProcessType::Task,
+                $agentDef['model'] ?? null,
+                $runId
             );
 
             // Track the process
@@ -718,6 +725,9 @@ class ProcessManager implements ProcessManagerInterface
                     }
                 }
 
+                // Extract cost and model from output
+                $extracted = $this->extractCostAndModelFromOutput($output);
+
                 // Create completion result
                 $completions[] = new CompletionResult(
                     taskId: $taskId,
@@ -725,11 +735,12 @@ class ProcessManager implements ProcessManagerInterface
                     exitCode: $exitCode,
                     duration: $duration,
                     sessionId: $agentProcess->getSessionId(),
-                    costUsd: null, // TODO: Extract cost from output if available
+                    costUsd: $extracted['cost_usd'],
                     output: $output,
                     type: $type,
                     message: $message,
-                    processType: $agentProcess->getProcessType()
+                    processType: $agentProcess->getProcessType(),
+                    model: $extracted['model'] ?? $agentProcess->getModel()
                 );
 
                 // Clean up tracking
@@ -763,6 +774,94 @@ class ProcessManager implements ProcessManagerInterface
         }
 
         return $pids;
+    }
+
+    /**
+     * Extract cost and model from agent output.
+     *
+     * Looks for the final JSON result line which contains total_cost_usd and model info.
+     *
+     * @param  string  $output  The agent output
+     * @return array{cost_usd: ?float, model: ?string}
+     */
+    private function extractCostAndModelFromOutput(string $output): array
+    {
+        $result = ['cost_usd' => null, 'model' => null];
+
+        // Split output by newlines
+        $lines = explode("\n", $output);
+
+        // Track step costs for agents that report per-step (e.g., opencode)
+        $stepCostSum = 0.0;
+        $hasStepCosts = false;
+
+        // Search through all lines
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+
+            $data = json_decode($line, true);
+            if (! is_array($data)) {
+                continue;
+            }
+
+            $type = $data['type'] ?? '';
+
+            // Claude Code format: total_cost_usd in result line
+            if ($type === 'result') {
+                if (isset($data['total_cost_usd'])) {
+                    $result['cost_usd'] = (float) $data['total_cost_usd'];
+                }
+
+                // Extract model from modelUsage if available
+                if (isset($data['modelUsage']) && is_array($data['modelUsage'])) {
+                    $primaryModel = null;
+                    $maxOutput = 0;
+                    foreach ($data['modelUsage'] as $model => $usage) {
+                        $outputTokens = $usage['outputTokens'] ?? 0;
+                        if ($outputTokens > $maxOutput) {
+                            $maxOutput = $outputTokens;
+                            $primaryModel = $model;
+                        }
+                    }
+                    $result['model'] = $primaryModel;
+                }
+            }
+
+            // Opencode format: cost in step_finish events (sum them up)
+            if ($type === 'step_finish') {
+                $partData = $data['part'] ?? $data;
+                if (isset($partData['cost']) && is_numeric($partData['cost'])) {
+                    $stepCostSum += (float) $partData['cost'];
+                    $hasStepCosts = true;
+                }
+            }
+
+            // Check init line for model
+            if ($type === 'system' && ($data['subtype'] ?? '') === 'init') {
+                if ($result['model'] === null && isset($data['model'])) {
+                    $result['model'] = $data['model'];
+                }
+            }
+        }
+
+        // Use step costs if we didn't get a total from result line
+        if ($result['cost_usd'] === null && $hasStepCosts) {
+            $result['cost_usd'] = $stepCostSum;
+        }
+
+        // If we didn't find model in result, check the first line for init
+        if ($result['model'] === null && ! empty($lines)) {
+            $firstLine = trim($lines[0]);
+            $data = json_decode($firstLine, true);
+            if (is_array($data) && ($data['type'] ?? '') === 'system' && ($data['subtype'] ?? '') === 'init') {
+                $result['model'] = $data['model'] ?? null;
+            }
+        }
+
+        return $result;
     }
 
     /**
