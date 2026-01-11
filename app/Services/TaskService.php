@@ -32,6 +32,18 @@ class TaskService
     }
 
     /**
+     * Get all backlog items (tasks with status=someday).
+     *
+     * @return Collection<int, Task>
+     */
+    public function backlog(): Collection
+    {
+        $rows = $this->db->fetchAll('SELECT * FROM tasks WHERE status = ? ORDER BY created_at', [TaskStatus::Someday->value]);
+
+        return collect($rows)->map(fn (array $row): Task => Task::fromArray($this->rowToTask($row)));
+    }
+
+    /**
      * Find a task by ID (supports partial ID matching).
      */
     public function find(string $id): ?Task
@@ -303,6 +315,32 @@ class TaskService
     public function start(string $id): Task
     {
         return $this->update($id, ['status' => TaskStatus::InProgress->value]);
+    }
+
+    /**
+     * Promote a backlog item to an active task (someday -> open).
+     */
+    public function promote(string $id): Task
+    {
+        $taskModel = $this->find($id);
+        if (! $taskModel instanceof Task) {
+            throw new RuntimeException(sprintf("Task '%s' not found", $id));
+        }
+
+        $task = $taskModel->toArray();
+        if (($task['status'] ?? '') !== TaskStatus::Someday->value) {
+            throw new RuntimeException(sprintf("Task '%s' is not a backlog item (status is not 'someday')", $id));
+        }
+
+        return $this->update($id, ['status' => TaskStatus::Open->value]);
+    }
+
+    /**
+     * Defer a task to backlog (any status -> someday).
+     */
+    public function defer(string $id): Task
+    {
+        return $this->update($id, ['status' => TaskStatus::Someday->value]);
     }
 
     /**
