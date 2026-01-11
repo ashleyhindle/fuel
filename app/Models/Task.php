@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\TaskStatus;
+
 class Task extends Model
 {
     /**
@@ -35,7 +37,7 @@ class Task extends Model
      */
     public function isInProgress(): bool
     {
-        return $this->attributes['status'] === 'in_progress';
+        return $this->attributes['status'] === TaskStatus::InProgress->value;
     }
 
     /**
