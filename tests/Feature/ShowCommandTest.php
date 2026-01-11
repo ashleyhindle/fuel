@@ -93,15 +93,6 @@ describe('show command', function (): void {
             ->assertExitCode(0);
     });
 
-    it('shows task size', function (): void {
-        $this->taskService->initialize();
-        $task = $this->taskService->create(['title' => 'Task', 'size' => 'xl']);
-
-        $this->artisan('show', ['id' => $task['id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Size: xl')
-            ->assertExitCode(0);
-    });
-
     it('shows task with reason if present', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Completed task']);

@@ -111,10 +111,6 @@ class ShowCommand extends Command
                     $this->line('  Priority: '.$task->priority);
                 }
 
-                if (isset($task->size)) {
-                    $this->line('  Size: '.$task->size);
-                }
-
                 if (isset($task->labels) && ! empty($task->labels)) {
                     $labels = implode(', ', $task->labels);
                     $this->line('  Labels: '.$labels);
