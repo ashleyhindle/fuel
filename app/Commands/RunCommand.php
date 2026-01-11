@@ -50,6 +50,8 @@ class RunCommand extends Command
         $this->configureCwd($this->fuelContext);
         $this->taskService->initialize();
 
+        $cwd = $this->option('cwd') ?: getcwd();
+
         // Ensure processes directory exists
         $processesDir = $this->fuelContext->getProcessesPath();
         if (! is_dir($processesDir)) {
@@ -109,13 +111,20 @@ class RunCommand extends Command
             $this->line('<fg=yellow>→ Marked task as in_progress</>');
         }
 
+        // Create run entry before spawning
+        $runId = $this->runService->createRun($taskId, [
+            'agent' => $agentName,
+            'model' => null, // Will be updated after spawn
+            'started_at' => date('c'),
+        ]);
+
         // Spawn the agent
         $this->newLine();
         $this->info('Spawning agent...');
         $this->line('<fg=gray>─────────────────────────────────────────</>');
         $this->newLine();
 
-        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $this->option('agent'));
+        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $this->option('agent'), $runId);
 
         if (! $result->success) {
             $this->error('Failed to spawn agent: '.($result->error ?? 'Unknown error'));
@@ -133,12 +142,6 @@ class RunCommand extends Command
 
         $this->line('<fg=gray>PID: '.$pid.'</>');
 
-        // Create run entry
-        $this->runService->logRun($taskId, [
-            'agent' => $process->getAgentName(),
-            'started_at' => date('c'),
-        ]);
-
         // Store the process PID in the task
         $this->taskService->update($taskId, [
             'consumed' => true,
@@ -147,8 +150,8 @@ class RunCommand extends Command
 
         // Stream output while process runs
         $startTime = time();
-        $stdoutPath = $cwd.'/.fuel/processes/'.$taskId.'/stdout.log';
-        $stderrPath = $cwd.'/.fuel/processes/'.$taskId.'/stderr.log';
+        $stdoutPath = $cwd.'/.fuel/processes/'.$runId.'/stdout.log';
+        $stderrPath = $cwd.'/.fuel/processes/'.$runId.'/stderr.log';
         $lastStdoutPos = 0;
         $lastStderrPos = 0;
         $rawMode = $this->option('raw');
@@ -216,6 +219,15 @@ class RunCommand extends Command
         if ($completion?->sessionId !== null) {
             $runData['session_id'] = $completion->sessionId;
             $this->line('<fg=gray>Session ID: '.$completion->sessionId.'</>');
+        }
+
+        if ($completion?->costUsd !== null) {
+            $runData['cost_usd'] = $completion->costUsd;
+            $this->line(sprintf('<fg=gray>Cost: $%.4f</>', $completion->costUsd));
+        }
+
+        if ($completion?->model !== null) {
+            $runData['model'] = $completion->model;
         }
 
         $this->runService->updateLatestRun($taskId, $runData);
