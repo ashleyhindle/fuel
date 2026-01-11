@@ -614,6 +614,15 @@ agents:
     resume_args: []
     max_concurrent: 3
     max_attempts: 3
+
+  codex-complex:
+    model: gpt-5.2-codex
+    command: codex
+    args: ["exec", "--dangerously-bypass-approvals-and-sandbox", "--json", "--skip-git-repo-check", "--color=never"]
+    prompt_args: []  # prompt is positional
+    resume_args: ["resume"]
+    max_concurrent: 2
+    max_attempts: 3
 YAML;
 
         file_put_contents($this->getConfigPath(), $yaml);

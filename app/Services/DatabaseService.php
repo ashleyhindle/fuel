@@ -40,6 +40,14 @@ class DatabaseService
     public function getConnection(): PDO
     {
         if (! $this->connection instanceof \PDO) {
+            // Check if .fuel directory exists before trying to connect
+            $fuelDir = dirname($this->dbPath);
+            if (! is_dir($fuelDir)) {
+                fwrite(STDERR, "\n\033[41;37m ERROR \033[0m Fuel is not initialized in this directory.\n\n");
+                fwrite(STDERR, "  Run \033[33mfuel init\033[0m to set up Fuel in this project.\n\n");
+                exit(1);
+            }
+
             try {
                 $this->connection = new PDO('sqlite:'.$this->dbPath);
                 $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
