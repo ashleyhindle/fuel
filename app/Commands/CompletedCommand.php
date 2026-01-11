@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -30,7 +31,7 @@ class CompletedCommand extends Command
         }
 
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'closed')
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Closed->value)
             ->sortByDesc('updated_at')
             ->take($limit)
             ->values();

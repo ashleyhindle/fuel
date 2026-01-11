@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\EpicStatus;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -37,7 +39,7 @@ class HumanCommand extends Command
         // Get tasks with needs-human label (excluding epic-review tasks)
         $tasks = $taskService->all();
         $humanTasks = $tasks
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === 'open')
+            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
@@ -56,7 +58,7 @@ class HumanCommand extends Command
 
         // Get epics with status review_pending
         $allEpics = $epicService->getAllEpics();
-        $pendingEpics = array_values(array_filter($allEpics, fn (Epic $epic): bool => ($epic->status ?? '') === 'review_pending'));
+        $pendingEpics = array_values(array_filter($allEpics, fn (Epic $epic): bool => ($epic->status ?? '') === EpicStatus::ReviewPending->value));
 
         if ($this->option('json')) {
             $this->outputJson([

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -170,7 +171,7 @@ class ShowCommand extends Command
                 $runs = $runService->getRuns($task->id);
 
                 // Check for live output if task is in_progress (even if no runs exist)
-                $liveOutput = $this->getLiveOutput($task->id, $task->status ?? 'open');
+                $liveOutput = $this->getLiveOutput($task->id, $task->status ?? TaskStatus::Open->value);
 
                 if ($runs !== []) {
                     $this->newLine();
@@ -322,7 +323,7 @@ class ShowCommand extends Command
     private function getLiveOutput(string $taskId, string $status): ?string
     {
         // Only check for live output if task is in_progress
-        if ($status !== 'in_progress') {
+        if ($status !== TaskStatus::InProgress->value) {
             return null;
         }
 

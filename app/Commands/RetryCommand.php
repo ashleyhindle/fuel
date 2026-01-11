@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
@@ -124,7 +125,7 @@ class RetryCommand extends Command
         }
 
         $pid = $task->consume_pid ?? null;
-        if (($task->status ?? '') === 'in_progress' && ! empty($task->consumed)) {
+        if (($task->status ?? '') === TaskStatus::InProgress->value && ! empty($task->consumed)) {
             if ($pid === null) {
                 return 'spawn failed / PID lost';
             }

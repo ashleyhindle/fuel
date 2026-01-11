@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Contracts\ReviewServiceInterface;
+use App\Enums\TaskStatus;
 use App\Models\Run;
 use App\Models\Task;
 use App\Services\ConfigService;
@@ -35,7 +36,7 @@ class ReviewCommand extends Command
         }
 
         // Check task is in reviewable state (in_progress, review, or closed)
-        if ($task->status === 'open') {
+        if ($task->status === TaskStatus::Open->value) {
             $this->error('Cannot review a task that has not been started');
 
             return self::FAILURE;
