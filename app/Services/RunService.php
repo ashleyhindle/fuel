@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Run;
 use RuntimeException;
 
 class RunService
@@ -80,7 +81,7 @@ class RunService
      * Get all runs for a task.
      *
      * @param  string  $taskId  Task ID
-     * @return array<int, array<string, mixed>>
+     * @return array<int, Run>
      */
     public function getRuns(string $taskId): array
     {
@@ -91,16 +92,16 @@ class RunService
         }
 
         $runs = $this->databaseService->fetchAll(
-            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
+            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds, status
              FROM runs
              WHERE task_id = ?
              ORDER BY started_at ASC',
             [$taskIntId]
         );
 
-        // Transform to public format (short_id becomes run_id for backward compatibility)
-        return array_map(function (array $run): array {
-            return [
+        // Transform to Run models (short_id becomes run_id for backward compatibility)
+        return array_map(function (array $run): Run {
+            return Run::fromArray([
                 'run_id' => $run['short_id'],
                 'agent' => $run['agent'],
                 'model' => $run['model'],
@@ -111,7 +112,8 @@ class RunService
                 'session_id' => $run['session_id'],
                 'cost_usd' => $run['cost_usd'],
                 'duration_seconds' => $run['duration_seconds'],
-            ];
+                'status' => $run['status'],
+            ]);
         }, $runs);
     }
 
@@ -119,9 +121,8 @@ class RunService
      * Get the latest run for a task.
      *
      * @param  string  $taskId  Task ID
-     * @return array<string, mixed>|null
      */
-    public function getLatestRun(string $taskId): ?array
+    public function getLatestRun(string $taskId): ?Run
     {
         // Resolve task short_id to integer id
         $taskIntId = $this->resolveTaskId($taskId);
@@ -130,7 +131,7 @@ class RunService
         }
 
         $run = $this->databaseService->fetchOne(
-            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds
+            'SELECT short_id, agent, model, started_at, ended_at, exit_code, output, session_id, cost_usd, duration_seconds, status
              FROM runs
              WHERE task_id = ?
              ORDER BY started_at DESC, id DESC
@@ -142,8 +143,8 @@ class RunService
             return null;
         }
 
-        // Transform to public format (short_id becomes run_id for backward compatibility)
-        return [
+        // Transform to Run model (short_id becomes run_id for backward compatibility)
+        return Run::fromArray([
             'run_id' => $run['short_id'],
             'agent' => $run['agent'],
             'model' => $run['model'],
@@ -154,7 +155,8 @@ class RunService
             'session_id' => $run['session_id'],
             'cost_usd' => $run['cost_usd'],
             'duration_seconds' => $run['duration_seconds'],
-        ];
+            'status' => $run['status'],
+        ]);
     }
 
     /**
