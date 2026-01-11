@@ -75,6 +75,15 @@ class ConfigService
     }
 
     /**
+     * Validate configuration by loading and validating it.
+     * Throws RuntimeException if validation fails.
+     */
+    public function validate(): void
+    {
+        $this->loadConfig();
+    }
+
+    /**
      * Validate configuration structure and values.
      *
      * @param  array<string, mixed>  $config
@@ -518,104 +527,87 @@ class ConfigService
         }
 
         $yaml = <<<'YAML'
-# Fuel Configuration
+# Fuel Agent Configuration
 # Define agents once, reference by name in complexity mappings
 
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
-
-# Agent to use for reviewing completed work (falls back to primary if not set)
 review: claude-opus
+
+# Map complexity levels to agents
+complexity:
+  trivial: opencode-minimax
+  simple: cursor-composer
+  moderate: amp-smart
+  complex: claude-opus
 
 agents:
   cursor-composer:
-    command: cursor-agent
-    prompt_args: ["-p"]
     model: composer-1
-    args:
-      - "--force"
-      - "--output-format"
-      - "stream-json"
-    max_concurrent: 2
-    max_attempts: 3  # Max retry attempts for retryable failures
-    resume_args: ["--resume="]
-
-  claude-sonnet:
-    command: claude
+    command: cursor-agent
+    args: ["--force", "--output-format", "stream-json"]
     prompt_args: ["-p"]
-    model: sonnet
-    args:
-      - "--dangerously-skip-permissions"
-      - "--output-format"
-      - "stream-json"
-      - "--verbose"
+    resume_args: ["--resume="]
+    max_concurrent: 3
+    max_attempts: 3
+
+  cursor-opus:
+    model: opus-4.5
+    command: cursor-agent
+    args: ["--force", "--output-format", "stream-json"]
+    prompt_args: ["-p"]
+    resume_args: ["--resume="]
     max_concurrent: 2
     max_attempts: 3
+
+  claude-sonnet:
+    model: sonnet
+    command: claude
+    args: ["--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose"]
+    prompt_args: ["-p"]
     resume_args: ["--resume"]
+    max_concurrent: 2
+    max_attempts: 3
 
   claude-opus:
-    command: claude
-    prompt_args: ["-p"]
     model: opus
-    args:
-      - "--dangerously-skip-permissions"
-      - "--output-format"
-      - "stream-json"
-      - "--verbose"
-    max_concurrent: 1
-    max_attempts: 5  # More retries for complex tasks
+    command: claude
+    args: ["--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose"]
+    prompt_args: ["-p"]
     resume_args: ["--resume"]
+    max_concurrent: 3
+    max_attempts: 5
 
   opencode-glm:
-    command: opencode
-    prompt_args: ["run"]
     model: opencode/glm-4.7-free
+    command: opencode
     args: []
+    prompt_args: ["run"]
+    resume_args: ["--session"]
     env:
       OPENCODE_PERMISSION: '{"permission":"allow"}'
     max_concurrent: 2
     max_attempts: 3
-    resume_args: ["--session"]
 
-  amp-free:
-    command: amp
-    prompt_args: ["--execute"]
-    model: null  # mode controls model
-    args:
-      - "--stream-json"
-      - "-m"
-      - "free"
-      - "--dangerously-allow-all"
-      - "--no-notifications"
+  opencode-minimax:
+    model: opencode/minimax-m2.1-free
+    command: opencode
+    args: []
+    prompt_args: ["run"]
+    resume_args: ["--session"]
+    env:
+      OPENCODE_PERMISSION: '{"permission":"allow"}'
     max_concurrent: 2
     max_attempts: 3
-    resume_args: []  # amp uses threads - TBD if resume supported
 
   amp-smart:
-    command: amp
-    prompt_args: ["--execute"]
     model: null  # mode controls model
-    args:
-      - "--stream-json"
-      - "-m"
-      - "smart"
-      - "--dangerously-allow-all"
-      - "--no-notifications"
-    max_concurrent: 2
-    max_attempts: 3
+    command: amp
+    args: ["--stream-json", "-m", "smart", "--dangerously-allow-all", "--no-notifications"]
+    prompt_args: ["--execute"]
     resume_args: []
-
-# Map complexity levels to agents (just reference agent names)
-complexity:
-  trivial: cursor-composer
-  simple: cursor-composer
-  moderate: claude-sonnet
-  complex: claude-opus
-
-  # Or with overrides:
-  # complex:
-  #   agent: claude-opus
-  #   model: opus  # override the agent's default model
+    max_concurrent: 3
+    max_attempts: 3
 YAML;
 
         file_put_contents($this->getConfigPath(), $yaml);

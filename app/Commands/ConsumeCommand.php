@@ -72,6 +72,15 @@ class ConsumeCommand extends Command
         $this->configureCwd($this->taskService, $this->configService);
         $this->taskService->initialize();
 
+        // Validate config early before entering TUI
+        try {
+            $this->configService->validate();
+        } catch (\RuntimeException $e) {
+            $this->error('Config validation failed: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
+
         // Handle --health flag: show health status and exit
         if ($this->option('health')) {
             return $this->displayHealthStatus();
