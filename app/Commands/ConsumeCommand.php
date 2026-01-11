@@ -464,8 +464,21 @@ PROMPT;
         ]);
         $this->invalidateTaskCache();
 
-        // Spawn via ProcessManager
-        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $agentOverride);
+        // Determine agent and model for run entry
+        $complexity = $task->complexity ?? 'simple';
+        $runAgentName = $agentOverride ?? $this->configService->getAgentForComplexity($complexity);
+        $agentDef = $this->configService->getAgentDefinition($runAgentName);
+        $runModel = $agentDef['model'] ?? null;
+
+        // Create run entry before spawning to get run ID for process directory
+        $runId = $this->runService->createRun($taskId, [
+            'agent' => $runAgentName,
+            'model' => $runModel,
+            'started_at' => date('c'),
+        ]);
+
+        // Spawn via ProcessManager with run ID
+        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $agentOverride, $runId);
 
         if (! $result->success) {
             // Agent in backoff should already be caught above, but handle just in case
@@ -487,12 +500,6 @@ PROMPT;
 
         $process = $result->process;
         $pid = $process->getPid();
-
-        // Create run entry with started_at
-        $this->runService->logRun($taskId, [
-            'agent' => $process->getAgentName(),
-            'started_at' => date('c'),
-        ]);
 
         // Store the process PID in the task
         $this->taskService->update($taskId, [
@@ -647,6 +654,10 @@ PROMPT;
 
         if ($completion->costUsd !== null) {
             $runData['cost_usd'] = $completion->costUsd;
+        }
+
+        if ($completion->model !== null) {
+            $runData['model'] = $completion->model;
         }
 
         $this->runService->updateLatestRun($taskId, $runData);
