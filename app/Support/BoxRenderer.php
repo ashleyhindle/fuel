@@ -156,7 +156,8 @@ class BoxRenderer
     private function stripAnsi(string $text): string
     {
         // Strip Symfony/Laravel color tags like <fg=cyan>, </>, <bg=red>, etc.
-        $text = preg_replace('/<\/?(?:fg|bg|options)(?:=[^>]+)?>/i', '', $text) ?? $text;
+        // Pattern matches: <fg=...>, <bg=...>, <options=...>, </>
+        $text = preg_replace('/<(?:\/|(?:fg|bg|options)(?:=[^>]+)?)>/i', '', $text) ?? $text;
         // Strip ANSI escape codes
         $text = preg_replace('/\e\[[0-9;]*m/', '', $text) ?? $text;
 
