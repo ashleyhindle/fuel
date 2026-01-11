@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\FailureType;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Process\CompletionResult;
@@ -567,7 +568,7 @@ PROMPT;
                     if ($wasAlreadyClosed) {
                         // Task was already closed - confirm done (maybe update reason)
                         $task = $this->taskService->find($taskId);
-                        if ($task && ($task->status ?? '') !== 'closed') {
+                        if ($task && ($task->status ?? '') !== TaskStatus::Closed->value) {
                             // Task status changed (shouldn't happen, but handle gracefully)
                             Artisan::call('done', [
                                 'ids' => [$taskId],
@@ -699,8 +700,8 @@ PROMPT;
 
         // Always trigger review as quality gate for ALL completions (Phase 3 spec)
         // Track original status to handle already-closed tasks correctly
-        $originalStatus = $task->status ?? 'in_progress';
-        $wasAlreadyClosed = $originalStatus === 'closed' || $originalStatus === 'done';
+        $originalStatus = $task->status ?? TaskStatus::InProgress->value;
+        $wasAlreadyClosed = $originalStatus === TaskStatus::Closed->value;
 
         if ($this->option('skip-review')) {
             // Skip review and mark done directly
