@@ -1067,6 +1067,38 @@ class DatabaseService
     }
 
     /**
+     * Get a single review by its short_id.
+     *
+     * @param  string  $reviewShortId  The review short_id (e.g., 'r-xxxxxx')
+     * @return Review|null The review model or null if not found
+     */
+    public function getReview(string $reviewShortId): ?Review
+    {
+        // Support partial matching like task IDs
+        $normalizedId = $reviewShortId;
+        if (! str_starts_with($normalizedId, 'r-')) {
+            $normalizedId = 'r-'.$normalizedId;
+        }
+
+        // Try exact match first
+        $review = $this->fetchOne('SELECT * FROM reviews WHERE short_id = ?', [$normalizedId]);
+
+        // If not found, try partial match
+        if ($review === null) {
+            $review = $this->fetchOne(
+                'SELECT * FROM reviews WHERE short_id LIKE ? ORDER BY started_at DESC LIMIT 1',
+                [$normalizedId.'%']
+            );
+        }
+
+        if ($review === null) {
+            return null;
+        }
+
+        return Review::fromArray($this->decodeReviewJsonFields($review));
+    }
+
+    /**
      * Record that a review has completed.
      *
      * @param  string  $reviewShortId  The review short_id (e.g., 'r-xxxxxx')

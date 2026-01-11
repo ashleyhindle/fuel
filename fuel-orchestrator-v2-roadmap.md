@@ -33,9 +33,7 @@ Transform Fuel from a task tracker with basic agent spawning into an **intellige
 .fuel/
 ├── backlog.jsonl        # Git-tracked, merge-friendly
 ├── config.yaml          # Git-tracked, agent definitions
-├── agent.db             # SQLite, .gitignore'd (tasks, epics, reviews, health)
-├── runs/                # JSONL per task, pending SQLite migration
-│   └── {taskId}.jsonl
+├── agent.db             # SQLite, .gitignore'd (tasks, epics, reviews, runs, health)
 └── processes/           # Temp output files, .gitignore'd
     └── {taskId}/
         ├── stdout.log
@@ -298,11 +296,18 @@ Once Phase 3-4 are done, Fuel can build itself:
 | 2026-01-10 | Human decomposition for now | Keep it simple. Use prompts/breakdown.md. Future: dedicated decomposition agent in config. |
 | 2026-01-10 | Integrate inbox with fuel human | Don't fragment commands. One place for human attention needed. |
 | 2026-01-10 | Tasks migrated to SQLite | Completed - eliminates file locking, enables joins with epics/reviews |
-| 2026-01-10 | Runs migration to SQLite pending | RunService still uses JSONL; migrate for consistency and run↔review linking |
+| 2026-01-10 | Runs migrated to SQLite | Completed - RunService now uses SQLite; enables run↔review linking |
 
 ### Run Scoring (Phase 5+)
 - Score/rate task runs to track agent quality
 - Aggregate stats by agent/model
 - Inform routing decisions
 - Backlog: b-c86743
+
+### Extract Repositories from DatabaseService
+- DatabaseService is ~1200 lines and growing
+- Extract per-model repositories: TaskRepository, RunRepository, EpicRepository, ReviewRepository
+- Each handles CRUD + queries for its entity
+- DatabaseService becomes thin connection/migration manager
+- Improves testability and separation of concerns
 
