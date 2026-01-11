@@ -9,6 +9,7 @@ use App\Models\Review;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
+use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
@@ -26,7 +27,7 @@ class ReviewShowCommand extends Command
 
     protected $description = 'Show detailed review information including agent output';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, RunService $runService): int
     {
         $this->configureCwd($context);
 
@@ -53,8 +54,8 @@ class ReviewShowCommand extends Command
             $task = $taskService->find($review->task_id);
         }
 
-        // Get stdout from process directory
-        $stdout = $this->getReviewOutput($review->task_id);
+        // Get stdout from process directory using run ID
+        $stdout = $this->getReviewOutput($review->run_id, $dbService);
 
         if ($this->option('json')) {
             $data = $review->toArray();
@@ -126,14 +127,23 @@ class ReviewShowCommand extends Command
         return self::SUCCESS;
     }
 
-    private function getReviewOutput(?string $taskId): ?string
+    private function getReviewOutput(?int $runId, DatabaseService $dbService): ?string
     {
-        if ($taskId === null) {
+        if ($runId === null) {
             return null;
         }
 
+        // Look up the run's short_id from the runs table
+        $run = $dbService->fetchOne('SELECT short_id FROM runs WHERE id = ?', [$runId]);
+
+        if ($run === null) {
+            return null;
+        }
+
+        $runShortId = $run['short_id'];
+
         $cwd = $this->option('cwd') ?: getcwd();
-        $stdoutPath = $cwd.'/.fuel/processes/review-'.$taskId.'/stdout.log';
+        $stdoutPath = $cwd.'/.fuel/processes/'.$runShortId.'/stdout.log';
 
         if (! File::exists($stdoutPath)) {
             return null;

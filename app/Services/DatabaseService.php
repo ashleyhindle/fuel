@@ -1200,6 +1200,7 @@ class DatabaseService
             'status' => $review['status'],
             'started_at' => $review['started_at'],
             'completed_at' => $review['completed_at'],
+            'run_id' => $review['run_id'] !== null ? (int) $review['run_id'] : null,
         ];
 
         // Decode JSON fields

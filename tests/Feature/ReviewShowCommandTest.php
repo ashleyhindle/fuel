@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
+use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -20,10 +21,14 @@ beforeEach(function (): void {
     $taskService = new TaskService($databaseService);
     $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
 
+    $runService = new RunService($databaseService);
+    $this->app->singleton(RunService::class, fn (): RunService => $runService);
+
     $this->databaseService = $this->app->make(DatabaseService::class);
     $this->databaseService->initialize();
 
     $this->taskService = $this->app->make(TaskService::class);
+    $this->runService = $this->app->make(RunService::class);
 });
 
 afterEach(function (): void {
@@ -147,10 +152,21 @@ it('shows agent output from stdout.log', function (): void {
         ['f-stdout1', 'Stdout Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
     );
 
-    $reviewId = $this->databaseService->recordReviewStarted('f-stdout1', 'claude');
+    // Create a run for this review
+    $runShortId = $this->runService->createRun('f-stdout1', [
+        'agent' => 'claude',
+        'started_at' => now()->toIso8601String(),
+    ]);
+
+    // Get the run's integer ID to pass to recordReviewStarted
+    $run = $this->databaseService->fetchOne('SELECT id FROM runs WHERE short_id = ?', [$runShortId]);
+    $runId = (int) $run['id'];
+
+    $reviewId = $this->databaseService->recordReviewStarted('f-stdout1', 'claude', $runId);
     $this->databaseService->recordReviewCompleted($reviewId, true, []);
 
-    $processDir = $this->tempDir.'/.fuel/processes/review-f-stdout1';
+    // Use run-based directory path
+    $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
     mkdir($processDir, 0755, true);
     file_put_contents($processDir.'/stdout.log', "Line 1\nLine 2\nLine 3\n");
 
