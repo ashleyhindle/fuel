@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -24,9 +25,12 @@ class DoneCommand extends Command
 
     protected $description = 'Mark one or more tasks as done';
 
-    public function handle(TaskService $taskService, EpicService $epicService): int
-    {
-        $this->configureCwd($taskService);
+    public function handle(
+        FuelContext $context,
+        TaskService $taskService,
+        EpicService $epicService
+    ): int {
+        $this->configureCwd($context);
 
         $ids = $this->argument('ids');
         $reason = $this->option('reason');
