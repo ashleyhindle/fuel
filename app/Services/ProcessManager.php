@@ -98,7 +98,14 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function getOutput(string $taskId): ProcessOutput
     {
-        $outputDir = $this->fuelContext->getProcessesPath().'/'.$taskId;
+        // Try to get run ID from active process if available
+        $runId = null;
+        if (isset($this->activeAgentProcesses[$taskId])) {
+            $runId = $this->activeAgentProcesses[$taskId]->getRunId();
+        }
+
+        // Use run ID if available, otherwise fall back to task ID
+        $outputDir = $this->fuelContext->getProcessesPath().'/'.($runId ?? $taskId);
         $stdoutPath = $outputDir.'/stdout.log';
         $stderrPath = $outputDir.'/stderr.log';
 
