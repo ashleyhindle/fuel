@@ -109,8 +109,12 @@ class EpicReviewCommand extends Command
                 return self::SUCCESS;
             }
 
+            // Get first run times for task ordering
+            $taskIds = array_map(fn ($t) => $t->id, $tasks);
+            $firstRunTimes = $this->getTaskFirstRunTimes($dbService, $taskIds);
+
             // Text output
-            $this->displayEpicReview($epic, $tasks, $commits, $gitStats, $gitDiff, $commitSubjects ?? []);
+            $this->displayEpicReview($epic, $tasks, $commits, $gitStats, $gitDiff, $commitSubjects ?? [], $firstRunTimes);
 
             // Prompt to mark as reviewed (unless --no-prompt is set or output is piped)
             if (! $this->option('no-prompt') && posix_isatty(STDOUT) && $this->confirm('Mark this epic as reviewed?', false)) {
@@ -132,6 +136,7 @@ class EpicReviewCommand extends Command
      * @param  array<array<string, mixed>>  $tasks
      * @param  array<array<string, mixed>>  $commits
      * @param  array<string, string>  $commitSubjects  Hash => subject line
+     * @param  array<int, string>  $firstRunTimes  Task ID => first run started_at
      */
     private function displayEpicReview(
         object $epic,
@@ -139,7 +144,8 @@ class EpicReviewCommand extends Command
         array $commits,
         ?string $gitStats,
         ?string $gitDiff,
-        array $commitSubjects
+        array $commitSubjects,
+        array $firstRunTimes = []
     ): void {
         // Epic header
         $this->newLine();
@@ -166,8 +172,13 @@ class EpicReviewCommand extends Command
         if ($tasks === []) {
             $this->line('  <fg=yellow>No tasks linked to this epic.</>');
         } else {
-            // Sort tasks by updated_at (oldest first) to show work order
-            usort($tasks, fn (Task $a, Task $b) => ($a->updated_at ?? '') <=> ($b->updated_at ?? ''));
+            // Sort tasks by first run time (oldest first), fallback to updated_at
+            usort($tasks, function (Task $a, Task $b) use ($firstRunTimes): int {
+                $timeA = $firstRunTimes[$a->id] ?? $a->updated_at ?? '';
+                $timeB = $firstRunTimes[$b->id] ?? $b->updated_at ?? '';
+
+                return $timeA <=> $timeB;
+            });
 
             $termWidth = $this->getTerminalWidth();
             // Reserve space for ID (~10), Title (~40), Status (~12), borders/padding (~25)
@@ -295,6 +306,40 @@ class EpicReviewCommand extends Command
         }
 
         return $messages;
+    }
+
+    /**
+     * Get the first run started_at time for each task.
+     *
+     * @param  array<int>  $taskIds
+     * @return array<int, string>  Task ID => first run started_at
+     */
+    private function getTaskFirstRunTimes(DatabaseService $dbService, array $taskIds): array
+    {
+        if ($taskIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+        $sql = "SELECT task_id, MIN(started_at) as first_started_at
+                FROM runs
+                WHERE task_id IN ({$placeholders})
+                GROUP BY task_id";
+
+        try {
+            $stmt = $dbService->getConnection()->prepare($sql);
+            $stmt->execute($taskIds);
+            $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $times = [];
+            foreach ($results as $row) {
+                $times[(int) $row['task_id']] = $row['first_started_at'];
+            }
+
+            return $times;
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**
