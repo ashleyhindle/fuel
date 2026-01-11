@@ -43,8 +43,8 @@ class ResumeSessionCommand extends Command
                 $runs = $runService->getRuns($taskId);
                 $runId = $this->option('run');
 
-                $matches = array_filter($runs, function (array $r) use ($runId): bool {
-                    $rId = $r['run_id'] ?? '';
+                $matches = array_filter($runs, function ($r) use ($runId): bool {
+                    $rId = $r->run_id ?? '';
 
                     return $rId === $runId || str_starts_with($rId, $runId);
                 });
@@ -54,7 +54,7 @@ class ResumeSessionCommand extends Command
                 }
 
                 if (count($matches) > 1) {
-                    $matchedIds = array_map(fn (array $r): string => $r['run_id'] ?? '', array_values($matches));
+                    $matchedIds = array_map(fn ($r): string => $r->run_id ?? '', array_values($matches));
 
                     return $this->outputError(
                         sprintf("Ambiguous run ID '%s'. Matches: ", $runId).implode(', ', $matchedIds)
@@ -70,17 +70,17 @@ class ResumeSessionCommand extends Command
                 return $this->outputError(sprintf("No runs found for task '%s'", $taskId));
             }
 
-            $sessionId = $run['session_id'] ?? null;
+            $sessionId = $run->session_id ?? null;
             if ($sessionId === null || $sessionId === '') {
                 return $this->outputError(
-                    sprintf("Run '%s' for task '%s' has no session_id", $run['run_id'], $taskId)
+                    sprintf("Run '%s' for task '%s' has no session_id", $run->run_id, $taskId)
                 );
             }
 
-            $agentName = $run['agent'] ?? null;
+            $agentName = $run->agent ?? null;
             if ($agentName === null || $agentName === '') {
                 return $this->outputError(
-                    sprintf("Run '%s' for task '%s' has no agent", $run['run_id'], $taskId)
+                    sprintf("Run '%s' for task '%s' has no agent", $run->run_id, $taskId)
                 );
             }
 
@@ -95,7 +95,7 @@ class ResumeSessionCommand extends Command
             $agent = Agent::fromAgentName($agentName, $command);
             if (! $agent instanceof Agent) {
                 return $this->outputError(
-                    sprintf("Unknown agent '%s' for run '%s'. ", $agentName, $run['run_id']).
+                    sprintf("Unknown agent '%s' for run '%s'. ", $agentName, $run->run_id).
                     'Cannot determine resume command format.'
                 );
             }
@@ -106,7 +106,7 @@ class ResumeSessionCommand extends Command
                 : $agent->resumeCommand($sessionId);
 
             if (! $this->option('json')) {
-                $this->info(sprintf('Resuming session for task %s, run %s', $taskId, $run['run_id']));
+                $this->info(sprintf('Resuming session for task %s, run %s', $taskId, $run->run_id));
                 $this->line(sprintf('Agent: %s (%s)', $agent->label(), $agentName));
                 $this->line('Session: '.$sessionId);
                 if ($prompt !== null && $prompt !== '') {
