@@ -48,9 +48,13 @@ class StatsCommand extends Command
         $this->line('');
         $this->renderRunStats($runService);
         $this->line('');
+        $this->renderTimingStats($runService);
+        $this->line('');
         $this->renderTrends($databaseService);
         $this->line('');
         $this->renderActivityHeatmap($databaseService);
+        $this->line('');
+        $this->renderStreaksAndAchievements($databaseService);
 
         return self::SUCCESS;
     }
@@ -300,6 +304,85 @@ class StatsCommand extends Command
         }
 
         $this->line('└─────────────────────────────────────────┘');
+    }
+
+    private function renderTimingStats(RunService $runService): void
+    {
+        $stats = $runService->getTimingStats();
+
+        $this->line('┌─────────────────────────────────────────┐');
+        $this->line('│ ⏱️  TIMING                              │');
+        $this->line('├─────────────────────────────────────────┤');
+
+        // Average Run Duration
+        if ($stats['average_duration'] !== null) {
+            $avgFormatted = $this->formatDuration((int) round($stats['average_duration']));
+            $this->line(sprintf('│ Average Run Duration: %-18s│', $avgFormatted));
+        } else {
+            $this->line('│ Average Run Duration: (no data)         │');
+        }
+
+        // By Agent
+        if (! empty($stats['by_agent'])) {
+            $this->line('│                                         │');
+            $this->line('│ By Agent:                               │');
+            foreach ($stats['by_agent'] as $agent => $avgDuration) {
+                $formatted = $this->formatDuration((int) round($avgDuration));
+                $agentLine = sprintf('│   %s: %s', $agent, $formatted);
+                $padding = 41 - mb_strlen($agentLine) - 1;
+                $this->line($agentLine.str_repeat(' ', $padding).'│');
+            }
+        }
+
+        // By Model
+        if (! empty($stats['by_model'])) {
+            $this->line('│                                         │');
+            $this->line('│ By Model:                               │');
+            foreach ($stats['by_model'] as $model => $avgDuration) {
+                $formatted = $this->formatDuration((int) round($avgDuration));
+                $modelLine = sprintf('│   %s: %s', $model, $formatted);
+                $padding = 41 - mb_strlen($modelLine) - 1;
+                $this->line($modelLine.str_repeat(' ', $padding).'│');
+            }
+        }
+
+        // Longest and shortest runs
+        if ($stats['longest_run'] !== null || $stats['shortest_run'] !== null) {
+            $this->line('│                                         │');
+            if ($stats['longest_run'] !== null) {
+                $longestFormatted = $this->formatDuration($stats['longest_run']);
+                $this->line(sprintf('│ Longest Run: %-27s│', $longestFormatted));
+            }
+            if ($stats['shortest_run'] !== null) {
+                $shortestFormatted = $this->formatDuration($stats['shortest_run']);
+                $this->line(sprintf('│ Shortest Run: %-26s│', $shortestFormatted));
+            }
+        }
+
+        $this->line('└─────────────────────────────────────────┘');
+    }
+
+    /**
+     * Format duration in seconds to human-readable format.
+     *
+     * @param  int  $seconds  Duration in seconds
+     * @return string Formatted duration (e.g., "4m 32s", "1h 23m")
+     */
+    private function formatDuration(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return sprintf('%ds', $seconds);
+        }
+
+        $hours = (int) floor($seconds / 3600);
+        $minutes = (int) floor(($seconds % 3600) / 60);
+        $secs = $seconds % 60;
+
+        if ($hours > 0) {
+            return sprintf('%dh %dm', $hours, $minutes);
+        }
+
+        return sprintf('%dm %ds', $minutes, $secs);
     }
 
     private function renderTrends(DatabaseService $db): void

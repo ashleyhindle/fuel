@@ -368,6 +368,71 @@ class RunService
     }
 
     /**
+     * Get timing statistics for runs.
+     *
+     * @return array{
+     *     average_duration: float|null,
+     *     by_agent: array<string, float>,
+     *     by_model: array<string, float>,
+     *     longest_run: int|null,
+     *     shortest_run: int|null
+     * }
+     */
+    public function getTimingStats(): array
+    {
+        // Get average duration overall
+        $avgOverall = $this->databaseService->fetchOne(
+            'SELECT AVG(duration_seconds) as avg_duration FROM runs WHERE duration_seconds IS NOT NULL'
+        );
+
+        // Get average duration by agent
+        $byAgent = $this->databaseService->fetchAll(
+            'SELECT agent, AVG(duration_seconds) as avg_duration
+             FROM runs
+             WHERE duration_seconds IS NOT NULL AND agent IS NOT NULL
+             GROUP BY agent'
+        );
+
+        // Get average duration by model
+        $byModel = $this->databaseService->fetchAll(
+            'SELECT model, AVG(duration_seconds) as avg_duration
+             FROM runs
+             WHERE duration_seconds IS NOT NULL AND model IS NOT NULL
+             GROUP BY model'
+        );
+
+        // Get longest run
+        $longest = $this->databaseService->fetchOne(
+            'SELECT MAX(duration_seconds) as max_duration FROM runs WHERE duration_seconds IS NOT NULL'
+        );
+
+        // Get shortest completed run
+        $shortest = $this->databaseService->fetchOne(
+            'SELECT MIN(duration_seconds) as min_duration FROM runs WHERE duration_seconds IS NOT NULL AND duration_seconds > 0'
+        );
+
+        // Transform byAgent to associative array
+        $byAgentMap = [];
+        foreach ($byAgent as $row) {
+            $byAgentMap[(string) $row['agent']] = (float) $row['avg_duration'];
+        }
+
+        // Transform byModel to associative array
+        $byModelMap = [];
+        foreach ($byModel as $row) {
+            $byModelMap[(string) $row['model']] = (float) $row['avg_duration'];
+        }
+
+        return [
+            'average_duration' => $avgOverall['avg_duration'] !== null ? (float) $avgOverall['avg_duration'] : null,
+            'by_agent' => $byAgentMap,
+            'by_model' => $byModelMap,
+            'longest_run' => $longest['max_duration'] !== null ? (int) $longest['max_duration'] : null,
+            'shortest_run' => $shortest['min_duration'] !== null ? (int) $shortest['min_duration'] : null,
+        ];
+    }
+
+    /**
      * Resolve a task short_id to its integer id.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
