@@ -166,6 +166,9 @@ class EpicReviewCommand extends Command
         if ($tasks === []) {
             $this->line('  <fg=yellow>No tasks linked to this epic.</>');
         } else {
+            // Sort tasks by updated_at (oldest first) to show work order
+            usort($tasks, fn (Task $a, Task $b) => ($a->updated_at ?? '') <=> ($b->updated_at ?? ''));
+
             $termWidth = $this->getTerminalWidth();
             // Reserve space for ID (~10), Title (~40), Status (~12), borders/padding (~25)
             $commitMaxWidth = max(20, $termWidth - 87);
