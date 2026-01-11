@@ -53,12 +53,11 @@ it('creates a task with default schema fields', function (): void {
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Verify all schema fields are present
-    expect($task->toArray())->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'size', 'complexity', 'blocked_by', 'created_at', 'updated_at']);
+    expect($task->toArray())->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'complexity', 'blocked_by', 'created_at', 'updated_at']);
     expect($task->description)->toBeNull();
     expect($task->type)->toBe('task');
     expect($task->priority)->toBe(2);
     expect($task->labels)->toBe([]);
-    expect($task->size)->toBe('m');
     expect($task->complexity)->toBe('simple');
     expect($task->blocked_by)->toBe([]);
 });
@@ -70,7 +69,6 @@ it('creates a task with custom schema fields', function (): void {
         'type' => 'bug',
         'priority' => 4,
         'labels' => ['critical', 'backend'],
-        'size' => 'xl',
     ]);
 
     expect($task->title)->toBe('Bug fix');
@@ -78,7 +76,6 @@ it('creates a task with custom schema fields', function (): void {
     expect($task->type)->toBe('bug');
     expect($task->priority)->toBe(4);
     expect($task->labels)->toBe(['critical', 'backend']);
-    expect($task->size)->toBe('xl');
 });
 
 it('validates task type enum', function (): void {
@@ -115,18 +112,6 @@ it('validates labels is an array', function (): void {
 it('validates all labels are strings', function (): void {
     $this->taskService->create(['title' => 'Test', 'labels' => [1, 2, 3]]);
 })->throws(RuntimeException::class, 'All labels must be strings');
-
-it('validates task size enum', function (): void {
-    // Valid sizes
-    $validSizes = ['xs', 's', 'm', 'l', 'xl'];
-    foreach ($validSizes as $size) {
-        $task = $this->taskService->create(['title' => 'Test', 'size' => $size]);
-        expect($task->size)->toBe($size);
-    }
-
-    // Invalid size
-    $this->taskService->create(['title' => 'Test', 'size' => 'invalid']);
-})->throws(RuntimeException::class, 'Invalid task size');
 
 it('validates task complexity enum', function (): void {
     // Valid complexities
@@ -212,9 +197,9 @@ it('finds old format task by partial ID with fuel- prefix', function (): void {
     $now = now()->toIso8601String();
 
     $this->databaseService->query(
-        'INSERT INTO tasks (short_id, title, status, type, priority, size, complexity, labels, blocked_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [$oldFormatId, 'Old format task', 'open', 'task', 2, 'm', 'simple', '[]', '[]', $now, $now]
+        'INSERT INTO tasks (short_id, title, status, type, priority, complexity, labels, blocked_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$oldFormatId, 'Old format task', 'open', 'task', 2, 'simple', '[]', '[]', $now, $now]
     );
 
     // Try to find using partial ID with fuel- prefix
@@ -233,9 +218,9 @@ it('finds old format task by partial hash only', function (): void {
     $now = now()->toIso8601String();
 
     $this->databaseService->query(
-        'INSERT INTO tasks (short_id, title, status, type, priority, size, complexity, labels, blocked_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [$oldFormatId, 'Old format task', 'open', 'task', 2, 'm', 'simple', '[]', '[]', $now, $now]
+        'INSERT INTO tasks (short_id, title, status, type, priority, complexity, labels, blocked_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$oldFormatId, 'Old format task', 'open', 'task', 2, 'simple', '[]', '[]', $now, $now]
     );
 
     // Try to find using just the hash part
