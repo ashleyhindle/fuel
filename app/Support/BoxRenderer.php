@@ -31,34 +31,59 @@ class BoxRenderer
         ?string $emoji = null,
         ?int $width = null
     ): void {
+        $boxLines = $this->getBoxLines($title, $lines, $emoji, $width);
+        foreach ($boxLines as $line) {
+            $this->output->writeln($line);
+        }
+    }
+
+    /**
+     * Get box lines as an array without rendering.
+     *
+     * @param  string  $title  The title to display in the header
+     * @param  array<string>  $lines  Content lines to display in the box
+     * @param  string|null  $emoji  Optional emoji to prefix the title
+     * @param  int|null  $width  Optional width override (default 50)
+     * @return array<string> Array of box lines ready to render
+     */
+    public function getBoxLines(
+        string $title,
+        array $lines,
+        ?string $emoji = null,
+        ?int $width = null
+    ): array {
         $width = $width ?? self::BOX_WIDTH;
         $contentWidth = $width - 4; // Account for borders and padding
 
         $header = $emoji ? "{$emoji} {$title}" : $title;
 
+        $boxLines = [];
+
         // Top border
-        $this->output->writeln($this->topBorder($width));
+        $boxLines[] = $this->topBorder($width);
 
         // Header line
-        $this->output->writeln($this->contentLine($header, $width, true));
+        $boxLines[] = $this->contentLine($header, $width, true);
 
         // Separator
-        $this->output->writeln($this->separator($width));
+        $boxLines[] = $this->separator($width);
 
         // Content lines
         foreach ($lines as $line) {
             // Handle empty lines
             if ($line === '') {
-                $this->output->writeln($this->emptyLine($width));
+                $boxLines[] = $this->emptyLine($width);
 
                 continue;
             }
 
-            $this->output->writeln($this->contentLine($line, $width));
+            $boxLines[] = $this->contentLine($line, $width);
         }
 
         // Bottom border
-        $this->output->writeln($this->bottomBorder($width));
+        $boxLines[] = $this->bottomBorder($width);
+
+        return $boxLines;
     }
 
     /**

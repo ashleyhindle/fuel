@@ -42,21 +42,511 @@ class StatsCommand extends Command
     ): int {
         $this->configureCwd($taskService);
 
-        $this->renderTaskStats($taskService);
-        $this->line('');
-        $this->renderEpicStats($epicService);
-        $this->line('');
-        $this->renderRunStats($runService);
-        $this->line('');
-        $this->renderTimingStats($runService);
-        $this->line('');
-        $this->renderTrends($databaseService);
-        $this->line('');
-        $this->renderActivityHeatmap($databaseService);
-        $this->line('');
+        // Detect terminal width
+        $termWidth = $this->detectTerminalWidth();
+        $boxWidth = 43;
+        $gap = 2;
+        $maxColumns = (int) floor(($termWidth + $gap) / ($boxWidth + $gap));
+
+        // Collect all box outputs
+        $boxes = [
+            $this->collectTaskStats($taskService),
+            $this->collectEpicStats($epicService),
+            $this->collectRunStats($runService),
+            $this->collectTimingStats($runService),
+            $this->collectTrends($databaseService),
+            $this->collectActivityHeatmap($databaseService),
+        ];
+
+        // Render boxes in rows based on terminal width
+        if ($maxColumns >= 2) {
+            $this->renderBoxesInRows($boxes, $maxColumns, $boxWidth);
+        } else {
+            // Fallback to vertical layout
+            foreach ($boxes as $boxLines) {
+                foreach ($boxLines as $line) {
+                    $this->line($line);
+                }
+                $this->line('');
+            }
+        }
+
+        // Streaks always full width (it's the finale)
         $this->renderStreaksAndAchievements($databaseService);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Detect terminal width using COLUMNS env var or stty.
+     */
+    private function detectTerminalWidth(): int
+    {
+        // Try COLUMNS env var first
+        $columns = (int) getenv('COLUMNS');
+        if ($columns > 0) {
+            return $columns;
+        }
+
+        // Try stty size
+        exec('stty size 2>/dev/null', $output);
+        if (! empty($output[0])) {
+            $parts = explode(' ', trim($output[0]));
+            if (count($parts) === 2) {
+                return (int) $parts[1];
+            }
+        }
+
+        // Default to 80
+        return 80;
+    }
+
+    /**
+     * Render boxes in rows based on max columns.
+     *
+     * @param  array<array<string>>  $boxes  Array of box line arrays
+     * @param  int  $maxColumns  Maximum columns per row
+     * @param  int  $boxWidth  Width of each box
+     */
+    private function renderBoxesInRows(array $boxes, int $maxColumns, int $boxWidth): void
+    {
+        $rows = array_chunk($boxes, $maxColumns);
+
+        foreach ($rows as $rowIndex => $rowBoxes) {
+            // Merge boxes in this row side-by-side
+            $mergedLines = $this->mergeBoxesSideBySide($rowBoxes, $boxWidth);
+
+            foreach ($mergedLines as $line) {
+                $this->line($line);
+            }
+
+            // Add gap between rows (but not after the last row)
+            if ($rowIndex < count($rows) - 1) {
+                $this->line('');
+            }
+        }
+    }
+
+    /**
+     * Merge multiple boxes side-by-side.
+     *
+     * @param  array<array<string>>  $boxes  Array of box line arrays
+     * @param  int  $boxWidth  Width of each box
+     * @return array<string> Merged lines
+     */
+    private function mergeBoxesSideBySide(array $boxes, int $boxWidth): array
+    {
+        if (count($boxes) === 1) {
+            return $boxes[0];
+        }
+
+        // Find max number of lines across all boxes
+        $maxLines = max(array_map('count', $boxes));
+
+        $result = [];
+        for ($i = 0; $i < $maxLines; $i++) {
+            $lineparts = [];
+            foreach ($boxes as $box) {
+                // Get line from this box or use padding if box is shorter
+                $lineparts[] = $box[$i] ?? str_repeat(' ', $boxWidth);
+            }
+            $result[] = implode('  ', $lineparts);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Collect task stats box lines without rendering.
+     *
+     * @return array<string>
+     */
+    private function collectTaskStats(TaskService $taskService): array
+    {
+        $tasks = $taskService->all();
+        $total = $tasks->count();
+
+        // Aggregate by status
+        $statusCounts = [
+            'open' => 0,
+            'in_progress' => 0,
+            'closed' => 0,
+            'blocked' => 0,
+            'review' => 0,
+            'cancelled' => 0,
+        ];
+
+        // Aggregate by complexity
+        $complexityCounts = [
+            'trivial' => 0,
+            'simple' => 0,
+            'moderate' => 0,
+            'complex' => 0,
+        ];
+
+        // Aggregate by priority
+        $priorityCounts = [
+            'P0' => 0,
+            'P1' => 0,
+            'P2' => 0,
+            'P3' => 0,
+            'P4' => 0,
+        ];
+
+        // Aggregate by type
+        $typeCounts = [
+            'bug' => 0,
+            'fix' => 0,
+            'feature' => 0,
+            'task' => 0,
+            'epic' => 0,
+            'chore' => 0,
+            'docs' => 0,
+            'test' => 0,
+            'refactor' => 0,
+        ];
+
+        // Count blocked tasks
+        $blockedIds = $taskService->getBlockedIds($tasks);
+
+        foreach ($tasks as $task) {
+            // Count by status
+            $status = $task->status ?? 'open';
+            if (isset($statusCounts[$status])) {
+                $statusCounts[$status]++;
+            }
+
+            // Count blocked separately
+            if (in_array($task->id, $blockedIds, true) && $status === 'open') {
+                $statusCounts['blocked']++;
+            }
+
+            // Count by complexity
+            $complexity = $task->complexity ?? 'simple';
+            if (isset($complexityCounts[$complexity])) {
+                $complexityCounts[$complexity]++;
+            }
+
+            // Count by priority
+            $priority = 'P'.($task->priority ?? 2);
+            if (isset($priorityCounts[$priority])) {
+                $priorityCounts[$priority]++;
+            }
+
+            // Count by type
+            $type = $task->type ?? 'task';
+            if (isset($typeCounts[$type])) {
+                $typeCounts[$type]++;
+            }
+        }
+
+        // Build content lines
+        $lines = [];
+        $lines[] = sprintf('Total: <fg=yellow>%s</>', $total);
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Status:</>';
+        $lines[] = sprintf(
+            '  <fg=green>✅ Closed: %d</>  <fg=yellow>🔄 In Progress: %d</>',
+            $statusCounts['closed'],
+            $statusCounts['in_progress']
+        );
+        $lines[] = sprintf(
+            '  <fg=blue>📋 Open: %d</>   <fg=red>⛔ Blocked: %d</>',
+            $statusCounts['open'],
+            $statusCounts['blocked']
+        );
+        if ($statusCounts['review'] > 0 || $statusCounts['cancelled'] > 0) {
+            $lines[] = sprintf(
+                '  <fg=magenta>👀 Review: %d</>  <fg=gray>❌ Cancelled: %d</>',
+                $statusCounts['review'],
+                $statusCounts['cancelled']
+            );
+        }
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Complexity:</>';
+        $lines[] = sprintf(
+            '  trivial: %d  simple: %d  moderate: %d',
+            $complexityCounts['trivial'],
+            $complexityCounts['simple'],
+            $complexityCounts['moderate']
+        );
+        $lines[] = sprintf('  complex: %s', $complexityCounts['complex']);
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Priority:</>';
+        $lines[] = sprintf(
+            '  P0: %d  P1: %d  P2: %d  P3: %d  P4: %d',
+            $priorityCounts['P0'],
+            $priorityCounts['P1'],
+            $priorityCounts['P2'],
+            $priorityCounts['P3'],
+            $priorityCounts['P4']
+        );
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Type:</>';
+        $lines[] = sprintf(
+            '  bug: %d  fix: %d  feature: %d  task: %d',
+            $typeCounts['bug'],
+            $typeCounts['fix'],
+            $typeCounts['feature'],
+            $typeCounts['task']
+        );
+        $lines[] = sprintf(
+            '  chore: %d  docs: %d  test: %d  refactor: %d',
+            $typeCounts['chore'],
+            $typeCounts['docs'],
+            $typeCounts['test'],
+            $typeCounts['refactor']
+        );
+        if ($typeCounts['epic'] > 0) {
+            $lines[] = sprintf('  epic: %s', $typeCounts['epic']);
+        }
+
+        // Return box lines using BoxRenderer
+        return $this->captureBoxOutput('<fg=cyan>TASK STATISTICS</>', $lines, '📋', 43);
+    }
+
+    /**
+     * Collect epic stats box lines without rendering.
+     *
+     * @return array<string>
+     */
+    private function collectEpicStats(EpicService $epicService): array
+    {
+        $epics = $epicService->getAllEpics();
+
+        $total = count($epics);
+        $planning = 0;
+        $inProgress = 0;
+        $done = 0;
+
+        foreach ($epics as $epic) {
+            match ($epic->status) {
+                'planning' => $planning++,
+                'in_progress' => $inProgress++,
+                'approved' => $done++,
+                default => null,
+            };
+        }
+
+        $lines = [];
+        $lines[] = sprintf('Total: %d', $total);
+        $lines[] = sprintf('  📋 Planning: %d  🔄 In Progress: %d', $planning, $inProgress);
+        $lines[] = sprintf('  ✅ Done: %d', $done);
+
+        return $this->captureBoxOutput('EPICS', $lines, '📦', 43);
+    }
+
+    /**
+     * Collect run stats box lines without rendering.
+     *
+     * @return array<string>
+     */
+    private function collectRunStats(RunService $runService): array
+    {
+        $stats = $runService->getStats();
+
+        // Status counts
+        $completedCount = $stats['by_status']['completed'];
+        $failedCount = $stats['by_status']['failed'];
+        $runningCount = $stats['by_status']['running'];
+
+        $lines = [];
+        $lines[] = sprintf('Total Runs: %d', $stats['total_runs']);
+        $lines[] = sprintf('  ✅ Completed: %d  ❌ Failed: %d', $completedCount, $failedCount);
+        $lines[] = sprintf('  🔄 Running: %d', $runningCount);
+        $lines[] = '';
+
+        // Top Agents
+        $lines[] = 'Top Agents:';
+        if (empty($stats['by_agent'])) {
+            $lines[] = '  (no agent data)';
+        } else {
+            $agentRank = 1;
+            foreach (array_slice($stats['by_agent'], 0, 3, true) as $agent => $count) {
+                $lines[] = sprintf('  %d. %s (%d runs)', $agentRank, $agent, $count);
+                $agentRank++;
+            }
+        }
+
+        $lines[] = '';
+
+        // Top Models
+        $lines[] = 'Top Models:';
+        if (empty($stats['by_model'])) {
+            $lines[] = '  (no model data)';
+        } else {
+            $modelRank = 1;
+            foreach (array_slice($stats['by_model'], 0, 3, true) as $model => $count) {
+                $lines[] = sprintf('  %d. %s (%d)', $modelRank, $model, $count);
+                $modelRank++;
+            }
+        }
+
+        return $this->captureBoxOutput('AGENT RUNS', $lines, '🤖', 43);
+    }
+
+    /**
+     * Collect timing stats box lines without rendering.
+     *
+     * @return array<string>
+     */
+    private function collectTimingStats(RunService $runService): array
+    {
+        $stats = $runService->getTimingStats();
+        $lines = [];
+
+        // Average Run Duration
+        if ($stats['average_duration'] !== null) {
+            $avgFormatted = $this->formatDuration((int) round($stats['average_duration']));
+            $lines[] = sprintf('Average Run Duration: %s', $avgFormatted);
+        } else {
+            $lines[] = 'Average Run Duration: (no data)';
+        }
+
+        // By Agent
+        if (! empty($stats['by_agent'])) {
+            $lines[] = '';
+            $lines[] = 'By Agent:';
+            foreach ($stats['by_agent'] as $agent => $avgDuration) {
+                $formatted = $this->formatDuration((int) round($avgDuration));
+                $lines[] = sprintf('  %s: %s', $agent, $formatted);
+            }
+        }
+
+        // By Model
+        if (! empty($stats['by_model'])) {
+            $lines[] = '';
+            $lines[] = 'By Model:';
+            foreach ($stats['by_model'] as $model => $avgDuration) {
+                $formatted = $this->formatDuration((int) round($avgDuration));
+                $lines[] = sprintf('  %s: %s', $model, $formatted);
+            }
+        }
+
+        // Longest and shortest runs
+        if ($stats['longest_run'] !== null || $stats['shortest_run'] !== null) {
+            $lines[] = '';
+            if ($stats['longest_run'] !== null) {
+                $longestFormatted = $this->formatDuration($stats['longest_run']);
+                $lines[] = sprintf('Longest Run: %s', $longestFormatted);
+            }
+            if ($stats['shortest_run'] !== null) {
+                $shortestFormatted = $this->formatDuration($stats['shortest_run']);
+                $lines[] = sprintf('Shortest Run: %s', $shortestFormatted);
+            }
+        }
+
+        return $this->captureBoxOutput('TIMING', $lines, '⏱️', 43);
+    }
+
+    /**
+     * Collect trends box lines without rendering.
+     *
+     * @return array<string>
+     */
+    private function collectTrends(DatabaseService $db): array
+    {
+        // Get last 14 days of task completions
+        $taskQuery = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
+                      FROM tasks
+                      WHERE status = 'closed'
+                      AND updated_at >= date('now', '-14 days')
+                      GROUP BY DATE(updated_at)
+                      ORDER BY day ASC";
+        $taskResults = $db->fetchAll($taskQuery);
+
+        // Get last 14 days of runs
+        $runQuery = "SELECT DATE(started_at) as day, COUNT(*) as cnt
+                     FROM runs
+                     WHERE started_at >= date('now', '-14 days')
+                     GROUP BY DATE(started_at)
+                     ORDER BY day ASC";
+        $runResults = $db->fetchAll($runQuery);
+
+        // Build arrays for each day (last 14 days)
+        $taskValues = [];
+        $runValues = [];
+        $startDate = new \DateTime('-14 days');
+
+        for ($i = 0; $i < 14; $i++) {
+            $date = clone $startDate;
+            $date->modify("+{$i} days");
+            $dateStr = $date->format('Y-m-d');
+
+            $taskValues[] = 0;
+            $runValues[] = 0;
+
+            foreach ($taskResults as $row) {
+                if ($row['day'] === $dateStr) {
+                    $taskValues[$i] = (int) $row['cnt'];
+                    break;
+                }
+            }
+
+            foreach ($runResults as $row) {
+                if ($row['day'] === $dateStr) {
+                    $runValues[$i] = (int) $row['cnt'];
+                    break;
+                }
+            }
+        }
+
+        // Calculate totals
+        $totalTasks = array_sum($taskValues);
+        $totalRuns = array_sum($runValues);
+
+        // Generate sparklines
+        $taskSparkline = $this->sparkline($taskValues);
+        $runSparkline = $this->sparkline($runValues);
+
+        // Render box
+        $lines = [
+            sprintf('Tasks:  %s  (%d total)', $taskSparkline, $totalTasks),
+            sprintf('Runs:   %s  (%d total)', $runSparkline, $totalRuns),
+        ];
+
+        return $this->captureBoxOutput('TRENDS (14 days)', $lines, '📈', 43);
+    }
+
+    /**
+     * Collect activity heatmap box lines without rendering.
+     *
+     * @return array<string>
+     */
+    private function collectActivityHeatmap(DatabaseService $db): array
+    {
+        $activityData = $this->getActivityByDay($db);
+
+        // Build heatmap content
+        $heatmapLines = $this->buildHeatmapLines($activityData);
+
+        // Combine all lines
+        $lines = array_merge($heatmapLines, [
+            '',
+            'Legend: ░ none  ▒ low  ▓ medium  █ high',
+        ]);
+
+        return $this->captureBoxOutput('ACTIVITY (last 8 weeks)', $lines, '📊', 43);
+    }
+
+    /**
+     * Capture BoxRenderer output as an array of lines.
+     *
+     * @param  string  $title  The box title
+     * @param  array<string>  $lines  Content lines
+     * @param  string|null  $emoji  Optional emoji
+     * @param  int|null  $width  Optional width
+     * @return array<string> Captured output lines
+     */
+    private function captureBoxOutput(
+        string $title,
+        array $lines,
+        ?string $emoji = null,
+        ?int $width = null
+    ): array {
+        $renderer = new BoxRenderer($this->output);
+
+        return $renderer->getBoxLines($title, $lines, $emoji, $width);
     }
 
     /**
