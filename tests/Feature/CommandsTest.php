@@ -3,7 +3,6 @@
 use App\Services\BacklogService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Console\Command;
@@ -13,13 +12,9 @@ use Symfony\Component\Yaml\Yaml;
 
 require_once __DIR__.'/Concerns/CommandTestSetup.php';
 
-beforeEach(function (): void {
-    setupCommandTest($this);
-});
+beforeEach($beforeEach);
 
-afterEach(function (): void {
-    cleanupCommandTest($this->tempDir);
-});
+afterEach($afterEach);
 
 // Add Command Tests
 describe('add command', function (): void {

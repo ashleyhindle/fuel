@@ -6,30 +6,28 @@ use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 
-function setupCommandTest(&$test): void
-{
-    $test->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($test->tempDir.'/.fuel', 0755, true);
+$beforeEach = function (): void {
+    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
+    mkdir($this->tempDir.'/.fuel', 0755, true);
 
-    $context = new FuelContext($test->tempDir.'/.fuel');
-    $test->app->singleton(FuelContext::class, fn () => $context);
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn () => $context);
 
-    $test->dbPath = $context->getDatabasePath();
+    $this->dbPath = $context->getDatabasePath();
 
     $databaseService = new DatabaseService($context->getDatabasePath());
-    $test->app->singleton(DatabaseService::class, fn () => $databaseService);
+    $this->app->singleton(DatabaseService::class, fn () => $databaseService);
 
-    $test->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
+    $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService($databaseService));
 
-    $test->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
+    $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-    $test->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
+    $this->app->singleton(BacklogService::class, fn (): BacklogService => new BacklogService($context));
 
-    $test->taskService = $test->app->make(TaskService::class);
-}
+    $this->taskService = $this->app->make(TaskService::class);
+};
 
-function cleanupCommandTest($tempDir): void
-{
+$afterEach = function (): void {
     $deleteDir = function (string $dir) use (&$deleteDir): void {
         if (! is_dir($dir)) {
             return;
@@ -57,5 +55,5 @@ function cleanupCommandTest($tempDir): void
         rmdir($dir);
     };
 
-    $deleteDir($tempDir);
-}
+    $deleteDir($this->tempDir);
+};
