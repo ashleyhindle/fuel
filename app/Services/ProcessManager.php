@@ -193,18 +193,7 @@ class ProcessManager implements ProcessManagerInterface
                     $exitCode = $agentProcess->getExitCode() ?? -1;
 
                     // Create Process metadata for compatibility
-                    $process = new Process(
-                        id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
-                        taskId: $taskId,
-                        agent: $agentProcess->getAgentName(),
-                        command: '', // Not available
-                        cwd: '', // Not available
-                        pid: $agentProcess->getPid() ?? 0,
-                        status: $exitCode === 0 ? ProcessStatus::Completed : ProcessStatus::Failed,
-                        exitCode: $exitCode,
-                        startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
-                        completedAt: new DateTimeImmutable
-                    );
+                    $process = $this->createProcessFromAgentProcess($taskId, $agentProcess, $exitCode);
 
                     // Clean up tracking
                     unset($this->activeAgentProcesses[$taskId]);
@@ -253,18 +242,7 @@ class ProcessManager implements ProcessManagerInterface
                     $exitCode = $agentProcess->getExitCode() ?? -1;
 
                     // Create Process metadata for compatibility
-                    $process = new Process(
-                        id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
-                        taskId: $taskId,
-                        agent: $agentProcess->getAgentName(),
-                        command: '', // Not available
-                        cwd: '', // Not available
-                        pid: $agentProcess->getPid() ?? 0,
-                        status: $exitCode === 0 ? ProcessStatus::Completed : ProcessStatus::Failed,
-                        exitCode: $exitCode,
-                        startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
-                        completedAt: new DateTimeImmutable
-                    );
+                    $process = $this->createProcessFromAgentProcess($taskId, $agentProcess, $exitCode);
 
                     $results[$taskId] = new ProcessResult(
                         process: $process,
@@ -422,6 +400,30 @@ class ProcessManager implements ProcessManagerInterface
         $current = $this->agentCounts[$agentName] ?? 0;
 
         return $current < $limit;
+    }
+
+    /**
+     * Create a Process object from an AgentProcess.
+     *
+     * @param  string  $taskId  The task ID
+     * @param  AgentProcess  $agentProcess  The agent process
+     * @param  int  $exitCode  The exit code
+     * @return Process The created process object
+     */
+    private function createProcessFromAgentProcess(string $taskId, AgentProcess $agentProcess, int $exitCode): Process
+    {
+        return new Process(
+            id: 'p-'.substr(bin2hex(random_bytes(3)), 0, 6),
+            taskId: $taskId,
+            agent: $agentProcess->getAgentName(),
+            command: '', // Not available
+            cwd: '', // Not available
+            pid: $agentProcess->getPid() ?? 0,
+            status: $exitCode === 0 ? ProcessStatus::Completed : ProcessStatus::Failed,
+            exitCode: $exitCode,
+            startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
+            completedAt: new DateTimeImmutable
+        );
     }
 
     /**
