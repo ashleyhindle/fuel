@@ -5,11 +5,26 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\RunService;
 use App\Services\TaskService;
+use App\Support\BoxRenderer;
 use LaravelZero\Framework\Commands\Command;
 
+/**
+ * Display project statistics and metrics.
+ *
+ * Example BoxRenderer usage (refactor existing box rendering to use this):
+ *
+ * $renderer = new BoxRenderer($this->output);
+ * $renderer->box('TASK STATISTICS', [
+ *     'Total: 47',
+ *     '',
+ *     'By Status:',
+ *     '  ✅ Done: 32  🔄 In Progress: 5',
+ * ], '📋');
+ */
 class StatsCommand extends Command
 {
     use HandlesJsonOutput;
@@ -31,6 +46,8 @@ class StatsCommand extends Command
         $this->renderEpicStats($epicService);
         $this->line('');
         $this->renderRunStats($runService);
+        $this->line('');
+        $this->renderTrends($taskService, $runService);
         $this->line('');
         $this->renderActivityHeatmap($taskService, $runService);
 
@@ -286,6 +303,115 @@ class StatsCommand extends Command
 
     private function renderActivityHeatmap(TaskService $taskService, RunService $runService): void
     {
-        // TODO: Implement activity heatmap (assigned to another agent)
+        $activityData = $this->getActivityByDay($taskService, $runService);
+
+        $this->line('┌─────────────────────────────────────────────────────┐');
+        $this->line('│ 📊 ACTIVITY (last 12 weeks)                         │');
+        $this->line('├─────────────────────────────────────────────────────┤');
+
+        $this->renderHeatmap($activityData);
+
+        $this->line('│                                                     │');
+        $this->line('│ Legend: ░ none  ▒ low  ▓ medium  █ high             │');
+        $this->line('└─────────────────────────────────────────────────────┘');
+    }
+
+    private function getActivityByDay(TaskService $taskService, RunService $runService): array
+    {
+        $db = $taskService->getDb();
+
+        // Get tasks completed per day
+        $taskQuery = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
+                      FROM tasks
+                      WHERE status = 'done'
+                      AND updated_at >= date('now', '-84 days')
+                      GROUP BY DATE(updated_at)";
+        $taskResults = $db->query($taskQuery)->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Get runs per day
+        $runQuery = "SELECT DATE(started_at) as day, COUNT(*) as cnt
+                     FROM runs
+                     WHERE started_at >= date('now', '-84 days')
+                     GROUP BY DATE(started_at)";
+        $runResults = $db->query($runQuery)->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Merge data
+        $activity = [];
+        foreach ($taskResults as $row) {
+            $activity[$row['day']] = ($activity[$row['day']] ?? 0) + $row['cnt'];
+        }
+        foreach ($runResults as $row) {
+            $activity[$row['day']] = ($activity[$row['day']] ?? 0) + $row['cnt'];
+        }
+
+        return $activity;
+    }
+
+    private function renderHeatmap(array $data): void
+    {
+        $maxCount = max(array_merge([1], array_values($data)));
+
+        // Build a 2D grid: [day_of_week][week_index] = count
+        $grid = array_fill(0, 7, array_fill(0, 12, 0));
+
+        // Start from 84 days ago
+        $startDate = new \DateTime('-84 days');
+        $today = new \DateTime();
+
+        for ($i = 0; $i < 84; $i++) {
+            $date = clone $startDate;
+            $date->modify("+{$i} days");
+
+            if ($date > $today) {
+                break;
+            }
+
+            $dayOfWeek = (int) $date->format('N') % 7; // 0=Sun, 1=Mon, ..., 6=Sat
+            $weekIndex = (int) floor($i / 7);
+
+            $dateStr = $date->format('Y-m-d');
+            $grid[$dayOfWeek][$weekIndex] = $data[$dateStr] ?? 0;
+        }
+
+        $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        foreach ($grid as $dayIdx => $weeks) {
+            $line = '│ ' . str_pad($days[$dayIdx], 4) . ' ';
+
+            foreach ($weeks as $count) {
+                $color = $this->getHeatmapColor($count, $maxCount);
+                $line .= $color . '█' . "\e[0m";
+            }
+
+            // Pad to align with border
+            $line .= str_repeat(' ', 53 - mb_strlen(preg_replace('/\e\[[0-9;]*m/', '', $line)));
+            $line .= '│';
+
+            $this->line($line);
+        }
+    }
+
+    private function getHeatmapColor(int $count, int $max): string
+    {
+        if ($count === 0) {
+            // Level 0: #161b22 (dark gray)
+            return "\e[38;2;22;27;34m";
+        }
+
+        $percentage = $count / $max;
+
+        if ($percentage <= 0.25) {
+            // Level 1: #0e4429 (dark green)
+            return "\e[38;2;14;68;41m";
+        } elseif ($percentage <= 0.50) {
+            // Level 2: #006d32 (medium green)
+            return "\e[38;2;0;109;50m";
+        } elseif ($percentage <= 0.75) {
+            // Level 3: #26a641 (bright green)
+            return "\e[38;2;38;166;65m";
+        } else {
+            // Level 4: #39d353 (neon green)
+            return "\e[38;2;57;211;83m";
+        }
     }
 }
