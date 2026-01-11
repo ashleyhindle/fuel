@@ -141,83 +141,70 @@ class StatsCommand extends Command
             }
         }
 
-        // Display the statistics
-        $this->line('┌─────────────────────────────────────────┐');
-        $this->line('│ <fg=cyan>📋 TASK STATISTICS</>                      │');
-        $this->line('├─────────────────────────────────────────┤');
-        $this->line(sprintf('│ Total: <fg=yellow>%-31s</> │', $total));
-        $this->line('│                                         │');
-        $this->line('│ <fg=cyan>By Status:</>                              │');
-        $this->line(sprintf(
-            '│   <fg=green>✅ Closed: %d</>  <fg=yellow>🔄 In Progress: %d</>%-*s │',
+        // Build content lines
+        $lines = [];
+        $lines[] = sprintf('Total: <fg=yellow>%s</>', $total);
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Status:</>';
+        $lines[] = sprintf(
+            '  <fg=green>✅ Closed: %d</>  <fg=yellow>🔄 In Progress: %d</>',
             $statusCounts['closed'],
-            $statusCounts['in_progress'],
-            max(0, 17 - strlen((string) $statusCounts['closed']) - strlen((string) $statusCounts['in_progress'])),
-            ''
-        ));
-        $this->line(sprintf(
-            '│   <fg=blue>📋 Open: %d</>   <fg=red>⛔ Blocked: %d</>%-*s │',
+            $statusCounts['in_progress']
+        );
+        $lines[] = sprintf(
+            '  <fg=blue>📋 Open: %d</>   <fg=red>⛔ Blocked: %d</>',
             $statusCounts['open'],
-            $statusCounts['blocked'],
-            max(0, 21 - strlen((string) $statusCounts['open']) - strlen((string) $statusCounts['blocked'])),
-            ''
-        ));
+            $statusCounts['blocked']
+        );
         if ($statusCounts['review'] > 0 || $statusCounts['cancelled'] > 0) {
-            $this->line(sprintf(
-                '│   <fg=magenta>👀 Review: %d</>  <fg=gray>❌ Cancelled: %d</>%-*s │',
+            $lines[] = sprintf(
+                '  <fg=magenta>👀 Review: %d</>  <fg=gray>❌ Cancelled: %d</>',
                 $statusCounts['review'],
-                $statusCounts['cancelled'],
-                max(0, 18 - strlen((string) $statusCounts['review']) - strlen((string) $statusCounts['cancelled'])),
-                ''
-            ));
+                $statusCounts['cancelled']
+            );
         }
-        $this->line('│                                         │');
-        $this->line('│ <fg=cyan>By Complexity:</>                          │');
-        $this->line(sprintf(
-            '│   trivial: %d  simple: %d  moderate: %d%-*s │',
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Complexity:</>';
+        $lines[] = sprintf(
+            '  trivial: %d  simple: %d  moderate: %d',
             $complexityCounts['trivial'],
             $complexityCounts['simple'],
-            $complexityCounts['moderate'],
-            max(0, 9 - strlen((string) $complexityCounts['trivial']) - strlen((string) $complexityCounts['simple']) - strlen((string) $complexityCounts['moderate'])),
-            ''
-        ));
-        $this->line(sprintf('│   complex: %-29s │', $complexityCounts['complex']));
-        $this->line('│                                         │');
-        $this->line('│ <fg=cyan>By Priority:</>                            │');
-        $this->line(sprintf(
-            '│   P0: %d  P1: %d  P2: %d  P3: %d  P4: %d%-*s │',
+            $complexityCounts['moderate']
+        );
+        $lines[] = sprintf('  complex: %s', $complexityCounts['complex']);
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Priority:</>';
+        $lines[] = sprintf(
+            '  P0: %d  P1: %d  P2: %d  P3: %d  P4: %d',
             $priorityCounts['P0'],
             $priorityCounts['P1'],
             $priorityCounts['P2'],
             $priorityCounts['P3'],
-            $priorityCounts['P4'],
-            max(0, 13 - strlen((string) $priorityCounts['P0']) - strlen((string) $priorityCounts['P1']) - strlen((string) $priorityCounts['P2']) - strlen((string) $priorityCounts['P3']) - strlen((string) $priorityCounts['P4'])),
-            ''
-        ));
-        $this->line('│                                         │');
-        $this->line('│ <fg=cyan>By Type:</>                                │');
-        $this->line(sprintf(
-            '│   bug: %d  fix: %d  feature: %d  task: %d%-*s │',
+            $priorityCounts['P4']
+        );
+        $lines[] = '';
+        $lines[] = '<fg=cyan>By Type:</>';
+        $lines[] = sprintf(
+            '  bug: %d  fix: %d  feature: %d  task: %d',
             $typeCounts['bug'],
             $typeCounts['fix'],
             $typeCounts['feature'],
-            $typeCounts['task'],
-            max(0, 9 - strlen((string) $typeCounts['bug']) - strlen((string) $typeCounts['fix']) - strlen((string) $typeCounts['feature']) - strlen((string) $typeCounts['task'])),
-            ''
-        ));
-        $this->line(sprintf(
-            '│   chore: %d  docs: %d  test: %d  refactor: %d%-*s │',
+            $typeCounts['task']
+        );
+        $lines[] = sprintf(
+            '  chore: %d  docs: %d  test: %d  refactor: %d',
             $typeCounts['chore'],
             $typeCounts['docs'],
             $typeCounts['test'],
-            $typeCounts['refactor'],
-            max(0, 3 - strlen((string) $typeCounts['chore']) - strlen((string) $typeCounts['docs']) - strlen((string) $typeCounts['test']) - strlen((string) $typeCounts['refactor'])),
-            ''
-        ));
+            $typeCounts['refactor']
+        );
         if ($typeCounts['epic'] > 0) {
-            $this->line(sprintf('│   epic: %-32s │', $typeCounts['epic']));
+            $lines[] = sprintf('  epic: %s', $typeCounts['epic']);
         }
-        $this->line('└─────────────────────────────────────────┘');
+
+        // Render with BoxRenderer
+        $renderer = new BoxRenderer($this->output);
+        $renderer->box('<fg=cyan>TASK STATISTICS</>', $lines, '📋', 43);
     }
 
     private function renderEpicStats(EpicService $epicService): void
@@ -238,72 +225,58 @@ class StatsCommand extends Command
             };
         }
 
-        $this->line('┌─────────────────────────────────────────┐');
-        $this->line('│ 📦 EPICS                                │');
-        $this->line('├─────────────────────────────────────────┤');
-        $this->line(sprintf('│ Total: %-33d│', $total));
-        $this->line(sprintf('│   📋 Planning: %d  🔄 In Progress: %-4d│', $planning, $inProgress));
-        $this->line(sprintf('│   ✅ Done: %-29d│', $done));
-        $this->line('└─────────────────────────────────────────┘');
+        $lines = [];
+        $lines[] = sprintf('Total: %d', $total);
+        $lines[] = sprintf('  📋 Planning: %d  🔄 In Progress: %d', $planning, $inProgress);
+        $lines[] = sprintf('  ✅ Done: %d', $done);
+
+        $renderer = new BoxRenderer($this->output);
+        $renderer->box('EPICS', $lines, '📦', 43);
     }
 
     private function renderRunStats(RunService $runService): void
     {
         $stats = $runService->getStats();
 
-        $this->line('┌─────────────────────────────────────────┐');
-        $this->line('│ 🤖 AGENT RUNS                           │');
-        $this->line('├─────────────────────────────────────────┤');
-        $this->line(sprintf('│ Total Runs: %-28d│', $stats['total_runs']));
-
         // Status counts
         $completedCount = $stats['by_status']['completed'];
         $failedCount = $stats['by_status']['failed'];
         $runningCount = $stats['by_status']['running'];
 
-        $statusLine = sprintf(
-            '│   ✅ Completed: %d  ❌ Failed: %-8d│',
-            $completedCount,
-            $failedCount
-        );
-        $this->line($statusLine);
-
-        $this->line(sprintf('│   🔄 Running: %-27d│', $runningCount));
-        $this->line('│                                         │');
+        $lines = [];
+        $lines[] = sprintf('Total Runs: %d', $stats['total_runs']);
+        $lines[] = sprintf('  ✅ Completed: %d  ❌ Failed: %d', $completedCount, $failedCount);
+        $lines[] = sprintf('  🔄 Running: %d', $runningCount);
+        $lines[] = '';
 
         // Top Agents
-        $this->line('│ Top Agents:                             │');
+        $lines[] = 'Top Agents:';
         if (empty($stats['by_agent'])) {
-            $this->line('│   (no agent data)                       │');
+            $lines[] = '  (no agent data)';
         } else {
             $agentRank = 1;
             foreach (array_slice($stats['by_agent'], 0, 3, true) as $agent => $count) {
-                $agentLine = sprintf('│   %d. %s (%d runs)', $agentRank, $agent, $count);
-                // Pad to 41 chars total (39 content + 2 border)
-                $padding = 41 - mb_strlen($agentLine) - 1;
-                $this->line($agentLine.str_repeat(' ', $padding).'│');
+                $lines[] = sprintf('  %d. %s (%d runs)', $agentRank, $agent, $count);
                 $agentRank++;
             }
         }
 
-        $this->line('│                                         │');
+        $lines[] = '';
 
         // Top Models
-        $this->line('│ Top Models:                             │');
+        $lines[] = 'Top Models:';
         if (empty($stats['by_model'])) {
-            $this->line('│   (no model data)                       │');
+            $lines[] = '  (no model data)';
         } else {
             $modelRank = 1;
             foreach (array_slice($stats['by_model'], 0, 3, true) as $model => $count) {
-                $modelLine = sprintf('│   %d. %s (%d)', $modelRank, $model, $count);
-                // Pad to 41 chars total
-                $padding = 41 - mb_strlen($modelLine) - 1;
-                $this->line($modelLine.str_repeat(' ', $padding).'│');
+                $lines[] = sprintf('  %d. %s (%d)', $modelRank, $model, $count);
                 $modelRank++;
             }
         }
 
-        $this->line('└─────────────────────────────────────────┘');
+        $renderer = new BoxRenderer($this->output);
+        $renderer->box('AGENT RUNS', $lines, '🤖', 43);
     }
 
     private function renderTimingStats(RunService $runService): void
@@ -467,15 +440,18 @@ class StatsCommand extends Command
     {
         $activityData = $this->getActivityByDay($db);
 
-        $this->line('┌─────────────────────────────────────────────────────┐');
-        $this->line('│ 📊 ACTIVITY (last 12 weeks)                         │');
-        $this->line('├─────────────────────────────────────────────────────┤');
+        $renderer = new BoxRenderer($this->output);
 
-        $this->renderHeatmap($activityData);
+        // Build heatmap content
+        $heatmapLines = $this->buildHeatmapLines($activityData);
 
-        $this->line('│                                                     │');
-        $this->line('│ Legend: ░ none  ▒ low  ▓ medium  █ high             │');
-        $this->line('└─────────────────────────────────────────────────────┘');
+        // Combine all lines
+        $lines = array_merge($heatmapLines, [
+            '',
+            'Legend: ░ none  ▒ low  ▓ medium  █ high',
+        ]);
+
+        $renderer->box('ACTIVITY (last 12 weeks)', $lines, '📊', 55);
     }
 
     private function getActivityByDay(DatabaseService $db): array
@@ -507,7 +483,7 @@ class StatsCommand extends Command
         return $activity;
     }
 
-    private function renderHeatmap(array $data): void
+    private function buildHeatmapLines(array $data): array
     {
         $maxCount = max(array_merge([1], array_values($data)));
 
@@ -536,21 +512,20 @@ class StatsCommand extends Command
         }
 
         $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        $lines = [];
 
         foreach ($grid as $dayIdx => $weeks) {
-            $line = '│ '.str_pad($days[$dayIdx], 4).' ';
+            $line = str_pad($days[$dayIdx], 4).' ';
 
             foreach ($weeks as $count) {
                 $color = $this->getHeatmapColor($count, $maxCount);
                 $line .= $color.'█'."\e[0m";
             }
 
-            // Pad to align with border
-            $line .= str_repeat(' ', 53 - mb_strlen(preg_replace('/\e\[[0-9;]*m/', '', $line)));
-            $line .= '│';
-
-            $this->line($line);
+            $lines[] = $line;
         }
+
+        return $lines;
     }
 
     private function getHeatmapColor(int $count, int $max): string

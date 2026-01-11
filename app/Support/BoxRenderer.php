@@ -131,7 +131,7 @@ class BoxRenderer
     {
         // Strip ANSI codes to calculate visible length
         $visibleText = $this->stripAnsi($text);
-        $visibleLength = mb_strlen($visibleText);
+        $visibleLength = $this->visibleLength($visibleText);
 
         // Calculate padding needed
         $contentWidth = $width - 4; // 2 for borders + 2 for side padding
@@ -141,10 +141,27 @@ class BoxRenderer
     }
 
     /**
-     * Strip ANSI escape codes from text to get visible length.
+     * Calculate visible length accounting for emoji width (emojis display as 2 columns).
+     */
+    private function visibleLength(string $text): int
+    {
+        $baseLength = mb_strlen($text);
+        // Count emojis - they display as 2 columns wide but mb_strlen counts them as 1
+        $emojiCount = preg_match_all('/[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]/u', $text);
+
+        return $baseLength + $emojiCount;
+    }
+
+    /**
+     * Strip ANSI escape codes and Symfony color tags from text to get visible length.
      */
     private function stripAnsi(string $text): string
     {
-        return preg_replace('/\e\[[0-9;]*m/', '', $text) ?? $text;
+        // Strip Symfony/Laravel color tags like <fg=cyan>, </>, <bg=red>, etc.
+        $text = preg_replace('/<\/?(?:fg|bg|options)(?:=[^>]+)?>/i', '', $text) ?? $text;
+        // Strip ANSI escape codes
+        $text = preg_replace('/\e\[[0-9;]*m/', '', $text) ?? $text;
+
+        return $text;
     }
 }
