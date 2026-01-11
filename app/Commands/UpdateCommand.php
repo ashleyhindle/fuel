@@ -22,7 +22,6 @@ class UpdateCommand extends Command
         {--type= : Update task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Update task priority (0-4)}
         {--status= : Update task status (open|closed)}
-        {--size= : Update task size (xs|s|m|l|xl)}
         {--add-labels= : Add labels (comma-separated)}
         {--remove-labels= : Remove labels (comma-separated)}';
 
@@ -57,10 +56,6 @@ class UpdateCommand extends Command
 
         if ($status = $this->option('status')) {
             $updateData['status'] = $status;
-        }
-
-        if ($size = $this->option('size')) {
-            $updateData['size'] = $size;
         }
 
         if ($addLabels = $this->option('add-labels')) {

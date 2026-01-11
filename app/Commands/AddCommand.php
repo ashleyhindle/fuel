@@ -26,7 +26,6 @@ class AddCommand extends Command
         {--type= : Task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Task priority (0-4)}
         {--labels= : Comma-separated list of labels}
-        {--size= : Task size (xs|s|m|l|xl)}
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}
         {--e|epic= : Epic ID to associate this task with}
@@ -98,11 +97,6 @@ class AddCommand extends Command
         // Add labels (comma-separated)
         if ($labels = $this->option('labels')) {
             $data['labels'] = array_map(trim(...), explode(',', $labels));
-        }
-
-        // Add size
-        if ($size = $this->option('size')) {
-            $data['size'] = $size;
         }
 
         // Add complexity

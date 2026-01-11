@@ -105,7 +105,6 @@ describe('promote command', function (): void {
             '--type' => 'feature',
             '--complexity' => 'moderate',
             '--labels' => 'frontend,backend',
-            '--size' => 'l',
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -118,7 +117,6 @@ describe('promote command', function (): void {
         expect($task['type'])->toBe('feature');
         expect($task['complexity'])->toBe('moderate');
         expect($task['labels'])->toBe(['frontend', 'backend']);
-        expect($task['size'])->toBe('l');
     });
 
     it('promotes backlog item with partial ID', function (): void {

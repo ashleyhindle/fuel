@@ -25,7 +25,6 @@ class PromoteCommand extends Command
         {--type= : Task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--labels= : Comma-separated list of labels}
-        {--size= : Task size (xs|s|m|l|xl)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}';
 
     protected $description = 'Promote one or more backlog items to tasks';
@@ -107,10 +106,6 @@ class PromoteCommand extends Command
 
                 if ($labels = $this->option('labels')) {
                     $taskData['labels'] = array_map(trim(...), explode(',', $labels));
-                }
-
-                if ($size = $this->option('size')) {
-                    $taskData['size'] = $size;
                 }
 
                 if ($blockedBy = $this->option('blocked-by')) {

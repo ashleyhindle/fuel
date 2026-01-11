@@ -204,7 +204,6 @@ describe('add command', function (): void {
             '--type' => 'feature',
             '--priority' => '3',
             '--labels' => 'ui,backend',
-            '--size' => 'l',
             '--complexity' => 'moderate',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -217,31 +216,7 @@ describe('add command', function (): void {
         expect($task['type'])->toBe('feature');
         expect($task['priority'])->toBe(3);
         expect($task['labels'])->toBe(['ui', 'backend']);
-        expect($task['size'])->toBe('l');
         expect($task['complexity'])->toBe('moderate');
-    });
-
-    it('creates task with --size flag', function (): void {
-        Artisan::call('add', [
-            'title' => 'Large task',
-            '--size' => 'xl',
-            '--cwd' => $this->tempDir,
-            '--json' => true,
-        ]);
-        $output = Artisan::output();
-        $task = json_decode($output, true);
-
-        expect($task['size'])->toBe('xl');
-    });
-
-    it('validates --size flag enum', function (): void {
-        $this->artisan('add', [
-            'title' => 'Invalid size',
-            '--size' => 'invalid-size',
-            '--cwd' => $this->tempDir,
-        ])
-            ->expectsOutputToContain('Invalid task size')
-            ->assertExitCode(1);
     });
 
     it('creates task with --complexity flag', function (): void {

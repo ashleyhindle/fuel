@@ -244,7 +244,6 @@ describe('update command', function (): void {
             '--type' => 'feature',
             '--priority' => '3',
             '--description' => 'New description',
-            '--size' => 'l',
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -255,36 +254,6 @@ describe('update command', function (): void {
         expect($updated['type'])->toBe('feature');
         expect($updated['priority'])->toBe(3);
         expect($updated['description'])->toBe('New description');
-        expect($updated['size'])->toBe('l');
-    });
-
-    it('updates task size', function (): void {
-        $this->taskService->initialize();
-        $task = $this->taskService->create(['title' => 'Task', 'size' => 'm']);
-
-        Artisan::call('update', [
-            'id' => $task['id'],
-            '--size' => 'xl',
-            '--cwd' => $this->tempDir,
-            '--json' => true,
-        ]);
-        $output = Artisan::output();
-        $updated = json_decode($output, true);
-
-        expect($updated['size'])->toBe('xl');
-    });
-
-    it('validates task size enum in update', function (): void {
-        $this->taskService->initialize();
-        $task = $this->taskService->create(['title' => 'Task']);
-
-        $this->artisan('update', [
-            'id' => $task['id'],
-            '--size' => 'invalid-size',
-            '--cwd' => $this->tempDir,
-        ])
-            ->expectsOutputToContain('Invalid task size')
-            ->assertExitCode(1);
     });
 
     it('shows error when no update fields provided', function (): void {
