@@ -1,6 +1,20 @@
 # CLAUDE.md
 
-<!-- This file contains comprehensive guidance, workflows, and best practices for Claude Code (claude.ai/code) agents working on the Fuel project. It includes project architecture, development commands, testing patterns, and the Fuel task management system. -->
+<!--
+  CLAUDE.md - AI Agent Instructions File
+  
+  This file is automatically read by AI coding agents (Claude Code, Cursor, Windsurf,
+  OpenCode, and similar tools) when they work on this repository. It provides:
+  
+  - Project architecture and directory structure
+  - Development commands (testing, formatting, building)
+  - The Fuel task management system and workflows
+  - Testing patterns and best practices
+  - Session protocols for agent coordination
+  
+  Keep this file up to date as the project evolves. AI agents rely on this
+  documentation to understand context and follow project conventions.
+-->
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
