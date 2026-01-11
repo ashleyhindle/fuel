@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use Symfony\Component\Console\Output\OutputInterface;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
@@ -16,6 +15,7 @@ use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Process;
 
 class EpicReviewCommand extends Command

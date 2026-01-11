@@ -195,29 +195,33 @@ class TaskService
         $updates = [];
         $params = [];
 
-        // Update title if provided
-        if (isset($data['title'])) {
-            $updates[] = 'title = ?';
-            $params[] = $data['title'];
-            $task['title'] = $data['title'];
+        // Field mapping: data key => [column, validator, use_array_key_exists]
+        $fieldMap = [
+            'title' => ['column' => 'title', 'validator' => null, 'use_array_key_exists' => false],
+            'description' => ['column' => 'description', 'validator' => null, 'use_array_key_exists' => true],
+            'type' => ['column' => 'type', 'validator' => fn ($v) => $this->validateEnum($v, self::VALID_TYPES, 'task type'), 'use_array_key_exists' => false],
+            'status' => ['column' => 'status', 'validator' => fn ($v) => $this->validateEnum($v, array_column(TaskStatus::cases(), 'value'), 'status'), 'use_array_key_exists' => false],
+            'complexity' => ['column' => 'complexity', 'validator' => fn ($v) => $this->validateEnum($v, self::VALID_COMPLEXITIES, 'task complexity'), 'use_array_key_exists' => false],
+        ];
+
+        // Process mapped fields
+        foreach ($fieldMap as $key => $config) {
+            $checkExists = $config['use_array_key_exists'] ? array_key_exists($key, $data) : isset($data[$key]);
+            if ($checkExists) {
+                $value = $data[$key];
+
+                // Run validator if provided
+                if ($config['validator'] !== null) {
+                    ($config['validator'])($value);
+                }
+
+                $updates[] = $config['column'].' = ?';
+                $params[] = $value;
+                $task[$key] = $value;
+            }
         }
 
-        // Update description if provided
-        if (array_key_exists('description', $data)) {
-            $updates[] = 'description = ?';
-            $params[] = $data['description'];
-            $task['description'] = $data['description'];
-        }
-
-        // Update type if provided (with validation)
-        if (isset($data['type'])) {
-            $this->validateEnum($data['type'], self::VALID_TYPES, 'task type');
-            $updates[] = 'type = ?';
-            $params[] = $data['type'];
-            $task['type'] = $data['type'];
-        }
-
-        // Update priority if provided (with validation)
+        // Handle priority with custom validation
         if (isset($data['priority'])) {
             $priority = $data['priority'];
             if (! is_int($priority) || $priority < 0 || $priority > 4) {
@@ -231,23 +235,7 @@ class TaskService
             $task['priority'] = $priority;
         }
 
-        // Update status if provided (with validation)
-        if (isset($data['status'])) {
-            $this->validateEnum($data['status'], array_column(TaskStatus::cases(), 'value'), 'status');
-            $updates[] = 'status = ?';
-            $params[] = $data['status'];
-            $task['status'] = $data['status'];
-        }
-
-        // Update complexity if provided (with validation)
-        if (isset($data['complexity'])) {
-            $this->validateEnum($data['complexity'], self::VALID_COMPLEXITIES, 'task complexity');
-            $updates[] = 'complexity = ?';
-            $params[] = $data['complexity'];
-            $task['complexity'] = $data['complexity'];
-        }
-
-        // Update epic_id if provided
+        // Handle epic_id with custom logic
         if (array_key_exists('epic_id', $data)) {
             $epicId = null;
             if ($data['epic_id'] !== null) {
@@ -259,7 +247,7 @@ class TaskService
             $task['epic_id'] = $data['epic_id'];
         }
 
-        // Handle labels updates
+        // Handle labels updates with custom logic
         if (isset($data['add_labels']) || isset($data['remove_labels'])) {
             $labels = $task['labels'] ?? [];
             $labels = is_array($labels) ? $labels : [];
@@ -283,8 +271,8 @@ class TaskService
             $task['labels'] = $labels;
         }
 
+        // Handle arbitrary fields
         $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid', 'last_review_issues'];
-
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
                 $updates[] = $key.' = ?';

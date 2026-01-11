@@ -265,7 +265,7 @@ describe('stats command', function (): void {
 
         // Create tasks completed on consecutive days
         for ($i = 0; $i < 5; $i++) {
-            $task = $this->taskService->create(['title' => 'Task ' . $i]);
+            $task = $this->taskService->create(['title' => 'Task '.$i]);
             $this->taskService->done($task['id']);
 
             // Update the task's updated_at to be $i days ago
@@ -400,7 +400,7 @@ describe('stats command', function (): void {
 
         // Create 10 complex tasks to earn "Complex Crusher" badge
         for ($i = 0; $i < 10; $i++) {
-            $task = $this->taskService->create(['title' => 'Complex task ' . $i, 'complexity' => 'complex']);
+            $task = $this->taskService->create(['title' => 'Complex task '.$i, 'complexity' => 'complex']);
             $this->taskService->done($task['id']);
         }
 
@@ -566,7 +566,7 @@ describe('stats command', function (): void {
 
         // Create first streak: 3 days (7, 8, 9 days ago)
         for ($i = 7; $i <= 9; $i++) {
-            $task = $this->taskService->create(['title' => 'Streak 1 Day ' . $i]);
+            $task = $this->taskService->create(['title' => 'Streak 1 Day '.$i]);
             $this->taskService->done($task['id']);
             $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
             $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
@@ -576,7 +576,7 @@ describe('stats command', function (): void {
 
         // Create second streak: 5 days (0, 1, 2, 3, 4 days ago) - current streak
         for ($i = 0; $i <= 4; $i++) {
-            $task = $this->taskService->create(['title' => 'Streak 2 Day ' . $i]);
+            $task = $this->taskService->create(['title' => 'Streak 2 Day '.$i]);
             $this->taskService->done($task['id']);
             $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
             $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);

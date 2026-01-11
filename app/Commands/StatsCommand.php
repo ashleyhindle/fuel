@@ -1290,6 +1290,7 @@ class StatsCommand extends Command
             // Level 3: #26a641 (bright green)
             return "\e[38;2;38;166;65m";
         }
+
         // Level 4: #39d353 (neon green)
         return "\e[38;2;57;211;83m";
     }
@@ -1391,7 +1392,7 @@ class StatsCommand extends Command
         foreach ($uniqueDays as $dayStr) {
             $currentDate = new \DateTime($dayStr);
 
-            if (!$previousDate instanceof \DateTime) {
+            if (! $previousDate instanceof \DateTime) {
                 $currentStreak = 1;
             } else {
                 $diff = $previousDate->diff($currentDate);
