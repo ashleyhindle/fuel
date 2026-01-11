@@ -302,14 +302,82 @@ class StatsCommand extends Command
         $this->line('└─────────────────────────────────────────┘');
     }
 
-    private function renderTrends(TaskService $taskService, RunService $runService): void
+    private function renderTrends(DatabaseService $db): void
     {
-        // TODO: Implement trends - assigned to another agent
+        // Get last 14 days of task completions
+        $taskQuery = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
+                      FROM tasks
+                      WHERE status = 'closed'
+                      AND updated_at >= date('now', '-14 days')
+                      GROUP BY DATE(updated_at)
+                      ORDER BY day ASC";
+        $taskResults = $db->fetchAll($taskQuery);
+
+        // Get last 14 days of runs
+        $runQuery = "SELECT DATE(started_at) as day, COUNT(*) as cnt
+                     FROM runs
+                     WHERE started_at >= date('now', '-14 days')
+                     GROUP BY DATE(started_at)
+                     ORDER BY day ASC";
+        $runResults = $db->fetchAll($runQuery);
+
+        // Build arrays for each day (last 14 days)
+        $taskValues = [];
+        $runValues = [];
+        $startDate = new \DateTime('-14 days');
+
+        for ($i = 0; $i < 14; $i++) {
+            $date = clone $startDate;
+            $date->modify("+{$i} days");
+            $dateStr = $date->format('Y-m-d');
+
+            $taskValues[] = 0;
+            $runValues[] = 0;
+
+            foreach ($taskResults as $row) {
+                if ($row['day'] === $dateStr) {
+                    $taskValues[$i] = (int) $row['cnt'];
+                    break;
+                }
+            }
+
+            foreach ($runResults as $row) {
+                if ($row['day'] === $dateStr) {
+                    $runValues[$i] = (int) $row['cnt'];
+                    break;
+                }
+            }
+        }
+
+        // Calculate totals
+        $totalTasks = array_sum($taskValues);
+        $totalRuns = array_sum($runValues);
+
+        // Generate sparklines
+        $taskSparkline = $this->sparkline($taskValues);
+        $runSparkline = $this->sparkline($runValues);
+
+        // Render box
         $this->line('┌─────────────────────────────────────────┐');
-        $this->line('│ 📈 TRENDS                               │');
+        $this->line('│ 📈 TRENDS (14 days)                     │');
         $this->line('├─────────────────────────────────────────┤');
-        $this->line('│ Coming soon...                          │');
+        $this->line(sprintf('│ Tasks:  %s  (%d total)%-*s │', $taskSparkline, $totalTasks, max(0, 18 - strlen((string) $totalTasks) - mb_strlen($taskSparkline)), ''));
+        $this->line(sprintf('│ Runs:   %s  (%d total)%-*s │', $runSparkline, $totalRuns, max(0, 18 - strlen((string) $totalRuns) - mb_strlen($runSparkline)), ''));
         $this->line('└─────────────────────────────────────────┘');
+    }
+
+    /**
+     * Generate a sparkline from an array of values.
+     */
+    private function sparkline(array $values): string
+    {
+        $chars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+        $max = max($values) ?: 1;
+
+        return implode('', array_map(
+            fn ($v) => $chars[(int) floor(($v / $max) * 7)],
+            $values
+        ));
     }
 
     private function renderActivityHeatmap(DatabaseService $db): void
