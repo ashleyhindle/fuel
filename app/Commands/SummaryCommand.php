@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\Agent;
+use App\Enums\TaskStatus;
 use App\Models\Run;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -93,11 +94,11 @@ class SummaryCommand extends Command
     private function displayTaskHeader(Task $task, array $runs): void
     {
         $statusLabel = match ($task->status) {
-            'open' => '<fg=yellow>open</>',
-            'in_progress' => '<fg=blue>in progress</>',
-            'review' => '<fg=magenta>review</>',
-            'closed' => '<fg=green>closed</>',
-            'cancelled' => '<fg=gray>cancelled</>',
+            TaskStatus::Open->value => '<fg=yellow>open</>',
+            TaskStatus::InProgress->value => '<fg=blue>in progress</>',
+            TaskStatus::Review->value => '<fg=magenta>review</>',
+            TaskStatus::Closed->value => '<fg=green>closed</>',
+            TaskStatus::Cancelled->value => '<fg=gray>cancelled</>',
             default => $task->status,
         };
 
