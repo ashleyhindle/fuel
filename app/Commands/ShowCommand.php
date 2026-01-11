@@ -255,9 +255,10 @@ class ShowCommand extends Command
                         }
 
                         // Add failure reason if failed
-                        if ($status === 'failed' && isset($review['issues']) && is_array($review['issues']) && $review['issues'] !== []) {
-                            $issueCount = count($review['issues']);
-                            $firstIssue = $review['issues'][0] ?? '';
+                        $issues = $review->issues();
+                        if ($status === 'failed' && $issues !== []) {
+                            $issueCount = count($issues);
+                            $firstIssue = $issues[0] ?? '';
                             if (is_string($firstIssue) && strlen($firstIssue) > 60) {
                                 $firstIssue = substr($firstIssue, 0, 57).'...';
                             }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Review;
 use App\Services\DatabaseService;
 use Carbon\Carbon;
 use LaravelZero\Framework\Commands\Command;
@@ -44,7 +45,7 @@ class ReviewsCommand extends Command
             $reviews = $databaseService->getAllReviews($status, $limit);
 
             if ($this->option('json')) {
-                $this->outputJson($reviews);
+                $this->outputJson(array_map(fn (Review $r) => $r->toArray(), $reviews));
 
                 return self::SUCCESS;
             }
@@ -79,16 +80,14 @@ class ReviewsCommand extends Command
 
     /**
      * Display a single review in the formatted output.
-     *
-     * @param  array<string, mixed>  $review
      */
-    private function displayReview(array $review): void
+    private function displayReview(Review $review): void
     {
-        $taskId = $review['task_id'] ?? '';
-        $status = $review['status'] ?? 'pending';
-        $agent = $review['agent'] ?? '';
-        $startedAt = $review['started_at'] ?? null;
-        $issues = $review['issues'] ?? [];
+        $taskId = $review->task_id ?? '';
+        $status = $review->status ?? 'pending';
+        $agent = $review->agent ?? '';
+        $startedAt = $review->started_at ?? null;
+        $issues = $review->issues();
 
         // Status indicator
         $statusIndicator = match ($status) {
@@ -111,7 +110,7 @@ class ReviewsCommand extends Command
         );
 
         // Add issues for failed reviews
-        if ($status === 'failed' && ! empty($issues) && is_array($issues)) {
+        if ($status === 'failed' && $issues !== []) {
             $issuesStr = '['.implode(', ', $issues).']';
             $line .= '  '.$issuesStr;
         }

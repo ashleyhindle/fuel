@@ -355,7 +355,7 @@ class ReviewService implements ReviewServiceInterface
             // Review process is not running - task is stuck
             // Get the agent that completed the task from run history
             $latestRun = $this->runService->getLatestRun($taskId);
-            $agent = $latestRun['agent'] ?? null;
+            $agent = $latestRun?->agent ?? null;
 
             if ($agent === null) {
                 // No run history, skip this task

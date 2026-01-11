@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Review;
 use Carbon\Carbon;
 use PDO;
 use PDOException;
@@ -1087,7 +1088,7 @@ class DatabaseService
      * Get all reviews for a specific task.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')
-     * @return array Array of review records with issues and issues decoded from JSON, task_id returned as short_id
+     * @return array<Review> Array of Review models
      */
     public function getReviewsForTask(string $taskShortId): array
     {
@@ -1102,13 +1103,16 @@ class DatabaseService
             [$taskIntId]
         );
 
-        return array_map(fn (array $review): array => $this->decodeReviewJsonFields($review, $taskShortId), $reviews);
+        return array_map(
+            fn (array $review): Review => Review::fromArray($this->decodeReviewJsonFields($review, $taskShortId)),
+            $reviews
+        );
     }
 
     /**
      * Get all pending reviews.
      *
-     * @return array Array of pending review records with issues and issues decoded from JSON, task_id returned as short_id
+     * @return array<Review> Array of Review models
      */
     public function getPendingReviews(): array
     {
@@ -1117,7 +1121,10 @@ class DatabaseService
             ['pending']
         );
 
-        return array_map(fn (array $review): array => $this->decodeReviewJsonFields($review), $reviews);
+        return array_map(
+            fn (array $review): Review => Review::fromArray($this->decodeReviewJsonFields($review)),
+            $reviews
+        );
     }
 
     /**
@@ -1125,7 +1132,7 @@ class DatabaseService
      *
      * @param  string|null  $status  Filter by status ('pending', 'passed', 'failed') or null for all
      * @param  int|null  $limit  Limit the number of results (null for no limit)
-     * @return array Array of review records with issues and issues decoded from JSON, task_id returned as short_id
+     * @return array<Review> Array of Review models
      */
     public function getAllReviews(?string $status = null, ?int $limit = null): array
     {
@@ -1146,7 +1153,10 @@ class DatabaseService
 
         $reviews = $this->fetchAll($sql, $params);
 
-        return array_map(fn (array $review): array => $this->decodeReviewJsonFields($review), $reviews);
+        return array_map(
+            fn (array $review): Review => Review::fromArray($this->decodeReviewJsonFields($review)),
+            $reviews
+        );
     }
 
     /**
@@ -1171,9 +1181,12 @@ class DatabaseService
         ];
 
         // Decode JSON fields
-        $result['issues'] = $review['issues'] !== null ? json_decode($review['issues'], true) : [];
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Failed to decode issues JSON: '.json_last_error_msg());
+        $result['issues'] = [];
+        if ($review['issues'] !== null && $review['issues'] !== '') {
+            $decoded = json_decode($review['issues'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $result['issues'] = $decoded;
+            }
         }
 
         return $result;
