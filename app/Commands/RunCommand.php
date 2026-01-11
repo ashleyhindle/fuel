@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
+use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -38,20 +39,18 @@ class RunCommand extends Command
         private RunService $runService,
         private ProcessManager $processManager,
         private OutputParser $outputParser,
+        private FuelContext $fuelContext,
     ) {
         parent::__construct();
     }
 
     public function handle(): int
     {
-        $this->configureCwd($this->taskService, $this->configService);
+        $this->configureCwd($this->fuelContext);
         $this->taskService->initialize();
 
-        $cwd = $this->option('cwd') ?: getcwd();
-        $this->processManager->setCwd($cwd);
-
         // Ensure processes directory exists
-        $processesDir = $cwd.'/.fuel/processes';
+        $processesDir = $this->fuelContext->getProcessesPath();
         if (! is_dir($processesDir)) {
             mkdir($processesDir, 0755, true);
         }

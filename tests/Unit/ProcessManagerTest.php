@@ -38,7 +38,7 @@ class ProcessManagerTest extends TestCase
         $mockConfig->shouldReceive('getAgentLimit')
             ->andReturn(2);
 
-        $this->processManager = new ProcessManager(configService: $mockConfig, cwd: $this->testDir);
+        $this->processManager = new ProcessManager($mockConfig, new \App\Services\FuelContext($this->testDir.'/.fuel'));
     }
 
     public function test_spawn_creates_process_with_correct_properties(): void

@@ -40,27 +40,10 @@ class ProcessManager implements ProcessManagerInterface
     private int $shutdownSignalCount = 0;
 
     public function __construct(
-        private readonly ?ConfigService $configService = new ConfigService,
+        private readonly ConfigService $configService,
+        private readonly FuelContext $fuelContext,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
-        /** The working directory where .fuel is located */
-        private ?string $cwd = null
     ) {}
-
-    /**
-     * Set the working directory for process output.
-     */
-    public function setCwd(string $cwd): void
-    {
-        $this->cwd = $cwd;
-    }
-
-    /**
-     * Get the working directory, defaulting to getcwd() if not set.
-     */
-    public function getCwd(): string
-    {
-        return $this->cwd ?? getcwd();
-    }
 
     /**
      * Check if a process for the given task is currently running.
@@ -115,7 +98,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     public function getOutput(string $taskId): ProcessOutput
     {
-        $outputDir = $this->getCwd().'/.fuel/processes/'.$taskId;
+        $outputDir = $this->fuelContext->getProcessesPath().'/'.$taskId;
         $stdoutPath = $outputDir.'/stdout.log';
         $stderrPath = $outputDir.'/stderr.log';
 
@@ -194,19 +177,11 @@ class ProcessManager implements ProcessManagerInterface
     public function waitForAny(int $timeoutMs): ?ProcessResult
     {
         $startTime = microtime(true) * 1000;
-        $previouslyRunning = [];
-
-        // Track initially running processes
-        foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
-            if ($agentProcess->isRunning()) {
-                $previouslyRunning[$taskId] = true;
-            }
-        }
 
         while ((microtime(true) * 1000 - $startTime) < $timeoutMs) {
             foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
-                // Check if this process was running before but is now completed
-                if (isset($previouslyRunning[$taskId]) && ! $agentProcess->isRunning()) {
+                // Check if this process has completed
+                if (! $agentProcess->isRunning()) {
                     $output = $this->getOutput($taskId);
                     $exitCode = $agentProcess->getExitCode() ?? -1;
 
@@ -223,6 +198,16 @@ class ProcessManager implements ProcessManagerInterface
                         startedAt: new DateTimeImmutable('@'.$agentProcess->getStartTime()),
                         completedAt: new DateTimeImmutable
                     );
+
+                    // Clean up tracking
+                    unset($this->activeAgentProcesses[$taskId]);
+                    $agentName = $agentProcess->getAgentName();
+                    if (isset($this->agentCounts[$agentName])) {
+                        $this->agentCounts[$agentName]--;
+                        if ($this->agentCounts[$agentName] <= 0) {
+                            unset($this->agentCounts[$agentName]);
+                        }
+                    }
 
                     return new ProcessResult(
                         process: $process,
@@ -358,18 +343,10 @@ class ProcessManager implements ProcessManagerInterface
     {
         $this->shuttingDown = true;
 
-        // Log initial status
-        $runningCount = $this->getRunningCount();
-        if ($runningCount > 0) {
-            fwrite(STDERR, "Stopping {$runningCount} running process(es)...\n");
-        }
-
         // Step 1: Send SIGTERM to all running processes
         foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
             $symfonyProcess = $agentProcess->getProcess();
             if ($symfonyProcess->isRunning()) {
-                $pid = $symfonyProcess->getPid();
-                fwrite(STDERR, "  - Sending SIGTERM to {$taskId} (PID: {$pid})\n");
                 $symfonyProcess->stop(30); // 30 second timeout before SIGKILL
             }
         }
@@ -377,7 +354,6 @@ class ProcessManager implements ProcessManagerInterface
         // Step 2: Wait for graceful exit (max 30 seconds)
         $timeout = 30;
         $start = time();
-        $lastReport = 0;
 
         while (time() - $start < $timeout) {
             $stillRunning = [];
@@ -388,36 +364,18 @@ class ProcessManager implements ProcessManagerInterface
             }
 
             if ($stillRunning === []) {
-                fwrite(STDERR, "\033[32m✓ All processes stopped gracefully.\033[0m\n");
                 break;
-            }
-
-            // Report progress every 5 seconds
-            $elapsed = time() - $start;
-            if ($elapsed - $lastReport >= 5) {
-                $remaining = $timeout - $elapsed;
-                fwrite(STDERR, '  Still waiting for '.count($stillRunning)." process(es)... ({$remaining}s remaining)\n");
-                $lastReport = $elapsed;
             }
 
             usleep(100000); // 100ms
         }
 
         // Step 3: Force kill any remaining processes
-        $forceKilled = [];
         foreach ($this->activeAgentProcesses as $taskId => $agentProcess) {
             $symfonyProcess = $agentProcess->getProcess();
             if ($symfonyProcess->isRunning()) {
-                $pid = $symfonyProcess->getPid();
-                fwrite(STDERR, "\033[31m  - Force killing {$taskId} (PID: {$pid})\033[0m\n");
                 $symfonyProcess->stop(0); // Immediate SIGKILL
-                $forceKilled[] = $taskId;
             }
-        }
-
-        // Step 4: Log final status
-        if ($forceKilled !== []) {
-            fwrite(STDERR, "\033[31m✗ Had to force kill ".count($forceKilled)." process(es).\033[0m\n");
         }
 
         // Clear process tracking
@@ -467,7 +425,7 @@ class ProcessManager implements ProcessManagerInterface
      */
     private function createOutputDirectory(string $taskId): array
     {
-        $outputDir = $this->getCwd().'/.fuel/processes/'.$taskId;
+        $outputDir = $this->fuelContext->getProcessesPath().'/'.$taskId;
 
         if (! is_dir($outputDir) && ! mkdir($outputDir, 0755, true)) {
             throw new \RuntimeException('Failed to create output directory: '.$outputDir);

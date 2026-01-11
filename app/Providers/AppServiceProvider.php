@@ -60,6 +60,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ProcessManagerInterface::class, fn ($app): ProcessManager => new ProcessManager(
             configService: $app->make(ConfigService::class),
+            fuelContext: $app->make(FuelContext::class),
             healthTracker: $app->make(AgentHealthTrackerInterface::class),
         ));
 
