@@ -267,41 +267,29 @@ class StatsCommand extends Command
         }
         $lines[] = '';
         $lines[] = '<fg=cyan>By Complexity:</>';
-        $lines[] = sprintf(
-            '  trivial: %d  simple: %d  moderate: %d',
-            $complexityCounts['trivial'],
-            $complexityCounts['simple'],
-            $complexityCounts['moderate']
-        );
-        $lines[] = sprintf('  complex: %s', $complexityCounts['complex']);
+        $lines[] = sprintf('  trivial: %d', $complexityCounts['trivial']);
+        $lines[] = sprintf('  simple: %d', $complexityCounts['simple']);
+        $lines[] = sprintf('  moderate: %d', $complexityCounts['moderate']);
+        $lines[] = sprintf('  complex: %d', $complexityCounts['complex']);
         $lines[] = '';
         $lines[] = '<fg=cyan>By Priority:</>';
-        $lines[] = sprintf(
-            '  P0: %d  P1: %d  P2: %d  P3: %d  P4: %d',
-            $priorityCounts['P0'],
-            $priorityCounts['P1'],
-            $priorityCounts['P2'],
-            $priorityCounts['P3'],
-            $priorityCounts['P4']
-        );
+        $lines[] = sprintf('  P0: %d', $priorityCounts['P0']);
+        $lines[] = sprintf('  P1: %d', $priorityCounts['P1']);
+        $lines[] = sprintf('  P2: %d', $priorityCounts['P2']);
+        $lines[] = sprintf('  P3: %d', $priorityCounts['P3']);
+        $lines[] = sprintf('  P4: %d', $priorityCounts['P4']);
         $lines[] = '';
         $lines[] = '<fg=cyan>By Type:</>';
-        $lines[] = sprintf(
-            '  bug: %d  fix: %d  feature: %d  task: %d',
-            $typeCounts['bug'],
-            $typeCounts['fix'],
-            $typeCounts['feature'],
-            $typeCounts['task']
-        );
-        $lines[] = sprintf(
-            '  chore: %d  docs: %d  test: %d  refactor: %d',
-            $typeCounts['chore'],
-            $typeCounts['docs'],
-            $typeCounts['test'],
-            $typeCounts['refactor']
-        );
+        $lines[] = sprintf('  bug: %d', $typeCounts['bug']);
+        $lines[] = sprintf('  fix: %d', $typeCounts['fix']);
+        $lines[] = sprintf('  feature: %d', $typeCounts['feature']);
+        $lines[] = sprintf('  task: %d', $typeCounts['task']);
+        $lines[] = sprintf('  chore: %d', $typeCounts['chore']);
+        $lines[] = sprintf('  docs: %d', $typeCounts['docs']);
+        $lines[] = sprintf('  test: %d', $typeCounts['test']);
+        $lines[] = sprintf('  refactor: %d', $typeCounts['refactor']);
         if ($typeCounts['epic'] > 0) {
-            $lines[] = sprintf('  epic: %s', $typeCounts['epic']);
+            $lines[] = sprintf('  epic: %d', $typeCounts['epic']);
         }
 
         // Return box lines using BoxRenderer
