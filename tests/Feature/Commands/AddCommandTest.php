@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\DatabaseService;
-use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -372,7 +371,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = new EpicService($databaseService);
+        $epicService = makeEpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -391,7 +390,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = new EpicService($databaseService);
+        $epicService = makeEpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -420,7 +419,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = new EpicService($databaseService);
+        $epicService = makeEpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
 
         Artisan::call('add', [
@@ -448,7 +447,7 @@ describe('add command', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
         $databaseService->initialize();
 
-        $epicService = new EpicService($databaseService);
+        $epicService = makeEpicService($databaseService);
         $epic = $epicService->createEpic('Test Epic');
         $partialId = substr($epic->id, 2, 3); // Just hash part
 

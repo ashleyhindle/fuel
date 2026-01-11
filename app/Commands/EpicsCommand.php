@@ -12,7 +12,6 @@ use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
-use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
 class EpicsCommand extends Command
@@ -25,12 +24,10 @@ class EpicsCommand extends Command
 
     protected $description = 'List all epics';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, EpicService $epicService): int
     {
         // Configure context with --cwd if provided
         $this->configureCwd($context, $dbService);
-
-        $epicService = new EpicService($dbService, $taskService);
 
         try {
             $epics = $epicService->getAllEpics();

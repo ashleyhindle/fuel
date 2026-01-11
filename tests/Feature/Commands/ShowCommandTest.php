@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\DatabaseService;
-use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -148,7 +147,7 @@ describe('show command', function (): void {
         $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
         $dbService->initialize();
 
-        $epicService = new EpicService($dbService, $this->taskService);
+        $epicService = makeEpicService($dbService, $this->taskService);
         $epic = $epicService->createEpic('Test Epic', 'Epic description');
 
         $task = $this->taskService->create([
@@ -176,7 +175,7 @@ describe('show command', function (): void {
         $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
         $dbService->initialize();
 
-        $epicService = new EpicService($dbService, $this->taskService);
+        $epicService = makeEpicService($dbService, $this->taskService);
         $epic = $epicService->createEpic('JSON Epic', 'Epic description');
 
         $task = $this->taskService->create([

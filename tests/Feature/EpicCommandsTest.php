@@ -19,7 +19,7 @@ beforeEach(function (): void {
 
     $this->db = new DatabaseService($context->getDatabasePath());
     $this->taskService = makeTaskService($this->db);
-    $this->epicService = new EpicService($this->db, $this->taskService);
+    $this->epicService = makeEpicService($this->db, $this->taskService);
 
     $this->app->singleton(TaskService::class, fn (): TaskService => $this->taskService);
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $this->db);

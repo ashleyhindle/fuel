@@ -15,6 +15,7 @@ use App\Repositories\TaskRepository;
 use App\Services\AgentHealthTracker;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\ReviewService;
@@ -58,12 +59,19 @@ class AppServiceProvider extends ServiceProvider
             $app->make(EpicRepository::class)
         ));
 
+        $this->app->singleton(EpicService::class, fn (Application $app): EpicService => new EpicService(
+            $app->make(DatabaseService::class),
+            $app->make(TaskService::class),
+            $app->make(EpicRepository::class)
+        ));
+
         $this->app->singleton(ConfigService::class, fn (Application $app): ConfigService => new ConfigService(
             $app->make(FuelContext::class)
         ));
 
         $this->app->singleton(RunService::class, fn (Application $app): RunService => new RunService(
-            $app->make(DatabaseService::class)
+            $app->make(RunRepository::class),
+            $app->make(TaskRepository::class)
         ));
 
         $this->app->singleton(ProcessManagerInterface::class, fn (Application $app): ProcessManager => new ProcessManager(

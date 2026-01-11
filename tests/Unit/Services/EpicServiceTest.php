@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
-use App\Services\EpicService;
 use App\Services\FuelContext;
 use Carbon\Carbon;
 
@@ -16,7 +15,7 @@ beforeEach(function (): void {
 
     $this->db = new DatabaseService($this->context->getDatabasePath());
     $this->taskService = makeTaskService($this->db);
-    $this->service = new EpicService($this->db, $this->taskService);
+    $this->service = makeEpicService($this->db, $this->taskService);
 });
 
 afterEach(function (): void {

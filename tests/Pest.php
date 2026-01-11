@@ -3,6 +3,7 @@
 use App\Repositories\EpicRepository;
 use App\Repositories\TaskRepository;
 use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\TaskService;
 use Tests\TestCase;
 
@@ -56,6 +57,15 @@ function makeTaskService(DatabaseService $databaseService): TaskService
     return new TaskService(
         $databaseService,
         new TaskRepository($databaseService),
+        new EpicRepository($databaseService)
+    );
+}
+
+function makeEpicService(DatabaseService $databaseService, TaskService $taskService): EpicService
+{
+    return new EpicService(
+        $databaseService,
+        $taskService,
         new EpicRepository($databaseService)
     );
 }

@@ -31,12 +31,10 @@ class EpicDeleteCommand extends Command
         $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip confirmation prompt');
     }
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, EpicService $epicService): int
     {
         // Configure context with --cwd if provided
         $this->configureCwd($context, $dbService);
-
-        $epicService = new EpicService($dbService, $taskService);
 
         try {
             $epic = $epicService->getEpic($this->argument('id'));

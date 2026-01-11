@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\DatabaseService;
-use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -225,7 +224,7 @@ describe('human command', function (): void {
     it('shows epics with status review_pending', function (): void {
         $this->taskService->initialize();
         $dbService = app(DatabaseService::class);
-        $epicService = new EpicService($dbService, $this->taskService);
+        $epicService = makeEpicService($dbService, $this->taskService);
 
         // Create an epic
         $epic = $epicService->createEpic('Test epic', 'Test description');

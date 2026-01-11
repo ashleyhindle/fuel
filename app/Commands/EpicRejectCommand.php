@@ -8,7 +8,6 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
-use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -24,12 +23,10 @@ class EpicRejectCommand extends Command
 
     protected $description = 'Reject an epic and request changes (moves tasks back to open)';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, EpicService $epicService): int
     {
         // Configure context with --cwd if provided
         $this->configureCwd($context, $dbService);
-
-        $epicService = new EpicService($dbService, $taskService);
 
         try {
             $reason = $this->option('reason');

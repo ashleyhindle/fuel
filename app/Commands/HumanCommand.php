@@ -26,11 +26,9 @@ class HumanCommand extends Command
 
     protected $description = 'List all items needing human attention';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, EpicService $epicService): int
     {
         $this->configureCwd($context, $dbService);
-
-        $epicService = new EpicService($dbService, $taskService);
 
         // Get tasks with needs-human label (excluding epic-review tasks)
         $tasks = $taskService->all();

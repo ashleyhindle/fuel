@@ -41,9 +41,9 @@ class ShowCommand extends Command
         FuelContext $context,
         DatabaseService $databaseService,
         TaskService $taskService,
-        RunService $runService
-    ): int
-    {
+        RunService $runService,
+        EpicService $epicService
+    ): int {
         $id = $this->argument('id');
 
         // Delegate to appropriate show command based on ID prefix
@@ -64,7 +64,6 @@ class ShowCommand extends Command
         }
 
         $this->configureCwd($context, $databaseService);
-        $epicService = new EpicService($databaseService, $taskService);
 
         try {
             $task = $taskService->find($id);

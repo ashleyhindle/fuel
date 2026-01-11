@@ -8,7 +8,6 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
-use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -23,12 +22,10 @@ class EpicReviewedCommand extends Command
 
     protected $description = 'Mark an epic as reviewed';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, EpicService $epicService): int
     {
         // Configure context with --cwd if provided
         $this->configureCwd($context, $dbService);
-
-        $epicService = new EpicService($dbService, $taskService);
 
         try {
             $epic = $epicService->markAsReviewed($this->argument('id'));

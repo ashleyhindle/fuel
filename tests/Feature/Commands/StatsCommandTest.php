@@ -26,7 +26,7 @@ describe('stats command', function (): void {
 
         $this->app->singleton(RunService::class, fn (): RunService => new RunService($databaseService));
 
-        $this->app->singleton(EpicService::class, fn (): EpicService => new EpicService($databaseService));
+        $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($databaseService));
 
         $this->taskService = $this->app->make(TaskService::class);
         $this->runService = $this->app->make(RunService::class);

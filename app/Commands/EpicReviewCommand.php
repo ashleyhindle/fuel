@@ -31,12 +31,10 @@ class EpicReviewCommand extends Command
 
     protected $description = 'Show epic with commits and diffs';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, EpicService $epicService): int
     {
         // Configure context with --cwd if provided
         $this->configureCwd($context, $dbService);
-
-        $epicService = new EpicService($dbService, $taskService);
 
         try {
             // Load epic and validate it exists
