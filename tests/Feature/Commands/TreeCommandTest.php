@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\DatabaseService;
+use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -22,6 +23,8 @@ describe('tree command', function (): void {
         Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+
+        $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($databaseService, $this->app->make(TaskService::class)));
 
         $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
 
@@ -164,5 +167,62 @@ describe('tree command', function (): void {
         expect($output)->toContain('Human task');
         expect($output)->toContain('needs human');
         expect($output)->toContain('Normal task');
+    });
+
+    it('filters tasks by epic ID', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+
+        $epic1 = $epicService->createEpic('Epic One');
+        $epic2 = $epicService->createEpic('Epic Two');
+
+        $task1 = $this->taskService->create(['title' => 'Task in Epic 1', 'epic_id' => $epic1->id]);
+        $task2 = $this->taskService->create(['title' => 'Task in Epic 2', 'epic_id' => $epic2->id]);
+        $task3 = $this->taskService->create(['title' => 'Task no epic']);
+
+        Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => $epic1->short_id]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Task in Epic 1');
+        expect($output)->not->toContain('Task in Epic 2');
+        expect($output)->not->toContain('Task no epic');
+    });
+
+    it('shows error when filtering by non-existent epic', function (): void {
+        $this->taskService->create(['title' => 'Some task']);
+
+        $exitCode = Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => 'e-nonexistent']);
+        $output = Artisan::output();
+
+        expect($output)->toContain('not found');
+        expect($exitCode)->not->toBe(0);
+    });
+
+    it('shows JSON error when filtering by non-existent epic', function (): void {
+        $this->taskService->create(['title' => 'Some task']);
+
+        Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => 'e-nonexistent', '--json' => true]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        expect($data)->toBeArray();
+        expect($data)->toHaveKey('error');
+        expect($data['error'])->toContain('not found');
+    });
+
+    it('shows JSON output filtered by epic', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+
+        $epic1 = $epicService->createEpic('Epic One');
+        $epic2 = $epicService->createEpic('Epic Two');
+
+        $task1 = $this->taskService->create(['title' => 'Task in Epic 1', 'epic_id' => $epic1->id]);
+        $task2 = $this->taskService->create(['title' => 'Task in Epic 2', 'epic_id' => $epic2->id]);
+
+        Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => $epic1->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        expect($data)->toHaveCount(1);
+        expect($data[0]['task']['title'])->toBe('Task in Epic 1');
     });
 });

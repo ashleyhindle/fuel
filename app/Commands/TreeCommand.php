@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
+use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
@@ -19,7 +20,8 @@ class TreeCommand extends Command
 
     protected $signature = 'tree
         {--cwd= : Working directory (defaults to current directory)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--epic= : Filter tasks by epic ID}';
 
     protected $description = 'Show pending tasks as a dependency tree';
 
@@ -28,11 +30,27 @@ class TreeCommand extends Command
         $this->configureCwd($context, $databaseService);
 
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => $t->status !== TaskStatus::Closed)
-            ->sortBy([
-                ['priority', 'asc'],
-                ['created_at', 'asc'],
-            ])
+            ->filter(fn (Task $t): bool => $t->status !== TaskStatus::Closed);
+
+        $epicFilter = $this->option('epic');
+        if ($epicFilter !== null) {
+            $epic = Epic::findByPartialId($epicFilter);
+            if ($epic === null) {
+                if ($this->option('json')) {
+                    $this->outputJson(['error' => sprintf("Epic '%s' not found", $epicFilter)]);
+                } else {
+                    $this->error(sprintf("Epic '%s' not found", $epicFilter));
+                }
+
+                return self::FAILURE;
+            }
+            $tasks = $tasks->filter(fn (Task $t): bool => $t->epic_id === $epic->id);
+        }
+
+        $tasks = $tasks->sortBy([
+            ['priority', 'asc'],
+            ['created_at', 'asc'],
+        ])
             ->values();
 
         if ($tasks->isEmpty()) {
