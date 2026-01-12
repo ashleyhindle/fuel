@@ -7,9 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -34,11 +32,8 @@ class AddCommand extends Command
 
     protected $description = 'Add a new task';
 
-    public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService, EpicService $epicService): int
+    public function handle(TaskService $taskService, EpicService $epicService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         $data = [
             'title' => $this->argument('title'),
         ];
