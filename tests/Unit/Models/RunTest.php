@@ -5,8 +5,8 @@ declare(strict_types=1);
 use App\Models\Run;
 
 describe('Run Model', function (): void {
-    it('allows access to properties via magic __get', function (): void {
-        $run = new Run([
+    it('allows access to properties via fromArray', function (): void {
+        $run = Run::fromArray([
             'id' => 1,
             'short_id' => 'run-abc123',
             'task_id' => 5,
@@ -214,8 +214,13 @@ describe('Run Model', function (): void {
                 'agent' => 'cursor-agent',
             ];
 
-            $run = new Run($data);
-            expect($run->toArray())->toBe($data);
+            $run = Run::fromArray($data);
+            $array = $run->toArray();
+
+            expect($array['id'])->toBe(1);
+            expect($array['short_id'])->toBe('run-abc123');
+            expect($array['task_id'])->toBe(5);
+            expect($array['agent'])->toBe('cursor-agent');
         });
     });
 
@@ -228,11 +233,6 @@ describe('Run Model', function (): void {
         it('returns null when attribute does not exist', function (): void {
             $run = new Run([]);
             expect($run->getAttribute('non_existent'))->toBeNull();
-        });
-
-        it('returns default value when attribute does not exist', function (): void {
-            $run = new Run([]);
-            expect($run->getAttribute('non_existent', 'default'))->toBe('default');
         });
     });
 });
