@@ -1,10 +1,10 @@
 > [!WARNING]
-> This is a work in progress (WiP) and has only been tested by one person. Use at your own risk.
+> This is a work in progress (WIP) and has only been tested by 1.2 people. Use at your own risk.
 > Windows is not supported.
 
 # Fuel
 
-Lightweight AI agent task orchestrator and management. Git-native, merge-friendly, zero config.
+Lightweight AI agent task orchestrator and management. 
 
 ## Quickstart
 
@@ -20,9 +20,9 @@ fuel init
 fuel guidelines --add          # Auto-manages in AGENTS.md (recommended)
 # or: fuel guidelines >> CLAUDE.md      # For Claude Code
 # or: fuel guidelines >> .cursorrules   # For Cursor
-
-# Run your favourite agent and ask it to "Consume the fuel" or "Add 'xyz' as fuel"
 ```
+
+Run your favourite agent and ask it to "Consume the fuel and land the plane".
 
 That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions to `AGENTS.md`, and creates your first task.
 
@@ -30,7 +30,7 @@ That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions 
 
 ## Orchestration
 
-Fuel can automatically spawn AI agents to work through your task queue. It works with any CLI coding agent that accepts `-p` for prompts and `--model` for model selection. Defaults to `claude` and `cursor-agent`.
+Fuel automatically spawns AI agents to work through your task queue. It works with any CLI coding agent you configure in `.fuel/config.yaml`.
 
 Configure which agents handle different complexity levels, then let Fuel orchestrate.
 
@@ -116,7 +116,7 @@ fuel add "Design API"
 fuel add "Implement API" --blocked-by=fuel-xxxx
 ```
 
-Blocked tasks won't appear in `fuel ready` until blockers are closed.
+Blocked tasks won't appear in `fuel ready` until blockers are done.
 
 ### Backlog
 

@@ -128,7 +128,7 @@ Descriptions should be explicit enough for a less capable agent to complete with
 fuel add "Implement API" --blocked-by=f-xxxx
 ```
 
-Blocked tasks won't appear in `fuel ready` until blockers are closed.
+Blocked tasks won't appear in `fuel ready` until blockers are done.
 
 ### Epics
 
