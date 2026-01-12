@@ -72,23 +72,15 @@ class ShowCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $id));
             }
 
-            // Fetch epic information if task has epic_id
-            $epic = null;
-            if (isset($task->epic_id) && $task->epic_id !== null) {
-                try {
-                    $epic = $epicService->getEpic($task->epic_id);
-                } catch (\Exception) {
-                    // Epic not found or error - continue without epic info
-                    $epic = null;
-                }
-            }
+            // Fetch epic information using Eloquent relationship
+            $epic = $task->epic;
 
             if ($this->option('json')) {
                 $taskData = $task->toArray();
                 // Include epic info in JSON output
                 if ($epic instanceof Epic) {
                     $taskData['epic'] = [
-                        'id' => $epic->id,
+                        'id' => $epic->short_id,
                         'title' => $epic->title ?? null,
                         'status' => $epic->status ?? null,
                     ];
@@ -96,7 +88,7 @@ class ShowCommand extends Command
 
                 $this->outputJson($taskData);
             } else {
-                $this->info('Task: '.$task->id);
+                $this->info('Task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
                 $this->line('  Status: '.$task->status);
 
@@ -125,7 +117,7 @@ class ShowCommand extends Command
                 }
 
                 if ($epic instanceof Epic) {
-                    $this->line('  Epic: '.$epic->id.' - '.($epic->title ?? 'Untitled').' ('.$epic->status.')');
+                    $this->line('  Epic: '.$epic->short_id.' - '.($epic->title ?? 'Untitled').' ('.$epic->status.')');
                 }
 
                 if (isset($task->reason)) {
@@ -165,10 +157,10 @@ class ShowCommand extends Command
                 }
 
                 // Run information from RunService (compact format)
-                $runs = $runService->getRuns($task->id);
+                $runs = $runService->getRuns($task->short_id);
 
                 // Check for live output if task is in_progress (even if no runs exist)
-                $liveOutput = $this->getLiveOutput($task->id, $task->status ?? TaskStatus::Open->value, $runService);
+                $liveOutput = $this->getLiveOutput($task->short_id, $task->status ?? TaskStatus::Open->value, $runService);
 
                 if ($runs !== []) {
                     $this->newLine();
@@ -233,7 +225,7 @@ class ShowCommand extends Command
                 }
 
                 // Reviews
-                $reviews = $databaseService->getReviewsForTask($task->id);
+                $reviews = $databaseService->getReviewsForTask($task->short_id);
                 if ($reviews !== []) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Reviews ──</>');
@@ -385,18 +377,22 @@ class ShowCommand extends Command
     /**
      * Format a datetime string for display.
      */
-    private function formatDateTime(string $dateTimeString): string
+    private function formatDateTime(string|\DateTimeInterface|null $dateTimeString): string
     {
-        if ($dateTimeString === '') {
+        if ($dateTimeString === null || $dateTimeString === '') {
             return '';
         }
 
         try {
+            if ($dateTimeString instanceof \DateTimeInterface) {
+                return $dateTimeString->format('M j H:i');
+            }
+
             $date = new \DateTime($dateTimeString);
 
             return $date->format('M j H:i');
         } catch (\Exception) {
-            return $dateTimeString;
+            return is_string($dateTimeString) ? $dateTimeString : '';
         }
     }
 }
