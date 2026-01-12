@@ -109,6 +109,34 @@ Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 5. `fuel done <id> --commit=<hash>` - Complete with commit hash
 6. Land the plane
 
+### Exiting Plan Mode
+
+**Immediately after exiting plan mode**, convert your approved plan into well-defined Fuel tasks:
+
+1. **Create an epic** for the overall feature or change
+2. **Break down into scoped tasks** - each task should have:
+   - Single, clear responsibility
+   - Accurate `--complexity` rating
+   - Proper `--blocked-by` dependencies
+   - Descriptive title and description
+3. **Order by dependencies** - foundational work first (models before services, services before commands)
+
+**Example: Converting a plan to Fuel tasks**
+
+After plan approval for "Add user authentication with JWT":
+
+```bash
+# Create epic for the feature
+fuel epic:add "Add user authentication" --description="JWT-based auth with login/logout endpoints"
+
+# Break into dependency-ordered tasks (note the epic ID from above)
+fuel add "Create User model and migration" --epic=e-xxxx --complexity=simple --priority=1
+fuel add "Implement JWT token service" --epic=e-xxxx --complexity=moderate --priority=1 --blocked-by=f-user-model
+fuel add "Add login/logout API endpoints" --epic=e-xxxx --complexity=moderate --priority=1 --blocked-by=f-jwt-service
+fuel add "Add auth middleware" --epic=e-xxxx --complexity=simple --priority=1 --blocked-by=f-jwt-service
+fuel add "Add auth tests" --epic=e-xxxx --complexity=simple --priority=1 --blocked-by=f-endpoints,f-middleware
+```
+
 ### Task Options
 
 ```bash
