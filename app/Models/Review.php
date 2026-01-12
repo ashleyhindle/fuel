@@ -4,14 +4,42 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 class Review extends Model
 {
+    protected $table = 'reviews';
+
+    public $timestamps = false; // Uses started_at/completed_at instead
+
+    protected $fillable = [
+        'short_id', 'task_id', 'agent', 'status', 'issues',
+        'started_at', 'completed_at', 'run_id',
+    ];
+
+    protected $casts = [
+        'issues' => 'array',
+        'run_id' => 'integer',
+        'task_id' => 'integer',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+    ];
+
     /**
-     * Create a Review instance from an array of data.
+     * Get the task that this review belongs to.
      */
-    public static function fromArray(array $data): self
+    public function task(): BelongsTo
     {
-        return new self($data);
+        return $this->belongsTo(Task::class);
+    }
+
+    /**
+     * Get the run that this review belongs to.
+     */
+    public function run(): BelongsTo
+    {
+        return $this->belongsTo(Run::class);
     }
 
     /**
@@ -22,33 +50,26 @@ class Review extends Model
      */
     public function issues(): array
     {
-        $issuesJson = $this->attributes['issues'] ?? null;
+        // With Eloquent's array casting, get the attribute directly to avoid recursion
+        $issuesArray = $this->getAttribute('issues');
 
-        // Handle null or empty string
-        if ($issuesJson === null || $issuesJson === '') {
+        // Handle null or empty
+        if ($issuesArray === null || $issuesArray === '' || $issuesArray === []) {
             return [];
         }
 
-        // Handle already-decoded arrays (defensive)
-        if (is_array($issuesJson)) {
-            return $issuesJson;
-        }
-
-        // Decode JSON
-        $decoded = json_decode((string) $issuesJson, true);
-
-        // Handle invalid JSON, decode errors, or non-array results
-        if (! is_array($decoded)) {
+        // Already an array from Eloquent casting
+        if (! is_array($issuesArray)) {
             return [];
         }
 
         // Only accept indexed arrays (not associative arrays/objects)
         // Issues should be a list of strings, not a key-value object
-        if (array_keys($decoded) !== range(0, count($decoded) - 1)) {
+        if (array_keys($issuesArray) !== range(0, count($issuesArray) - 1)) {
             return [];
         }
 
-        return $decoded;
+        return $issuesArray;
     }
 
     /**
@@ -56,7 +77,7 @@ class Review extends Model
      */
     public function isPending(): bool
     {
-        return $this->attributes['status'] === 'pending';
+        return $this->status === 'pending';
     }
 
     /**
@@ -64,7 +85,7 @@ class Review extends Model
      */
     public function isCompleted(): bool
     {
-        return $this->attributes['status'] === 'completed';
+        return $this->status === 'completed';
     }
 
     /**
