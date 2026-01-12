@@ -32,6 +32,11 @@ $app = require_once __DIR__.'/bootstrap/app.php';
 
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 
+global $argv;
+if (count($argv) === 2 && $argv[1] === '--help') {
+    $argv[1] = 'list';
+}
+
 $status = $kernel->handle(
     $input = new Symfony\Component\Console\Input\ArgvInput,
     new Symfony\Component\Console\Output\ConsoleOutput
