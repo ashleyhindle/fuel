@@ -67,7 +67,7 @@ describe('init command', function (): void {
     it('creates starter task', function (): void {
         Artisan::call('init', ['--cwd' => $this->tempDir]);
 
-        // Use TaskService directly to verify (avoids commands that use broken configureCwd)
+        // Use TaskService directly to verify (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
         $context->configureDatabase();
         $dbService = new DatabaseService($context->getDatabasePath());
@@ -85,7 +85,7 @@ describe('init command', function (): void {
 
         expect($secondExitCode)->toBe(0);
 
-        // Use TaskService directly to verify (avoids commands that use broken configureCwd)
+        // Use TaskService directly to verify (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
         $context->configureDatabase();
         $dbService = new DatabaseService($context->getDatabasePath());
@@ -168,7 +168,7 @@ describe('init command', function (): void {
     it('does not create starter task if tasks already exist', function (): void {
         Artisan::call('init', ['--cwd' => $this->tempDir]);
 
-        // Use TaskService directly to add a task (avoids commands that use broken configureCwd)
+        // Use TaskService directly to add a task (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
         $context->configureDatabase();
         $dbService = new DatabaseService($context->getDatabasePath());
