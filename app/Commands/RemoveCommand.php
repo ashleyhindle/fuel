@@ -48,7 +48,7 @@ class RemoveCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $id));
             }
 
-            $resolvedId = $task->id;
+            $resolvedId = $task->short_id;
             $title = $task->title ?? '';
 
             // Confirm deletion unless --force is set, --json is set, non-interactive shell, or piped output

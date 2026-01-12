@@ -32,9 +32,7 @@ class TaskService
      */
     public function all(): Collection
     {
-        $rows = $this->taskRepository->allOrderedByShortId();
-
-        return collect($rows)->map(fn (array $row): Task => Task::fromArray($this->rowToTask($row)));
+        return Task::orderBy('short_id')->get();
     }
 
     /**
@@ -44,9 +42,7 @@ class TaskService
      */
     public function backlog(): Collection
     {
-        $rows = $this->taskRepository->getBacklogTasks();
-
-        return collect($rows)->map(fn (array $row): Task => Task::fromArray($this->rowToTask($row)));
+        return Task::backlog()->orderBy('created_at')->get();
     }
 
     /**
@@ -55,15 +51,27 @@ class TaskService
     public function find(string $id): ?Task
     {
         // Try exact match first
-        $row = $this->taskRepository->findByShortId($id);
-        if ($row !== null) {
-            return Task::fromArray($this->rowToTask($row));
+        $task = Task::where('short_id', $id)->first();
+        if ($task !== null) {
+            return $task;
         }
 
-        // Try partial match
-        $row = $this->taskRepository->findWithPartialMatch($id, $this->prefix);
-        if ($row !== null) {
-            return Task::fromArray($this->rowToTask($row));
+        // Try partial match (prefix matching)
+        // Support both 'f-' prefix and bare ID
+        $rows = Task::where('short_id', 'like', $id.'%')
+            ->orWhere('short_id', 'like', $this->prefix.'-'.$id.'%')
+            ->orWhere('short_id', 'like', 'fuel-'.$id.'%')
+            ->get();
+
+        if ($rows->count() === 1) {
+            return $rows->first();
+        }
+
+        if ($rows->count() > 1) {
+            $ids = $rows->pluck('short_id')->toArray();
+            throw new RuntimeException(
+                sprintf("Ambiguous task ID '%s'. Matches: ", $id).implode(', ', $ids)
+            );
         }
 
         return null;
@@ -137,7 +145,7 @@ class TaskService
 
         $blockedBy = $data['blocked_by'] ?? [];
 
-        $this->taskRepository->insert([
+        return Task::create([
             'short_id' => $shortId,
             'title' => $data['title'] ?? throw new RuntimeException('Task title is required'),
             'description' => $data['description'] ?? null,
@@ -145,24 +153,9 @@ class TaskService
             'type' => $type,
             'priority' => $priority,
             'complexity' => $complexity,
-            'labels' => json_encode($labels),
-            'blocked_by' => json_encode($blockedBy),
-            'epic_id' => $epicId,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        return Task::fromArray([
-            'id' => $shortId,
-            'title' => $data['title'],
-            'status' => $status,
-            'description' => $data['description'] ?? null,
-            'type' => $type,
-            'priority' => $priority,
             'labels' => $labels,
-            'complexity' => $complexity,
             'blocked_by' => $blockedBy,
-            'epic_id' => $data['epic_id'] ?? null,
+            'epic_id' => $epicId,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
@@ -466,7 +459,7 @@ class TaskService
 
         return $tasks
             ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
-            ->filter(fn (Task $t): bool => ! in_array($t->id, $blockedIds, true))
+            ->filter(fn (Task $t): bool => ! in_array($t->short_id, $blockedIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
@@ -510,7 +503,7 @@ class TaskService
      */
     public function getBlockedIds(Collection $tasks): array
     {
-        $taskMap = $tasks->keyBy('id');
+        $taskMap = $tasks->keyBy('short_id');
         $blockedIds = [];
 
         foreach ($tasks as $task) {
@@ -519,7 +512,7 @@ class TaskService
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
                     if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
-                        $blockedIds[] = $task->id;
+                        $blockedIds[] = $task->short_id;
                         break;
                     }
                 }
@@ -706,7 +699,7 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $this->taskRepository->deleteByShortId($task->id);
+        $this->taskRepository->deleteByShortId($task->short_id);
 
         return $task;
     }

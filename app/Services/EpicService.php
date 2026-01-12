@@ -8,16 +8,13 @@ use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
-use App\Repositories\EpicRepository;
 use Carbon\Carbon;
 use RuntimeException;
 
 class EpicService
 {
     public function __construct(
-        private readonly DatabaseService $db,
-        private readonly TaskService $taskService,
-        private readonly EpicRepository $epicRepository
+        private readonly TaskService $taskService
     ) {}
 
     public function createEpic(string $title, ?string $description = null): Epic
@@ -26,7 +23,7 @@ class EpicService
         $now = Carbon::now('UTC')->toIso8601String();
 
         // Note: status is not stored - it's computed from task states
-        $this->epicRepository->insert([
+        $epic = Epic::create([
             'short_id' => $shortId,
             'title' => $title,
             'description' => $description,
@@ -34,8 +31,10 @@ class EpicService
             'updated_at' => $now,
         ]);
 
-        $epic = [
+        // Map short_id to id and compute status for backward compatibility
+        $epicArray = [
             'id' => $shortId,
+            'short_id' => $shortId,
             'title' => $title,
             'description' => $description,
             'created_at' => $now,
@@ -44,28 +43,24 @@ class EpicService
         ];
 
         // Compute status (will be 'planning' for new epic with no tasks)
-        $epic['status'] = $this->getEpicStatus($shortId)->value;
+        $epicArray['status'] = $this->getEpicStatus($shortId)->value;
 
-        return Epic::fromArray($epic);
+        return Epic::fromArray($epicArray);
     }
 
     public function getEpic(string $id): ?Epic
     {
-        $resolvedId = $this->resolveId($id);
-        if ($resolvedId === null) {
-            return null;
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($id);
         if ($epic === null) {
             return null;
         }
 
-        // Map short_id to id for public interface compatibility
-        $epic['id'] = $epic['short_id'];
-        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
+        // Convert to array for backward compatibility
+        $epicArray = $epic->toArray();
+        $epicArray['id'] = $epic->short_id;
+        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
 
-        return Epic::fromArray($epic);
+        return Epic::fromArray($epicArray);
     }
 
     /**
@@ -73,15 +68,15 @@ class EpicService
      */
     public function getAllEpics(): array
     {
-        $epics = $this->epicRepository->all();
+        $epics = Epic::orderBy('created_at', 'desc')->get();
 
-        return array_map(function (array $epic): Epic {
-            // Map short_id to id for public interface compatibility
-            $epic['id'] = $epic['short_id'];
-            $epic['status'] = $this->getEpicStatus($epic['short_id'])->value;
+        return $epics->map(function (Epic $epic): Epic {
+            $epicArray = $epic->toArray();
+            $epicArray['id'] = $epic->short_id;
+            $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
 
-            return Epic::fromArray($epic);
-        }, $epics);
+            return Epic::fromArray($epicArray);
+        })->all();
     }
 
     /**
@@ -92,24 +87,20 @@ class EpicService
      */
     public function getEpicsPendingReview(): array
     {
-        $epics = $this->epicRepository->findEpicsPendingReview();
+        $epics = Epic::pendingReview();
 
-        return array_map(function (array $epic): Epic {
-            $epic['id'] = $epic['short_id'];
-            $epic['status'] = EpicStatus::ReviewPending->value;
+        return $epics->map(function (Epic $epic): Epic {
+            $epicArray = $epic->toArray();
+            $epicArray['id'] = $epic->short_id;
+            $epicArray['status'] = EpicStatus::ReviewPending->value;
 
-            return Epic::fromArray($epic);
-        }, $epics);
+            return Epic::fromArray($epicArray);
+        })->all();
     }
 
     public function updateEpic(string $id, array $data): Epic
     {
-        $resolvedId = $this->resolveId($id);
-        if ($resolvedId === null) {
-            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($id);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
@@ -119,48 +110,43 @@ class EpicService
 
         if (isset($data['title'])) {
             $updates['title'] = $data['title'];
-            $epic['title'] = $data['title'];
         }
 
         if (array_key_exists('description', $data)) {
             $updates['description'] = $data['description'];
-            $epic['description'] = $data['description'];
         }
 
-        $this->epicRepository->updateByShortId($resolvedId, $updates);
+        $epic->update($updates);
+        $epic->refresh();
 
-        // Map short_id to id for public interface compatibility
-        $epic['id'] = $epic['short_id'];
-        // Compute status from task states
-        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
+        // Convert to array for backward compatibility
+        $epicArray = $epic->toArray();
+        $epicArray['id'] = $epic->short_id;
+        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
 
-        return Epic::fromArray($epic);
+        return Epic::fromArray($epicArray);
     }
 
     public function markAsReviewed(string $id): Epic
     {
-        $resolvedId = $this->resolveId($id);
-        if ($resolvedId === null) {
-            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($id);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
         $now = Carbon::now('UTC')->toIso8601String();
-        $this->epicRepository->updateByShortId($resolvedId, [
+        $epic->update([
             'reviewed_at' => $now,
             'updated_at' => $now,
         ]);
+        $epic->refresh();
 
-        // Map short_id to id for public interface compatibility
-        $epic['id'] = $epic['short_id'];
-        $epic['reviewed_at'] = $now;
-        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
+        // Convert to array for backward compatibility
+        $epicArray = $epic->toArray();
+        $epicArray['id'] = $epic->short_id;
+        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
 
-        return Epic::fromArray($epic);
+        return Epic::fromArray($epicArray);
     }
 
     /**
@@ -171,12 +157,7 @@ class EpicService
      */
     public function approveEpic(string $id, ?string $approvedBy = null): Epic
     {
-        $resolvedId = $this->resolveId($id);
-        if ($resolvedId === null) {
-            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($id);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
@@ -185,21 +166,20 @@ class EpicService
         $approvedByValue = $approvedBy ?? 'human';
 
         // Clear changes_requested_at when approving
-        $this->epicRepository->updateByShortId($resolvedId, [
+        $epic->update([
             'approved_at' => $now,
             'approved_by' => $approvedByValue,
             'changes_requested_at' => null,
             'updated_at' => $now,
         ]);
+        $epic->refresh();
 
-        // Map short_id to id for public interface compatibility
-        $epic['id'] = $epic['short_id'];
-        $epic['approved_at'] = $now;
-        $epic['approved_by'] = $approvedByValue;
-        $epic['changes_requested_at'] = null;
-        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
+        // Convert to array for backward compatibility
+        $epicArray = $epic->toArray();
+        $epicArray['id'] = $epic->short_id;
+        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
 
-        return Epic::fromArray($epic);
+        return Epic::fromArray($epicArray);
     }
 
     /**
@@ -210,12 +190,7 @@ class EpicService
      */
     public function rejectEpic(string $id, ?string $reason = null): Epic
     {
-        $resolvedId = $this->resolveId($id);
-        if ($resolvedId === null) {
-            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($id);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
@@ -223,86 +198,75 @@ class EpicService
         $now = Carbon::now('UTC')->toIso8601String();
 
         // Set changes_requested_at and clear approved_at
-        $this->epicRepository->updateByShortId($resolvedId, [
+        $epic->update([
             'changes_requested_at' => $now,
             'approved_at' => null,
             'approved_by' => null,
             'updated_at' => $now,
         ]);
+        $epic->refresh();
 
         // Reopen tasks in the epic that were closed (move back to in_progress)
-        $tasks = $this->getTasksForEpic($resolvedId);
+        $tasks = $this->getTasksForEpic($epic->short_id);
         foreach ($tasks as $task) {
             if (($task->status ?? '') === TaskStatus::Closed->value) {
-                $this->taskService->update($task->id, ['status' => TaskStatus::Open->value]);
+                $this->taskService->update($task->short_id, ['status' => TaskStatus::Open->value]);
             }
         }
 
-        // Map short_id to id for public interface compatibility
-        $epic['id'] = $epic['short_id'];
-        $epic['changes_requested_at'] = $now;
-        $epic['approved_at'] = null;
-        $epic['approved_by'] = null;
-        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
+        // Convert to array for backward compatibility
+        $epicArray = $epic->toArray();
+        $epicArray['id'] = $epic->short_id;
+        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
 
-        return Epic::fromArray($epic);
+        return Epic::fromArray($epicArray);
     }
 
     public function deleteEpic(string $id): Epic
     {
-        $resolvedId = $this->resolveId($id);
-        if ($resolvedId === null) {
-            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($id);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
-        // Map short_id to id for public interface compatibility
-        $epic['id'] = $epic['short_id'];
-        // Compute status before deleting
-        $epic['status'] = $this->getEpicStatus($resolvedId)->value;
+        // Convert to array for backward compatibility before deleting
+        $epicArray = $epic->toArray();
+        $epicArray['id'] = $epic->short_id;
+        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
 
-        $this->epicRepository->deleteByShortId($resolvedId);
+        $epic->delete();
 
-        return Epic::fromArray($epic);
+        return Epic::fromArray($epicArray);
     }
 
     public function getTasksForEpic(string $epicId): array
     {
-        $resolvedId = $this->resolveId($epicId);
-        if ($resolvedId === null) {
+        $epic = Epic::findByPartialId($epicId);
+        if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
         return $this->taskService->all()
-            ->filter(fn (Task $task): bool => ($task->epic_id ?? null) === $resolvedId)
+            ->filter(fn (Task $task): bool => ($task->epic_id ?? null) === $epic->short_id)
             ->values()
             ->all();
     }
 
     public function getEpicStatus(string $epicId): EpicStatus
     {
-        $resolvedId = $this->resolveId($epicId);
-        if ($resolvedId === null) {
-            throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($epicId);
         if ($epic === null) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
         // Check approval/rejection status first (these override computed status)
-        if ($epic['approved_at'] !== null) {
+        if ($epic->approved_at !== null) {
             return EpicStatus::Approved;
         }
 
-        if ($epic['changes_requested_at'] !== null) {
+        if ($epic->changes_requested_at !== null) {
             // If changes were requested, check if tasks are back in progress
-            $tasks = $this->getTasksForEpic($resolvedId);
+            $tasks = $this->getTasksForEpic($epic->short_id);
             $hasActiveTask = false;
             foreach ($tasks as $task) {
                 $status = $task->status ?? '';
@@ -317,11 +281,11 @@ class EpicService
         }
 
         // If reviewed_at is set but not approved, epic is reviewed (but not approved)
-        if ($epic['reviewed_at'] !== null) {
+        if ($epic->reviewed_at !== null) {
             return EpicStatus::Reviewed;
         }
 
-        $tasks = $this->getTasksForEpic($resolvedId);
+        $tasks = $this->getTasksForEpic($epic->short_id);
 
         // If no tasks, epic is in planning
         if ($tasks === []) {
@@ -367,9 +331,9 @@ class EpicService
 
     private function resolveId(string $id): ?string
     {
-        $epic = $this->epicRepository->findWithPartialMatch($id);
+        $epic = Epic::findByPartialId($id);
 
-        return $epic !== null ? $epic['short_id'] : null;
+        return $epic?->short_id;
     }
 
     /**
@@ -380,17 +344,12 @@ class EpicService
      */
     public function checkEpicCompletion(string $epicId): array
     {
-        $resolvedId = $this->resolveId($epicId);
-        if ($resolvedId === null) {
-            return ['completed' => false];
-        }
-
-        $epic = $this->epicRepository->findByShortId($resolvedId);
+        $epic = Epic::findByPartialId($epicId);
         if ($epic === null) {
             return ['completed' => false];
         }
 
-        $tasks = $this->getTasksForEpic($resolvedId);
+        $tasks = $this->getTasksForEpic($epic->short_id);
         if ($tasks === []) {
             return ['completed' => false];
         }
