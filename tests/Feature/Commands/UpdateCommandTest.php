@@ -63,7 +63,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Original title']);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--title' => 'Updated title',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -72,7 +72,7 @@ describe('update command', function (): void {
         $updated = json_decode($output, true);
 
         expect($updated['title'])->toBe('Updated title');
-        expect($updated['id'])->toBe($task['id']);
+        expect($updated['short_id'])->toBe($task->short_id);
     });
 
     it('updates task description', function (): void {
@@ -80,7 +80,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task']);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--description' => 'New description',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -96,7 +96,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task', 'description' => 'Old description']);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--description' => '',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -112,7 +112,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task', 'type' => 'task']);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--type' => 'bug',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -128,7 +128,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--type' => 'invalid-type',
             '--cwd' => $this->tempDir,
         ])
@@ -141,7 +141,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task', 'priority' => 2]);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--priority' => '4',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -157,7 +157,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--priority' => '5',
             '--cwd' => $this->tempDir,
         ])
@@ -170,7 +170,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task']);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--status' => 'closed',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -186,7 +186,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['existing']]);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--add-labels' => 'new1,new2',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -202,7 +202,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['keep', 'remove1', 'remove2']]);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--remove-labels' => 'remove1,remove2',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -218,7 +218,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['old1', 'old2']]);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--add-labels' => 'new1',
             '--remove-labels' => 'old1',
             '--cwd' => $this->tempDir,
@@ -236,7 +236,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Original', 'type' => 'task', 'priority' => 2]);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--title' => 'Updated',
             '--type' => 'feature',
             '--priority' => '3',
@@ -258,7 +258,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('No update fields provided')
@@ -280,7 +280,7 @@ describe('update command', function (): void {
     it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
-        $partialId = substr((string) $task['id'], 2, 3);
+        $partialId = substr((string) $task->short_id, 2, 3);
 
         Artisan::call('update', [
             'id' => $partialId,
@@ -292,7 +292,7 @@ describe('update command', function (): void {
         $updated = json_decode($output, true);
 
         expect($updated['title'])->toBe('Updated');
-        expect($updated['id'])->toBe($task['id']);
+        expect($updated['short_id'])->toBe($task->short_id);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
@@ -300,7 +300,7 @@ describe('update command', function (): void {
         $task = $this->taskService->create(['title' => 'Task']);
 
         Artisan::call('update', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--title' => 'Updated',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -311,5 +311,34 @@ describe('update command', function (): void {
         expect($updated)->toHaveKey('id');
         expect($updated)->toHaveKey('title');
         expect($updated['title'])->toBe('Updated');
+    });
+
+    it('updates task complexity', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task', 'complexity' => 'simple']);
+
+        Artisan::call('update', [
+            'id' => $task->short_id,
+            '--complexity' => 'complex',
+            '--cwd' => $this->tempDir,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $updated = json_decode($output, true);
+
+        expect($updated['complexity'])->toBe('complex');
+    });
+
+    it('validates complexity enum', function (): void {
+        $this->taskService->initialize();
+        $task = $this->taskService->create(['title' => 'Task']);
+
+        $this->artisan('update', [
+            'id' => $task->short_id,
+            '--complexity' => 'invalid-complexity',
+            '--cwd' => $this->tempDir,
+        ])
+            ->expectsOutputToContain('Invalid task complexity')
+            ->assertExitCode(1);
     });
 });

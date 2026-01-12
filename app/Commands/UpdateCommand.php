@@ -24,6 +24,7 @@ class UpdateCommand extends Command
         {--type= : Update task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Update task priority (0-4)}
         {--status= : Update task status (open|closed)}
+        {--complexity= : Update task complexity (trivial|simple|moderate|complex)}
         {--add-labels= : Add labels (comma-separated)}
         {--remove-labels= : Remove labels (comma-separated)}';
 
@@ -60,6 +61,10 @@ class UpdateCommand extends Command
             $updateData['status'] = $status;
         }
 
+        if ($complexity = $this->option('complexity')) {
+            $updateData['complexity'] = $complexity;
+        }
+
         if ($addLabels = $this->option('add-labels')) {
             $updateData['add_labels'] = array_map(trim(...), explode(',', $addLabels));
         }
@@ -69,7 +74,7 @@ class UpdateCommand extends Command
         }
 
         if (empty($updateData)) {
-            return $this->outputError('No update fields provided. Use --title, --description, --type, --priority, --status, --add-labels, or --remove-labels.');
+            return $this->outputError('No update fields provided. Use --title, --description, --type, --priority, --status, --complexity, --add-labels, or --remove-labels.');
         }
 
         try {
