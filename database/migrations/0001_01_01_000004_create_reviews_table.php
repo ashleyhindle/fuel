@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('reviews', function (Blueprint $table) {
             $table->increments('id');
             $table->text('short_id');
-            $table->foreignId('task_id')->nullable()->constrained('tasks')->cascadeOnDelete();
+            $table->foreignId('task_id')->nullable();
             $table->text('agent')->nullable();
             $table->text('status')->default('pending');
             $table->text('issues')->nullable();
