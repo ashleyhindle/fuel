@@ -85,7 +85,7 @@ describe('promote command', function (): void {
         $task = $this->taskService->find($item->short_id);
         expect($task->title)->toBe('Future feature');
         expect($task->description)->toBe('Description');
-        expect($task->status)->toBe(TaskStatus::Open->value);
+        expect($task->status)->toBe(TaskStatus::Open);
         expect($task->priority)->toBe(2);
         expect($task->type)->toBe('feature');
     });
@@ -220,9 +220,9 @@ describe('promote command', function (): void {
         $task1 = $this->taskService->find($item1->short_id);
         $task2 = $this->taskService->find($item2->short_id);
         $task3 = $this->taskService->find($item3->short_id);
-        expect($task1->status)->toBe(TaskStatus::Open->value);
-        expect($task2->status)->toBe(TaskStatus::Open->value);
-        expect($task3->status)->toBe(TaskStatus::Open->value);
+        expect($task1->status)->toBe(TaskStatus::Open);
+        expect($task2->status)->toBe(TaskStatus::Open);
+        expect($task3->status)->toBe(TaskStatus::Open);
     });
 
     it('promotes multiple backlog items with JSON output', function (): void {
@@ -282,7 +282,7 @@ describe('promote command', function (): void {
         // Verify valid items were promoted
         $task1 = $this->taskService->find($item1->short_id);
         $task2 = $this->taskService->find($item2->short_id);
-        expect($task1->status)->toBe(TaskStatus::Open->value);
-        expect($task2->status)->toBe(TaskStatus::Open->value);
+        expect($task1->status)->toBe(TaskStatus::Open);
+        expect($task2->status)->toBe(TaskStatus::Open);
     });
 });

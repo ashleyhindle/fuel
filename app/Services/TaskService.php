@@ -276,8 +276,7 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $task = $taskModel->toArray();
-        if (($task['status'] ?? '') !== TaskStatus::Someday->value) {
+        if ($taskModel->status !== TaskStatus::Someday) {
             throw new RuntimeException(sprintf("Task '%s' is not a backlog item (status is not 'someday')", $id));
         }
 
@@ -335,15 +334,15 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $status = $taskModel->status ?? '';
-        if (! in_array($status, [TaskStatus::Closed->value, TaskStatus::InProgress->value, TaskStatus::Review->value], true)) {
+        $status = $taskModel->status;
+        if (! in_array($status, [TaskStatus::Closed, TaskStatus::InProgress, TaskStatus::Review], true)) {
             throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
         return $this->update($id, [
             'status' => TaskStatus::Open->value,
             'reason' => null,
-            'consumed' => null,
+            'consumed' => 0,
             'consumed_at' => null,
             'consumed_exit_code' => null,
             'consumed_output' => null,
@@ -361,16 +360,16 @@ class TaskService
         }
 
         $consumed = ! empty($taskModel->consumed);
-        $status = $taskModel->status ?? '';
+        $status = $taskModel->status;
 
-        if (! ($consumed && $status === TaskStatus::InProgress->value)) {
+        if (! ($consumed && $status === TaskStatus::InProgress)) {
             throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
         }
 
         return $this->update($id, [
             'status' => TaskStatus::Open->value,
             'reason' => null,
-            'consumed' => null,
+            'consumed' => 0,
             'consumed_at' => null,
             'consumed_exit_code' => null,
             'consumed_output' => null,
@@ -409,7 +408,7 @@ class TaskService
         $blockedIds = $this->getBlockedIds($tasks);
 
         return $tasks
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
             ->filter(fn (Task $t): bool => ! in_array($t->short_id, $blockedIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
@@ -437,7 +436,7 @@ class TaskService
         $blockedIds = $this->getBlockedIds($tasks);
 
         return $tasks
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
             ->filter(fn (Task $t): bool => in_array($t->short_id, $blockedIds, true))
             ->sortBy([
                 ['priority', 'asc'],
@@ -462,7 +461,7 @@ class TaskService
             foreach ($blockedBy as $blockerId) {
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
-                    if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
+                    if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
                         $blockedIds[] = $task->short_id;
                         break;
                     }
@@ -482,7 +481,7 @@ class TaskService
     {
         $consumed = ! empty($task->consumed);
         $exitCode = $task->consumed_exit_code ?? null;
-        $status = $task->status ?? '';
+        $status = $task->status;
         $pid = $task->consume_pid ?? null;
 
         // Case 1: Explicit failure (consumed with non-zero exit code)
@@ -491,12 +490,12 @@ class TaskService
         }
 
         // Case 2: in_progress + consumed + null PID (spawn failed or PID lost)
-        if ($status === TaskStatus::InProgress->value && $consumed && $pid === null) {
+        if ($status === TaskStatus::InProgress && $consumed && $pid === null) {
             return true;
         }
 
         // Case 3: in_progress + PID that is dead
-        if ($status === TaskStatus::InProgress->value && $pid !== null) {
+        if ($status === TaskStatus::InProgress && $pid !== null) {
             $pidInt = (int) $pid;
             if (in_array($pidInt, $excludePids, true)) {
                 return false;
@@ -590,7 +589,7 @@ class TaskService
         foreach ($blockedBy as $blockerId) {
             if (is_string($blockerId)) {
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
+                if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
                     $blockers->push($blocker);
                 }
             }
@@ -624,14 +623,6 @@ class TaskService
         throw new RuntimeException(
             sprintf('Failed to generate unique task ID after %d attempts.', $maxAttempts)
         );
-    }
-
-    /**
-     * Initialize the database schema.
-     */
-    public function initialize(): void
-    {
-        $this->db->initialize();
     }
 
     public function setDatabasePath(string $path): void
