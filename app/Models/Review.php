@@ -140,4 +140,46 @@ class Review extends Model
     {
         return count($this->issues());
     }
+
+    /**
+     * Find a review by partial short_id (supports partial matching like r-abc).
+     *
+     * @param  string  $id  The review ID (full like r-xxxxxx or partial like r-abc or abc)
+     * @return Review|null The review model or null if not found
+     */
+    public static function findByPartialId(string $id): ?self
+    {
+        // Check if it's a numeric ID (integer primary key)
+        if (is_numeric($id)) {
+            $review = static::find((int) $id);
+            if ($review !== null) {
+                return $review;
+            }
+        }
+
+        // Normalize ID - add 'r-' prefix if not present
+        $normalizedId = $id;
+        if (! str_starts_with($normalizedId, 'r-')) {
+            $normalizedId = 'r-'.$normalizedId;
+        }
+
+        // Exact match for full ID format (r-xxxxxx)
+        if (strlen($normalizedId) === 8) {
+            return static::where('short_id', $normalizedId)->first();
+        }
+
+        // Partial match
+        $reviews = static::where('short_id', 'LIKE', $normalizedId.'%')->get();
+
+        if ($reviews->count() === 1) {
+            return $reviews->first();
+        }
+
+        if ($reviews->count() > 1) {
+            // For partial matches, return the most recent one
+            return $reviews->sortByDesc('started_at')->first();
+        }
+
+        return null;
+    }
 }
