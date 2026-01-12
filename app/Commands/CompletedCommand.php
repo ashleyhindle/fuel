@@ -33,7 +33,7 @@ class CompletedCommand extends Command
         }
 
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Closed->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed)
             ->sortByDesc('updated_at')
             ->take($limit)
             ->values();
@@ -68,12 +68,12 @@ class CompletedCommand extends Command
     /**
      * Format a date string into a human-readable format.
      */
-    private function formatDate(string $dateString): string
+    private function formatDate(string|\DateTimeInterface $date): string
     {
         try {
-            $date = new \DateTime($dateString);
+            $dateObj = $date instanceof \DateTimeInterface ? $date : new \DateTime($date);
             $now = new \DateTime;
-            $diff = $now->diff($date);
+            $diff = $now->diff($dateObj);
 
             // If less than 1 minute ago
             if ($diff->days === 0 && $diff->h === 0 && $diff->i === 0) {
@@ -102,15 +102,15 @@ class CompletedCommand extends Command
             }
 
             // If same year, show "Mon Day" (e.g., "Jan 7")
-            if ($date->format('Y') === $now->format('Y')) {
-                return $date->format('M j');
+            if ($dateObj->format('Y') === $now->format('Y')) {
+                return $dateObj->format('M j');
             }
 
             // Different year, show "Mon Day, Year" (e.g., "Jan 7, 2025")
-            return $date->format('M j, Y');
+            return $dateObj->format('M j, Y');
         } catch (\Exception) {
             // Fallback to original if parsing fails
-            return $dateString;
+            return $date instanceof \DateTimeInterface ? $date->format('Y-m-d H:i:s') : $date;
         }
     }
 }
