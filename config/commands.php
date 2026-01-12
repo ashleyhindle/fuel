@@ -8,7 +8,6 @@ use LaravelZero\Framework\Commands\StubPublishCommand;
 use NunoMaduro\LaravelConsoleSummary\SummaryCommand;
 use Symfony\Component\Console\Command\DumpCompletionCommand;
 use Symfony\Component\Console\Command\HelpCommand;
-use Symfony\Component\Console\Command\ListCommand;
 
 return [
 
@@ -23,7 +22,7 @@ return [
     |
     */
 
-    'default' => ListCommand::class,
+    'default' => App\Commands\ConsumeCommand::class,
 
     /*
     |--------------------------------------------------------------------------
