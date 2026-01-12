@@ -4,8 +4,37 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 class Run extends Model
 {
+    protected $table = 'runs';
+
+    public $timestamps = false; // Uses started_at/ended_at instead
+
+    protected $fillable = [
+        'short_id', 'task_id', 'agent', 'status', 'exit_code',
+        'started_at', 'ended_at', 'duration_seconds', 'session_id',
+        'error_type', 'model', 'output', 'cost_usd',
+    ];
+
+    protected $casts = [
+        'exit_code' => 'integer',
+        'duration_seconds' => 'integer',
+        'cost_usd' => 'float',
+        'started_at' => 'datetime',
+        'ended_at' => 'datetime',
+    ];
+
+    /**
+     * Get the task that this run belongs to.
+     */
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class);
+    }
+
     /**
      * Check if the run is currently running.
      */
@@ -76,13 +105,5 @@ class Run extends Model
         }
 
         return explode("\n", $this->output);
-    }
-
-    /**
-     * Create a Run instance from an array.
-     */
-    public static function fromArray(array $data): self
-    {
-        return new self($data);
     }
 }
