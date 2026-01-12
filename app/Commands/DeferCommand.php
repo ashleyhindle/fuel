@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -22,11 +20,8 @@ class DeferCommand extends Command
 
     protected $description = 'Move a task to the backlog';
 
-    public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService): int
+    public function handle(TaskService $taskService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         $id = $this->argument('id');
 
         try {

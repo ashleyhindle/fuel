@@ -6,9 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -27,8 +25,6 @@ class DoneCommand extends Command
     protected $description = 'Mark one or more tasks as done';
 
     public function handle(
-        FuelContext $context,
-        DatabaseService $databaseService,
         TaskService $taskService,
         EpicService $epicService
     ): int {

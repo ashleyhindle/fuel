@@ -20,8 +20,6 @@ class DbCommand extends Command
 
     public function handle(FuelContext $context): int
     {
-        $this->configureCwd($context);
-
         $dbPath = $context->getDatabasePath();
 
         if (! file_exists($dbPath)) {

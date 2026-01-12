@@ -17,7 +17,6 @@ use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
-use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -59,7 +58,7 @@ class ConsumeCommand extends Command
     /** @var array<string, array{status: string, in_backoff: bool, is_dead: bool}> Track previous health state per agent */
     private array $previousHealthStates = [];
 
-    /** @var array<string, string> Track original task status before review (to handle already-closed tasks) */
+    /** @var array<string, string> Track original task status before review (to handle already-done tasks) */
     private array $preReviewTaskStatus = [];
 
     public function __construct(
@@ -68,7 +67,6 @@ class ConsumeCommand extends Command
         private RunService $runService,
         private ProcessManager $processManager,
         private FuelContext $fuelContext,
-        private DatabaseService $databaseService,
         private BackoffStrategy $backoffStrategy,
         private ?AgentHealthTrackerInterface $healthTracker = null,
         private ?ReviewServiceInterface $reviewService = null,
@@ -78,7 +76,7 @@ class ConsumeCommand extends Command
 
     public function handle(): int
     {
-        $this->configureCwd($this->fuelContext, $this->databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         // Validate config early before entering TUI
         try {
@@ -568,25 +566,25 @@ PROMPT;
                     continue;
                 }
 
-                // Check if task was already closed before review
-                $wasAlreadyClosed = isset($this->preReviewTaskStatus[$taskId]);
+                // Check if task was already done before review
+                $wasAlreadyDone = isset($this->preReviewTaskStatus[$taskId]);
                 $originalStatus = $this->preReviewTaskStatus[$taskId] ?? null;
                 unset($this->preReviewTaskStatus[$taskId]);
 
                 if ($result->passed) {
                     // Review passed
-                    if ($wasAlreadyClosed) {
-                        // Task was already closed - confirm done (maybe update reason)
+                    if ($wasAlreadyDone) {
+                        // Task was already done - confirm done (maybe update reason)
                         $task = $this->taskService->find($taskId);
-                        if ($task && $task->status !== TaskStatus::Closed) {
+                        if ($task && $task->status !== TaskStatus::Done) {
                             // Task status changed (shouldn't happen, but handle gracefully)
                             Artisan::call('done', [
                                 'ids' => [$taskId],
-                                '--reason' => 'Review passed (was already closed)',
+                                '--reason' => 'Review passed (was already done)',
                             ]);
                         }
 
-                        $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s (was already closed)', $taskId), 'green');
+                        $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s (was already done)', $taskId), 'green');
                     } else {
                         // Task was in_progress - mark as done
                         Artisan::call('done', [
@@ -596,7 +594,7 @@ PROMPT;
                         $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
                     }
                 } else {
-                    // Review found issues - reopen task if it was already closed
+                    // Review found issues - reopen task if it was already done
                     $issuesSummary = $result->issues === [] ? 'issues found' : implode(', ', $result->issues);
 
                     // Store the review issues on the task for the next agent run
@@ -604,8 +602,8 @@ PROMPT;
                         $this->taskService->setLastReviewIssues($taskId, $result->issues);
                     }
 
-                    if ($wasAlreadyClosed) {
-                        // Task was already closed but review failed - reopen with issues
+                    if ($wasAlreadyDone) {
+                        // Task was already done but review failed - reopen with issues
                         try {
                             $this->taskService->reopen($taskId);
                             $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
@@ -713,13 +711,13 @@ PROMPT;
         }
 
         // Always trigger review as quality gate for ALL completions (Phase 3 spec)
-        // Track original status to handle already-closed tasks correctly
+        // Track original status to handle already-done tasks correctly
         $originalStatus = $task->status;
-        $wasAlreadyClosed = $originalStatus === TaskStatus::Closed;
+        $wasAlreadyDone = $originalStatus === TaskStatus::Done;
 
         if (! $this->option('review')) {
             // Skip review and mark done directly
-            if (! $wasAlreadyClosed) {
+            if (! $wasAlreadyDone) {
                 $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
             }
 
@@ -728,7 +726,7 @@ PROMPT;
             // Trigger review if ReviewService is available
             try {
                 // Store original status before triggering review
-                if ($wasAlreadyClosed) {
+                if ($wasAlreadyDone) {
                     $this->preReviewTaskStatus[$taskId] = $originalStatus;
                 }
 

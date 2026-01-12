@@ -7,8 +7,6 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -23,17 +21,15 @@ class CompletedCommand extends Command
 
     protected $description = 'Show a list of recently completed tasks';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         $limit = (int) $this->option('limit');
         if ($limit < 1) {
             $limit = 20;
         }
 
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Done)
             ->sortByDesc('updated_at')
             ->take($limit)
             ->values();
