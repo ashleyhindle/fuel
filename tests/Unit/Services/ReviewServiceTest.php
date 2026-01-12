@@ -9,8 +9,6 @@ use App\Process\ProcessOutput;
 use App\Process\ProcessStatus;
 use App\Process\ProcessType;
 use App\Prompts\ReviewPrompt;
-use App\Repositories\ReviewRepository;
-use App\Repositories\RunRepository;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
@@ -58,15 +56,14 @@ YAML;
 
     // Create database service for test directory and initialize it
     $this->databaseService = new DatabaseService($this->context->getDatabasePath());
-    $this->databaseService->initialize();
+    $this->context->configureDatabase();
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 
     $this->taskService = makeTaskService($this->databaseService);
     $this->configService = new ConfigService($this->context);
     $this->reviewPrompt = new ReviewPrompt;
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);
     $this->runService = makeRunService($this->databaseService);
-    $this->reviewRepository = new ReviewRepository($this->databaseService);
-    $this->runRepository = new RunRepository($this->databaseService);
 });
 
 afterEach(function (): void {
@@ -79,7 +76,7 @@ it('triggers a review by spawning a process', function (): void {
         'title' => 'Test task',
         'description' => 'A task to test review',
     ]);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Set expectation on process manager to spawn a review process
     $this->processManager
@@ -123,7 +120,7 @@ it('updates task status to review when triggering review', function (): void {
     $task = $this->taskService->create([
         'title' => 'Status test task',
     ]);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Start the task (simulate work being done)
     $this->taskService->start($taskId);
@@ -199,20 +196,20 @@ it('returns correct pending reviews', function (): void {
     expect($reviewService->getPendingReviews())->toBeEmpty();
 
     // Trigger reviews for both tasks
-    $reviewService->triggerReview($task1['id'], 'test-agent');
-    $reviewService->triggerReview($task2['id'], 'test-agent');
+    $reviewService->triggerReview($task1->short_id, 'test-agent');
+    $reviewService->triggerReview($task2->short_id, 'test-agent');
 
     // Should have both tasks pending
     $pending = $reviewService->getPendingReviews();
     expect($pending)->toHaveCount(2);
-    expect($pending)->toContain($task1['id']);
-    expect($pending)->toContain($task2['id']);
+    expect($pending)->toContain($task1->short_id);
+    expect($pending)->toContain($task2->short_id);
 });
 
 it('returns true for isReviewComplete when process finished', function (): void {
     // Create a task
     $task = $this->taskService->create(['title' => 'Completion test task']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Mock spawn
     $this->processManager
@@ -270,7 +267,7 @@ it('returns false for isReviewComplete when task not in pending reviews', functi
 it('uses configured review agent instead of completing agent', function (): void {
     // Create a task
     $task = $this->taskService->create(['title' => 'Review agent test']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Expect spawn to be called with review-agent (from config), not test-agent
     $this->processManager
@@ -329,7 +326,7 @@ YAML;
 
     // Create a task
     $task = $this->taskService->create(['title' => 'No review agent test']);
-    $taskId = $task['id'];
+    $taskId = $task['short_id'];
 
     // Expect spawn to be called with test-agent (primary agent fallback)
     $this->processManager
@@ -353,10 +350,7 @@ YAML;
         $this->taskService,
         $configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $result = $reviewService->triggerReview($taskId, 'some-other-agent');
@@ -406,7 +400,7 @@ it('throws exception when task not found during trigger', function (): void {
 it('gets review result when review passes with JSON output', function (): void {
     // Create main task
     $task = $this->taskService->create(['title' => 'Review result test']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Mock spawn
     $this->processManager
@@ -463,7 +457,7 @@ it('gets review result when review passes with JSON output', function (): void {
 it('detects issues from JSON output', function (): void {
     // Create main task
     $task = $this->taskService->create(['title' => 'Main task']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Mock spawn
     $this->processManager
@@ -519,7 +513,7 @@ it('detects issues from JSON output', function (): void {
 it('returns null for getReviewResult when review not complete', function (): void {
     // Create a task
     $task = $this->taskService->create(['title' => 'Not complete test']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Mock spawn
     $this->processManager
@@ -585,7 +579,7 @@ it('generates review prompt via getReviewPrompt', function (): void {
 it('detects multiple issues from JSON output', function (): void {
     // Create main task
     $task = $this->taskService->create(['title' => 'Task with issues']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Mock spawn
     $this->processManager
@@ -641,7 +635,7 @@ it('detects multiple issues from JSON output', function (): void {
 it('falls back to checking task status when no JSON output', function (): void {
     // Create main task
     $task = $this->taskService->create(['title' => 'Task without JSON']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Mock spawn
     $this->processManager
@@ -698,7 +692,7 @@ it('falls back to checking task status when no JSON output', function (): void {
 it('recovers stuck reviews for tasks in review status with no active process', function (): void {
     // Create a task and set it to review status manually (simulating crash)
     $task = $this->taskService->create(['title' => 'Stuck review task']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     // Set status to 'review' to simulate a stuck task
     $this->taskService->update($taskId, ['status' => 'review']);
@@ -748,7 +742,7 @@ it('recovers stuck reviews for tasks in review status with no active process', f
 it('does not recover reviews for tasks with active review process', function (): void {
     // Create a task in review status
     $task = $this->taskService->create(['title' => 'Active review task']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     $this->taskService->update($taskId, ['status' => 'review']);
 
@@ -784,7 +778,7 @@ it('does not recover reviews for tasks with active review process', function ():
 it('skips stuck review tasks with no run history', function (): void {
     // Create a task in review status but with no run history
     $task = $this->taskService->create(['title' => 'No history task']);
-    $taskId = $task['id'];
+    $taskId = $task->short_id;
 
     $this->taskService->update($taskId, ['status' => 'review']);
 
