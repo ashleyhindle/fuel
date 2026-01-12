@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Artisan;
 
 uses()->group('commands');
 
-describe('board command', function (): void {
+describe('consume --once kanban board', function (): void {
     beforeEach(function (): void {
         $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
         mkdir($this->tempDir.'/.fuel', 0755, true);
@@ -79,46 +79,43 @@ YAML;
     });
 
     it('shows empty board when no tasks', function (): void {
-
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Ready');
         expect($output)->toContain('In Progress');
-        // Review column only shown when there are review tasks
-        expect($output)->toContain('Blocked');
         expect($output)->toContain('No tasks');
     });
 
     it('shows ready tasks in Ready column', function (): void {
         $this->taskService->create(['title' => 'Ready task']);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Ready task');
     });
 
-    it('shows blocked tasks in Blocked column', function (): void {
+    it('shows blocked task count in footer', function (): void {
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        // Titles may be truncated, so check for short IDs with complexity char
+        // Blocked tasks are in a modal, but count shows in footer
+        expect($output)->toContain('b: blocked (1)');
+        // Blocker task should be in Ready
         $blockerShortId = substr((string) $blocker->short_id, 2, 6);
-        $blockedShortId = substr((string) $blocked->short_id, 2, 6);
         expect($output)->toContain(sprintf('[%s ·s]', $blockerShortId));
-        expect($output)->toContain(sprintf('[%s ·s]', $blockedShortId));
     });
 
     it('shows in progress tasks in In Progress column', function (): void {
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task->short_id);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         // Title may be truncated, so check for short ID with complexity char
@@ -126,24 +123,22 @@ YAML;
         expect($output)->toContain(sprintf('[%s ·s]', $shortId));
     });
 
-    it('shows done tasks in Done column', function (): void {
+    it('shows done task count in footer', function (): void {
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task->short_id);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        // Done tasks appear in "Done" column
-        $shortId = substr((string) $task->short_id, 2, 6);
-        expect($output)->toContain('Done (1)');
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        // Done tasks are in a modal, but count shows in footer
+        expect($output)->toContain('d: done (1)');
     });
 
     it('shows review tasks in Review column', function (): void {
         $task = $this->taskService->create(['title' => 'Review task']);
         $this->taskService->update($task->short_id, ['status' => 'review']);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         // Review tasks appear in "Review" column
@@ -156,7 +151,7 @@ YAML;
         $reviewTask = $this->taskService->create(['title' => 'Review task']);
         $this->taskService->update($reviewTask->short_id, ['status' => 'review']);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         $reviewShortId = substr((string) $reviewTask->short_id, 2, 6);
@@ -165,44 +160,9 @@ YAML;
         expect($output)->toContain('Review (1)');
         expect($output)->toContain(sprintf('[%s ·s]', $reviewShortId));
 
-        // Review task should NOT appear in other columns
-        // Check that it doesn't appear in Ready, In Progress, Blocked, or Done sections
-        // We'll check by ensuring the count for those columns is 0
+        // Check that Ready and In Progress have 0 tasks
         expect($output)->toContain('Ready (0)');
         expect($output)->toContain('In Progress (0)');
-        expect($output)->toContain('Blocked (0)');
-        expect($output)->toContain('Done (0)');
-    });
-
-    it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->create(['title' => 'Test task']);
-
-        Artisan::call('board', ['--json' => true]);
-        $output = Artisan::output();
-
-        expect($output)->toContain('"ready":');
-        expect($output)->toContain('"in_progress":');
-        expect($output)->toContain('"review":');
-        expect($output)->toContain('"blocked":');
-        expect($output)->toContain('"human":');
-        expect($output)->toContain('"done":');
-        expect($output)->toContain('Test task');
-    });
-
-    it('returns all done tasks in JSON output', function (): void {
-
-        // Create and close 12 tasks
-        for ($i = 1; $i <= 12; $i++) {
-            $task = $this->taskService->create(['title' => 'Done task '.$i]);
-            $this->taskService->done($task->short_id);
-        }
-
-        Artisan::call('board', ['--json' => true]);
-        $output = Artisan::output();
-        $data = json_decode($output, true);
-
-        // JSON output returns all done tasks (display limits to 3)
-        expect($data['done'])->toHaveCount(12);
     });
 
     it('shows failed icon for consumed tasks with non-zero exit code', function (): void {
@@ -212,7 +172,7 @@ YAML;
             'consumed_exit_code' => 1,
         ]);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $stuckTask->short_id, 2, 6);
@@ -227,7 +187,7 @@ YAML;
             'consumed_exit_code' => 0,
         ]);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $successTask->short_id, 2, 6);
@@ -242,7 +202,7 @@ YAML;
             'consume_pid' => 99999, // Non-existent PID
         ]);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $stuckTask->short_id, 2, 6);
@@ -259,7 +219,7 @@ YAML;
             'consume_pid' => $currentPid,
         ]);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $runningTask->short_id, 2, 6);
@@ -273,7 +233,7 @@ YAML;
         $moderateTask = $this->taskService->create(['title' => 'Moderate task', 'complexity' => 'moderate']);
         $complexTask = $this->taskService->create(['title' => 'Complex task', 'complexity' => 'complex']);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         $trivialShortId = substr((string) $trivialTask->short_id, 2, 6);
@@ -290,10 +250,20 @@ YAML;
     it('defaults to simple complexity when complexity is missing', function (): void {
         $task = $this->taskService->create(['title' => 'Task without complexity']);
 
-        Artisan::call('board', ['--once' => true]);
+        Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $task->short_id, 2, 6);
         expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+    });
+
+    it('shows footer with keyboard shortcuts', function (): void {
+        Artisan::call('consume', ['--once' => true]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Shift+Tab');
+        expect($output)->toContain('b: blocked');
+        expect($output)->toContain('d: done');
+        expect($output)->toContain('Ctrl+C');
     });
 });

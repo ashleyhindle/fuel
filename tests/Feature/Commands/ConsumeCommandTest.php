@@ -628,7 +628,7 @@ describe('consume command auto-close feature', function (): void {
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
 
-    it('shows auto-closed icon in board done column', function (): void {
+    it('shows auto-closed task in done count', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -658,19 +658,17 @@ describe('consume command auto-close feature', function (): void {
             '--reason' => 'Auto-completed by consume (agent exit 0)',
         ]);
 
-        // Capture board output
-        Artisan::call('board', [
+        // Capture consume --once output (done tasks are in a modal, but count is in footer)
+        Artisan::call('consume', [
             '--once' => true,
         ]);
         $output = Artisan::output();
 
-        // Verify auto-closed task appears in Done column with 🤖 icon
-        // The board shows: [shortId ·complexity] 🤖 title
-        expect($output)->toContain('🤖');
-        expect($output)->toContain('Done');
+        // Verify done task count is shown in footer
+        expect($output)->toContain('d: done (1)');
     });
 
-    it('does not show auto-closed icon for manually done tasks', function (): void {
+    it('shows manually done task in done count', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -697,17 +695,14 @@ describe('consume command auto-close feature', function (): void {
             '--reason' => 'Agent completed it',
         ]);
 
-        // Capture board output
-        Artisan::call('board', [
+        // Capture consume --once output (done tasks are in a modal, but count is in footer)
+        Artisan::call('consume', [
             '--once' => true,
         ]);
         $output = Artisan::output();
 
-        // Verify the 🤖 icon is NOT present for this task
-        // The task should appear in Done but without the robot icon
-        expect($output)->toContain('Done');
-        // Since there's only one task and it's not auto-closed, no 🤖 should appear
-        expect($output)->not->toContain('🤖');
+        // Verify done task count is shown in footer
+        expect($output)->toContain('d: done (1)');
     });
 
     it('handles CompletionResult with Success type for auto-close flow', function (): void {

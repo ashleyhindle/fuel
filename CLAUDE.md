@@ -38,7 +38,7 @@ fuel add "Idea" --someday       # Add to backlog (future work)
 fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
 fuel show <id>                  # View task details
-fuel board --once               # Kanban view
+fuel consume --once             # Kanban view
 fuel tree                       # Tree view
 fuel backlog                    # List backlog items
 fuel promote <b-id>             # Promote backlog item to task

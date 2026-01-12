@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\FailureType;
@@ -28,6 +29,7 @@ use LaravelZero\Framework\Commands\Command;
 class ConsumeCommand extends Command
 {
     use HandlesJsonOutput;
+    use RendersBoardColumns;
 
     protected $signature = 'consume
         {--cwd= : Working directory (defaults to current directory)}
@@ -36,7 +38,8 @@ class ConsumeCommand extends Command
         {--prompt=Consume one task from fuel, then land the plane : Prompt to send to agent}
         {--dryrun : Show what would happen without claiming tasks or spawning agents}
         {--health : Show agent health status and exit}
-        {--review : Enable automatic review of completed work}';
+        {--review : Enable automatic review of completed work}
+        {--once : Show kanban board once and exit (no spawning)}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
@@ -60,6 +63,24 @@ class ConsumeCommand extends Command
 
     /** @var array<string, string> Track original task status before review (to handle already-done tasks) */
     private array $preReviewTaskStatus = [];
+
+    /** Current terminal width */
+    private int $terminalWidth = 120;
+
+    /** Current terminal height */
+    private int $terminalHeight = 40;
+
+    /** Whether blocked modal is visible */
+    private bool $showBlockedModal = false;
+
+    /** Whether done modal is visible */
+    private bool $showDoneModal = false;
+
+    /** @var array<string, int> Track last activity timestamp per task (for relative time) */
+    private array $lastActivityTimestamps = [];
+
+    /** Flag to force refresh on next loop (e.g., after SIGWINCH) */
+    private bool $forceRefresh = false;
 
     public function __construct(
         private TaskService $taskService,
@@ -91,6 +112,14 @@ class ConsumeCommand extends Command
         // Handle --health flag: show health status and exit
         if ($this->option('health')) {
             return $this->displayHealthStatus();
+        }
+
+        // Handle --once flag: show board once and exit (no spawning)
+        if ($this->option('once')) {
+            $this->updateTerminalSize();
+            $this->renderKanbanBoard();
+
+            return self::SUCCESS;
         }
 
         // Ensure processes directory exists for output capture
@@ -134,6 +163,17 @@ class ConsumeCommand extends Command
             $this->originalTty = shell_exec('stty -g');
             register_shutdown_function([$this, 'restoreTerminal']);
 
+            // Get initial terminal size
+            $this->updateTerminalSize();
+
+            // Register SIGWINCH handler for terminal resize
+            if (function_exists('pcntl_signal') && defined('SIGWINCH')) {
+                pcntl_signal(SIGWINCH, function (): void {
+                    $this->forceRefresh = true;
+                    $this->updateTerminalSize();
+                });
+            }
+
             $this->getOutput()->write("\033[?1049h");
             $this->inAlternateScreen = true;
             $this->getOutput()->write("\033[?25l"); // Hide cursor
@@ -152,17 +192,17 @@ class ConsumeCommand extends Command
             while (! $this->processManager->isShuttingDown()) {
                 \pcntl_signal_dispatch();
 
+                // Update terminal size on resize
+                if ($this->forceRefresh) {
+                    $this->updateTerminalSize();
+                    $this->forceRefresh = false;
+                }
+
                 // Reload config on each iteration to pick up changes
                 $this->configService->reload();
 
-                // Check for pause toggle (Shift+Tab)
-                if ($this->checkForPauseToggle()) {
-                    $paused = ! $paused;
-                    $statusLines[] = $paused
-                        ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
-                        : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
-                    $statusLines = $this->trimStatusLines($statusLines);
-                }
+                // Check for keyboard input (pause toggle, modal toggles)
+                $this->handleKeyboardInput($paused, $statusLines);
 
                 // When paused, just refresh display and wait
                 if ($paused) {
@@ -884,73 +924,475 @@ class ConsumeCommand extends Command
         array $statusLines,
         bool $paused = false
     ): void {
+        // Update terminal size
+        $this->updateTerminalSize();
+
         // Begin synchronized output (terminal buffers until end marker)
         $this->getOutput()->write("\033[?2026h");
         // Move cursor home and clear screen
         $this->getOutput()->write("\033[H\033[2J");
 
-        // Render board
-        $this->call('board', ['--once' => true, '--cwd' => $this->option('cwd')]);
-
-        $this->newLine();
-
-        // Show active processes
-        $activeProcesses = $this->processManager->getActiveProcesses();
-        if ($activeProcesses !== []) {
-            $processLines = [];
-            foreach ($activeProcesses as $process) {
-                $metadata = $process->getMetadata();
-                $taskId = $metadata['task_id'];
-                $agentName = $metadata['agent_name'];
-                $duration = $this->formatDuration($metadata['duration']);
-                $shortId = substr($taskId, 2, 6); // Skip 'f-' prefix
-                $sessionInfo = '';
-                if (! empty($metadata['session_id'])) {
-                    $shortSession = substr($metadata['session_id'], 0, 8);
-                    $sessionInfo = ' 🔗'.$shortSession;
-                }
-
-                $processLines[] = sprintf('🔄 %s [%s] (%s)%s', $shortId, $agentName, $duration, $sessionInfo);
-            }
-
-            $this->line('<fg=yellow>Active: '.implode(' | ', $processLines).'</>');
-        }
-
-        // Show failed/stuck tasks
-        $excludePids = $this->processManager->getTrackedPids();
-        $failedTasks = $this->taskService->failed($excludePids);
-        if ($failedTasks->isNotEmpty()) {
-            $failedLines = [];
-            foreach ($failedTasks as $task) {
-                $shortId = substr((string) $task->short_id, 2, 6);
-                $failedLines[] = '🪫 '.$shortId;
-            }
-
-            $this->line('<fg=red>Failed: '.implode(' | ', $failedLines).' (fuel retry)</>');
-        }
-
-        // Show agent health status (unhealthy/degraded agents only)
-        $healthLines = $this->getHealthStatusLines();
-        foreach ($healthLines as $healthLine) {
-            $this->line($healthLine);
-        }
-
-        // Show status history
-        foreach ($statusLines as $line) {
-            $this->line($line);
-        }
-
-        $this->newLine();
-        if ($paused) {
-            $this->line('<fg=yellow>PAUSED</> - <fg=gray>Shift+Tab to resume | Ctrl+C to exit</>');
-        } else {
-            $this->line('<fg=gray>Shift+Tab to pause | Ctrl+C to exit</>');
-        }
+        // Render the kanban board
+        $this->renderKanbanBoard($statusLines, $paused);
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
         // Clear from cursor to end of screen to remove any leftover content below
         $this->getOutput()->write("\033[J");
+    }
+
+    /**
+     * Render the full kanban board with cards.
+     *
+     * @param  array<string>  $statusLines
+     */
+    private function renderKanbanBoard(array $statusLines = [], bool $paused = false): void
+    {
+        $boardData = $this->getBoardData();
+        $readyTasks = $boardData['ready'];
+        $inProgressTasks = $boardData['in_progress'];
+        $reviewTasks = $boardData['review'];
+        $blockedTasks = $boardData['blocked'];
+        $humanTasks = $boardData['human'];
+        $doneTasks = $boardData['done'];
+
+        // Get active process metadata for status lines
+        $activeProcesses = [];
+        foreach ($this->processManager->getActiveProcesses() as $process) {
+            $metadata = $process->getMetadata();
+            $activeProcesses[$metadata['task_id']] = $metadata;
+
+            // Update last activity timestamp
+            $this->lastActivityTimestamps[$metadata['task_id']] = time();
+        }
+
+        // Calculate column width (2 columns with 2 space gap)
+        $columnWidth = (int) (($this->terminalWidth - 2) / 2);
+
+        // Build Ready column
+        $readyColumn = $this->buildTaskColumn('Ready', $readyTasks->take(10)->all(), $columnWidth, $readyTasks->count());
+
+        // Build In Progress column with status lines
+        $inProgressColumn = $this->buildInProgressColumn(
+            'In Progress',
+            $inProgressTasks->take(10)->all(),
+            $columnWidth,
+            $inProgressTasks->count(),
+            $activeProcesses
+        );
+
+        // Pad columns to equal height
+        $topMaxHeight = max(count($readyColumn), count($inProgressColumn));
+        $readyColumn = $this->padColumn($readyColumn, $topMaxHeight, $columnWidth);
+        $inProgressColumn = $this->padColumn($inProgressColumn, $topMaxHeight, $columnWidth);
+
+        // Render top row
+        $topRows = array_map(null, $readyColumn, $inProgressColumn);
+        foreach ($topRows as $row) {
+            $this->line(implode('  ', $row));
+        }
+
+        // Render Review column if there are review tasks
+        if ($reviewTasks->isNotEmpty()) {
+            $this->newLine();
+            $reviewColumn = $this->buildTaskColumn('Review', $reviewTasks->take(10)->all(), $this->terminalWidth, $reviewTasks->count(), 'review');
+            foreach ($reviewColumn as $line) {
+                $this->line($line);
+            }
+        }
+
+        // Render needs-human line
+        if ($humanTasks->isNotEmpty()) {
+            $this->newLine();
+            $this->renderHumanLine($humanTasks->all());
+        }
+
+        // Render health status
+        $healthLines = $this->getHealthStatusLines();
+        if ($healthLines !== []) {
+            $this->newLine();
+            foreach ($healthLines as $healthLine) {
+                $this->line($healthLine);
+            }
+        }
+
+        // Render status history
+        if ($statusLines !== []) {
+            $this->newLine();
+            foreach ($statusLines as $line) {
+                $this->line($line);
+            }
+        }
+
+        // Render footer with controls
+        $this->newLine();
+        $footerParts = [];
+        if ($paused) {
+            $footerParts[] = '<fg=yellow>PAUSED</>';
+        }
+
+        $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
+        $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
+        $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
+        $footerParts[] = '<fg=gray>Ctrl+C: exit</>';
+        $this->line(implode(' | ', $footerParts));
+
+        // Render modals if active
+        if ($this->showBlockedModal) {
+            $this->renderModal('Blocked Tasks', $blockedTasks->take(20)->all(), 'blocked');
+        } elseif ($this->showDoneModal) {
+            $this->renderModal('Done Tasks', $doneTasks->take(20)->all(), 'done');
+        }
+    }
+
+    /**
+     * Get all board data from a single snapshot.
+     *
+     * @return array{ready: Collection, in_progress: Collection, review: Collection, blocked: Collection, human: Collection, done: Collection}
+     */
+    private function getBoardData(): array
+    {
+        $allTasks = $this->taskService->all();
+        $readyTasks = $this->taskService->readyFrom($allTasks);
+        $readyIds = $readyTasks->pluck('short_id')->toArray();
+
+        $inProgressTasks = $allTasks
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress)
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $reviewTasks = $allTasks
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Review)
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $blockedTasks = $allTasks
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open && ! in_array($t->short_id, $readyIds, true))
+            ->filter(function (Task $t): bool {
+                $labels = $t->labels ?? [];
+                if (! is_array($labels)) {
+                    return true;
+                }
+
+                return ! in_array('needs-human', $labels, true);
+            })
+            ->values();
+
+        $humanTasks = $allTasks
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
+            ->filter(function (Task $t): bool {
+                $labels = $t->labels ?? [];
+
+                return is_array($labels) && in_array('needs-human', $labels, true);
+            })
+            ->values();
+
+        $doneTasks = $allTasks
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Done)
+            ->sortByDesc('updated_at')
+            ->values();
+
+        return [
+            'ready' => $readyTasks,
+            'in_progress' => $inProgressTasks,
+            'review' => $reviewTasks,
+            'blocked' => $blockedTasks,
+            'human' => $humanTasks,
+            'done' => $doneTasks,
+        ];
+    }
+
+    /**
+     * Build a task column for the kanban board.
+     *
+     * @param  array<int, Task>  $tasks
+     * @return array<int, string>
+     */
+    private function buildTaskColumn(string $title, array $tasks, int $width, int $totalCount, string $style = 'normal'): array
+    {
+        $lines = [];
+        $lines[] = $this->padLine(sprintf('<fg=white;options=bold>%s</> (%d)', $title, $totalCount), $width);
+        $lines[] = str_repeat('─', $width);
+
+        if ($tasks === []) {
+            $lines[] = $this->padLine('<fg=gray>No tasks</>', $width);
+        } else {
+            foreach ($tasks as $task) {
+                $lines = array_merge($lines, $this->buildTaskCard($task, $width, $style));
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Build In Progress column with agent status lines.
+     *
+     * @param  array<int, Task>  $tasks
+     * @param  array<string, array>  $activeProcesses
+     * @return array<int, string>
+     */
+    private function buildInProgressColumn(string $title, array $tasks, int $width, int $totalCount, array $activeProcesses): array
+    {
+        $lines = [];
+        $lines[] = $this->padLine(sprintf('<fg=white;options=bold>%s</> (%d)', $title, $totalCount), $width);
+        $lines[] = str_repeat('─', $width);
+
+        if ($tasks === []) {
+            $lines[] = $this->padLine('<fg=gray>No tasks</>', $width);
+        } else {
+            foreach ($tasks as $task) {
+                $taskId = $task->short_id;
+                $processInfo = $activeProcesses[$taskId] ?? null;
+                $lines = array_merge($lines, $this->buildInProgressCard($task, $width, $processInfo));
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Build a single task card.
+     *
+     * @return array<int, string>
+     */
+    private function buildTaskCard(Task $task, int $width, string $style = 'normal'): array
+    {
+        $lines = [];
+        $shortId = $task->short_id;
+        $taskTitle = (string) $task->title;
+        $displayId = substr((string) $shortId, 2, 6);
+        $complexityChar = $this->getComplexityChar($task);
+
+        // Icons
+        $consumeIcon = empty($task->consumed) ? '' : '⚡';
+        $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
+        $autoClosedIcon = '';
+        if ($style === 'done') {
+            $labels = $task->labels ?? [];
+            $autoClosedIcon = is_array($labels) && in_array('auto-closed', $labels, true) ? '🤖' : '';
+        }
+
+        $icons = array_filter([$consumeIcon, $failedIcon, $autoClosedIcon]);
+        $iconString = implode(' ', $icons);
+        $iconWidth = count($icons) * 3;
+
+        $truncatedTitle = $this->truncate($taskTitle, $width - 11 - $iconWidth);
+
+        // Colors based on style
+        $idColor = match ($style) {
+            'blocked' => 'fg=#b36666',
+            'done' => 'fg=#888888',
+            'review' => 'fg=yellow',
+            default => 'fg=cyan',
+        };
+
+        $titleColor = match ($style) {
+            'done' => '<fg=#888888>',
+            'review' => '<fg=yellow>',
+            default => '',
+        };
+        $titleEnd = ($style === 'done' || $style === 'review') ? '</>' : '';
+
+        // Card border top
+        $lines[] = $this->padLine('<fg=gray>┌'.str_repeat('─', $width - 4).'┐</>', $width);
+
+        // Task ID and title line
+        if ($iconString !== '') {
+            $taskLine = sprintf('│ <%s>[%s ·%s]</> %s %s%s%s', $idColor, $displayId, $complexityChar, $iconString, $titleColor, $truncatedTitle, $titleEnd);
+        } else {
+            $taskLine = sprintf('│ <%s>[%s ·%s]</> %s%s%s', $idColor, $displayId, $complexityChar, $titleColor, $truncatedTitle, $titleEnd);
+        }
+
+        $lines[] = $this->padLineWithBorder($taskLine, $width);
+
+        // Card border bottom
+        $lines[] = $this->padLine('<fg=gray>└'.str_repeat('─', $width - 4).'┘</>', $width);
+
+        return $lines;
+    }
+
+    /**
+     * Build an in-progress task card with status line.
+     *
+     * @param  array<string, mixed>|null  $processInfo
+     * @return array<int, string>
+     */
+    private function buildInProgressCard(Task $task, int $width, ?array $processInfo): array
+    {
+        $lines = [];
+        $shortId = $task->short_id;
+        $taskTitle = (string) $task->title;
+        $displayId = substr((string) $shortId, 2, 6);
+        $complexityChar = $this->getComplexityChar($task);
+
+        // Icons
+        $consumeIcon = empty($task->consumed) ? '' : '⚡';
+        $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
+        $icons = array_filter([$consumeIcon, $failedIcon]);
+        $iconString = implode(' ', $icons);
+        $iconWidth = count($icons) * 3;
+
+        $truncatedTitle = $this->truncate($taskTitle, $width - 11 - $iconWidth);
+
+        // Card border top
+        $lines[] = $this->padLine('<fg=gray>┌'.str_repeat('─', $width - 4).'┐</>', $width);
+
+        // Task ID and title line
+        if ($iconString !== '') {
+            $taskLine = sprintf('│ <fg=cyan>[%s ·%s]</> %s %s', $displayId, $complexityChar, $iconString, $truncatedTitle);
+        } else {
+            $taskLine = sprintf('│ <fg=cyan>[%s ·%s]</> %s', $displayId, $complexityChar, $truncatedTitle);
+        }
+
+        $lines[] = $this->padLineWithBorder($taskLine, $width);
+
+        // Status line if we have process info
+        if ($processInfo !== null) {
+            $agentName = $processInfo['agent_name'] ?? 'unknown';
+            $duration = $this->formatDuration($processInfo['duration'] ?? 0);
+
+            // Calculate relative time since last activity
+            $lastActivity = $this->lastActivityTimestamps[$shortId] ?? $processInfo['start_time'] ?? time();
+            $sinceActivity = time() - $lastActivity;
+            $activityStr = $sinceActivity < 5 ? 'now' : $this->formatDuration($sinceActivity).' ago';
+
+            $statusLine = sprintf('│ <fg=gray>%s · %s · last: %s</>', $agentName, $duration, $activityStr);
+            $lines[] = $this->padLineWithBorder($statusLine, $width);
+        }
+
+        // Card border bottom
+        $lines[] = $this->padLine('<fg=gray>└'.str_repeat('─', $width - 4).'┘</>', $width);
+
+        return $lines;
+    }
+
+    /**
+     * Pad a line with border character at the end.
+     */
+    private function padLineWithBorder(string $line, int $width): string
+    {
+        $visibleLen = $this->visibleLength($line);
+        $padding = max(0, $width - $visibleLen - 2); // -2 for │ at end
+
+        return $line.str_repeat(' ', $padding).'<fg=gray>│</>';
+    }
+
+    /**
+     * Render needs-human tasks line.
+     *
+     * @param  array<int, Task>  $humanTasks
+     */
+    private function renderHumanLine(array $humanTasks): void
+    {
+        $prefix = '<fg=yellow>👤 Needs human:</> ';
+        $prefixLength = $this->visibleLength($prefix);
+        $availableWidth = $this->terminalWidth - $prefixLength;
+
+        $items = [];
+        $currentLength = 0;
+        $separator = '<fg=gray> | </>';
+
+        foreach ($humanTasks as $task) {
+            $shortId = $task->short_id;
+            $title = (string) $task->title;
+            $displayId = substr((string) $shortId, 2, 6);
+
+            $separatorLength = $items !== [] ? $this->visibleLength($separator) : 0;
+            $idPart = sprintf('<fg=yellow>[%s]</> ', $displayId);
+            $idPartLength = $this->visibleLength($idPart);
+            $titleMaxLength = $availableWidth - $currentLength - $separatorLength - $idPartLength;
+
+            if ($titleMaxLength < 5) {
+                break;
+            }
+
+            $truncatedTitle = $this->truncate($title, $titleMaxLength);
+            $item = $idPart.$truncatedTitle;
+            $itemLength = $this->visibleLength($item);
+
+            if ($currentLength + $separatorLength + $itemLength > $availableWidth) {
+                break;
+            }
+
+            $items[] = $item;
+            $currentLength += $separatorLength + $itemLength;
+        }
+
+        if ($items !== []) {
+            $this->line($prefix.implode($separator, $items));
+        }
+    }
+
+    /**
+     * Render a modal overlay with task list.
+     *
+     * @param  array<int, Task>  $tasks
+     */
+    private function renderModal(string $title, array $tasks, string $style): void
+    {
+        // Modal dimensions (centered, 60% width, up to 80% height)
+        $modalWidth = min((int) ($this->terminalWidth * 0.6), $this->terminalWidth - 8);
+        $maxHeight = (int) ($this->terminalHeight * 0.8);
+        $startCol = (int) (($this->terminalWidth - $modalWidth) / 2);
+        $startRow = 3;
+
+        // Build modal content
+        $modalLines = [];
+        $modalLines[] = '╔'.str_repeat('═', $modalWidth - 2).'╗';
+        $modalLines[] = '║ <fg=white;options=bold>'.$this->truncate($title, $modalWidth - 6).'</>'.str_repeat(' ', max(0, $modalWidth - $this->visibleLength($title) - 4)).'║';
+        $modalLines[] = '╠'.str_repeat('═', $modalWidth - 2).'╣';
+
+        if ($tasks === []) {
+            $emptyMsg = 'No tasks';
+            $modalLines[] = '║ <fg=gray>'.$emptyMsg.'</>'.str_repeat(' ', max(0, $modalWidth - strlen($emptyMsg) - 4)).'║';
+        } else {
+            foreach ($tasks as $task) {
+                if (count($modalLines) >= $maxHeight - 2) {
+                    $modalLines[] = '║ <fg=gray>... and more</>'.str_repeat(' ', max(0, $modalWidth - 14)).'║';
+                    break;
+                }
+
+                $displayId = substr((string) $task->short_id, 2, 6);
+                $titleTrunc = $this->truncate((string) $task->title, $modalWidth - 16);
+                $complexityChar = $this->getComplexityChar($task);
+
+                $idColor = $style === 'blocked' ? 'fg=#b36666' : 'fg=#888888';
+                $content = sprintf('<%s>[%s ·%s]</> %s', $idColor, $displayId, $complexityChar, $titleTrunc);
+                $contentLen = $this->visibleLength($content);
+                $padding = max(0, $modalWidth - $contentLen - 4);
+                $modalLines[] = '║ '.$content.str_repeat(' ', $padding).'║';
+            }
+        }
+
+        $modalLines[] = '╠'.str_repeat('═', $modalWidth - 2).'╣';
+        $footerText = 'Press Escape or '.(($style === 'blocked') ? 'b' : 'd').' to close';
+        $footerPadding = max(0, $modalWidth - strlen($footerText) - 4);
+        $modalLines[] = '║ <fg=gray>'.$footerText.'</>'.str_repeat(' ', $footerPadding).'║';
+        $modalLines[] = '╚'.str_repeat('═', $modalWidth - 2).'╝';
+
+        // Render modal using absolute positioning
+        foreach ($modalLines as $i => $line) {
+            $row = $startRow + $i;
+            // Move cursor to position and draw line
+            $this->getOutput()->write(sprintf("\033[%d;%dH%s", $row, $startCol, $line));
+        }
+    }
+
+    /**
+     * Get complexity character for a task.
+     */
+    private function getComplexityChar(Task $task): string
+    {
+        $complexity = $task->complexity ?? 'simple';
+
+        return match ($complexity) {
+            'trivial' => 't',
+            'simple' => 's',
+            'moderate' => 'm',
+            'complex' => 'c',
+            default => 's',
+        };
     }
 
     private function formatStatus(string $icon, string $message, string $color): string
@@ -971,44 +1413,129 @@ class ConsumeCommand extends Command
     }
 
     /**
-     * Check for Shift+Tab keypress to toggle pause state.
-     * Uses non-blocking read with stream_select().
+     * Handle keyboard input for pause toggle and modal toggles.
+     *
+     * @param  bool  $paused  Reference to paused state
+     * @param  array<string>  $statusLines  Reference to status lines
      */
-    private function checkForPauseToggle(): bool
+    private function handleKeyboardInput(bool &$paused, array &$statusLines): void
     {
         $read = [STDIN];
         $write = null;
         $except = null;
 
         // Non-blocking check (0 timeout)
-        if (stream_select($read, $write, $except, 0, 0) > 0) {
-            $char = fgetc(STDIN);
-
-            // Shift+Tab sends escape sequence: ESC [ Z (\x1b[Z)
-            if ($char === "\x1b") {
-                // Read the rest of the escape sequence
-                $seq = '';
-                while (($next = fgetc(STDIN)) !== false) {
-                    $seq .= $next;
-                    // Escape sequences typically end after 1-2 chars
-                    if (strlen($seq) >= 2) {
-                        break;
-                    }
-                }
-
-                // Check if it's Shift+Tab ([Z)
-                if ($seq === '[Z') {
-                    // Drain any remaining buffered input to avoid multiple toggles
-                    while (fgetc(STDIN) !== false) {
-                        // drain
-                    }
-
-                    return true;
-                }
-            }
+        if (stream_select($read, $write, $except, 0, 0) <= 0) {
+            return;
         }
 
-        return false;
+        $char = fgetc(STDIN);
+        if ($char === false) {
+            return;
+        }
+
+        // Handle escape sequences (Shift+Tab, Escape key)
+        if ($char === "\x1b") {
+            // Read the rest of the escape sequence
+            $seq = '';
+            while (($next = fgetc(STDIN)) !== false) {
+                $seq .= $next;
+                // Escape sequences typically end after 1-2 chars
+                if (strlen($seq) >= 2) {
+                    break;
+                }
+            }
+
+            // Check if it's Shift+Tab ([Z)
+            if ($seq === '[Z') {
+                // Drain any remaining buffered input to avoid multiple toggles
+                while (fgetc(STDIN) !== false) {
+                    // drain
+                }
+
+                $paused = ! $paused;
+                $statusLines[] = $paused
+                    ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
+                    : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                $statusLines = $this->trimStatusLines($statusLines);
+
+                return;
+            }
+
+            // Check if it's just Escape (no sequence or short sequence)
+            if ($seq === '' || $seq === '[') {
+                // Close any open modals
+                if ($this->showBlockedModal || $this->showDoneModal) {
+                    $this->showBlockedModal = false;
+                    $this->showDoneModal = false;
+                    $this->forceRefresh = true;
+                }
+
+                return;
+            }
+
+            return;
+        }
+
+        // Handle single character keys
+        switch ($char) {
+            case 'b':
+            case 'B':
+                // Toggle blocked modal
+                $this->showBlockedModal = ! $this->showBlockedModal;
+                if ($this->showBlockedModal) {
+                    $this->showDoneModal = false; // Close done modal if open
+                }
+
+                $this->forceRefresh = true;
+                break;
+
+            case 'd':
+            case 'D':
+                // Toggle done modal
+                $this->showDoneModal = ! $this->showDoneModal;
+                if ($this->showDoneModal) {
+                    $this->showBlockedModal = false; // Close blocked modal if open
+                }
+
+                $this->forceRefresh = true;
+                break;
+
+            case 'q':
+            case 'Q':
+                // Close any open modals, or do nothing
+                if ($this->showBlockedModal || $this->showDoneModal) {
+                    $this->showBlockedModal = false;
+                    $this->showDoneModal = false;
+                    $this->forceRefresh = true;
+                }
+
+                break;
+        }
+
+        // Drain any remaining buffered input
+        while (fgetc(STDIN) !== false) {
+            // drain
+        }
+    }
+
+    /**
+     * Update terminal size from stty.
+     */
+    private function updateTerminalSize(): void
+    {
+        if (! function_exists('shell_exec')) {
+            return;
+        }
+
+        $sttyOutput = @shell_exec('stty size 2>/dev/null');
+        if ($sttyOutput !== null) {
+            $parts = explode(' ', trim($sttyOutput));
+            if (count($parts) === 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
+                $this->terminalHeight = (int) $parts[0];
+                $this->terminalWidth = (int) $parts[1];
+            }
+        }
     }
 
     private function setTerminalTitle(string $title): void

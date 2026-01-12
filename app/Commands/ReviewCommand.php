@@ -57,7 +57,7 @@ class ReviewCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info('Review spawned. Check `fuel board` for status.');
+        $this->info('Review spawned. Check `fuel consume --once` for status.');
 
         return self::SUCCESS;
     }
