@@ -6,8 +6,6 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -28,11 +26,8 @@ class PromoteCommand extends Command
 
     protected $description = 'Promote one or more backlog items (status=someday) to active tasks';
 
-    public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService): int
+    public function handle(TaskService $taskService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         $ids = $this->argument('ids');
         $results = [];
         $errors = [];

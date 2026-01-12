@@ -9,9 +9,7 @@ use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use Carbon\Carbon;
 use LaravelZero\Framework\Commands\Command;
@@ -26,10 +24,8 @@ class HumanCommand extends Command
 
     protected $description = 'List all items needing human attention';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, EpicService $epicService): int
+    public function handle(TaskService $taskService, EpicService $epicService): int
     {
-        $this->configureCwd($context, $dbService);
-
         // Get tasks with needs-human label (excluding epic-review tasks)
         $tasks = $taskService->all();
         $humanTasks = $tasks

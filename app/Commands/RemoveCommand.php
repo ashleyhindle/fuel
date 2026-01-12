@@ -6,8 +6,6 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -30,11 +28,8 @@ class RemoveCommand extends Command
         $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip confirmation prompt');
     }
 
-    public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService): int
+    public function handle(TaskService $taskService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         $id = $this->argument('id');
 
         try {

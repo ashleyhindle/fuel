@@ -7,8 +7,6 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -26,10 +24,8 @@ class RetryCommand extends Command
 
     protected $description = 'Retry failed tasks by moving them back to open status';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         $ids = $this->argument('ids') ?: [];
         $dryrun = $this->option('dryrun');
 

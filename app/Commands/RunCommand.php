@@ -9,7 +9,6 @@ use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\CompletionType;
 use App\Services\ConfigService;
-use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\ProcessManager;
@@ -41,7 +40,6 @@ class RunCommand extends Command
         private RunService $runService,
         private ProcessManager $processManager,
         private OutputParser $outputParser,
-        private DatabaseService $databaseService,
         private FuelContext $fuelContext,
     ) {
         parent::__construct();
@@ -49,8 +47,6 @@ class RunCommand extends Command
 
     public function handle(): int
     {
-        $this->configureCwd($this->fuelContext, $this->databaseService);
-
         $cwd = $this->option('cwd') ?: getcwd();
 
         // Ensure processes directory exists
@@ -82,7 +78,7 @@ class RunCommand extends Command
 
         if ($status === TaskStatus::InProgress) {
             $this->warn('⚠ Task is already in_progress (ignoring for debug run)');
-        } elseif ($status === TaskStatus::Closed) {
+        } elseif ($status === TaskStatus::Done) {
             $this->warn('⚠ Task is already done (ignoring for debug run)');
         } elseif ($status === TaskStatus::Cancelled) {
             $this->warn('⚠ Task is cancelled (ignoring for debug run)');

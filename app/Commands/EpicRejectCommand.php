@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -23,11 +21,8 @@ class EpicRejectCommand extends Command
 
     protected $description = 'Reject an epic and request changes (moves tasks back to open)';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, EpicService $epicService): int
+    public function handle(EpicService $epicService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         try {
             $reason = $this->option('reason');
             $epic = $epicService->rejectEpic($this->argument('id'), $reason);

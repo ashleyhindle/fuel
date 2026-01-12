@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -22,10 +20,8 @@ class QCommand extends Command
 
     protected $description = 'Quick capture - creates task and outputs only the ID';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         try {
             $task = $taskService->create([
                 'title' => $this->argument('title'),

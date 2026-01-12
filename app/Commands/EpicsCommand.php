@@ -8,9 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use LaravelZero\Framework\Commands\Command;
 
 class EpicsCommand extends Command
@@ -23,11 +21,8 @@ class EpicsCommand extends Command
 
     protected $description = 'List all epics';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, EpicService $epicService): int
+    public function handle(EpicService $epicService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         try {
             $epics = $epicService->getAllEpics();
 
@@ -36,7 +31,7 @@ class EpicsCommand extends Command
                 $epicsWithProgress = array_map(function (Epic $epic) use ($epicService): array {
                     $tasks = $epicService->getTasksForEpic($epic->short_id);
                     $totalCount = count($tasks);
-                    $completedCount = count(array_filter($tasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
+                    $completedCount = count(array_filter($tasks, fn (Task $task): bool => $task->status === TaskStatus::Done));
                     $epicArray = $epic->toArray();
                     $epicArray['task_count'] = $totalCount;
                     $epicArray['completed_count'] = $completedCount;
@@ -63,7 +58,7 @@ class EpicsCommand extends Command
             $rows = array_map(function (Epic $epic) use ($epicService): array {
                 $tasks = $epicService->getTasksForEpic($epic->short_id);
                 $totalCount = count($tasks);
-                $completedCount = count(array_filter($tasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
+                $completedCount = count(array_filter($tasks, fn (Task $task): bool => $task->status === TaskStatus::Done));
                 $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
                 return [

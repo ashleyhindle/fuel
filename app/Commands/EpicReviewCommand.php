@@ -9,7 +9,6 @@ use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -29,11 +28,8 @@ class EpicReviewCommand extends Command
 
     protected $description = 'Show epic with commits and diffs';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, EpicService $epicService): int
+    public function handle(DatabaseService $dbService, TaskService $taskService, EpicService $epicService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         try {
             // Load epic and validate it exists
             $epic = $epicService->getEpic($this->argument('epicId'));

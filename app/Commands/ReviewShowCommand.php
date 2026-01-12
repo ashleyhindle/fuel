@@ -8,7 +8,6 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Review;
 use App\Models\Task;
 use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\RunService;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
@@ -26,10 +25,8 @@ class ReviewShowCommand extends Command
 
     protected $description = 'Show detailed review information including agent output';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, RunService $runService): int
+    public function handle(DatabaseService $dbService, RunService $runService): int
     {
-        $this->configureCwd($context, $dbService);
-
         $reviewId = $this->argument('id');
 
         // Strip 'review-' prefix if present (from ShowCommand delegation)

@@ -6,9 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Epic;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -24,11 +22,8 @@ class EpicApproveCommand extends Command
 
     protected $description = 'Approve one or more epics (mark as approved)';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, EpicService $epicService): int
+    public function handle(EpicService $epicService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         $ids = $this->argument('ids');
         $approvedBy = $this->option('by');
         $epics = [];

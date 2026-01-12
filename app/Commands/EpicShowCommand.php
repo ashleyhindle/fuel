@@ -8,9 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -26,11 +24,8 @@ class EpicShowCommand extends Command
 
     protected $description = 'Show epic details including linked tasks';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, EpicService $epicService): int
+    public function handle(TaskService $taskService, EpicService $epicService): int
     {
-        // Configure context with --cwd if provided
-        $this->configureCwd($context, $dbService);
-
         try {
             $epic = $epicService->getEpic($this->argument('id'));
 
@@ -68,7 +63,7 @@ class EpicShowCommand extends Command
 
             if ($this->option('json')) {
                 $totalCount = count($sortedTasks);
-                $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
+                $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => $task->status === TaskStatus::Done));
                 $epicArray = $epic->toArray();
                 $epicArray['tasks'] = array_map(fn (Task $task): array => $task->toArray(), $sortedTasks);
                 $epicArray['task_count'] = $totalCount;
@@ -80,7 +75,7 @@ class EpicShowCommand extends Command
 
             // Calculate progress
             $totalCount = count($sortedTasks);
-            $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
+            $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => $task->status === TaskStatus::Done));
             $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
             // Display epic details

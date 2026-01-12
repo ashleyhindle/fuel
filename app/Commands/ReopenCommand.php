@@ -6,8 +6,6 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -21,12 +19,10 @@ class ReopenCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
-    protected $description = 'Reopen one or more closed or in_progress tasks (set status back to open)';
+    protected $description = 'Reopen one or more done or in_progress tasks (set status back to open)';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         $ids = $this->argument('ids');
         $tasks = [];
         $errors = [];
