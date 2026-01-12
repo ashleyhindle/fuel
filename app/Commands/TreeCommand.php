@@ -118,7 +118,7 @@ class TreeCommand extends Command
                 '<fg=cyan>[P%d·%s]</> %s %s <fg=%s>(%s)</>',
                 $priority,
                 $complexity,
-                $task->id,
+                $task->short_id,
                 $task->title,
                 $statusColor,
                 $displayStatus
@@ -138,7 +138,7 @@ class TreeCommand extends Command
                     $prefix,
                     $blockedPriority,
                     $blockedComplexity,
-                    $blocked->id,
+                    $blocked->short_id,
                     $blocked->title
                 ));
             }

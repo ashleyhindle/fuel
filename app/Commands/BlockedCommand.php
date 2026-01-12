@@ -42,7 +42,7 @@ class BlockedCommand extends Command
             $this->table(
                 ['ID', 'Title', 'Created'],
                 $tasks->map(fn (Task $t): array => [
-                    $t->id,
+                    $t->short_id,
                     $t->title,
                     $t->created_at,
                 ])->toArray()

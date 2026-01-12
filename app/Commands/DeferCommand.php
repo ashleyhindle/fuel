@@ -35,12 +35,12 @@ class DeferCommand extends Command
 
             if ($this->option('json')) {
                 $this->outputJson([
-                    'task_id' => $task->id,
+                    'task_id' => $task->short_id,
                     'title' => $task->title,
                     'status' => $task->status,
                 ]);
             } else {
-                $this->info('Deferred task: '.$task->id);
+                $this->info('Deferred task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
             }
 

@@ -36,7 +36,7 @@ class QCommand extends Command
             return $this->outputError($runtimeException->getMessage());
         }
 
-        $this->line($task->id);
+        $this->line($task->short_id);
 
         return self::SUCCESS;
     }

@@ -58,7 +58,7 @@ class EpicApproveCommand extends Command
             }
         } else {
             foreach ($epics as $epic) {
-                $this->info(sprintf('Epic %s approved', $epic->id));
+                $this->info(sprintf('Epic %s approved', $epic->short_id));
                 if (isset($epic->approved_by)) {
                     $this->line(sprintf('  Approved by: %s', $epic->approved_by));
                 }

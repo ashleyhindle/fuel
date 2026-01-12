@@ -98,7 +98,7 @@ class SummaryCommand extends Command
             default => $task->status,
         };
 
-        $this->line(sprintf('<fg=cyan>Task:</> %s - %s', $task->id, $task->title));
+        $this->line(sprintf('<fg=cyan>Task:</> %s - %s', $task->short_id, $task->title));
         $this->line('<fg=cyan>Status:</> '.$statusLabel);
         $this->line('<fg=cyan>Runs:</> '.count($runs));
     }

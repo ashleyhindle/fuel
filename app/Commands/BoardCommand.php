@@ -395,9 +395,9 @@ class BoardCommand extends Command
             $lines[] = $this->padLine('<fg=gray>No tasks</>', $width);
         } else {
             foreach ($tasks as $task) {
-                $id = (string) $task->id;
+                $shortId = $task->short_id;
                 $taskTitle = (string) $task->title;
-                $shortId = substr($id, 2, 6); // Skip 'f-' prefix
+                $displayId = substr($shortId, 2, 6); // Skip 'f-' prefix for compact display
                 $complexityChar = $this->getComplexityChar($task);
 
                 // Show icon for tasks being consumed by fuel consume
@@ -436,9 +436,9 @@ class BoardCommand extends Command
                 $titleEnd = ($style === 'done' || $style === 'review') ? '</>' : '';
 
                 if ($iconString !== '') {
-                    $lines[] = $this->padLine(sprintf('<%s>[%s ·%s]</> %s %s%s%s', $idColor, $shortId, $complexityChar, $iconString, $titleColor, $truncatedTitle, $titleEnd), $width);
+                    $lines[] = $this->padLine(sprintf('<%s>[%s ·%s]</> %s %s%s%s', $idColor, $displayId, $complexityChar, $iconString, $titleColor, $truncatedTitle, $titleEnd), $width);
                 } else {
-                    $lines[] = $this->padLine(sprintf('<%s>[%s ·%s]</> %s%s%s', $idColor, $shortId, $complexityChar, $titleColor, $truncatedTitle, $titleEnd), $width);
+                    $lines[] = $this->padLine(sprintf('<%s>[%s ·%s]</> %s%s%s', $idColor, $displayId, $complexityChar, $titleColor, $truncatedTitle, $titleEnd), $width);
                 }
             }
         }
@@ -474,15 +474,15 @@ class BoardCommand extends Command
         $separator = '<fg=gray> | </>';
 
         foreach ($humanTasks as $task) {
-            $id = (string) $task->id;
+            $shortId = $task->short_id;
             $title = (string) $task->title;
-            $shortId = substr($id, 2, 6); // Skip 'f-' prefix
+            $displayId = substr($shortId, 2, 6); // Skip 'f-' prefix for compact display
 
             // Calculate separator length if not first item
             $separatorLength = $items !== [] ? $this->visibleLength($separator) : 0;
 
             // Build ID part to calculate its visible length (use yellow for human tasks)
-            $idPart = sprintf('<fg=yellow>[%s]</> ', $shortId);
+            $idPart = sprintf('<fg=yellow>[%s]</> ', $displayId);
             $idPartLength = $this->visibleLength($idPart);
 
             // Calculate how much space we have for the title

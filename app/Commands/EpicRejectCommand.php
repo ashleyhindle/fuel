@@ -38,7 +38,7 @@ class EpicRejectCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info(sprintf('Epic %s rejected - changes requested', $epic->id));
+            $this->info(sprintf('Epic %s rejected - changes requested', $epic->short_id));
             if ($reason !== null) {
                 $this->line(sprintf('  Reason: %s', $reason));
             }

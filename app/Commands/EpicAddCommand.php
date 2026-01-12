@@ -35,7 +35,7 @@ class EpicAddCommand extends Command
         if ($this->option('json')) {
             $this->outputJson($epic->toArray());
         } else {
-            $this->info('Created epic: '.$epic->id);
+            $this->info('Created epic: '.$epic->short_id);
             $this->line('  Title: '.$epic->title);
             if ($epic->description) {
                 $this->line('  Description: '.$epic->description);

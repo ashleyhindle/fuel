@@ -53,7 +53,7 @@ class EpicReviewCommand extends Command
                 if (isset($task->commit_hash) && is_string($task->commit_hash) && $task->commit_hash !== '') {
                     $commits[] = [
                         'hash' => $task->commit_hash,
-                        'task_id' => $task->id,
+                        'task_id' => $task->short_id,
                         'task_title' => $task->title,
                     ];
                 }
@@ -117,8 +117,8 @@ class EpicReviewCommand extends Command
 
             // Prompt to mark as reviewed (unless --no-prompt is set or output is piped)
             if (! $this->option('no-prompt') && $this->input->isInteractive() && $this->confirm('Mark this epic as reviewed?', false)) {
-                $epicService->markAsReviewed($epic->id);
-                $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
+                $epicService->markAsReviewed($epic->short_id);
+                $this->info(sprintf('Epic %s marked as reviewed', $epic->short_id));
             }
 
             return self::SUCCESS;
@@ -149,7 +149,7 @@ class EpicReviewCommand extends Command
         // Epic header
         $this->newLine();
         $this->info('═══════════════════════════════════════════════════════════════');
-        $this->info(sprintf('Epic Review: %s', $epic->id));
+        $this->info(sprintf('Epic Review: %s', $epic->short_id));
         $this->info('═══════════════════════════════════════════════════════════════');
         $this->newLine();
 
@@ -194,7 +194,7 @@ class EpicReviewCommand extends Command
                 }
 
                 return [
-                    $task->id ?? '',
+                    $task->short_id ?? '',
                     $task->title ?? '',
                     $task->status ?? TaskStatus::Open->value,
                     $commit,

@@ -89,7 +89,7 @@ class DoneCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Completed task: '.$task->id);
+                $this->info('Completed task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
                 if (isset($task->reason)) {
                     $this->line('  Reason: '.$task->reason);

@@ -77,7 +77,7 @@ class RetryCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Retried task: '.$task->id);
+                $this->info('Retried task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
             }
         }
@@ -113,7 +113,7 @@ class RetryCommand extends Command
         $this->info('Failed tasks (use fuel retry to retry all):');
         foreach ($failedTasks as $task) {
             $reason = $this->getFailureReason($task);
-            $this->line(sprintf('  %s: %s <fg=gray>(%s)</>', $task->id, $task->title, $reason));
+            $this->line(sprintf('  %s: %s <fg=gray>(%s)</>', $task->short_id, $task->title, $reason));
         }
 
         return self::SUCCESS;

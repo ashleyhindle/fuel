@@ -81,7 +81,7 @@ class InitCommand extends Command
                 'priority' => 2,
             ]);
 
-            $this->info('Created starter task: '.$task->id);
+            $this->info('Created starter task: '.$task->short_id);
         }
 
         $this->newLine();

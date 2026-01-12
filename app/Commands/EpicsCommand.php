@@ -68,7 +68,7 @@ class EpicsCommand extends Command
                 $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
                 return [
-                    $epic->id,
+                    $epic->short_id,
                     $epic->title ?? '',
                     $epic->status ?? EpicStatus::Planning->value,
                     $progress,

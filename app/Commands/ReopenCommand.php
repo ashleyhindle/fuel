@@ -55,7 +55,7 @@ class ReopenCommand extends Command
             }
         } else {
             foreach ($tasks as $task) {
-                $this->info('Reopened task: '.$task->id);
+                $this->info('Reopened task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
             }
         }

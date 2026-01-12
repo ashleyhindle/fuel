@@ -52,7 +52,7 @@ class CompletedCommand extends Command
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority'];
             $rows = $tasks->map(fn (Task $t): array => [
-                $t->id,
+                $t->short_id,
                 $t->title,
                 $this->formatDate($t->updated_at),
                 $t->type ?? 'task',

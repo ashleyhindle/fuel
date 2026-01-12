@@ -102,7 +102,7 @@ class PromoteCommand extends Command
         } else {
             foreach ($results as $result) {
                 $task = $result['task'];
-                $this->info(sprintf('Promoted task %s from backlog to active', $task->id));
+                $this->info(sprintf('Promoted task %s from backlog to active', $task->short_id));
                 $this->line('  Title: '.$task->title);
 
                 if (! empty($task->blocked_by)) {

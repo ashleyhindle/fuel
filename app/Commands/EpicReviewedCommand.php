@@ -36,7 +36,7 @@ class EpicReviewedCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->info(sprintf('Epic %s marked as reviewed', $epic->id));
+            $this->info(sprintf('Epic %s marked as reviewed', $epic->short_id));
 
             return self::SUCCESS;
         } catch (RuntimeException $e) {

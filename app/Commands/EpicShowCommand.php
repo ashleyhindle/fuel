@@ -85,7 +85,7 @@ class EpicShowCommand extends Command
             $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
             // Display epic details
-            $this->info('Epic: '.$epic->id);
+            $this->info('Epic: '.$epic->short_id);
             $this->line('  Title: '.($epic->title ?? ''));
             $this->line('  Status: '.($epic->status ?? EpicStatus::Planning->value));
             $this->line('  Progress: '.$progress);
@@ -115,7 +115,7 @@ class EpicShowCommand extends Command
                     }
 
                     return [
-                        $task->id ?? '',
+                        $task->short_id ?? '',
                         $task->title ?? '',
                         $status,
                         $task->type ?? '',

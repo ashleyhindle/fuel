@@ -77,19 +77,19 @@ class HumanCommand extends Command
         // Show epics pending review first
         foreach ($pendingEpics as $epic) {
             $age = $this->formatAge($epic->created_at ?? null);
-            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $epic->id, $epic->title, $age));
+            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $epic->short_id, $epic->title, $age));
             if (! empty($epic->description ?? null)) {
                 $this->line('  '.$epic->description);
             }
 
-            $this->line(sprintf('  Review: <comment>fuel epic:review %s</comment>', $epic->id));
+            $this->line(sprintf('  Review: <comment>fuel epic:review %s</comment>', $epic->short_id));
             $this->newLine();
         }
 
         // Show tasks needing human attention
         foreach ($humanTasks as $task) {
             $age = $this->formatAge($task->created_at ?? null);
-            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $task->id, $task->title, $age));
+            $this->line(sprintf('<info>%s</info> - %s <comment>(%s)</comment>', $task->short_id, $task->title, $age));
             if (! empty($task->description ?? null)) {
                 $this->line('  '.$task->description);
             }

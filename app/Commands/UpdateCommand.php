@@ -83,7 +83,7 @@ class UpdateCommand extends Command
             if ($this->option('json')) {
                 $this->outputJson($task->toArray());
             } else {
-                $this->info('Updated task: '.$task->id);
+                $this->info('Updated task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
             }
 

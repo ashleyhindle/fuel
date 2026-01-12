@@ -45,7 +45,7 @@ class StuckCommand extends Command
                 $pid = $task->consume_pid ?? null;
                 $output = $task->consumed_output ?? '';
 
-                $this->line(sprintf('<info>%s</info> - %s', $task->id, $task->title));
+                $this->line(sprintf('<info>%s</info> - %s', $task->short_id, $task->title));
 
                 // Show reason for being stuck
                 if ($exitCode !== null && $exitCode !== 0) {

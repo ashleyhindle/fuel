@@ -106,7 +106,7 @@ class AddCommand extends Command
         if ($this->option('json')) {
             $this->outputJson($task->toArray());
         } else {
-            $this->info('Created task: '.$task->id);
+            $this->info('Created task: '.$task->short_id);
             $this->line('  Title: '.$task->title);
             $this->line('  Status: '.$task->status);
 
