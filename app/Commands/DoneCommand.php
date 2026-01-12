@@ -32,8 +32,6 @@ class DoneCommand extends Command
         TaskService $taskService,
         EpicService $epicService
     ): int {
-        $this->configureCwd($context, $databaseService);
-
         $ids = $this->argument('ids');
         $reason = $this->option('reason');
         $commit = $this->option('commit');
