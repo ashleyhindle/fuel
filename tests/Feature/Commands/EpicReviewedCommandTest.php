@@ -18,8 +18,10 @@ beforeEach(function (): void {
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test service instances
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
     $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
         $this->app->make(DatabaseService::class),
@@ -27,7 +29,6 @@ beforeEach(function (): void {
     ));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->databaseService->initialize();
 });
 
 afterEach(function (): void {
@@ -71,8 +72,10 @@ describe('epic:reviewed command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -141,7 +144,7 @@ describe('epic:reviewed command', function (): void {
         $data = json_decode($output, true);
 
         expect($data)->toBeArray();
-        expect($data['id'])->toBe($epic->id);
+        expect($data['short_id'])->toBe($epic->short_id);
         expect($data['title'])->toBe('JSON Epic');
         expect($data['reviewed_at'])->not->toBeNull();
         expect($data['reviewed_at'])->toBeString();

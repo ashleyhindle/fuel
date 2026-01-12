@@ -17,8 +17,10 @@ describe('show command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -58,7 +60,6 @@ describe('show command', function (): void {
     });
 
     it('shows task details with all fields', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'Test task',
             'description' => 'Test description',
@@ -67,8 +68,8 @@ describe('show command', function (): void {
             'labels' => ['frontend', 'backend'],
         ]);
 
-        $this->artisan('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Task: '.$task['short_id'])
+        $this->artisan('show', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Task: '.$task->short_id)
             ->expectsOutputToContain('Title: Test task')
             ->expectsOutputToContain('Status: open')
             ->expectsOutputToContain('Description: Test description')
@@ -79,28 +80,25 @@ describe('show command', function (): void {
     });
 
     it('shows task with blockers in blocked_by array', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker']);
         $task = $this->taskService->create(['title' => 'Blocked task']);
-        $this->taskService->addDependency($task['short_id'], $blocker['short_id']);
+        $this->taskService->addDependency($task->short_id, $blocker->short_id);
 
-        $this->artisan('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Blocked by: '.$blocker['short_id'])
+        $this->artisan('show', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+            ->expectsOutputToContain('Blocked by: '.$blocker->short_id)
             ->assertExitCode(0);
     });
 
     it('shows task with reason if present', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Completed task']);
-        $this->taskService->done($task['short_id'], 'Fixed the issue');
+        $this->taskService->done($task->short_id, 'Fixed the issue');
 
-        $this->artisan('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir])
+        $this->artisan('show', ['id' => $task->short_id, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Reason: Fixed the issue')
             ->assertExitCode(0);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'JSON task',
             'description' => 'JSON description',
@@ -109,11 +107,11 @@ describe('show command', function (): void {
             'labels' => ['critical'],
         ]);
 
-        Artisan::call('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result['short_id'])->toBe($task['short_id']);
+        expect($result['short_id'])->toBe($task->short_id);
         expect($result['title'])->toBe('JSON task');
         expect($result['description'])->toBe('JSON description');
         expect($result['type'])->toBe('bug');
@@ -122,7 +120,6 @@ describe('show command', function (): void {
     });
 
     it('shows error for non-existent task', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('show', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
             ->expectsOutputToContain('not found')
@@ -130,77 +127,71 @@ describe('show command', function (): void {
     });
 
     it('supports partial ID matching', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr((string) $task['short_id'], 2, 3);
+        $partialId = substr((string) $task->short_id, 2, 3);
 
         $this->artisan('show', ['id' => $partialId, '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('Task: '.$task['short_id'])
+            ->expectsOutputToContain('Task: '.$task->short_id)
             ->assertExitCode(0);
     });
 
     it('shows epic information when task has epic_id', function (): void {
-        $this->taskService->initialize();
 
         // Initialize database for epics
         $dbService = new DatabaseService;
         $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
-        $dbService->initialize();
 
         $epicService = makeEpicService($dbService, $this->taskService);
         $epic = $epicService->createEpic('Test Epic', 'Epic description');
 
         $task = $this->taskService->create([
             'title' => 'Task with epic',
-            'epic_id' => $epic['short_id'],
+            'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir]);
+        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         // Verify task has epic_id
-        $taskData = $this->taskService->find($task['short_id']);
+        $taskData = $this->taskService->find($task->short_id);
         expect($taskData->epic)->not->toBeNull();
-        expect($taskData->epic->short_id)->toBe($epic['short_id']);
+        expect($taskData->epic->short_id)->toBe($epic->short_id);
 
-        expect($output)->toContain('Epic: '.$epic['short_id']);
+        expect($output)->toContain('Epic: '.$epic->short_id);
         expect($output)->toContain('Test Epic');
         expect($output)->toContain('in_progress'); // Epic status is in_progress because task is open
     });
 
     it('includes epic information in JSON output when task has epic_id', function (): void {
-        $this->taskService->initialize();
 
         // Initialize database for epics
         $dbService = new DatabaseService;
         $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
-        $dbService->initialize();
 
         $epicService = makeEpicService($dbService, $this->taskService);
         $epic = $epicService->createEpic('JSON Epic', 'Epic description');
 
         $task = $this->taskService->create([
             'title' => 'Task with epic',
-            'epic_id' => $epic['short_id'],
+            'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
         expect($result['epic'])->toBeArray();
-        expect($result['epic']['id'])->toBe($epic['short_id']);
+        expect($result['epic']['short_id'])->toBe($epic->short_id);
         expect($result['epic']['title'])->toBe('JSON Epic');
         expect($result['epic']['status'])->toBe('in_progress'); // Epic status is in_progress because task is open
     });
 
     it('shows live output from stdout.log when task is in_progress', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'In progress task']);
-        $this->taskService->start($task['short_id']);
+        $this->taskService->start($task->short_id);
 
         $runService = $this->app->make(RunService::class);
-        $runShortId = $runService->createRun($task['short_id'], [
+        $runShortId = $runService->createRun($task->short_id, [
             'agent' => 'test-agent',
         ]);
 
@@ -210,7 +201,7 @@ describe('show command', function (): void {
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Line 1\nLine 2\nLine 3\n");
 
-        Artisan::call('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('(live output)');
@@ -221,12 +212,11 @@ describe('show command', function (): void {
     });
 
     it('shows last 50 lines from stdout.log when file has more lines', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'In progress task']);
-        $this->taskService->start($task['short_id']);
+        $this->taskService->start($task->short_id);
 
         $runService = $this->app->make(RunService::class);
-        $runShortId = $runService->createRun($task['short_id'], [
+        $runShortId = $runService->createRun($task->short_id, [
             'agent' => 'test-agent',
         ]);
 
@@ -241,7 +231,7 @@ describe('show command', function (): void {
 
         file_put_contents($stdoutPath, implode("\n", $lines)."\n");
 
-        Artisan::call('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('(live output)');
@@ -255,25 +245,24 @@ describe('show command', function (): void {
     });
 
     it('shows regular run output when task is not in_progress', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Completed task']);
-        $this->taskService->start($task['short_id']);
+        $this->taskService->start($task->short_id);
 
         // Create a run with output
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['short_id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'test-agent',
             'output' => 'Run output content',
         ]);
 
         // Mark task as closed
-        $this->taskService->done($task['short_id']);
+        $this->taskService->done($task->short_id);
 
         // Create stdout.log (should be ignored for closed tasks)
         $databaseService = $this->app->make(DatabaseService::class);
         $run = $databaseService->fetchOne(
             'SELECT short_id FROM runs WHERE task_id = (SELECT id FROM tasks WHERE short_id = ?) ORDER BY id DESC LIMIT 1',
-            [$task['short_id']]
+            [$task->short_id]
         );
         $runShortId = $run['short_id'];
 
@@ -282,7 +271,7 @@ describe('show command', function (): void {
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Live output\n");
 
-        Artisan::call('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output');
@@ -293,18 +282,17 @@ describe('show command', function (): void {
     });
 
     it('shows regular run output when stdout.log does not exist', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'In progress task']);
-        $this->taskService->start($task['short_id']);
+        $this->taskService->start($task->short_id);
 
         // Create a run with output
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['short_id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'test-agent',
             'output' => 'Run output content',
         ]);
 
-        Artisan::call('show', ['id' => $task['short_id'], '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output');

@@ -18,8 +18,10 @@ beforeEach(function (): void {
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test service instances
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
     $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
         $this->app->make(DatabaseService::class),
@@ -27,7 +29,6 @@ beforeEach(function (): void {
     ));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->databaseService->initialize();
 });
 
 afterEach(function (): void {
@@ -71,8 +72,10 @@ describe('epic:review command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -175,7 +178,7 @@ describe('epic:review command', function (): void {
         expect($data)->toHaveKey('commits');
         expect($data)->toHaveKey('git_stats');
         expect($data)->toHaveKey('commit_messages');
-        expect($data['epic']['id'])->toBe($epic->id);
+        expect($data['epic']['short_id'])->toBe($epic->short_id);
         expect($data['epic']['title'])->toBe('JSON Epic');
         expect($data['tasks'])->toHaveCount(1);
         expect($data['tasks'][0]['title'])->toBe('JSON Task');
@@ -195,7 +198,7 @@ describe('epic:review command', function (): void {
         ]);
 
         // Mark task as done with a commit hash
-        $taskService->done($task['id'], null, 'abc1234567890123456789012345678901234567');
+        $taskService->done($task->short_id, null, 'abc1234567890123456789012345678901234567');
 
         Artisan::call('epic:review', ['epicId' => $epic->id, '--cwd' => $this->tempDir, '--no-prompt' => true]);
         $output = Artisan::output();
@@ -264,7 +267,7 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->id,
         ]);
 
-        $taskService->done($task['id'], null, 'testcommit123');
+        $taskService->done($task->short_id, null, 'testcommit123');
 
         Artisan::call('epic:review', ['epicId' => $epic->id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -287,7 +290,7 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->id,
         ]);
 
-        $taskService->done($task['id'], null, 'testcommit456');
+        $taskService->done($task->short_id, null, 'testcommit456');
 
         Artisan::call('epic:review', ['epicId' => $epic->id, '--cwd' => $this->tempDir, '--json' => true, '--diff' => true]);
         $output = Artisan::output();
@@ -309,7 +312,7 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->id,
         ]);
 
-        $taskService->done($task['id'], null, 'abc1234567890123456789012345678901234567');
+        $taskService->done($task->short_id, null, 'abc1234567890123456789012345678901234567');
 
         Artisan::call('epic:review', ['epicId' => $epic->id, '--cwd' => $this->tempDir, '--no-prompt' => true]);
         $output = Artisan::output();
@@ -330,7 +333,7 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->id,
         ]);
 
-        $taskService->done($task['id'], null, 'def1234567890123456789012345678901234567');
+        $taskService->done($task->short_id, null, 'def1234567890123456789012345678901234567');
 
         Artisan::call('epic:review', ['epicId' => $epic->id, '--cwd' => $this->tempDir, '--no-prompt' => true, '--diff' => true]);
         $output = Artisan::output();

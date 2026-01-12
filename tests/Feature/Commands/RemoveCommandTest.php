@@ -24,8 +24,10 @@ describe('remove command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -65,25 +67,23 @@ describe('remove command', function (): void {
     });
 
     it('deletes a task with --force flag', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
-        Artisan::call('remove', ['id' => $task['id'], '--force' => true, '--cwd' => $this->tempDir]);
+        Artisan::call('remove', ['id' => $task->short_id, '--force' => true, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted task:');
-        expect($output)->toContain($task['id']);
+        expect($output)->toContain($task->short_id);
 
         // Verify task is deleted
-        expect($this->taskService->find($task['id']))->toBeNull();
+        expect($this->taskService->find($task->short_id))->toBeNull();
     });
 
     it('outputs JSON when --json flag is used for task deletion', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
         Artisan::call('remove', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--cwd' => $this->tempDir,
             '--json' => true,
             '--force' => true,
@@ -92,13 +92,12 @@ describe('remove command', function (): void {
         $result = json_decode($output, true);
 
         expect($result)->toHaveKeys(['id', 'deleted']);
-        expect($result['id'])->toBe($task['id']);
+        expect($result['id'])->toBe($task->short_id);
         expect($result['deleted'])->toBeArray();
-        expect($result['deleted']['id'])->toBe($task['id']);
+        expect($result['deleted']['short_id'])->toBe($task->short_id);
     });
 
     it('skips confirmation for task deletion in non-interactive mode', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
         // Create command instance and set input to non-interactive
@@ -106,7 +105,7 @@ describe('remove command', function (): void {
         $command->setLaravel($this->app);
 
         $input = new ArrayInput([
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--cwd' => $this->tempDir,
         ], $command->getDefinition());
         $input->setInteractive(false);
@@ -124,7 +123,7 @@ describe('remove command', function (): void {
 
         expect($exitCode)->toBe(0);
         // Verify task was deleted (should not exist anymore)
-        expect($this->taskService->find($task['id']))->toBeNull();
+        expect($this->taskService->find($task->short_id))->toBeNull();
     });
 
     it('returns error when task not found', function (): void {
@@ -134,17 +133,16 @@ describe('remove command', function (): void {
     });
 
     it('supports partial ID matching for tasks', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
         // Use partial ID (first 5 chars after f-)
-        $partialId = substr((string) $task['id'], 2, 5);
+        $partialId = substr((string) $task->short_id, 2, 5);
 
         $this->artisan('remove', ['id' => $partialId, '--force' => true, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Deleted task:')
             ->assertExitCode(0);
 
         // Verify task is deleted
-        expect($this->taskService->find($task['id']))->toBeNull();
+        expect($this->taskService->find($task->short_id))->toBeNull();
     });
 });

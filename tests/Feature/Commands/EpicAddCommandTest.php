@@ -18,8 +18,10 @@ beforeEach(function (): void {
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test service instances
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
     $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
         $this->app->make(DatabaseService::class),
@@ -27,7 +29,6 @@ beforeEach(function (): void {
     ));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->databaseService->initialize();
 });
 
 afterEach(function (): void {
@@ -71,8 +72,10 @@ describe('epic:add command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -123,7 +126,7 @@ describe('epic:add command', function (): void {
 
         expect($output)->toContain('"status": "planning"');
         expect($output)->toContain('"title": "JSON epic"');
-        expect($output)->toContain('"id": "e-');
+        expect($output)->toContain('"short_id": "e-');
     });
 
     it('creates epic with --description flag', function (): void {
@@ -139,7 +142,7 @@ describe('epic:add command', function (): void {
         expect($epic['description'])->toBe('This is a detailed description');
         expect($epic['title'])->toBe('Epic with description');
         expect($epic['status'])->toBe('planning');
-        expect($epic['id'])->toStartWith('e-');
+        expect($epic['short_id'])->toStartWith('e-');
     });
 
     it('creates epic without description', function (): void {

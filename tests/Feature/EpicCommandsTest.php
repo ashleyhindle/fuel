@@ -24,6 +24,7 @@ beforeEach(function (): void {
 
     $this->app->singleton(TaskService::class, fn (): TaskService => $this->taskService);
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $this->db);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(EpicService::class, fn (): EpicService => $this->epicService);
 });
 
@@ -75,7 +76,7 @@ describe('epic:add command', function (): void {
 
         expect($epic['title'])->toBe('Title Only Epic');
         expect($epic['description'])->toBeNull();
-        expect($epic['id'])->toStartWith('e-');
+        expect($epic['short_id'])->toStartWith('e-');
         expect($epic['status'])->toBe(EpicStatus::Planning->value);
     });
 
@@ -103,7 +104,7 @@ describe('epic:add command', function (): void {
 
         expect($output)->toContain('"status": "'.EpicStatus::Planning->value.'"');
         expect($output)->toContain('"title": "JSON epic"');
-        expect($output)->toContain('"id": "e-');
+        expect($output)->toContain('"short_id": "e-');
     });
 
     it('generates unique epic IDs', function (): void {
@@ -121,9 +122,9 @@ describe('epic:add command', function (): void {
         ]);
         $epic2 = json_decode(Artisan::output(), true);
 
-        expect($epic1['id'])->not->toBe($epic2['id']);
-        expect($epic1['id'])->toMatch('/^e-[a-f0-9]{6}$/');
-        expect($epic2['id'])->toMatch('/^e-[a-f0-9]{6}$/');
+        expect($epic1['short_id'])->not->toBe($epic2['short_id']);
+        expect($epic1['short_id'])->toMatch('/^e-[a-f0-9]{6}$/');
+        expect($epic2['short_id'])->toMatch('/^e-[a-f0-9]{6}$/');
     });
 });
 
@@ -146,7 +147,6 @@ describe('add command with --epic flag', function (): void {
     });
 
     it('fails when epic does not exist', function (): void {
-        $this->db->initialize();
 
         $this->artisan('add', [
             'title' => 'Task for missing epic',

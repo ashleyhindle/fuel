@@ -21,8 +21,10 @@ describe('human command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $taskService = makeTaskService($databaseService);
         $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
@@ -64,7 +66,6 @@ describe('human command', function (): void {
     });
 
     it('shows empty when no tasks with needs-human label', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Regular task']);
 
         $this->artisan('human', ['--cwd' => $this->tempDir])
@@ -73,7 +74,6 @@ describe('human command', function (): void {
     });
 
     it('shows open tasks with needs-human label', function (): void {
-        $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Needs human task',
             'labels' => ['needs-human'],
@@ -84,17 +84,16 @@ describe('human command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Needs human task');
-        expect($output)->toContain($humanTask['id']);
+        expect($output)->toContain($humanTask->short_id);
         expect($output)->not->toContain('Regular task');
     });
 
     it('excludes closed tasks with needs-human label', function (): void {
-        $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Closed human task',
             'labels' => ['needs-human'],
         ]);
-        $this->taskService->done($humanTask['id']);
+        $this->taskService->done($humanTask->short_id);
 
         $this->artisan('human', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('No items need human attention.')
@@ -103,12 +102,11 @@ describe('human command', function (): void {
     });
 
     it('excludes in_progress tasks with needs-human label', function (): void {
-        $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'In progress human task',
             'labels' => ['needs-human'],
         ]);
-        $this->taskService->start($humanTask['id']);
+        $this->taskService->start($humanTask->short_id);
 
         $this->artisan('human', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('No items need human attention.')
@@ -117,7 +115,6 @@ describe('human command', function (): void {
     });
 
     it('excludes tasks without needs-human label', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create([
             'title' => 'Task with other labels',
             'labels' => ['bug', 'urgent'],
@@ -132,7 +129,6 @@ describe('human command', function (): void {
     });
 
     it('outputs JSON when --json flag is provided', function (): void {
-        $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Needs human task',
             'labels' => ['needs-human'],
@@ -147,7 +143,7 @@ describe('human command', function (): void {
         expect($data)->toHaveKey('tasks');
         expect($data)->toHaveKey('epics');
         expect($data['tasks'])->toHaveCount(1);
-        expect($data['tasks'][0]['id'])->toBe($humanTask['id']);
+        expect($data['tasks'][0]['short_id'])->toBe($humanTask->short_id);
         expect($data['tasks'][0]['title'])->toBe('Needs human task');
         expect($data['tasks'][0]['status'])->toBe('open');
         expect($data['tasks'][0]['labels'])->toContain('needs-human');
@@ -155,7 +151,6 @@ describe('human command', function (): void {
     });
 
     it('outputs empty arrays as JSON when no human tasks', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Regular task']);
 
         Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -170,7 +165,6 @@ describe('human command', function (): void {
     });
 
     it('displays task description when present', function (): void {
-        $this->taskService->initialize();
         $humanTask = $this->taskService->create([
             'title' => 'Needs human task',
             'description' => 'This task needs human attention',
@@ -182,11 +176,10 @@ describe('human command', function (): void {
 
         expect($output)->toContain('Needs human task');
         expect($output)->toContain('This task needs human attention');
-        expect($output)->toContain($humanTask['id']);
+        expect($output)->toContain($humanTask->short_id);
     });
 
     it('shows count of human tasks', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create([
             'title' => 'First human task',
             'labels' => ['needs-human'],
@@ -203,7 +196,6 @@ describe('human command', function (): void {
     });
 
     it('sorts tasks by created_at', function (): void {
-        $this->taskService->initialize();
         $task1 = $this->taskService->create([
             'title' => 'First task',
             'labels' => ['needs-human'],
@@ -220,12 +212,11 @@ describe('human command', function (): void {
         $data = json_decode($output, true);
         expect($data)->toHaveKey('tasks');
         expect($data['tasks'])->toHaveCount(2);
-        expect($data['tasks'][0]['id'])->toBe($task1['id']);
-        expect($data['tasks'][1]['id'])->toBe($task2['id']);
+        expect($data['tasks'][0]['short_id'])->toBe($task1->short_id);
+        expect($data['tasks'][1]['short_id'])->toBe($task2->short_id);
     });
 
     it('shows epics with status review_pending', function (): void {
-        $this->taskService->initialize();
         $epicService = $this->app->make(EpicService::class);
 
         // Create an epic
@@ -234,19 +225,19 @@ describe('human command', function (): void {
         // Create tasks linked to the epic and close them all
         $task1 = $this->taskService->create([
             'title' => 'Task 1',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->short_id,
         ]);
         $task2 = $this->taskService->create([
             'title' => 'Task 2',
-            'epic_id' => $epic['id'],
+            'epic_id' => $epic->short_id,
         ]);
 
         // Close all tasks to make epic review_pending
-        $this->taskService->done($task1['id']);
-        $this->taskService->done($task2['id']);
+        $this->taskService->done($task1->short_id);
+        $this->taskService->done($task2->short_id);
 
         // Verify epic status is review_pending
-        $epicStatus = $epicService->getEpicStatus($epic['id']);
+        $epicStatus = $epicService->getEpicStatus($epic->short_id);
         expect($epicStatus->value)->toBe('review_pending');
 
         // Check that human command shows the epic
@@ -256,7 +247,7 @@ describe('human command', function (): void {
         $data = json_decode($output, true);
         expect($data)->toHaveKey('epics');
         expect($data['epics'])->toHaveCount(1);
-        expect($data['epics'][0]['id'])->toBe($epic['id']);
+        expect($data['epics'][0]['short_id'])->toBe($epic->short_id);
         expect($data['epics'][0]['status'])->toBe('review_pending');
         expect($data['epics'][0]['title'])->toBe('Test epic');
 
@@ -265,6 +256,6 @@ describe('human command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Test epic');
-        expect($output)->toContain($epic['id']);
+        expect($output)->toContain($epic->short_id);
     });
 });

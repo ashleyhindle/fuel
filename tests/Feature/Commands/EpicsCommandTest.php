@@ -18,8 +18,10 @@ beforeEach(function (): void {
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test service instances
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
     $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
         $this->app->make(DatabaseService::class),
@@ -27,7 +29,6 @@ beforeEach(function (): void {
     ));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->databaseService->initialize();
 });
 
 afterEach(function (): void {
@@ -71,8 +72,10 @@ describe('epics command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -145,7 +148,7 @@ describe('epics command', function (): void {
 
         expect($epics)->toBeArray();
         expect($epics)->toHaveCount(1);
-        expect($epics[0]['id'])->toBe($epic->id);
+        expect($epics[0]['short_id'])->toBe($epic->short_id);
         expect($epics[0]['title'])->toBe('JSON Epic');
         expect($epics[0]['status'])->toBe('planning');
         expect($epics[0])->toHaveKey('task_count');
@@ -196,7 +199,7 @@ describe('epics command', function (): void {
             'title' => 'Closed Task',
             'epic_id' => $epic3->id,
         ]);
-        $taskService->update($task3['id'], ['status' => 'closed']);
+        $taskService->update($task3->short_id, ['status' => 'closed']);
 
         // Check JSON output for reliable status checking
         Artisan::call('epics', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -231,8 +234,8 @@ describe('epics command', function (): void {
             'epic_id' => $epic->id,
         ]);
         // Update tasks to closed status
-        $taskService->update($task2['id'], ['status' => 'closed']);
-        $taskService->update($task3['id'], ['status' => 'closed']);
+        $taskService->update($task2->short_id, ['status' => 'closed']);
+        $taskService->update($task3->short_id, ['status' => 'closed']);
 
         Artisan::call('epics', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();

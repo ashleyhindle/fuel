@@ -18,8 +18,10 @@ beforeEach(function (): void {
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test service instances
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
     $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
         $this->app->make(DatabaseService::class),
@@ -27,7 +29,6 @@ beforeEach(function (): void {
     ));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->databaseService->initialize();
 });
 
 afterEach(function (): void {
@@ -70,8 +71,10 @@ describe('epic:delete command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -139,7 +142,7 @@ describe('epic:delete command', function (): void {
         $data = json_decode($output, true);
 
         expect($data)->toBeArray();
-        expect($data['id'])->toBe($epic->id);
+        expect($data['short_id'])->toBe($epic->short_id);
         expect($data['deleted'])->toBeArray();
         expect($data['deleted']['title'])->toBe('JSON Epic');
         expect($data['unlinked_tasks'])->toBeArray();
@@ -180,13 +183,13 @@ describe('epic:delete command', function (): void {
 
         expect($output)->toContain('Deleted epic: '.$epic->id);
         expect($output)->toContain('Unlinked tasks:');
-        expect($output)->toContain($task1['id']);
-        expect($output)->toContain($task2['id']);
+        expect($output)->toContain($task1->short_id);
+        expect($output)->toContain($task2->short_id);
 
-        $updatedTask1 = $taskService->find($task1['id']);
-        $updatedTask2 = $taskService->find($task2['id']);
-        expect($updatedTask1['epic_id'])->toBeNull();
-        expect($updatedTask2['epic_id'])->toBeNull();
+        $updatedTask1 = $taskService->find($task1->short_id);
+        $updatedTask2 = $taskService->find($task2->short_id);
+        expect($updatedTask1->epic_id)->toBeNull();
+        expect($updatedTask2->epic_id)->toBeNull();
 
         $deletedEpic = $epicService->getEpic($epic->id);
         expect($deletedEpic)->toBeNull();
@@ -211,9 +214,9 @@ describe('epic:delete command', function (): void {
         $data = json_decode($output, true);
 
         expect($data)->toBeArray();
-        expect($data['id'])->toBe($epic->id);
-        expect($data['unlinked_tasks'])->toContain($task1['id']);
-        expect($data['unlinked_tasks'])->toContain($task2['id']);
+        expect($data['short_id'])->toBe($epic->short_id);
+        expect($data['unlinked_tasks'])->toContain($task1->short_id);
+        expect($data['unlinked_tasks'])->toContain($task2->short_id);
     });
 
     it('shows error in JSON format when --json flag is used and epic not found', function (): void {
