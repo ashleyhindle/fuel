@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
+use App\Services\DatabaseService;
+use App\Services\FuelContext;
+
 /**
  * Provides common JSON output for Fuel commands.
  *
@@ -12,6 +15,16 @@ namespace App\Commands\Concerns;
  */
 trait HandlesJsonOutput
 {
+    /**
+     * @deprecated This method is deprecated and will be removed. Path resolution now happens at boot.
+     */
+    protected function configureCwd(?FuelContext $context = null, ?DatabaseService $databaseService = null): void
+    {
+        // No-op: Path resolution now happens at boot time in AppServiceProvider.
+        // This stub exists temporarily for backward compatibility during the migration.
+        // Commands should stop calling this method.
+    }
+
     /**
      * Output an error message (JSON or text based on --json option).
      *
