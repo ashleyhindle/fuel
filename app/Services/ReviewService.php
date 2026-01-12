@@ -7,13 +7,13 @@ namespace App\Services;
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\TaskStatus;
+use App\Models\Review;
+use App\Models\Run;
 use App\Models\Task;
 use App\Process\ProcessOutput;
 use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Prompts\ReviewPrompt;
-use App\Repositories\ReviewRepository;
-use App\Repositories\RunRepository;
 use Carbon\Carbon;
 use Symfony\Component\Process\Process;
 
@@ -30,10 +30,7 @@ class ReviewService implements ReviewServiceInterface
         private readonly TaskService $taskService,
         private readonly ConfigService $configService,
         private readonly ReviewPrompt $reviewPrompt,
-        private readonly DatabaseService $databaseService,
         private readonly RunService $runService,
-        private readonly ReviewRepository $reviewRepository,
-        private readonly RunRepository $runRepository,
     ) {}
 
     /**
@@ -131,11 +128,19 @@ class ReviewService implements ReviewServiceInterface
         // 8. Update task status to 'review'
         $this->taskService->update($taskId, ['status' => TaskStatus::Review->value]);
 
-        // 9. Record review started in database (need to get integer ID for database)
-        $runIntId = $this->runRepository->resolveToIntegerId($runShortId);
-        $taskIntId = $this->reviewRepository->resolveTaskId($taskId);
+        // 9. Record review started in database
+        $run = Run::where('short_id', $runShortId)->first();
+        $task = Task::where('short_id', $taskId)->first();
         $reviewShortId = 'r-'.bin2hex(random_bytes(3));
-        $this->reviewRepository->createReview($reviewShortId, $taskIntId, $reviewAgent, $runIntId);
+
+        $review = Review::create([
+            'short_id' => $reviewShortId,
+            'task_id' => $task?->id,
+            'agent' => $reviewAgent,
+            'run_id' => $run?->id,
+            'status' => 'pending',
+            'started_at' => now(),
+        ]);
         $reviewId = $reviewShortId;
 
         // 10. Track pending review with review ID and run short ID
@@ -240,7 +245,14 @@ class ReviewService implements ReviewServiceInterface
         // Record review completed in database
         $reviewId = $this->pendingReviews[$taskId]['reviewId'] ?? null;
         if ($reviewId !== null) {
-            $this->reviewRepository->markAsCompleted($reviewId, $passed, $issues);
+            $review = Review::where('short_id', $reviewId)->first();
+            if ($review !== null) {
+                $review->update([
+                    'status' => $passed ? 'passed' : 'failed',
+                    'issues' => $issues,
+                    'completed_at' => now(),
+                ]);
+            }
         }
 
         // Remove from pending reviews

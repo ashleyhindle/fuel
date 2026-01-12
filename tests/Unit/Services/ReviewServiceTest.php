@@ -110,10 +110,7 @@ it('triggers a review by spawning a process', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $result = $reviewService->triggerReview($taskId, 'test-agent');
@@ -157,10 +154,7 @@ it('updates task status to review when triggering review', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -201,10 +195,7 @@ it('returns correct pending reviews', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     // Initially no pending reviews
@@ -254,10 +245,7 @@ it('returns true for isReviewComplete when process finished', function (): void 
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -275,10 +263,7 @@ it('returns false for isReviewComplete when task not in pending reviews', functi
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     // Task that was never reviewed
@@ -312,10 +297,7 @@ it('uses configured review agent instead of completing agent', function (): void
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     // Trigger review with 'test-agent', but should use 'review-agent' from config
@@ -417,10 +399,7 @@ it('throws exception when task not found during trigger', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     expect(fn (): bool => $reviewService->triggerReview('f-nonexistent', 'test-agent'))
@@ -470,10 +449,7 @@ it('gets review result when review passes with JSON output', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -531,10 +507,7 @@ it('detects issues from JSON output', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -578,10 +551,7 @@ it('returns null for getReviewResult when review not complete', function (): voi
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -597,10 +567,7 @@ it('generates review prompt via getReviewPrompt', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $task = Task::fromArray([
@@ -661,10 +628,7 @@ it('detects multiple issues from JSON output', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -719,10 +683,7 @@ it('falls back to checking task status when no JSON output', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $reviewService->triggerReview($taskId, 'test-agent');
@@ -779,10 +740,7 @@ it('recovers stuck reviews for tasks in review status with no active process', f
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $recovered = $reviewService->recoverStuckReviews();
@@ -818,10 +776,7 @@ it('does not recover reviews for tasks with active review process', function ():
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $recovered = $reviewService->recoverStuckReviews();
@@ -851,10 +806,7 @@ it('skips stuck review tasks with no run history', function (): void {
         $this->taskService,
         $this->configService,
         $this->reviewPrompt,
-        $this->databaseService,
-        $this->runService,
-        $this->reviewRepository,
-        $this->runRepository
+        $this->runService
     );
 
     $recovered = $reviewService->recoverStuckReviews();

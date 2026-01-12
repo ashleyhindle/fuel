@@ -60,9 +60,7 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(EpicService::class, fn (Application $app): EpicService => new EpicService(
-            $app->make(DatabaseService::class),
-            $app->make(TaskService::class),
-            $app->make(EpicRepository::class)
+            $app->make(TaskService::class)
         ));
 
         $this->app->singleton(ConfigService::class, fn (Application $app): ConfigService => new ConfigService(
@@ -89,10 +87,7 @@ class AppServiceProvider extends ServiceProvider
             taskService: $app->make(TaskService::class),
             configService: $app->make(ConfigService::class),
             reviewPrompt: new ReviewPrompt,
-            databaseService: $app->make(DatabaseService::class),
             runService: $app->make(RunService::class),
-            reviewRepository: $app->make(ReviewRepository::class),
-            runRepository: $app->make(RunRepository::class),
         ));
     }
 }
