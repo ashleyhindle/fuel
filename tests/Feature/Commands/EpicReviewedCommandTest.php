@@ -118,7 +118,7 @@ describe('epic:reviewed command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic', 'Test Description');
 
-        Artisan::call('epic:reviewed', ['id' => $epic->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:reviewed', ['id' => $epic->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain(sprintf('Epic %s marked as reviewed', $epic->short_id));
@@ -129,7 +129,7 @@ describe('epic:reviewed command', function (): void {
     });
 
     it('shows error when epic not found', function (): void {
-        Artisan::call('epic:reviewed', ['id' => 'e-nonexistent', '--cwd' => $this->tempDir]);
+        Artisan::call('epic:reviewed', ['id' => 'e-nonexistent']);
         $output = Artisan::output();
 
         expect($output)->toContain("Epic 'e-nonexistent' not found");
@@ -139,7 +139,7 @@ describe('epic:reviewed command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('JSON Epic', 'JSON Description');
 
-        Artisan::call('epic:reviewed', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:reviewed', ['id' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -157,7 +157,7 @@ describe('epic:reviewed command', function (): void {
         // Use partial ID (without e- prefix)
         $partialId = substr((string) $epic->short_id, 2);
 
-        Artisan::call('epic:reviewed', ['id' => $partialId, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:reviewed', ['id' => $partialId]);
         $output = Artisan::output();
 
         expect($output)->toContain(sprintf('Epic %s marked as reviewed', $epic->short_id));
@@ -176,7 +176,7 @@ describe('epic:reviewed command', function (): void {
         expect($initialEpic->reviewed_at)->toBeNull();
 
         // Mark as reviewed
-        Artisan::call('epic:reviewed', ['id' => $epic->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:reviewed', ['id' => $epic->short_id]);
 
         // Verify reviewed_at is now set
         $updatedEpic = $epicService->getEpic($epic->short_id);

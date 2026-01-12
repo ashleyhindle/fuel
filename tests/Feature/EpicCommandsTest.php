@@ -60,7 +60,7 @@ afterEach(function (): void {
 
 describe('epic:add command', function (): void {
     it('creates an epic via CLI', function (): void {
-        $this->artisan('epic:add', ['title' => 'My test epic', '--cwd' => $this->tempDir])
+        $this->artisan('epic:add', ['title' => 'My test epic'])
             ->expectsOutputToContain('Created epic: e-')
             ->assertExitCode(0);
     });
@@ -68,7 +68,6 @@ describe('epic:add command', function (): void {
     it('creates epic with title only', function (): void {
         Artisan::call('epic:add', [
             'title' => 'Title Only Epic',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -84,7 +83,6 @@ describe('epic:add command', function (): void {
         Artisan::call('epic:add', [
             'title' => 'Epic with description',
             '--description' => 'This is the epic description',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -97,7 +95,6 @@ describe('epic:add command', function (): void {
     it('outputs JSON when --json flag is used', function (): void {
         Artisan::call('epic:add', [
             'title' => 'JSON epic',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -110,14 +107,12 @@ describe('epic:add command', function (): void {
     it('generates unique epic IDs', function (): void {
         Artisan::call('epic:add', [
             'title' => 'Epic 1',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $epic1 = json_decode(Artisan::output(), true);
 
         Artisan::call('epic:add', [
             'title' => 'Epic 2',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $epic2 = json_decode(Artisan::output(), true);
@@ -135,7 +130,6 @@ describe('add command with --epic flag', function (): void {
         Artisan::call('add', [
             'title' => 'Task for epic',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -151,7 +145,6 @@ describe('add command with --epic flag', function (): void {
         $this->artisan('add', [
             'title' => 'Task for missing epic',
             '--epic' => 'e-000000',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain("Epic 'e-000000' not found")
             ->assertExitCode(1);
@@ -164,7 +157,6 @@ describe('add command with --epic flag', function (): void {
         Artisan::call('add', [
             'title' => 'Task with partial epic ID',
             '--epic' => $partialId,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -181,14 +173,12 @@ describe('add command with --epic flag', function (): void {
         Artisan::call('add', [
             'title' => 'Epic task 1',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
         Artisan::call('add', [
             'title' => 'Epic task 2',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
@@ -216,7 +206,6 @@ describe('epic status derivation via commands', function (): void {
         Artisan::call('add', [
             'title' => 'Open task',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
@@ -231,14 +220,12 @@ describe('epic status derivation via commands', function (): void {
         Artisan::call('add', [
             'title' => 'Active task',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $task = json_decode(Artisan::output(), true);
 
         $this->artisan('start', [
             'id' => $task['short_id'],
-            '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
         $fetchedEpic = $this->epicService->getEpic($epic->short_id);
@@ -246,20 +233,18 @@ describe('epic status derivation via commands', function (): void {
         expect($fetchedEpic->status)->toBe(EpicStatus::InProgress);
     });
 
-    it('epic status is review_pending when all tasks are closed', function (): void {
+    it('epic status is review_pending when all tasks are done', function (): void {
         $epic = $this->epicService->createEpic('Completed Epic');
 
         Artisan::call('add', [
             'title' => 'Task to complete',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $task = json_decode(Artisan::output(), true);
 
         $this->artisan('done', [
             'ids' => [$task['short_id']],
-            '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
         $fetchedEpic = $this->epicService->getEpic($epic->short_id);
@@ -275,7 +260,6 @@ describe('epic status derivation via commands', function (): void {
         Artisan::call('add', [
             'title' => 'Lifecycle task',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $task = json_decode(Artisan::output(), true);
@@ -284,14 +268,12 @@ describe('epic status derivation via commands', function (): void {
 
         $this->artisan('start', [
             'id' => $task['short_id'],
-            '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
         expect($this->epicService->getEpic($epic->short_id)->status)->toBe(EpicStatus::InProgress);
 
         $this->artisan('done', [
             'ids' => [$task['short_id']],
-            '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
         expect($this->epicService->getEpic($epic->short_id)->status)->toBe(EpicStatus::ReviewPending);

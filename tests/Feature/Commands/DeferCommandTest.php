@@ -69,7 +69,6 @@ describe('defer command', function (): void {
 
         Artisan::call('defer', [
             'id' => $task->short_id,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -92,7 +91,6 @@ describe('defer command', function (): void {
 
         Artisan::call('defer', [
             'id' => $partialId,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -109,7 +107,6 @@ describe('defer command', function (): void {
 
         Artisan::call('defer', [
             'id' => $task->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -123,7 +120,6 @@ describe('defer command', function (): void {
     it('returns error when task not found', function (): void {
         $this->artisan('defer', [
             'id' => 'f-nonexistent',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
@@ -138,7 +134,6 @@ describe('defer command', function (): void {
         // Defer again - should succeed (idempotent)
         Artisan::call('defer', [
             'id' => $task->short_id,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 

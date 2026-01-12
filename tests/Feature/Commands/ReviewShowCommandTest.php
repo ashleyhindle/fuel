@@ -84,7 +84,7 @@ afterEach(function (): void {
 });
 
 it('shows error for non-existent review', function (): void {
-    Artisan::call('review:show', ['id' => 'r-nonexistent', '--cwd' => $this->tempDir]);
+    Artisan::call('review:show', ['id' => 'r-nonexistent']);
     $output = Artisan::output();
 
     expect($output)->toContain("Review 'r-nonexistent' not found");
@@ -93,14 +93,14 @@ it('shows error for non-existent review', function (): void {
 it('shows review details', function (): void {
     $this->databaseService->query(
         'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        ['f-abc123', 'Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
+        ['f-abc123', 'Test Task', 'done', now()->toIso8601String(), now()->toIso8601String()]
     );
 
     $reviewId = 'r-abc123';
     createReviewForShowCommandTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude-sonnet');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
-    Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
+    Artisan::call('review:show', ['id' => $reviewId]);
     $output = Artisan::output();
 
     expect($output)->toContain('Review: '.$reviewId);
@@ -120,7 +120,7 @@ it('shows failed review with issues', function (): void {
     createReviewForShowCommandTask($this->reviewRepo, 'f-def456', $reviewId, 'cursor-composer');
     $this->reviewRepo->markAsCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing']);
 
-    Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
+    Artisan::call('review:show', ['id' => $reviewId]);
     $output = Artisan::output();
 
     expect($output)->toContain('Review: '.$reviewId);
@@ -133,7 +133,7 @@ it('shows failed review with issues', function (): void {
 it('supports partial ID matching', function (): void {
     $this->databaseService->query(
         'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        ['f-xyz789', 'Partial Match Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
+        ['f-xyz789', 'Partial Match Task', 'done', now()->toIso8601String(), now()->toIso8601String()]
     );
 
     $reviewId = 'r-xyz789';
@@ -142,7 +142,7 @@ it('supports partial ID matching', function (): void {
 
     $partialId = substr($reviewId, 2, 4);
 
-    Artisan::call('review:show', ['id' => $partialId, '--cwd' => $this->tempDir]);
+    Artisan::call('review:show', ['id' => $partialId]);
     $output = Artisan::output();
 
     expect($output)->toContain('Review: '.$reviewId);
@@ -152,14 +152,14 @@ it('supports partial ID matching', function (): void {
 it('outputs JSON format with --json option', function (): void {
     $this->databaseService->query(
         'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        ['f-json01', 'JSON Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
+        ['f-json01', 'JSON Test Task', 'done', now()->toIso8601String(), now()->toIso8601String()]
     );
 
     $reviewId = 'r-json01';
     createReviewForShowCommandTask($this->reviewRepo, 'f-json01', $reviewId, 'gemini');
     $this->reviewRepo->markAsCompleted($reviewId, false, ['task_incomplete']);
 
-    Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir, '--json' => true]);
+    Artisan::call('review:show', ['id' => $reviewId, '--json' => true]);
     $output = Artisan::output();
     $data = json_decode($output, true);
 
@@ -175,7 +175,7 @@ it('outputs JSON format with --json option', function (): void {
 it('shows agent output from stdout.log', function (): void {
     $this->databaseService->query(
         'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        ['f-stdout1', 'Stdout Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
+        ['f-stdout1', 'Stdout Test Task', 'done', now()->toIso8601String(), now()->toIso8601String()]
     );
 
     // Create a run for this review
@@ -197,7 +197,7 @@ it('shows agent output from stdout.log', function (): void {
     mkdir($processDir, 0755, true);
     file_put_contents($processDir.'/stdout.log', "Line 1\nLine 2\nLine 3\n");
 
-    Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
+    Artisan::call('review:show', ['id' => $reviewId]);
     $output = Artisan::output();
 
     expect($output)->toContain('Agent Output');
@@ -209,14 +209,14 @@ it('shows agent output from stdout.log', function (): void {
 it('delegates from fuel show r-xxx', function (): void {
     $this->databaseService->query(
         'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        ['f-delega', 'Delegation Test Task', 'closed', now()->toIso8601String(), now()->toIso8601String()]
+        ['f-delega', 'Delegation Test Task', 'done', now()->toIso8601String(), now()->toIso8601String()]
     );
 
     $reviewId = 'r-delega';
     createReviewForShowCommandTask($this->reviewRepo, 'f-delega', $reviewId, 'amp');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
-    Artisan::call('show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
+    Artisan::call('show', ['id' => $reviewId]);
     $output = Artisan::output();
 
     expect($output)->toContain('Review: '.$reviewId);
@@ -232,7 +232,7 @@ it('shows pending status for in-progress reviews', function (): void {
     $reviewId = 'r-pend01';
     createReviewForShowCommandTask($this->reviewRepo, 'f-pend01', $reviewId, 'claude');
 
-    Artisan::call('review:show', ['id' => $reviewId, '--cwd' => $this->tempDir]);
+    Artisan::call('review:show', ['id' => $reviewId]);
     $output = Artisan::output();
 
     expect($output)->toContain('PENDING');

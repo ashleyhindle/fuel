@@ -59,11 +59,11 @@ describe('reopen command', function (): void {
         $deleteDir($this->tempDir);
     });
 
-    it('reopens a closed task', function (): void {
+    it('reopens a done task', function (): void {
         $task = $this->taskService->create(['title' => 'To reopen']);
         $this->taskService->done($task->short_id);
 
-        $this->artisan('reopen', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('Reopened task:')
             ->assertExitCode(0);
 
@@ -76,7 +76,7 @@ describe('reopen command', function (): void {
         $this->taskService->done($task->short_id);
         $partialId = substr((string) $task->short_id, 2, 3); // Just 3 chars of the hash
 
-        $this->artisan('reopen', ['ids' => [$partialId], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$partialId]])
             ->expectsOutputToContain('Reopened task:')
             ->assertExitCode(0);
 
@@ -90,7 +90,6 @@ describe('reopen command', function (): void {
 
         Artisan::call('reopen', [
             'ids' => [$task->short_id],
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -109,7 +108,7 @@ describe('reopen command', function (): void {
         $closedTask = $this->taskService->find($task->short_id);
         expect($closedTask->reason)->toBe('Fixed the bug');
 
-        $this->artisan('reopen', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$task->short_id]])
             ->assertExitCode(0);
 
         $reopenedTask = $this->taskService->find($task->short_id);
@@ -135,7 +134,7 @@ describe('reopen command', function (): void {
         expect($closedTask->consumed_exit_code)->toBe(1);
         expect($closedTask->consumed_output)->toBe('Some error output');
 
-        $this->artisan('reopen', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$task->short_id]])
             ->assertExitCode(0);
 
         $reopenedTask = $this->taskService->find($task->short_id);
@@ -148,7 +147,7 @@ describe('reopen command', function (): void {
 
     it('fails when task is not found', function (): void {
 
-        $this->artisan('reopen', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => ['nonexistent']])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
     });
@@ -156,8 +155,8 @@ describe('reopen command', function (): void {
     it('fails when task is open', function (): void {
         $task = $this->taskService->create(['title' => 'Open task']);
 
-        $this->artisan('reopen', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
-            ->expectsOutputToContain('is not closed, in_progress, or review')
+        $this->artisan('reopen', ['ids' => [$task->short_id]])
+            ->expectsOutputToContain('is not done, in_progress, or review')
             ->assertExitCode(1);
 
         $updated = $this->taskService->find($task->short_id);
@@ -168,7 +167,7 @@ describe('reopen command', function (): void {
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task->short_id);
 
-        $this->artisan('reopen', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('reopen', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('Reopened task:')
             ->assertExitCode(0);
 
@@ -186,7 +185,6 @@ describe('reopen command', function (): void {
 
         $this->artisan('reopen', [
             'ids' => [$task1->short_id, $task2->short_id, $task3->short_id],
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Reopened task:')
             ->assertExitCode(0);
@@ -204,7 +202,6 @@ describe('reopen command', function (): void {
 
         Artisan::call('reopen', [
             'ids' => [$task1->short_id, $task2->short_id],
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -225,7 +222,6 @@ describe('reopen command', function (): void {
 
         $this->artisan('reopen', [
             'ids' => [$task1->short_id, 'nonexistent', $task2->short_id],
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Reopened task:')
             ->expectsOutputToContain('not found')
@@ -248,7 +244,6 @@ describe('reopen command', function (): void {
 
         $this->artisan('reopen', [
             'ids' => [$partialId1, $partialId2],
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Reopened task:')
             ->assertExitCode(0);

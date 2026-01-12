@@ -72,7 +72,6 @@ describe('promote command', function (): void {
             'ids' => [$item->short_id],
             '--priority' => '2',
             '--type' => 'feature',
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -103,7 +102,6 @@ describe('promote command', function (): void {
             '--type' => 'feature',
             '--complexity' => 'moderate',
             '--labels' => 'frontend,backend',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -128,7 +126,6 @@ describe('promote command', function (): void {
         Artisan::call('promote', [
             'ids' => [$partialId],
             '--priority' => '1',
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -145,7 +142,6 @@ describe('promote command', function (): void {
         Artisan::call('promote', [
             'ids' => [$item->short_id],
             '--priority' => '2',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -160,7 +156,6 @@ describe('promote command', function (): void {
         $this->artisan('promote', [
             'ids' => ['f-nonexistent'],
             '--priority' => '1',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
@@ -175,7 +170,6 @@ describe('promote command', function (): void {
         $this->artisan('promote', [
             'ids' => [$task->short_id],
             '--priority' => '1',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('is not a backlog item')
             ->assertExitCode(1);
@@ -204,7 +198,6 @@ describe('promote command', function (): void {
             'ids' => [$item1->short_id, $item2->short_id, $item3->short_id],
             '--priority' => '2',
             '--type' => 'feature',
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -239,7 +232,6 @@ describe('promote command', function (): void {
         Artisan::call('promote', [
             'ids' => [$item1->short_id, $item2->short_id],
             '--priority' => '1',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -267,7 +259,6 @@ describe('promote command', function (): void {
         Artisan::call('promote', [
             'ids' => [$item1->short_id, 'f-nonexistent', $item2->short_id],
             '--priority' => '2',
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 

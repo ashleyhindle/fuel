@@ -62,7 +62,7 @@ describe('start command', function (): void {
     it('sets status to in_progress', function (): void {
         $task = $this->taskService->create(['title' => 'Task to start']);
 
-        $this->artisan('start', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('start', ['id' => $task->short_id])
             ->expectsOutputToContain('Started task:')
             ->assertExitCode(0);
 
@@ -75,11 +75,11 @@ describe('start command', function (): void {
         $task2 = $this->taskService->create(['title' => 'Task 2']);
 
         // Start task1
-        $this->artisan('start', ['id' => $task1->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('start', ['id' => $task1->short_id])
             ->assertExitCode(0);
 
         // Task1 should not appear in ready output
-        $this->artisan('ready', ['--cwd' => $this->tempDir])
+        $this->artisan('ready', [])
             ->expectsOutputToContain('Task 2')
             ->doesntExpectOutputToContain('Task 1')
             ->assertExitCode(0);
@@ -89,7 +89,7 @@ describe('start command', function (): void {
         $task = $this->taskService->create(['title' => 'Partial ID task']);
         $partialId = substr((string) $task->short_id, 2, 3); // Just 3 chars of the hash
 
-        $this->artisan('start', ['id' => $partialId, '--cwd' => $this->tempDir])
+        $this->artisan('start', ['id' => $partialId])
             ->expectsOutputToContain('Started task:')
             ->assertExitCode(0);
 
@@ -100,7 +100,7 @@ describe('start command', function (): void {
     it('returns JSON when --json flag used', function (): void {
         $task = $this->taskService->create(['title' => 'JSON start task']);
 
-        Artisan::call('start', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('start', ['id' => $task->short_id, '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
@@ -112,14 +112,14 @@ describe('start command', function (): void {
 
     it('handles invalid IDs gracefully', function (): void {
 
-        $this->artisan('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
+        $this->artisan('start', ['id' => 'nonexistent'])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
     });
 
     it('outputs JSON error for invalid ID with --json flag', function (): void {
 
-        Artisan::call('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('start', ['id' => 'nonexistent', '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 

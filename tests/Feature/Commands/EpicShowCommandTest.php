@@ -115,7 +115,7 @@ describe('epic:show command', function (): void {
     });
 
     it('shows error when epic not found', function (): void {
-        Artisan::call('epic:show', ['id' => 'e-nonexistent', '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => 'e-nonexistent']);
         $output = Artisan::output();
 
         expect($output)->toContain("Epic 'e-nonexistent' not found");
@@ -125,7 +125,7 @@ describe('epic:show command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic', 'Test Description');
 
-        Artisan::call('epic:show', ['id' => $epic->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic: '.$epic->short_id);
@@ -154,10 +154,10 @@ describe('epic:show command', function (): void {
             'priority' => 2,
             'epic_id' => $epic->short_id,
         ]);
-        // Update task2 to closed status
-        $taskService->update($task2->short_id, ['status' => 'closed']);
+        // Update task2 to done status
+        $taskService->update($task2->short_id, ['status' => 'done']);
 
-        Artisan::call('epic:show', ['id' => $epic->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic: '.$epic->short_id);
@@ -176,7 +176,7 @@ describe('epic:show command', function (): void {
 
         // Verify both task statuses are in the output (checking for status values)
         expect($output)->toContain('open');
-        // Note: "closed" may be formatted differently in table output, so we verify task2 exists instead
+        // Note: "done" may be formatted differently in table output, so we verify task2 exists instead
         expect($output)->toContain('Progress: 1/2 complete'); // 1 completed out of 2 total
     });
 
@@ -197,17 +197,17 @@ describe('epic:show command', function (): void {
             'title' => 'Task 3',
             'epic_id' => $epic->short_id,
         ]);
-        // Update tasks to closed status
-        $taskService->update($task1->short_id, ['status' => 'closed']);
-        $taskService->update($task2->short_id, ['status' => 'closed']);
+        // Update tasks to done status
+        $taskService->update($task1->short_id, ['status' => 'done']);
+        $taskService->update($task2->short_id, ['status' => 'done']);
 
-        Artisan::call('epic:show', ['id' => $epic->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Progress: 2/3 complete'); // 2 completed out of 3 total
 
         // Check JSON output
-        Artisan::call('epic:show', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:show', ['id' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -226,7 +226,7 @@ describe('epic:show command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:show', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:show', ['id' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -253,7 +253,7 @@ describe('epic:show command', function (): void {
         // Use partial ID (without e- prefix)
         $partialId = substr((string) $epic->short_id, 2);
 
-        Artisan::call('epic:show', ['id' => $partialId, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $partialId]);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic: '.$epic->short_id);
@@ -303,7 +303,7 @@ describe('epic:show command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:show', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:show', ['id' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -349,7 +349,7 @@ describe('epic:show command', function (): void {
             'blocked_by' => [$blocker->short_id],
         ]);
 
-        Artisan::call('epic:show', ['id' => $epic->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('epic:show', ['id' => $epic->short_id]);
         $output = Artisan::output();
 
         // Check that blocked indicator appears (yellow "blocked" text)

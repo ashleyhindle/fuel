@@ -64,7 +64,7 @@ describe('completed command', function (): void {
     });
 
     it('shows no completed tasks when empty', function (): void {
-        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+        Artisan::call('completed', []);
 
         expect(Artisan::output())->toContain('No completed tasks found');
     });
@@ -82,7 +82,7 @@ describe('completed command', function (): void {
         sleep(1);
         $this->taskService->done($task3->short_id);
 
-        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+        Artisan::call('completed', []);
         $output = Artisan::output();
 
         // Should show most recent first
@@ -94,12 +94,12 @@ describe('completed command', function (): void {
     it('excludes open and in_progress tasks', function (): void {
         $open = $this->taskService->create(['title' => 'Open task']);
         $inProgress = $this->taskService->create(['title' => 'In progress task']);
-        $closed = $this->taskService->create(['title' => 'Closed task']);
+        $done = $this->taskService->create(['title' => 'Closed task']);
 
         $this->taskService->start($inProgress->short_id);
-        $this->taskService->done($closed->short_id);
+        $this->taskService->done($done->short_id);
 
-        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+        Artisan::call('completed', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Closed task');
@@ -125,7 +125,7 @@ describe('completed command', function (): void {
                 $this->taskService->done($task->short_id);
             }
 
-            Artisan::call('completed', ['--cwd' => $this->tempDir, '--limit' => 3, '--json' => true]);
+            Artisan::call('completed', ['--limit' => 3, '--json' => true]);
             $output = Artisan::output();
 
             $data = json_decode($output, true);
@@ -146,18 +146,18 @@ describe('completed command', function (): void {
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task->short_id);
 
-        Artisan::call('completed', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('completed', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
         expect($data)->toBeArray();
         expect($data)->toHaveCount(1);
         expect($data[0]['short_id'])->toBe($task->short_id);
-        expect($data[0]['status'])->toBe('closed');
+        expect($data[0]['status'])->toBe('done');
     });
 
     it('outputs empty array as JSON when no completed tasks', function (): void {
-        Artisan::call('completed', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('completed', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
@@ -173,7 +173,7 @@ describe('completed command', function (): void {
         ]);
         $this->taskService->done($task->short_id);
 
-        Artisan::call('completed', ['--cwd' => $this->tempDir]);
+        Artisan::call('completed', []);
         $output = Artisan::output();
 
         expect($output)->toContain('ID');

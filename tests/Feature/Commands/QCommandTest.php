@@ -63,7 +63,7 @@ describe('q command', function (): void {
 
     it('creates task and outputs only the ID', function (): void {
 
-        Artisan::call('q', ['title' => 'Quick task', '--cwd' => $this->tempDir]);
+        Artisan::call('q', ['title' => 'Quick task']);
         $output = trim(Artisan::output());
 
         expect($output)->toStartWith('f-');
@@ -77,7 +77,7 @@ describe('q command', function (): void {
 
     it('returns exit code 0 on success', function (): void {
 
-        $this->artisan('q', ['title' => 'Quick task', '--cwd' => $this->tempDir])
+        $this->artisan('q', ['title' => 'Quick task'])
             ->assertExitCode(0);
     });
 
@@ -91,7 +91,7 @@ describe('q command', function (): void {
         // Bind the mock to the service container
         $this->app->singleton(TaskService::class, fn () => $mockTaskService);
 
-        $exitCode = Artisan::call('q', ['title' => 'Test task', '--cwd' => $this->tempDir]);
+        $exitCode = Artisan::call('q', ['title' => 'Test task']);
         $output = trim(Artisan::output());
 
         expect($output)->toContain('Failed to create task');

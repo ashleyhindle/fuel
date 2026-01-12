@@ -80,12 +80,12 @@ YAML;
 
     it('shows empty board when no tasks', function (): void {
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Ready');
         expect($output)->toContain('In Progress');
-        expect($output)->toContain('Review');
+        // Review column only shown when there are review tasks
         expect($output)->toContain('Blocked');
         expect($output)->toContain('No tasks');
     });
@@ -93,7 +93,7 @@ YAML;
     it('shows ready tasks in Ready column', function (): void {
         $this->taskService->create(['title' => 'Ready task']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Ready task');
@@ -104,7 +104,7 @@ YAML;
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         // Titles may be truncated, so check for short IDs with complexity char
@@ -118,7 +118,7 @@ YAML;
         $task = $this->taskService->create(['title' => 'In progress task']);
         $this->taskService->start($task->short_id);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         // Title may be truncated, so check for short ID with complexity char
@@ -130,7 +130,7 @@ YAML;
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task->short_id);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         // Done tasks appear in "Done" column
@@ -143,7 +143,7 @@ YAML;
         $task = $this->taskService->create(['title' => 'Review task']);
         $this->taskService->update($task->short_id, ['status' => 'review']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         // Review tasks appear in "Review" column
@@ -156,7 +156,7 @@ YAML;
         $reviewTask = $this->taskService->create(['title' => 'Review task']);
         $this->taskService->update($reviewTask->short_id, ['status' => 'review']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         $reviewShortId = substr((string) $reviewTask->short_id, 2, 6);
@@ -177,7 +177,7 @@ YAML;
     it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->create(['title' => 'Test task']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('board', ['--json' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('"ready":');
@@ -197,7 +197,7 @@ YAML;
             $this->taskService->done($task->short_id);
         }
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('board', ['--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -212,7 +212,7 @@ YAML;
             'consumed_exit_code' => 1,
         ]);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $stuckTask->short_id, 2, 6);
@@ -227,7 +227,7 @@ YAML;
             'consumed_exit_code' => 0,
         ]);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $successTask->short_id, 2, 6);
@@ -242,7 +242,7 @@ YAML;
             'consume_pid' => 99999, // Non-existent PID
         ]);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $stuckTask->short_id, 2, 6);
@@ -259,7 +259,7 @@ YAML;
             'consume_pid' => $currentPid,
         ]);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $runningTask->short_id, 2, 6);
@@ -273,7 +273,7 @@ YAML;
         $moderateTask = $this->taskService->create(['title' => 'Moderate task', 'complexity' => 'moderate']);
         $complexTask = $this->taskService->create(['title' => 'Complex task', 'complexity' => 'complex']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         $trivialShortId = substr((string) $trivialTask->short_id, 2, 6);
@@ -290,7 +290,7 @@ YAML;
     it('defaults to simple complexity when complexity is missing', function (): void {
         $task = $this->taskService->create(['title' => 'Task without complexity']);
 
-        Artisan::call('board', ['--cwd' => $this->tempDir, '--once' => true]);
+        Artisan::call('board', ['--once' => true]);
         $output = Artisan::output();
 
         $shortId = substr((string) $task->short_id, 2, 6);

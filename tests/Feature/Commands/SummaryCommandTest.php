@@ -64,7 +64,7 @@ describe('summary command', function (): void {
 
     it('shows error when task not found', function (): void {
 
-        $this->artisan('summary', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
+        $this->artisan('summary', ['id' => 'f-nonexistent'])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
     });
@@ -72,7 +72,7 @@ describe('summary command', function (): void {
     it('shows error when no runs exist for task', function (): void {
         $task = $this->taskService->create(['title' => 'Test task']);
 
-        $this->artisan('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('summary', ['id' => $task->short_id])
             ->expectsOutputToContain('No runs found for task')
             ->assertExitCode(1);
     });
@@ -93,11 +93,11 @@ describe('summary command', function (): void {
             'output' => 'Task completed',
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Test task');
-        expect($output)->toContain('closed');
+        expect($output)->toContain('done');
         expect($output)->toContain('Claude');
         expect($output)->toContain('sonnet');
         expect($output)->toContain('5m');
@@ -119,7 +119,7 @@ describe('summary command', function (): void {
             'output' => 'Created app/Services/AuthService.php. Modified tests/Feature/AuthTest.php. Deleted old/LegacyAuth.php.',
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Created file: app/Services/AuthService.php');
@@ -139,7 +139,7 @@ describe('summary command', function (): void {
             'output' => 'Tests: 5 passed. Assertions: 15 passed.',
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('5 tests passed');
@@ -158,7 +158,7 @@ describe('summary command', function (): void {
             'output' => '[main abc1234] feat: add authentication',
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Git commit: abc1234');
@@ -182,7 +182,7 @@ describe('summary command', function (): void {
             'exit_code' => 1,
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--all' => true]);
+        Artisan::call('summary', ['id' => $task->short_id, '--all' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Claude');
@@ -203,7 +203,7 @@ describe('summary command', function (): void {
             'output' => 'Created app/Test.php',
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('summary', ['id' => $task->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -228,7 +228,7 @@ describe('summary command', function (): void {
             'output' => 'Some random text without patterns',
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('No actionable items detected');
@@ -248,7 +248,7 @@ describe('summary command', function (): void {
         // Use partial ID (first 5 chars after f-)
         $partialId = substr((string) $task->short_id, 2, 5);
 
-        $this->artisan('summary', ['id' => $partialId, '--cwd' => $this->tempDir])
+        $this->artisan('summary', ['id' => $partialId])
             ->expectsOutputToContain('Test task')
             ->assertExitCode(0);
     });
@@ -265,7 +265,7 @@ describe('summary command', function (): void {
             'output' => 'Created task f-abc123. Ran fuel done f-abc123.',
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Created task: f-abc123');
@@ -283,7 +283,7 @@ describe('summary command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         // The output should contain the task status

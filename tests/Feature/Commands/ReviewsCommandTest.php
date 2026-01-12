@@ -58,7 +58,7 @@ afterEach(function (): void {
 });
 
 it('shows no reviews message when no reviews exist', function (): void {
-    Artisan::call('reviews', ['--cwd' => $this->tempDir]);
+    Artisan::call('reviews', []);
     $output = Artisan::output();
 
     expect($output)->toContain('No reviews found.');
@@ -101,7 +101,7 @@ it('shows recent reviews with correct format', function (): void {
         [$oneMinuteAgo->format('c'), $reviewId3]
     );
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir]);
+    Artisan::call('reviews', []);
     $output = Artisan::output();
 
     expect($output)->toContain('Recent Reviews');
@@ -127,7 +127,7 @@ it('shows only last 10 reviews by default', function (): void {
         $this->reviewRepo->markAsCompleted($reviewId, true, []);
     }
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir]);
+    Artisan::call('reviews', []);
     $output = Artisan::output();
 
     // Count occurrences of task IDs
@@ -144,7 +144,7 @@ it('shows all reviews with --all option', function (): void {
         $this->reviewRepo->markAsCompleted($reviewId, true, []);
     }
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir, '--all' => true]);
+    Artisan::call('reviews', ['--all' => true]);
     $output = Artisan::output();
 
     // Count occurrences of task IDs
@@ -176,7 +176,7 @@ it('filters to pending reviews only with --pending option', function (): void {
     createReviewForTask($this->reviewRepo, 'f-task4', $reviewId4, 'amp');
     // Leave as pending
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir, '--pending' => true]);
+    Artisan::call('reviews', ['--pending' => true]);
     $output = Artisan::output();
 
     expect($output)->toContain('f-task2');
@@ -210,7 +210,7 @@ it('filters to failed reviews only with --failed option', function (): void {
     createReviewForTask($this->reviewRepo, 'f-task4', $reviewId4, 'amp');
     $this->reviewRepo->markAsCompleted($reviewId4, false, ['uncommitted_changes']);
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir, '--failed' => true]);
+    Artisan::call('reviews', ['--failed' => true]);
     $output = Artisan::output();
 
     expect($output)->toContain('f-task3');
@@ -229,7 +229,7 @@ it('outputs JSON format with --json option', function (): void {
     createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude-sonnet');
     $this->reviewRepo->markAsCompleted($reviewId, false, ['tests_failing']);
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir, '--json' => true]);
+    Artisan::call('reviews', ['--json' => true]);
     $output = Artisan::output();
     $data = json_decode($output, true);
 
@@ -256,7 +256,7 @@ it('outputs JSON format with --json and --pending options', function (): void {
     createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     // Leave as pending
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir, '--json' => true, '--pending' => true]);
+    Artisan::call('reviews', ['--json' => true, '--pending' => true]);
     $output = Artisan::output();
     $data = json_decode($output, true);
 
@@ -280,7 +280,7 @@ it('outputs JSON format with --json and --failed options', function (): void {
     createReviewForTask($this->reviewRepo, 'f-task2', $reviewId2, 'gemini');
     $this->reviewRepo->markAsCompleted($reviewId2, false, ['tests_failing']);
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir, '--json' => true, '--failed' => true]);
+    Artisan::call('reviews', ['--json' => true, '--failed' => true]);
     $output = Artisan::output();
     $data = json_decode($output, true);
 
@@ -296,7 +296,7 @@ it('shows issues for failed reviews in formatted output', function (): void {
     createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude');
     $this->reviewRepo->markAsCompleted($reviewId, false, ['uncommitted_changes', 'tests_failing']);
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir]);
+    Artisan::call('reviews', []);
     $output = Artisan::output();
 
     expect($output)->toContain('[uncommitted_changes, tests_failing]');
@@ -308,7 +308,7 @@ it('does not show issues for passed reviews in formatted output', function (): v
     createReviewForTask($this->reviewRepo, 'f-abc123', $reviewId, 'claude');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir]);
+    Artisan::call('reviews', []);
     $output = Artisan::output();
 
     expect($output)->not->toContain('[]');
@@ -347,7 +347,7 @@ it('orders reviews by started_at descending', function (): void {
         [$twoMinutesAgo->format('c'), $reviewId3]
     );
 
-    Artisan::call('reviews', ['--cwd' => $this->tempDir]);
+    Artisan::call('reviews', []);
     $output = Artisan::output();
 
     // Check order: task2 (1m ago) should appear first, then task3 (2m ago), then task1 (3m ago)

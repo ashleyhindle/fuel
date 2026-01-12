@@ -71,7 +71,7 @@ describe('retry command', function (): void {
             'consumed_output' => 'Some error output',
         ]);
 
-        $this->artisan('retry', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
 
@@ -94,7 +94,7 @@ describe('retry command', function (): void {
 
         $partialId = substr((string) $task->short_id, 2, 3); // Just 3 chars of the hash
 
-        $this->artisan('retry', ['ids' => [$partialId], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$partialId]])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
 
@@ -113,7 +113,6 @@ describe('retry command', function (): void {
 
         Artisan::call('retry', [
             'ids' => [$task->short_id],
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -142,7 +141,7 @@ describe('retry command', function (): void {
         expect($stuckTask['consumed_exit_code'])->toBe(1);
         expect($stuckTask['consumed_output'])->toBe('Some error output');
 
-        $this->artisan('retry', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task->short_id]])
             ->assertExitCode(0);
 
         $retriedTask = $this->taskService->find($task->short_id);
@@ -155,7 +154,7 @@ describe('retry command', function (): void {
 
     it('fails when task is not found', function (): void {
 
-        $this->artisan('retry', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => ['nonexistent']])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
     });
@@ -164,7 +163,7 @@ describe('retry command', function (): void {
         $task = $this->taskService->create(['title' => 'Not consumed task']);
         $this->taskService->start($task->short_id);
 
-        $this->artisan('retry', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('is not a consumed in_progress task')
             ->assertExitCode(1);
 
@@ -182,7 +181,7 @@ describe('retry command', function (): void {
             'consumed_exit_code' => 0,
         ]);
 
-        $this->artisan('retry', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
     });
@@ -202,7 +201,6 @@ describe('retry command', function (): void {
 
         $this->artisan('retry', [
             'ids' => [$task1->short_id, $task2->short_id, $task3->short_id],
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
@@ -224,7 +222,6 @@ describe('retry command', function (): void {
 
         Artisan::call('retry', [
             'ids' => [$task1->short_id, $task2->short_id],
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -249,7 +246,6 @@ describe('retry command', function (): void {
 
         $this->artisan('retry', [
             'ids' => [$task1->short_id, 'nonexistent', $task2->short_id],
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Retried task:')
             ->expectsOutputToContain('not found')

@@ -68,7 +68,7 @@ describe('human command', function (): void {
     it('shows empty when no tasks with needs-human label', function (): void {
         $this->taskService->create(['title' => 'Regular task']);
 
-        $this->artisan('human', ['--cwd' => $this->tempDir])
+        $this->artisan('human', [])
             ->expectsOutputToContain('No items need human attention.')
             ->assertExitCode(0);
     });
@@ -80,7 +80,7 @@ describe('human command', function (): void {
         ]);
         $regularTask = $this->taskService->create(['title' => 'Regular task']);
 
-        Artisan::call('human', ['--cwd' => $this->tempDir]);
+        Artisan::call('human', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Needs human task');
@@ -88,14 +88,14 @@ describe('human command', function (): void {
         expect($output)->not->toContain('Regular task');
     });
 
-    it('excludes closed tasks with needs-human label', function (): void {
+    it('excludes done tasks with needs-human label', function (): void {
         $humanTask = $this->taskService->create([
             'title' => 'Closed human task',
             'labels' => ['needs-human'],
         ]);
         $this->taskService->done($humanTask->short_id);
 
-        $this->artisan('human', ['--cwd' => $this->tempDir])
+        $this->artisan('human', [])
             ->expectsOutputToContain('No items need human attention.')
             ->doesntExpectOutputToContain('Closed human task')
             ->assertExitCode(0);
@@ -108,7 +108,7 @@ describe('human command', function (): void {
         ]);
         $this->taskService->start($humanTask->short_id);
 
-        $this->artisan('human', ['--cwd' => $this->tempDir])
+        $this->artisan('human', [])
             ->expectsOutputToContain('No items need human attention.')
             ->doesntExpectOutputToContain('In progress human task')
             ->assertExitCode(0);
@@ -121,7 +121,7 @@ describe('human command', function (): void {
         ]);
         $this->taskService->create(['title' => 'Task with no labels']);
 
-        $this->artisan('human', ['--cwd' => $this->tempDir])
+        $this->artisan('human', [])
             ->expectsOutputToContain('No items need human attention.')
             ->doesntExpectOutputToContain('Task with other labels')
             ->doesntExpectOutputToContain('Task with no labels')
@@ -135,7 +135,7 @@ describe('human command', function (): void {
         ]);
         $regularTask = $this->taskService->create(['title' => 'Regular task']);
 
-        Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('human', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
@@ -153,7 +153,7 @@ describe('human command', function (): void {
     it('outputs empty arrays as JSON when no human tasks', function (): void {
         $this->taskService->create(['title' => 'Regular task']);
 
-        Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('human', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
@@ -171,7 +171,7 @@ describe('human command', function (): void {
             'labels' => ['needs-human'],
         ]);
 
-        Artisan::call('human', ['--cwd' => $this->tempDir]);
+        Artisan::call('human', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Needs human task');
@@ -189,7 +189,7 @@ describe('human command', function (): void {
             'labels' => ['needs-human'],
         ]);
 
-        Artisan::call('human', ['--cwd' => $this->tempDir]);
+        Artisan::call('human', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Items needing human attention (2):');
@@ -206,7 +206,7 @@ describe('human command', function (): void {
             'labels' => ['needs-human'],
         ]);
 
-        Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('human', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
@@ -241,7 +241,7 @@ describe('human command', function (): void {
         expect($epicStatus->value)->toBe('review_pending');
 
         // Check that human command shows the epic
-        Artisan::call('human', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('human', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
@@ -252,7 +252,7 @@ describe('human command', function (): void {
         expect($data['epics'][0]['title'])->toBe('Test epic');
 
         // Also check non-JSON output
-        Artisan::call('human', ['--cwd' => $this->tempDir]);
+        Artisan::call('human', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Test epic');

@@ -115,7 +115,7 @@ describe('epics command', function (): void {
     });
 
     it('lists no epics when none exist', function (): void {
-        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        Artisan::call('epics', []);
         $output = Artisan::output();
 
         expect($output)->toContain('No epics found.');
@@ -126,7 +126,7 @@ describe('epics command', function (): void {
         $epic1 = $epicService->createEpic('First Epic', 'Description 1');
         $epic2 = $epicService->createEpic('Second Epic', 'Description 2');
 
-        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        Artisan::call('epics', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Epics (2):');
@@ -142,7 +142,7 @@ describe('epics command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('JSON Epic', 'JSON Description');
 
-        Artisan::call('epics', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epics', ['--json' => true]);
         $output = Artisan::output();
         $epics = json_decode($output, true);
 
@@ -171,7 +171,7 @@ describe('epics command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        Artisan::call('epics', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic with Tasks');
@@ -193,16 +193,16 @@ describe('epics command', function (): void {
             'status' => 'open',
         ]);
 
-        // Epic with all closed tasks - should be review_pending
+        // Epic with all done tasks - should be review_pending
         $epic3 = $epicService->createEpic('Review Pending Epic');
         $task3 = $taskService->create([
             'title' => 'Closed Task',
             'epic_id' => $epic3->short_id,
         ]);
-        $taskService->update($task3->short_id, ['status' => 'closed']);
+        $taskService->update($task3->short_id, ['status' => 'done']);
 
         // Check JSON output for reliable status checking
-        Artisan::call('epics', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epics', ['--json' => true]);
         $output = Artisan::output();
         $epics = json_decode($output, true);
 
@@ -233,18 +233,18 @@ describe('epics command', function (): void {
             'title' => 'Another Closed Task',
             'epic_id' => $epic->short_id,
         ]);
-        // Update tasks to closed status
-        $taskService->update($task2->short_id, ['status' => 'closed']);
-        $taskService->update($task3->short_id, ['status' => 'closed']);
+        // Update tasks to done status
+        $taskService->update($task2->short_id, ['status' => 'done']);
+        $taskService->update($task3->short_id, ['status' => 'done']);
 
-        Artisan::call('epics', ['--cwd' => $this->tempDir]);
+        Artisan::call('epics', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic with Mixed Tasks');
         expect($output)->toContain('2/3 complete'); // 2 completed out of 3 total
 
         // Check JSON output
-        Artisan::call('epics', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epics', ['--json' => true]);
         $output = Artisan::output();
         $epics = json_decode($output, true);
         $foundEpic = collect($epics)->firstWhere('title', 'Epic with Mixed Tasks');

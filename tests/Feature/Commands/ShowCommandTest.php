@@ -68,7 +68,7 @@ describe('show command', function (): void {
             'labels' => ['frontend', 'backend'],
         ]);
 
-        $this->artisan('show', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('show', ['id' => $task->short_id])
             ->expectsOutputToContain('Task: '.$task->short_id)
             ->expectsOutputToContain('Title: Test task')
             ->expectsOutputToContain('Status: open')
@@ -84,7 +84,7 @@ describe('show command', function (): void {
         $task = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($task->short_id, $blocker->short_id);
 
-        $this->artisan('show', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('show', ['id' => $task->short_id])
             ->expectsOutputToContain('Blocked by: '.$blocker->short_id)
             ->assertExitCode(0);
     });
@@ -93,7 +93,7 @@ describe('show command', function (): void {
         $task = $this->taskService->create(['title' => 'Completed task']);
         $this->taskService->done($task->short_id, 'Fixed the issue');
 
-        $this->artisan('show', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('show', ['id' => $task->short_id])
             ->expectsOutputToContain('Reason: Fixed the issue')
             ->assertExitCode(0);
     });
@@ -107,7 +107,7 @@ describe('show command', function (): void {
             'labels' => ['critical'],
         ]);
 
-        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
@@ -121,7 +121,7 @@ describe('show command', function (): void {
 
     it('shows error for non-existent task', function (): void {
 
-        $this->artisan('show', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
+        $this->artisan('show', ['id' => 'nonexistent'])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
     });
@@ -130,7 +130,7 @@ describe('show command', function (): void {
         $task = $this->taskService->create(['title' => 'Partial ID task']);
         $partialId = substr((string) $task->short_id, 2, 3);
 
-        $this->artisan('show', ['id' => $partialId, '--cwd' => $this->tempDir])
+        $this->artisan('show', ['id' => $partialId])
             ->expectsOutputToContain('Task: '.$task->short_id)
             ->assertExitCode(0);
     });
@@ -148,7 +148,7 @@ describe('show command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('show', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         // Verify task has epic_id
@@ -174,7 +174,7 @@ describe('show command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
@@ -199,7 +199,7 @@ describe('show command', function (): void {
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Line 1\nLine 2\nLine 3\n");
 
-        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('(live output)');
@@ -229,7 +229,7 @@ describe('show command', function (): void {
 
         file_put_contents($stdoutPath, implode("\n", $lines)."\n");
 
-        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('(live output)');
@@ -269,7 +269,7 @@ describe('show command', function (): void {
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Live output\n");
 
-        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output');
@@ -290,7 +290,7 @@ describe('show command', function (): void {
             'output' => 'Run output content',
         ]);
 
-        Artisan::call('show', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--raw' => true]);
+        Artisan::call('show', ['id' => $task->short_id, '--raw' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Run Output');

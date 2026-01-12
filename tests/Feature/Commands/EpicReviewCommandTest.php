@@ -137,7 +137,7 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic Review:');
@@ -149,7 +149,7 @@ describe('epic:review command', function (): void {
     });
 
     it('shows error when epic not found', function (): void {
-        Artisan::call('epic:review', ['epicId' => 'e-nonexistent', '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        Artisan::call('epic:review', ['epicId' => 'e-nonexistent', '--no-prompt' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain("Epic 'e-nonexistent' not found");
@@ -168,7 +168,7 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -200,7 +200,7 @@ describe('epic:review command', function (): void {
         // Mark task as done with a commit hash
         $taskService->done($task->short_id, null, 'abc1234567890123456789012345678901234567');
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Commits');
@@ -214,7 +214,7 @@ describe('epic:review command', function (): void {
         // Use partial ID (without e- prefix)
         $partialId = substr((string) $epic->short_id, 2);
 
-        Artisan::call('epic:review', ['epicId' => $partialId, '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        Artisan::call('epic:review', ['epicId' => $partialId, '--no-prompt' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic Review:');
@@ -226,7 +226,7 @@ describe('epic:review command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Empty Epic', 'No tasks yet');
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic Review:');
@@ -247,7 +247,7 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Epic Review:');
@@ -269,7 +269,7 @@ describe('epic:review command', function (): void {
 
         $taskService->done($task->short_id, null, 'testcommit123');
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -292,7 +292,7 @@ describe('epic:review command', function (): void {
 
         $taskService->done($task->short_id, null, 'testcommit456');
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true, '--diff' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--json' => true, '--diff' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -314,7 +314,7 @@ describe('epic:review command', function (): void {
 
         $taskService->done($task->short_id, null, 'abc1234567890123456789012345678901234567');
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--no-prompt' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Diff Stats:');
@@ -335,7 +335,7 @@ describe('epic:review command', function (): void {
 
         $taskService->done($task->short_id, null, 'def1234567890123456789012345678901234567');
 
-        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--cwd' => $this->tempDir, '--no-prompt' => true, '--diff' => true]);
+        Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true, '--diff' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Full Diff:');

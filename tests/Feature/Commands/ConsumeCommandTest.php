@@ -453,7 +453,7 @@ describe('consume command permission-blocked detection', function (): void {
 
         // Verify task was completed
         $completedTask = $this->taskService->find($taskId);
-        expect($completedTask->status)->toBe(TaskStatus::Closed);
+        expect($completedTask->status)->toBe(TaskStatus::Done);
         expect($completedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
 
         // Verify no needs-human tasks were created
@@ -534,13 +534,12 @@ describe('consume command auto-close feature', function (): void {
             Artisan::call('done', [
                 'ids' => [$taskId],
                 '--reason' => 'Auto-completed by consume (agent exit 0)',
-                '--cwd' => $this->tempDir,
             ]);
         }
 
-        // Verify task was closed with auto-closed label
+        // Verify task was done with auto-closed label
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe(TaskStatus::Closed);
+        expect($closedTask->status)->toBe(TaskStatus::Done);
         expect($closedTask->labels)->toContain('auto-closed');
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
@@ -560,7 +559,7 @@ describe('consume command auto-close feature', function (): void {
 
         // Create a task and put it in_progress status
         $task = $this->taskService->create([
-            'title' => 'Task closed by agent',
+            'title' => 'Task done by agent',
             'complexity' => 'trivial',
         ]);
         $taskId = $task->short_id;
@@ -570,14 +569,13 @@ describe('consume command auto-close feature', function (): void {
         Artisan::call('done', [
             'ids' => [$taskId],
             '--reason' => 'Agent completed the task',
-            '--cwd' => $this->tempDir,
         ]);
 
         // Now simulate what handleSuccess does - check if task is still in_progress
         $task = $this->taskService->find($taskId);
 
-        // Task should already be closed (by agent), so handleSuccess skips auto-close
-        expect($task->status)->toBe(TaskStatus::Closed);
+        // Task should already be done (by agent), so handleSuccess skips auto-close
+        expect($task->status)->toBe(TaskStatus::Done);
 
         // The condition in handleSuccess ($task->status === 'in_progress') is false
         // so auto-closed label should NOT be added
@@ -618,15 +616,14 @@ describe('consume command auto-close feature', function (): void {
         $exitCode = Artisan::call('done', [
             'ids' => [$taskId],
             '--reason' => 'Auto-completed by consume (agent exit 0)',
-            '--cwd' => $this->tempDir,
         ]);
 
         // Verify Artisan::call succeeded
         expect($exitCode)->toBe(0);
 
-        // Verify task was closed correctly
+        // Verify task was done correctly
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe(TaskStatus::Closed);
+        expect($closedTask->status)->toBe(TaskStatus::Done);
         expect($closedTask->labels)->toContain('auto-closed');
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
@@ -646,7 +643,7 @@ describe('consume command auto-close feature', function (): void {
 
         // Create a task, start it, and auto-close it (with auto-closed label)
         $task = $this->taskService->create([
-            'title' => 'Auto-closed for board test',
+            'title' => 'Auto-done for board test',
             'complexity' => 'trivial',
         ]);
         $taskId = $task->short_id;
@@ -659,13 +656,11 @@ describe('consume command auto-close feature', function (): void {
         Artisan::call('done', [
             'ids' => [$taskId],
             '--reason' => 'Auto-completed by consume (agent exit 0)',
-            '--cwd' => $this->tempDir,
         ]);
 
         // Capture board output
         Artisan::call('board', [
             '--once' => true,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -675,7 +670,7 @@ describe('consume command auto-close feature', function (): void {
         expect($output)->toContain('Done');
     });
 
-    it('does not show auto-closed icon for manually closed tasks', function (): void {
+    it('does not show auto-closed icon for manually done tasks', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -690,7 +685,7 @@ describe('consume command auto-close feature', function (): void {
 
         // Create a task and close it manually (no auto-closed label)
         $task = $this->taskService->create([
-            'title' => 'Manually closed task',
+            'title' => 'Manually done task',
             'complexity' => 'trivial',
         ]);
         $taskId = $task->short_id;
@@ -700,13 +695,11 @@ describe('consume command auto-close feature', function (): void {
         Artisan::call('done', [
             'ids' => [$taskId],
             '--reason' => 'Agent completed it',
-            '--cwd' => $this->tempDir,
         ]);
 
         // Capture board output
         Artisan::call('board', [
             '--once' => true,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -752,14 +745,14 @@ describe('consume command auto-close feature', function (): void {
         ];
         file_put_contents($this->configPath, Yaml::dump($config));
 
-        // Test case 1: Task already closed - should not auto-close again
-        $task1 = $this->taskService->create(['title' => 'Already closed task']);
+        // Test case 1: Task already done - should not auto-close again
+        $task1 = $this->taskService->create(['title' => 'Already done task']);
         $taskId1 = $task1->short_id;
         $this->taskService->start($taskId1);
         $this->taskService->done($taskId1, 'Closed by agent');
 
         $task1 = $this->taskService->find($taskId1);
-        expect($task1->status)->toBe(TaskStatus::Closed);
+        expect($task1->status)->toBe(TaskStatus::Done);
 
         // Simulate handleSuccess check - condition ($task->status === 'in_progress') is false
         $shouldAutoClose = $task1->status === TaskStatus::InProgress;
@@ -808,9 +801,9 @@ describe('consume command review integration', function (): void {
             $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
         }
 
-        // Verify task was closed with the skip-review reason
+        // Verify task was done with the skip-review reason
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe(TaskStatus::Closed);
+        expect($closedTask->status)->toBe(TaskStatus::Done);
         expect($closedTask->reason)->toBe('Auto-completed by consume (review skipped)');
 
         // Verify no auto-closed label was added (skip-review path doesn't add it)
@@ -882,7 +875,7 @@ describe('consume command review integration', function (): void {
         expect($shouldTriggerReview)->toBeTrue();
     });
 
-    it('verifies review conditions - closed task should not trigger review', function (): void {
+    it('verifies review conditions - done task should not trigger review', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -897,7 +890,7 @@ describe('consume command review integration', function (): void {
 
         // Create a task, start it, and close it (agent called fuel done)
         $task = $this->taskService->create([
-            'title' => 'Task already closed',
+            'title' => 'Task already done',
             'complexity' => 'trivial',
         ]);
         $taskId = $task->short_id;
@@ -906,10 +899,10 @@ describe('consume command review integration', function (): void {
 
         // Verify the condition that would skip review in handleSuccess
         $task = $this->taskService->find($taskId);
-        expect($task->status)->toBe(TaskStatus::Closed);
+        expect($task->status)->toBe(TaskStatus::Done);
 
         // In handleSuccess, when status is NOT 'in_progress', it returns early
-        // So status === 'closed' means we should NOT trigger review
+        // So status === 'done' means we should NOT trigger review
         $shouldTriggerReview = $task !== null && $task->status === TaskStatus::InProgress;
         expect($shouldTriggerReview)->toBeFalse();
     });
@@ -951,12 +944,11 @@ describe('consume command review integration', function (): void {
         Artisan::call('done', [
             'ids' => [$taskId],
             '--reason' => 'Review passed',
-            '--cwd' => $this->tempDir,
         ]);
 
-        // Verify task was closed
+        // Verify task was done
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe(TaskStatus::Closed);
+        expect($closedTask->status)->toBe(TaskStatus::Done);
         expect($closedTask->reason)->toBe('Review passed');
     });
 
@@ -1027,12 +1019,11 @@ describe('consume command review integration', function (): void {
         Artisan::call('done', [
             'ids' => [$taskId],
             '--reason' => 'Auto-completed by consume (agent exit 0)',
-            '--cwd' => $this->tempDir,
         ]);
 
         // Verify task was auto-closed
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe(TaskStatus::Closed);
+        expect($closedTask->status)->toBe(TaskStatus::Done);
         expect($closedTask->labels)->toContain('auto-closed');
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
@@ -1071,12 +1062,11 @@ describe('consume command review integration', function (): void {
         Artisan::call('done', [
             'ids' => [$taskId],
             '--reason' => 'Auto-completed by consume (agent exit 0)',
-            '--cwd' => $this->tempDir,
         ]);
 
         // Verify fallback worked
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe(TaskStatus::Closed);
+        expect($closedTask->status)->toBe(TaskStatus::Done);
         expect($closedTask->labels)->toContain('auto-closed');
     });
 
@@ -1114,7 +1104,6 @@ describe('consume command epic context in prompt', function (): void {
         // Run consume with --dryrun to see the prompt
         Artisan::call('consume', [
             '--dryrun' => true,
-            '--cwd' => $this->tempDir,
         ]);
 
         $output = Artisan::output();
@@ -1151,7 +1140,6 @@ describe('consume command epic context in prompt', function (): void {
         // Run consume with --dryrun to see the prompt
         Artisan::call('consume', [
             '--dryrun' => true,
-            '--cwd' => $this->tempDir,
         ]);
 
         $output = Artisan::output();
@@ -1189,7 +1177,6 @@ describe('consume command epic context in prompt', function (): void {
         // Run consume with --dryrun to see the prompt
         Artisan::call('consume', [
             '--dryrun' => true,
-            '--cwd' => $this->tempDir,
         ]);
 
         $output = Artisan::output();

@@ -67,7 +67,6 @@ describe('dep:add command', function (): void {
         $this->artisan('dep:add', [
             'from' => $blocked->short_id,
             'to' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Added dependency')
             ->assertExitCode(0);
@@ -85,7 +84,6 @@ describe('dep:add command', function (): void {
         Artisan::call('dep:add', [
             'from' => $blocked->short_id,
             'to' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
@@ -100,7 +98,6 @@ describe('dep:add command', function (): void {
         $this->artisan('dep:add', [
             'from' => 'nonexistent',
             'to' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
@@ -117,7 +114,6 @@ describe('dep:add command', function (): void {
         $this->artisan('dep:add', [
             'from' => $taskB->short_id,
             'to' => $taskA->short_id,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Circular dependency')
             ->assertExitCode(1);
@@ -134,7 +130,6 @@ describe('dep:add command', function (): void {
         $this->artisan('dep:add', [
             'from' => $blockedPartial,
             'to' => $blockerPartial,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Added dependency')
             ->assertExitCode(0);

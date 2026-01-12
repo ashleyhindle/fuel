@@ -69,7 +69,7 @@ describe('remove command', function (): void {
     it('deletes a task with --force flag', function (): void {
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
-        Artisan::call('remove', ['id' => $task->short_id, '--force' => true, '--cwd' => $this->tempDir]);
+        Artisan::call('remove', ['id' => $task->short_id, '--force' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted task:');
@@ -84,7 +84,6 @@ describe('remove command', function (): void {
 
         Artisan::call('remove', [
             'id' => $task->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
             '--force' => true,
         ]);
@@ -106,7 +105,6 @@ describe('remove command', function (): void {
 
         $input = new ArrayInput([
             'id' => $task->short_id,
-            '--cwd' => $this->tempDir,
         ], $command->getDefinition());
         $input->setInteractive(false);
 
@@ -127,7 +125,7 @@ describe('remove command', function (): void {
     });
 
     it('returns error when task not found', function (): void {
-        $this->artisan('remove', ['id' => 'f-nonexistent', '--force' => true, '--cwd' => $this->tempDir])
+        $this->artisan('remove', ['id' => 'f-nonexistent', '--force' => true])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
     });
@@ -138,7 +136,7 @@ describe('remove command', function (): void {
         // Use partial ID (first 5 chars after f-)
         $partialId = substr((string) $task->short_id, 2, 5);
 
-        $this->artisan('remove', ['id' => $partialId, '--force' => true, '--cwd' => $this->tempDir])
+        $this->artisan('remove', ['id' => $partialId, '--force' => true])
             ->expectsOutputToContain('Deleted task:')
             ->assertExitCode(0);
 

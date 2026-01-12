@@ -115,13 +115,13 @@ describe('epic:add command', function (): void {
     });
 
     it('creates an epic via CLI', function (): void {
-        $this->artisan('epic:add', ['title' => 'My test epic', '--cwd' => $this->tempDir])
+        $this->artisan('epic:add', ['title' => 'My test epic'])
             ->expectsOutputToContain('Created epic: e-')
             ->assertExitCode(0);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        Artisan::call('epic:add', ['title' => 'JSON epic', '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:add', ['title' => 'JSON epic', '--json' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('"status": "planning"');
@@ -133,7 +133,6 @@ describe('epic:add command', function (): void {
         Artisan::call('epic:add', [
             'title' => 'Epic with description',
             '--description' => 'This is a detailed description',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -148,7 +147,6 @@ describe('epic:add command', function (): void {
     it('creates epic without description', function (): void {
         Artisan::call('epic:add', [
             'title' => 'Epic without description',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -163,7 +161,6 @@ describe('epic:add command', function (): void {
         Artisan::call('epic:add', [
             'title' => 'Test Epic',
             '--description' => 'Test description',
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -175,7 +172,6 @@ describe('epic:add command', function (): void {
     it('does not output description line when description is null', function (): void {
         Artisan::call('epic:add', [
             'title' => 'Test Epic',
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 

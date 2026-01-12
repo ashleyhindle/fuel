@@ -62,29 +62,29 @@ describe('done command', function (): void {
     it('marks a task as done', function (): void {
         $task = $this->taskService->create(['title' => 'To complete']);
 
-        $this->artisan('done', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('done', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('Completed task:')
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Closed);
+        expect($updated->status)->toBe(TaskStatus::Done);
     });
 
     it('supports partial ID matching', function (): void {
         $task = $this->taskService->create(['title' => 'Partial ID task']);
         $partialId = substr((string) $task->short_id, 2, 3); // Just 3 chars of the hash
 
-        $this->artisan('done', ['ids' => [$partialId], '--cwd' => $this->tempDir])
+        $this->artisan('done', ['ids' => [$partialId]])
             ->expectsOutputToContain('Completed task:')
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Closed);
+        expect($updated->status)->toBe(TaskStatus::Done);
     });
 
     it('shows error for non-existent task', function (): void {
 
-        $this->artisan('done', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir])
+        $this->artisan('done', ['ids' => ['nonexistent']])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
     });
@@ -92,14 +92,14 @@ describe('done command', function (): void {
     it('outputs JSON when --json flag is used', function (): void {
         $task = $this->taskService->create(['title' => 'JSON done task']);
 
-        $this->artisan('done', ['ids' => [$task->short_id], '--cwd' => $this->tempDir, '--json' => true])
-            ->expectsOutputToContain('"status": "closed"')
+        $this->artisan('done', ['ids' => [$task->short_id], '--json' => true])
+            ->expectsOutputToContain('"status": "done"')
             ->assertExitCode(0);
     });
 
     it('outputs JSON error for non-existent task with --json flag', function (): void {
 
-        $this->artisan('done', ['ids' => ['nonexistent'], '--cwd' => $this->tempDir, '--json' => true])
+        $this->artisan('done', ['ids' => ['nonexistent'], '--json' => true])
             ->expectsOutputToContain('"error":')
             ->assertExitCode(1);
     });
@@ -110,14 +110,13 @@ describe('done command', function (): void {
         $this->artisan('done', [
             'ids' => [$task->short_id],
             '--reason' => 'Fixed the bug',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Completed task:')
             ->expectsOutputToContain('Reason: Fixed the bug')
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Closed);
+        expect($updated->status)->toBe(TaskStatus::Done);
         expect($updated->reason)->toBe('Fixed the bug');
     });
 
@@ -127,24 +126,23 @@ describe('done command', function (): void {
         Artisan::call('done', [
             'ids' => [$task->short_id],
             '--reason' => 'Completed successfully',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result['status'])->toBe('closed');
+        expect($result['status'])->toBe('done');
         expect($result['reason'])->toBe('Completed successfully');
     });
 
     it('does not add reason field when --reason is not provided', function (): void {
         $task = $this->taskService->create(['title' => 'Task without reason']);
 
-        $this->artisan('done', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('done', ['ids' => [$task->short_id]])
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Closed);
+        expect($updated->status)->toBe(TaskStatus::Done);
         expect($updated->reason)->toBeNull();
     });
 
@@ -155,14 +153,13 @@ describe('done command', function (): void {
         $this->artisan('done', [
             'ids' => [$task->short_id],
             '--commit' => $commitHash,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Completed task:')
             ->expectsOutputToContain('Commit: '.$commitHash)
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Closed);
+        expect($updated->status)->toBe(TaskStatus::Done);
         expect($updated->commit_hash)->toBe($commitHash);
     });
 
@@ -173,24 +170,23 @@ describe('done command', function (): void {
         Artisan::call('done', [
             'ids' => [$task->short_id],
             '--commit' => $commitHash,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result['status'])->toBe('closed');
+        expect($result['status'])->toBe('done');
         expect($result['commit_hash'])->toBe($commitHash);
     });
 
     it('does not add commit_hash field when --commit is not provided', function (): void {
         $task = $this->taskService->create(['title' => 'Task without commit']);
 
-        $this->artisan('done', ['ids' => [$task->short_id], '--cwd' => $this->tempDir])
+        $this->artisan('done', ['ids' => [$task->short_id]])
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Closed);
+        expect($updated->status)->toBe(TaskStatus::Done);
         expect($updated->commit_hash)->toBeNull();
     });
 
@@ -202,7 +198,6 @@ describe('done command', function (): void {
             'ids' => [$task->short_id],
             '--reason' => 'Fixed the bug',
             '--commit' => $commitHash,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Completed task:')
             ->expectsOutputToContain('Reason: Fixed the bug')
@@ -210,7 +205,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Closed);
+        expect($updated->status)->toBe(TaskStatus::Done);
         expect($updated->reason)->toBe('Fixed the bug');
         expect($updated->commit_hash)->toBe($commitHash);
     });
@@ -222,14 +217,13 @@ describe('done command', function (): void {
 
         $this->artisan('done', [
             'ids' => [$task1->short_id, $task2->short_id, $task3->short_id],
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Completed task:')
             ->assertExitCode(0);
 
-        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Closed);
-        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Closed);
-        expect($this->taskService->find($task3->short_id)->status)->toBe(TaskStatus::Closed);
+        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Done);
+        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Done);
+        expect($this->taskService->find($task3->short_id)->status)->toBe(TaskStatus::Done);
     });
 
     it('outputs multiple tasks as JSON array when multiple IDs provided', function (): void {
@@ -238,7 +232,6 @@ describe('done command', function (): void {
 
         Artisan::call('done', [
             'ids' => [$task1->short_id, $task2->short_id],
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -246,8 +239,8 @@ describe('done command', function (): void {
 
         expect($result)->toBeArray();
         expect($result)->toHaveCount(2);
-        expect($result[0]['status'])->toBe('closed');
-        expect($result[1]['status'])->toBe('closed');
+        expect($result[0]['status'])->toBe('done');
+        expect($result[1]['status'])->toBe('done');
         expect(collect($result)->pluck('short_id')->toArray())->toContain($task1->short_id, $task2->short_id);
     });
 
@@ -256,7 +249,6 @@ describe('done command', function (): void {
 
         Artisan::call('done', [
             'ids' => [$task->short_id],
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -265,7 +257,7 @@ describe('done command', function (): void {
         expect($result)->toBeArray();
         expect($result)->toHaveKey('short_id');
         expect($result['short_id'])->toBe($task->short_id);
-        expect($result['status'])->toBe('closed');
+        expect($result['status'])->toBe('done');
     });
 
     it('handles partial failures when marking multiple tasks', function (): void {
@@ -274,16 +266,15 @@ describe('done command', function (): void {
 
         $this->artisan('done', [
             'ids' => [$task1->short_id, 'nonexistent', $task2->short_id],
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Completed task:')
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
 
-        // Task1 should be closed
-        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Closed);
-        // Task2 should be closed
-        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Closed);
+        // Task1 should be done
+        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Done);
+        // Task2 should be done
+        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Done);
     });
 
     it('applies same reason to all tasks when --reason provided', function (): void {
@@ -293,7 +284,6 @@ describe('done command', function (): void {
         $this->artisan('done', [
             'ids' => [$task1->short_id, $task2->short_id],
             '--reason' => 'Batch completion',
-            '--cwd' => $this->tempDir,
         ])
             ->assertExitCode(0);
 
@@ -309,11 +299,10 @@ describe('done command', function (): void {
 
         $this->artisan('done', [
             'ids' => [$partialId1, $partialId2],
-            '--cwd' => $this->tempDir,
         ])
             ->assertExitCode(0);
 
-        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Closed);
-        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Closed);
+        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Done);
+        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Done);
     });
 });

@@ -64,7 +64,7 @@ describe('stuck command', function (): void {
     });
 
     it('shows no stuck tasks when empty', function (): void {
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
 
         expect(Artisan::output())->toContain('No stuck tasks found');
     });
@@ -89,7 +89,7 @@ describe('stuck command', function (): void {
 
         $notConsumedTask = $this->taskService->create(['title' => 'Not consumed task']);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Failed task');
@@ -107,7 +107,7 @@ describe('stuck command', function (): void {
             'consumed_output' => 'Error message here',
         ]);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Stuck task');
@@ -127,7 +127,7 @@ describe('stuck command', function (): void {
             'consumed_output' => $longOutput,
         ]);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
         $output = Artisan::output();
 
         expect($output)->toContain('Task with long output');
@@ -145,7 +145,7 @@ describe('stuck command', function (): void {
             'consumed_exit_code' => 0,
         ]);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
         $output = Artisan::output();
 
         expect($output)->not->toContain('Successful task');
@@ -159,7 +159,7 @@ describe('stuck command', function (): void {
             'consumed_exit_code' => 1,
         ]);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
         $output = Artisan::output();
 
         expect($output)->not->toContain('Unconsumed task');
@@ -173,7 +173,7 @@ describe('stuck command', function (): void {
             'consumed_at' => date('c'),
         ]);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
         $output = Artisan::output();
 
         expect($output)->not->toContain('Task without exit code');
@@ -189,7 +189,7 @@ describe('stuck command', function (): void {
             'consumed_output' => 'Error output',
         ]);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('stuck', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
@@ -203,7 +203,7 @@ describe('stuck command', function (): void {
 
     it('outputs empty array as JSON when no stuck tasks', function (): void {
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('stuck', ['--json' => true]);
         $output = Artisan::output();
 
         $data = json_decode($output, true);
@@ -229,7 +229,7 @@ describe('stuck command', function (): void {
             'consumed_exit_code' => 2,
         ]);
 
-        Artisan::call('stuck', ['--cwd' => $this->tempDir]);
+        Artisan::call('stuck', []);
         $output = Artisan::output();
 
         // Most recent should appear first

@@ -68,7 +68,7 @@ describe('stats command', function (): void {
 
     it('runs without error on empty database', function (): void {
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         expect($output)->toContain('TASK STATISTICS');
@@ -85,20 +85,20 @@ describe('stats command', function (): void {
         $open = $this->taskService->create(['title' => 'Open task', 'complexity' => 'simple', 'priority' => 1]);
         $inProgress = $this->taskService->create(['title' => 'In progress task', 'complexity' => 'moderate', 'priority' => 0]);
         $this->taskService->start($inProgress['short_id']);
-        $closed = $this->taskService->create(['title' => 'Closed task', 'complexity' => 'complex', 'priority' => 2]);
-        $this->taskService->done($closed['short_id']);
+        $done = $this->taskService->create(['title' => 'Closed task', 'complexity' => 'complex', 'priority' => 2]);
+        $this->taskService->done($done['short_id']);
         $blocker = $this->taskService->create(['title' => 'Blocker', 'complexity' => 'trivial', 'priority' => 3]);
         $blocked = $this->taskService->create(['title' => 'Blocked task', 'complexity' => 'simple', 'priority' => 4]);
         $this->taskService->addDependency($blocked['short_id'], $blocker['short_id']);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check total
         expect($output)->toContain('Total: 5');
 
         // Check status counts
-        expect($output)->toContain('Closed: 1');
+        expect($output)->toContain('Done: 1');
         expect($output)->toContain('In Progress: 1');
         expect($output)->toContain('Open: 3');
         expect($output)->toContain('Blocked: 1');
@@ -162,7 +162,7 @@ describe('stats command', function (): void {
             ]);
         }
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check total runs
@@ -216,7 +216,7 @@ describe('stats command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check timing section exists
@@ -237,7 +237,7 @@ describe('stats command', function (): void {
 
     it('heatmap renders correct number of weeks', function (): void {
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check heatmap section exists
@@ -270,7 +270,7 @@ describe('stats command', function (): void {
             $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check streak section exists
@@ -300,7 +300,7 @@ describe('stats command', function (): void {
             }
         }
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check trends section exists
@@ -314,7 +314,7 @@ describe('stats command', function (): void {
 
     it('box rendering produces valid output', function (): void {
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check all boxes are properly formatted with borders
@@ -348,7 +348,7 @@ describe('stats command', function (): void {
         $this->taskService->done($task4['short_id']);
         $this->epicService->approveEpic($epic4->id);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check epic section exists
@@ -371,7 +371,7 @@ describe('stats command', function (): void {
         $this->taskService->create(['title' => 'Test task', 'type' => 'test']);
         $this->taskService->create(['title' => 'Refactor task', 'type' => 'refactor']);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check type counts
@@ -395,7 +395,7 @@ describe('stats command', function (): void {
             $this->taskService->done($task['short_id']);
         }
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check badges section exists
@@ -407,7 +407,7 @@ describe('stats command', function (): void {
 
     it('shows no badges message when none earned', function (): void {
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check badges section exists
@@ -438,7 +438,7 @@ describe('stats command', function (): void {
         $taskIntId4 = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task4['short_id']]);
         $db->query("UPDATE tasks SET updated_at = datetime('now', '-20 days') WHERE id = ?", [(int) $taskIntId4['id']]);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check time period counts
@@ -461,7 +461,7 @@ describe('stats command', function (): void {
             // No ended_at means status stays 'running'
         ]);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check running count
@@ -508,7 +508,7 @@ describe('stats command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check different duration formats appear
@@ -525,7 +525,7 @@ describe('stats command', function (): void {
         $task2 = $this->taskService->create(['title' => 'Review task 2']);
         $this->taskService->update($task2['short_id'], ['status' => 'review']);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check review count appears
@@ -538,7 +538,7 @@ describe('stats command', function (): void {
         $task = $this->taskService->create(['title' => 'Cancelled task']);
         $this->taskService->update($task['short_id'], ['status' => 'cancelled']);
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Check cancelled count appears
@@ -566,7 +566,7 @@ describe('stats command', function (): void {
             $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
-        Artisan::call('stats', ['--cwd' => $this->tempDir]);
+        Artisan::call('stats', []);
         $output = Artisan::output();
 
         // Current streak should be 5 days (days 0-4)

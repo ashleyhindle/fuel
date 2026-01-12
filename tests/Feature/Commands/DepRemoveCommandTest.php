@@ -71,7 +71,6 @@ describe('dep:remove command', function (): void {
         $this->artisan('dep:remove', [
             'from' => $blocked->short_id,
             'to' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Removed dependency')
             ->assertExitCode(0);
@@ -91,7 +90,6 @@ describe('dep:remove command', function (): void {
         Artisan::call('dep:remove', [
             'from' => $blocked->short_id,
             'to' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
@@ -106,7 +104,6 @@ describe('dep:remove command', function (): void {
         $this->artisan('dep:remove', [
             'from' => 'nonexistent',
             'to' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
@@ -120,7 +117,6 @@ describe('dep:remove command', function (): void {
         $this->artisan('dep:remove', [
             'from' => $task1->short_id,
             'to' => $task2->short_id,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('No dependency exists')
             ->assertExitCode(1);
@@ -140,7 +136,6 @@ describe('dep:remove command', function (): void {
         $this->artisan('dep:remove', [
             'from' => $blockedPartial,
             'to' => $blockerPartial,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Removed dependency')
             ->assertExitCode(0);

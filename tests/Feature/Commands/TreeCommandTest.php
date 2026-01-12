@@ -63,7 +63,7 @@ describe('tree command', function (): void {
 
     it('shows empty message when no pending tasks', function (): void {
 
-        $this->artisan('tree', ['--cwd' => $this->tempDir])
+        $this->artisan('tree')
             ->expectsOutputToContain('No pending tasks.')
             ->assertExitCode(0);
     });
@@ -72,7 +72,7 @@ describe('tree command', function (): void {
         $this->taskService->create(['title' => 'Task one', 'priority' => 1]);
         $this->taskService->create(['title' => 'Task two', 'priority' => 2]);
 
-        $this->artisan('tree', ['--cwd' => $this->tempDir])
+        $this->artisan('tree')
             ->expectsOutputToContain('Task one')
             ->expectsOutputToContain('Task two')
             ->assertExitCode(0);
@@ -83,7 +83,7 @@ describe('tree command', function (): void {
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir]);
+        Artisan::call('tree');
         $output = Artisan::output();
 
         expect($output)->toContain('Blocked task');
@@ -98,19 +98,19 @@ describe('tree command', function (): void {
         $this->taskService->addDependency($blocked->short_id, $blocker1->short_id);
         $this->taskService->addDependency($blocked->short_id, $blocker2->short_id);
 
-        $this->artisan('tree', ['--cwd' => $this->tempDir])
+        $this->artisan('tree')
             ->expectsOutputToContain('Multi-blocked task')
             ->expectsOutputToContain('First blocker')
             ->expectsOutputToContain('Second blocker')
             ->assertExitCode(0);
     });
 
-    it('excludes closed tasks from tree', function (): void {
+    it('excludes done tasks from tree', function (): void {
         $openTask = $this->taskService->create(['title' => 'Open task']);
         $closedTask = $this->taskService->create(['title' => 'Closed task']);
         $this->taskService->done($closedTask->short_id);
 
-        $this->artisan('tree', ['--cwd' => $this->tempDir])
+        $this->artisan('tree')
             ->expectsOutputToContain('Open task')
             ->doesntExpectOutputToContain('Closed task')
             ->assertExitCode(0);
@@ -121,7 +121,7 @@ describe('tree command', function (): void {
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
         $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('tree', ['--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -137,7 +137,7 @@ describe('tree command', function (): void {
 
     it('returns empty array in JSON when no tasks', function (): void {
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('tree', ['--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -149,7 +149,7 @@ describe('tree command', function (): void {
         $lowPriority = $this->taskService->create(['title' => 'Low priority', 'priority' => 3]);
         $highPriority = $this->taskService->create(['title' => 'High priority', 'priority' => 0]);
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('tree', ['--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -161,7 +161,7 @@ describe('tree command', function (): void {
         $this->taskService->create(['title' => 'Human task', 'labels' => ['needs-human']]);
         $this->taskService->create(['title' => 'Normal task']);
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir]);
+        Artisan::call('tree');
         $output = Artisan::output();
 
         expect($output)->toContain('Human task');
@@ -179,7 +179,7 @@ describe('tree command', function (): void {
         $task2 = $this->taskService->create(['title' => 'Task in Epic 2', 'epic_id' => $epic2->id]);
         $task3 = $this->taskService->create(['title' => 'Task no epic']);
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => $epic1->short_id]);
+        Artisan::call('tree', ['--epic' => $epic1->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Task in Epic 1');
@@ -190,7 +190,7 @@ describe('tree command', function (): void {
     it('shows error when filtering by non-existent epic', function (): void {
         $this->taskService->create(['title' => 'Some task']);
 
-        $exitCode = Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => 'e-nonexistent']);
+        $exitCode = Artisan::call('tree', ['--epic' => 'e-nonexistent']);
         $output = Artisan::output();
 
         expect($output)->toContain('not found');
@@ -200,7 +200,7 @@ describe('tree command', function (): void {
     it('shows JSON error when filtering by non-existent epic', function (): void {
         $this->taskService->create(['title' => 'Some task']);
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => 'e-nonexistent', '--json' => true]);
+        Artisan::call('tree', ['--epic' => 'e-nonexistent', '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -218,7 +218,7 @@ describe('tree command', function (): void {
         $task1 = $this->taskService->create(['title' => 'Task in Epic 1', 'epic_id' => $epic1->id]);
         $task2 = $this->taskService->create(['title' => 'Task in Epic 2', 'epic_id' => $epic2->id]);
 
-        Artisan::call('tree', ['--cwd' => $this->tempDir, '--epic' => $epic1->short_id, '--json' => true]);
+        Artisan::call('tree', ['--epic' => $epic1->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 

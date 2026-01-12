@@ -61,7 +61,7 @@ describe('resume command', function (): void {
     });
 
     it('shows error when task not found', function (): void {
-        $this->artisan('resume', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
+        $this->artisan('resume', ['id' => 'f-nonexistent'])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
     });
@@ -69,7 +69,7 @@ describe('resume command', function (): void {
     it('shows error when no runs exist for task', function (): void {
         $task = $this->taskService->create(['title' => 'Test task']);
 
-        $this->artisan('resume', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('resume', ['id' => $task->short_id])
             ->expectsOutputToContain('No runs found for task')
             ->assertExitCode(1);
     });
@@ -84,7 +84,7 @@ describe('resume command', function (): void {
             // No session_id
         ]);
 
-        $this->artisan('resume', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('resume', ['id' => $task->short_id])
             ->expectsOutputToContain('has no session_id')
             ->assertExitCode(1);
     });
@@ -114,7 +114,7 @@ describe('resume command', function (): void {
             'session_id' => 'test-session-123',
         ]);
 
-        $this->artisan('resume', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('resume', ['id' => $task->short_id])
             ->expectsOutputToContain("Unknown agent 'unknown-agent'")
             ->assertExitCode(1);
     });
@@ -132,7 +132,6 @@ describe('resume command', function (): void {
         $this->artisan('resume', [
             'id' => $task->short_id,
             '--run' => 'run-nonexistent',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain("Run 'run-nonexistent' not found")
             ->assertExitCode(1);
@@ -157,7 +156,6 @@ describe('resume command', function (): void {
         $this->artisan('resume', [
             'id' => $task->short_id,
             '--run' => $partialRunId,
-            '--cwd' => $this->tempDir,
         ])
             ->assertExitCode(1); // Will fail at exec(), but validation should pass
     });
@@ -165,7 +163,6 @@ describe('resume command', function (): void {
     it('outputs JSON error when --json flag is used', function (): void {
         Artisan::call('resume', [
             'id' => 'f-nonexistent',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -188,7 +185,7 @@ describe('resume command', function (): void {
         // Use partial ID (last 6 chars)
         $partialId = substr((string) $task->short_id, -6);
 
-        $this->artisan('resume', ['id' => $partialId, '--cwd' => $this->tempDir])
+        $this->artisan('resume', ['id' => $partialId])
             ->assertExitCode(1); // Will fail at exec(), but task should be found
     });
 });

@@ -66,7 +66,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--title' => 'Updated title',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -82,7 +81,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--description' => 'New description',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -97,7 +95,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--description' => '',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -112,7 +109,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--type' => 'bug',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -127,7 +123,6 @@ describe('update command', function (): void {
         $this->artisan('update', [
             'id' => $task->short_id,
             '--type' => 'invalid-type',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid task type')
             ->assertExitCode(1);
@@ -139,7 +134,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--priority' => '4',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -154,7 +148,6 @@ describe('update command', function (): void {
         $this->artisan('update', [
             'id' => $task->short_id,
             '--priority' => '5',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid priority')
             ->assertExitCode(1);
@@ -165,14 +158,13 @@ describe('update command', function (): void {
 
         Artisan::call('update', [
             'id' => $task->short_id,
-            '--status' => 'closed',
-            '--cwd' => $this->tempDir,
+            '--status' => 'done',
             '--json' => true,
         ]);
         $output = Artisan::output();
         $updated = json_decode($output, true);
 
-        expect($updated['status'])->toBe('closed');
+        expect($updated['status'])->toBe('done');
     });
 
     it('adds labels with --add-labels flag', function (): void {
@@ -181,7 +173,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--add-labels' => 'new1,new2',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -196,7 +187,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--remove-labels' => 'remove1,remove2',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -212,7 +202,6 @@ describe('update command', function (): void {
             'id' => $task->short_id,
             '--add-labels' => 'new1',
             '--remove-labels' => 'old1',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -231,7 +220,6 @@ describe('update command', function (): void {
             '--type' => 'feature',
             '--priority' => '3',
             '--description' => 'New description',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -248,7 +236,6 @@ describe('update command', function (): void {
 
         $this->artisan('update', [
             'id' => $task->short_id,
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('No update fields provided')
             ->assertExitCode(1);
@@ -259,7 +246,6 @@ describe('update command', function (): void {
         $this->artisan('update', [
             'id' => 'nonexistent',
             '--title' => 'New title',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('not found')
             ->assertExitCode(1);
@@ -272,7 +258,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $partialId,
             '--title' => 'Updated',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -288,7 +273,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--title' => 'Updated',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -305,7 +289,6 @@ describe('update command', function (): void {
         Artisan::call('update', [
             'id' => $task->short_id,
             '--complexity' => 'complex',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -320,7 +303,6 @@ describe('update command', function (): void {
         $this->artisan('update', [
             'id' => $task->short_id,
             '--complexity' => 'invalid-complexity',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid task complexity')
             ->assertExitCode(1);

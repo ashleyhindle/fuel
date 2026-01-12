@@ -64,7 +64,7 @@ describe('add command', function (): void {
     });
 
     it('creates a task via CLI', function (): void {
-        $this->artisan('add', ['title' => 'My test task', '--cwd' => $this->tempDir])
+        $this->artisan('add', ['title' => 'My test task'])
             ->expectsOutputToContain('Created task: f-')
             ->assertExitCode(0);
 
@@ -72,7 +72,7 @@ describe('add command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        Artisan::call('add', ['title' => 'JSON task', '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('add', ['title' => 'JSON task', '--json' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('"status": "open"');
@@ -81,7 +81,7 @@ describe('add command', function (): void {
     });
 
     it('creates task in custom cwd', function (): void {
-        $this->artisan('add', ['title' => 'Custom path task', '--cwd' => $this->tempDir])
+        $this->artisan('add', ['title' => 'Custom path task'])
             ->assertExitCode(0);
 
         expect(file_exists($this->dbPath))->toBeTrue();
@@ -95,7 +95,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Task with description',
             '--description' => 'This is a detailed description',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -108,7 +107,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Task with -d flag',
             '-d' => 'Short description',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -121,7 +119,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Bug fix',
             '--type' => 'bug',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -134,7 +131,6 @@ describe('add command', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid type',
             '--type' => 'invalid-type',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid task type')
             ->assertExitCode(1);
@@ -144,7 +140,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'High priority task',
             '--priority' => '4',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -157,7 +152,6 @@ describe('add command', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid priority',
             '--priority' => '5',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid priority')
             ->assertExitCode(1);
@@ -167,7 +161,6 @@ describe('add command', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid priority',
             '--priority' => 'high',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid priority')
             ->assertExitCode(1);
@@ -177,7 +170,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Labeled task',
             '--labels' => 'frontend,backend,urgent',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -190,7 +182,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Labeled task',
             '--labels' => 'frontend, backend, urgent',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -207,7 +198,6 @@ describe('add command', function (): void {
             '--priority' => '3',
             '--labels' => 'ui,backend',
             '--complexity' => 'moderate',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -225,7 +215,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Complex task',
             '--complexity' => 'complex',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -237,7 +226,6 @@ describe('add command', function (): void {
     it('defaults complexity to simple when not specified', function (): void {
         Artisan::call('add', [
             'title' => 'Task without complexity',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -250,7 +238,6 @@ describe('add command', function (): void {
         $this->artisan('add', [
             'title' => 'Invalid complexity',
             '--complexity' => 'invalid-complexity',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Invalid task complexity')
             ->assertExitCode(1);
@@ -262,7 +249,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Blocked task',
             '--blocked-by' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -279,7 +265,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Blocked task',
             '--blocked-by' => $blocker1->short_id.','.$blocker2->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -297,7 +282,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Blocked task',
             '--blocked-by' => $blocker1->short_id.', '.$blocker2->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -314,7 +298,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Blocked task',
             '--blocked-by' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -333,7 +316,6 @@ describe('add command', function (): void {
             '--priority' => '2',
             '--labels' => 'backend',
             '--blocked-by' => $blocker->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -355,7 +337,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Blocked task',
             '--blocked-by' => $partialId,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -376,7 +357,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Task with epic',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -395,7 +375,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Task with epic shortcut',
             '-e' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -409,7 +388,6 @@ describe('add command', function (): void {
         $this->artisan('add', [
             'title' => 'Task with invalid epic',
             '--epic' => 'e-nonexistent',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain("Epic 'e-nonexistent' not found")
             ->assertExitCode(1);
@@ -428,7 +406,6 @@ describe('add command', function (): void {
             '--priority' => '2',
             '--labels' => 'backend',
             '--epic' => $epic->short_id,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -453,7 +430,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Task with partial epic ID',
             '--epic' => $partialId,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -467,7 +443,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Future idea',
             '--someday' => true,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
@@ -487,7 +462,6 @@ describe('add command', function (): void {
             'title' => 'Future enhancement',
             '--description' => 'This is a future idea',
             '--someday' => true,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -510,7 +484,6 @@ describe('add command', function (): void {
             '--type' => 'feature',
             '--labels' => 'urgent',
             '--complexity' => 'complex',
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -530,7 +503,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'JSON backlog item',
             '--someday' => true,
-            '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
@@ -546,7 +518,6 @@ describe('add command', function (): void {
         Artisan::call('add', [
             'title' => 'Future idea via backlog',
             '--backlog' => true,
-            '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 

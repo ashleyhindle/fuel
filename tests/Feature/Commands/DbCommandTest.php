@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\FuelContext;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
@@ -7,7 +8,11 @@ it('shows error when database does not exist', function (): void {
     $tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($tempDir.'/.fuel', 0755, true);
 
-    $this->artisan('db', ['--cwd' => $tempDir])
+    // Bind FuelContext to use the test directory
+    $context = new FuelContext($tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+
+    $this->artisan('db')
         ->expectsOutputToContain('Database not found')
         ->assertExitCode(1);
 
@@ -19,7 +24,11 @@ it('shows error in JSON format when database does not exist', function (): void 
     $tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($tempDir.'/.fuel', 0755, true);
 
-    Artisan::call('db', ['--cwd' => $tempDir, '--json' => true]);
+    // Bind FuelContext to use the test directory
+    $context = new FuelContext($tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+
+    Artisan::call('db', ['--json' => true]);
     $output = Artisan::output();
 
     // Parse JSON from output
@@ -40,7 +49,11 @@ it('outputs success message when database exists', function (): void {
     // Create a dummy database file
     touch($tempDir.'/.fuel/agent.db');
 
-    $this->artisan('db', ['--cwd' => $tempDir])
+    // Bind FuelContext to use the test directory
+    $context = new FuelContext($tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+
+    $this->artisan('db')
         ->expectsOutputToContain('Opening database in TablePlus')
         ->assertExitCode(0);
 
@@ -55,7 +68,11 @@ it('outputs JSON success when database exists', function (): void {
     // Create a dummy database file
     touch($tempDir.'/.fuel/agent.db');
 
-    Artisan::call('db', ['--cwd' => $tempDir, '--json' => true]);
+    // Bind FuelContext to use the test directory
+    $context = new FuelContext($tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+
+    Artisan::call('db', ['--json' => true]);
     $output = Artisan::output();
 
     // Parse JSON from output

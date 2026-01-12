@@ -60,10 +60,10 @@ describe('status command', function (): void {
 
     it('shows zero counts when no tasks exist', function (): void {
 
-        $this->artisan('status', ['--cwd' => $this->tempDir])
+        $this->artisan('status', [])
             ->expectsOutputToContain('Open')
             ->expectsOutputToContain('In Progress')
-            ->expectsOutputToContain('Closed')
+            ->expectsOutputToContain('Done')
             ->expectsOutputToContain('Blocked')
             ->expectsOutputToContain('Total')
             ->assertExitCode(0);
@@ -80,10 +80,10 @@ describe('status command', function (): void {
         $this->taskService->done($closed1->short_id);
         $this->taskService->done($closed2->short_id);
 
-        $this->artisan('status', ['--cwd' => $this->tempDir])
+        $this->artisan('status', [])
             ->expectsOutputToContain('Open')
             ->expectsOutputToContain('In Progress')
-            ->expectsOutputToContain('Closed')
+            ->expectsOutputToContain('Done')
             ->assertExitCode(0);
     });
 
@@ -96,12 +96,12 @@ describe('status command', function (): void {
         $this->taskService->addDependency($blocked1->short_id, $blocker->short_id);
         $this->taskService->addDependency($blocked2->short_id, $blocker->short_id);
 
-        $this->artisan('status', ['--cwd' => $this->tempDir])
+        $this->artisan('status', [])
             ->expectsOutputToContain('Blocked')
             ->assertExitCode(0);
     });
 
-    it('does not count tasks as blocked when blocker is closed', function (): void {
+    it('does not count tasks as blocked when blocker is done', function (): void {
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -111,7 +111,7 @@ describe('status command', function (): void {
         // Close the blocker
         $this->taskService->done($blocker->short_id);
 
-        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('status', ['--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
@@ -122,20 +122,20 @@ describe('status command', function (): void {
         $this->taskService->create(['title' => 'Open task']);
 
         $inProgress = $this->taskService->create(['title' => 'In progress task']);
-        $closed = $this->taskService->create(['title' => 'Closed task']);
+        $done = $this->taskService->create(['title' => 'Closed task']);
 
         $this->taskService->start($inProgress->short_id);
-        $this->taskService->done($closed->short_id);
+        $this->taskService->done($done->short_id);
 
-        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('status', ['--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
         expect($result)->toBeArray();
-        expect($result)->toHaveKeys(['open', 'in_progress', 'closed', 'blocked', 'total']);
+        expect($result)->toHaveKeys(['open', 'in_progress', 'done', 'blocked', 'total']);
         expect($result['open'])->toBe(1);
         expect($result['in_progress'])->toBe(1);
-        expect($result['closed'])->toBe(1);
+        expect($result['done'])->toBe(1);
         expect($result['blocked'])->toBe(0);
         expect($result['total'])->toBe(3);
     });
@@ -145,7 +145,7 @@ describe('status command', function (): void {
         $this->taskService->create(['title' => 'Task 2']);
         $this->taskService->create(['title' => 'Task 3']);
 
-        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('status', ['--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
@@ -155,14 +155,14 @@ describe('status command', function (): void {
 
     it('handles empty state with JSON output', function (): void {
 
-        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('status', ['--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
         expect($result)->toBeArray();
         expect($result['open'])->toBe(0);
         expect($result['in_progress'])->toBe(0);
-        expect($result['closed'])->toBe(0);
+        expect($result['done'])->toBe(0);
         expect($result['blocked'])->toBe(0);
         expect($result['total'])->toBe(0);
     });
@@ -179,7 +179,7 @@ describe('status command', function (): void {
         // Set one to in_progress
         $this->taskService->start($blockedInProgress->short_id);
 
-        Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('status', ['--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 

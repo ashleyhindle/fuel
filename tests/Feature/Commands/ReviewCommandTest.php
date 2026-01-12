@@ -189,11 +189,11 @@ it('uses config review agent when no run exists', function (): void {
     $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
     $this->configService = $this->app->make(ConfigService::class);
 
-    // Create a task without runs and set status to closed
+    // Create a task without runs and set status to done
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task->short_id, ['status' => 'closed']);
+    $this->taskService->update($task->short_id, ['status' => 'done']);
 
     // Expect triggerReview to be called with review agent from config
     $this->mockReviewService
@@ -206,11 +206,11 @@ it('uses config review agent when no run exists', function (): void {
 });
 
 it('uses primary agent as fallback when no run and no review agent configured', function (): void {
-    // Create a task without runs and set status to closed
+    // Create a task without runs and set status to done
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task->short_id, ['status' => 'closed']);
+    $this->taskService->update($task->short_id, ['status' => 'done']);
 
     // Expect triggerReview to be called with primary agent
     $this->mockReviewService
@@ -249,12 +249,12 @@ it('supports partial task ID matching', function (): void {
     expect($output)->toContain(sprintf('Triggering review for %s...', $task->short_id));
 });
 
-it('allows reviewing closed tasks', function (): void {
-    // Create a task and set status to closed
+it('allows reviewing done tasks', function (): void {
+    // Create a task and set status to done
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task->short_id, ['status' => 'closed']);
+    $this->taskService->update($task->short_id, ['status' => 'done']);
 
     $this->runService->logRun($task->short_id, [
         'agent' => 'test-agent',

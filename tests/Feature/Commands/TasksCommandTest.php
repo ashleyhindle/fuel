@@ -63,7 +63,7 @@ describe('tasks command', function (): void {
         $this->taskService->create(['title' => 'Task 1']);
         $this->taskService->create(['title' => 'Task 2']);
 
-        $this->artisan('tasks', ['--cwd' => $this->tempDir])
+        $this->artisan('tasks', [])
             ->expectsOutputToContain('Task 1')
             ->expectsOutputToContain('Task 2')
             ->assertExitCode(0);
@@ -73,7 +73,7 @@ describe('tasks command', function (): void {
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
 
-        Artisan::call('tasks', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('tasks', ['--json' => true]);
         $output = Artisan::output();
         $tasks = json_decode($output, true);
 
@@ -83,10 +83,10 @@ describe('tasks command', function (): void {
 
     it('filters by --status flag', function (): void {
         $open = $this->taskService->create(['title' => 'Open task']);
-        $closed = $this->taskService->create(['title' => 'Closed task']);
-        $this->taskService->done($closed->short_id);
+        $done = $this->taskService->create(['title' => 'Closed task']);
+        $this->taskService->done($done->short_id);
 
-        $this->artisan('tasks', ['--status' => 'open', '--cwd' => $this->tempDir])
+        $this->artisan('tasks', ['--status' => 'open'])
             ->expectsOutputToContain('Open task')
             ->doesntExpectOutputToContain('Closed task')
             ->assertExitCode(0);
@@ -96,7 +96,7 @@ describe('tasks command', function (): void {
         $this->taskService->create(['title' => 'Bug task', 'type' => 'bug']);
         $this->taskService->create(['title' => 'Feature task', 'type' => 'feature']);
 
-        $this->artisan('tasks', ['--type' => 'bug', '--cwd' => $this->tempDir])
+        $this->artisan('tasks', ['--type' => 'bug'])
             ->expectsOutputToContain('Bug task')
             ->doesntExpectOutputToContain('Feature task')
             ->assertExitCode(0);
@@ -106,7 +106,7 @@ describe('tasks command', function (): void {
         $this->taskService->create(['title' => 'High priority', 'priority' => 4]);
         $this->taskService->create(['title' => 'Low priority', 'priority' => 1]);
 
-        $this->artisan('tasks', ['--priority' => '4', '--cwd' => $this->tempDir])
+        $this->artisan('tasks', ['--priority' => '4'])
             ->expectsOutputToContain('High priority')
             ->doesntExpectOutputToContain('Low priority')
             ->assertExitCode(0);
@@ -117,7 +117,7 @@ describe('tasks command', function (): void {
         $this->taskService->create(['title' => 'Backend task', 'labels' => ['backend', 'api']]);
         $this->taskService->create(['title' => 'No labels']);
 
-        $this->artisan('tasks', ['--labels' => 'frontend', '--cwd' => $this->tempDir])
+        $this->artisan('tasks', ['--labels' => 'frontend'])
             ->expectsOutputToContain('Frontend task')
             ->doesntExpectOutputToContain('Backend task')
             ->doesntExpectOutputToContain('No labels')
@@ -129,7 +129,7 @@ describe('tasks command', function (): void {
         $this->taskService->create(['title' => 'Task with backend', 'labels' => ['backend']]);
         $this->taskService->create(['title' => 'Task with both', 'labels' => ['frontend', 'backend']]);
 
-        $this->artisan('tasks', ['--labels' => 'frontend,backend', '--cwd' => $this->tempDir])
+        $this->artisan('tasks', ['--labels' => 'frontend,backend'])
             ->expectsOutputToContain('Task with frontend')
             ->expectsOutputToContain('Task with backend')
             ->expectsOutputToContain('Task with both')
@@ -146,7 +146,6 @@ describe('tasks command', function (): void {
         $this->artisan('tasks', [
             '--status' => 'open',
             '--type' => 'bug',
-            '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Open bug')
             ->doesntExpectOutputToContain('Closed bug')
@@ -157,7 +156,7 @@ describe('tasks command', function (): void {
     it('shows empty message when no tasks match filters', function (): void {
         $this->taskService->create(['title' => 'Open task']);
 
-        $this->artisan('tasks', ['--status' => 'closed', '--cwd' => $this->tempDir])
+        $this->artisan('tasks', ['--status' => 'done'])
             ->expectsOutputToContain('No tasks found')
             ->assertExitCode(0);
     });
@@ -171,7 +170,7 @@ describe('tasks command', function (): void {
             'labels' => ['test'],
         ]);
 
-        Artisan::call('tasks', ['--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('tasks', ['--json' => true]);
         $output = Artisan::output();
         $tasks = json_decode($output, true);
 

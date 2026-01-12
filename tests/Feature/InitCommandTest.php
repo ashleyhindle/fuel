@@ -41,19 +41,19 @@ afterEach(function (): void {
 
 describe('init command', function (): void {
     it('creates .fuel/ directory', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         expect(is_dir($this->tempDir.'/.fuel'))->toBeTrue();
     });
 
     it('creates processes directory', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         expect(is_dir($this->tempDir.'/.fuel/processes'))->toBeTrue();
     });
 
     it('creates agent.db with all required tables', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $dbPath = $this->tempDir.'/.fuel/agent.db';
         expect(file_exists($dbPath))->toBeTrue();
@@ -65,7 +65,7 @@ describe('init command', function (): void {
     });
 
     it('creates starter task', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         // Use TaskService directly to verify (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
@@ -80,8 +80,8 @@ describe('init command', function (): void {
     });
 
     it('is idempotent - can be run multiple times safely', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
-        $secondExitCode = Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
+        $secondExitCode = Artisan::call('init', []);
 
         expect($secondExitCode)->toBe(0);
 
@@ -96,7 +96,7 @@ describe('init command', function (): void {
     });
 
     it('adds .fuel/ to .gitignore', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $gitignorePath = $this->tempDir.'/.gitignore';
         expect(file_exists($gitignorePath))->toBeTrue();
@@ -106,7 +106,7 @@ describe('init command', function (): void {
     });
 
     it('creates new .gitignore if it does not exist', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $gitignorePath = $this->tempDir.'/.gitignore';
         expect(file_exists($gitignorePath))->toBeTrue();
@@ -118,7 +118,7 @@ describe('init command', function (): void {
     it('appends .fuel/ to existing .gitignore without duplicating', function (): void {
         file_put_contents($this->tempDir.'/.gitignore', "node_modules\nvendor\n");
 
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $content = file_get_contents($this->tempDir.'/.gitignore');
         expect($content)->toContain('node_modules');
@@ -130,7 +130,7 @@ describe('init command', function (): void {
     });
 
     it('updates AGENTS.md with guidelines', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
         expect(file_exists($agentsMdPath))->toBeTrue();
@@ -140,7 +140,7 @@ describe('init command', function (): void {
     });
 
     it('creates config.yaml with default configuration', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $configPath = $this->tempDir.'/.fuel/config.yaml';
         expect(file_exists($configPath))->toBeTrue();
@@ -152,7 +152,6 @@ describe('init command', function (): void {
 
     it('creates default config.yaml when --agent flag is provided', function (): void {
         Artisan::call('init', [
-            '--cwd' => $this->tempDir,
             '--agent' => 'claude-opus',
         ]);
 
@@ -166,7 +165,7 @@ describe('init command', function (): void {
     });
 
     it('does not create starter task if tasks already exist', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         // Use TaskService directly to add a task (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
@@ -176,14 +175,14 @@ describe('init command', function (): void {
 
         $taskService->create(['title' => 'Existing task']);
 
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $tasks = $taskService->all();
         expect($tasks)->toHaveCount(2);
     });
 
     it('regression: Schema::hasTable returns true for all tables after init', function (): void {
-        Artisan::call('init', ['--cwd' => $this->tempDir]);
+        Artisan::call('init', []);
 
         $tables = ['tasks', 'epics', 'runs', 'reviews', 'agent_health'];
         foreach ($tables as $table) {

@@ -84,7 +84,7 @@ describe('guidelines command', function (): void {
 
         expect(file_exists($agentsMdPath))->toBeFalse();
 
-        Artisan::call('guidelines', ['--add' => true, '--cwd' => $this->tempDir]);
+        Artisan::call('guidelines', ['--add' => true]);
         $output = Artisan::output();
 
         expect(file_exists($agentsMdPath))->toBeTrue();
@@ -101,7 +101,7 @@ describe('guidelines command', function (): void {
         $oldContent = "# Agent Instructions\n\n<fuel>\nOld content here\n</fuel>\n\nSome other content";
         file_put_contents($agentsMdPath, $oldContent);
 
-        Artisan::call('guidelines', ['--add' => true, '--cwd' => $this->tempDir]);
+        Artisan::call('guidelines', ['--add' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Updated AGENTS.md with Fuel guidelines');
@@ -120,7 +120,7 @@ describe('guidelines command', function (): void {
         $existingContent = "# Agent Instructions\n\nSome existing content here";
         file_put_contents($agentsMdPath, $existingContent);
 
-        Artisan::call('guidelines', ['--add' => true, '--cwd' => $this->tempDir]);
+        Artisan::call('guidelines', ['--add' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Updated AGENTS.md with Fuel guidelines');
@@ -139,7 +139,7 @@ describe('guidelines command', function (): void {
         $agentsMdPath = $customDir.'/AGENTS.md';
 
         try {
-            Artisan::call('guidelines', ['--add' => true, '--cwd' => $customDir]);
+            Artisan::call('guidelines', ['--add' => true]);
 
             expect(file_exists($agentsMdPath))->toBeTrue();
             $content = file_get_contents($agentsMdPath);

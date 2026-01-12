@@ -61,7 +61,7 @@ describe('runs command', function (): void {
 
     it('shows error when task not found', function (): void {
 
-        $this->artisan('runs', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
+        $this->artisan('runs', ['id' => 'f-nonexistent'])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
     });
@@ -69,7 +69,7 @@ describe('runs command', function (): void {
     it('shows error when no runs exist for task', function (): void {
         $task = $this->taskService->create(['title' => 'Test task']);
 
-        $this->artisan('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir])
+        $this->artisan('runs', ['id' => $task->short_id])
             ->expectsOutputToContain('No runs found for task')
             ->assertExitCode(1);
     });
@@ -86,7 +86,7 @@ describe('runs command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('runs', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Runs for task');
@@ -114,7 +114,7 @@ describe('runs command', function (): void {
             'exit_code' => 1,
         ]);
 
-        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
+        Artisan::call('runs', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Runs for task');
@@ -136,7 +136,7 @@ describe('runs command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -168,7 +168,7 @@ describe('runs command', function (): void {
             'output' => 'Test output',
         ]);
 
-        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--last' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--last' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Latest run for task');
@@ -195,7 +195,7 @@ describe('runs command', function (): void {
             'output' => 'Test output',
         ]);
 
-        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--last' => true, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--last' => true, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -216,7 +216,7 @@ describe('runs command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -235,7 +235,7 @@ describe('runs command', function (): void {
             'exit_code' => null,
         ]);
 
-        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -255,7 +255,7 @@ describe('runs command', function (): void {
         // Use partial ID (last 6 chars)
         $partialId = substr((string) $task->short_id, -6);
 
-        $this->artisan('runs', ['id' => $partialId, '--cwd' => $this->tempDir])
+        $this->artisan('runs', ['id' => $partialId])
             ->expectsOutputToContain('Runs for task')
             ->assertExitCode(0);
     });

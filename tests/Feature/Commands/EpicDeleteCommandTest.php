@@ -117,7 +117,7 @@ describe('epic:delete command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic', 'Test Description');
 
-        Artisan::call('epic:delete', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->short_id, '--force' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted epic: '.$epic->short_id);
@@ -127,7 +127,7 @@ describe('epic:delete command', function (): void {
     });
 
     it('shows error when epic not found', function (): void {
-        Artisan::call('epic:delete', ['id' => 'e-nonexistent', '--cwd' => $this->tempDir, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => 'e-nonexistent', '--force' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain("Epic 'e-nonexistent' not found");
@@ -137,7 +137,7 @@ describe('epic:delete command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('JSON Epic', 'JSON Description');
 
-        Artisan::call('epic:delete', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -155,7 +155,7 @@ describe('epic:delete command', function (): void {
 
         $partialId = substr((string) $epic->short_id, 2);
 
-        Artisan::call('epic:delete', ['id' => $partialId, '--cwd' => $this->tempDir, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $partialId, '--force' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted epic: '.$epic->short_id);
@@ -178,7 +178,7 @@ describe('epic:delete command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:delete', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->short_id, '--force' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted epic: '.$epic->short_id);
@@ -209,7 +209,7 @@ describe('epic:delete command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:delete', ['id' => $epic->short_id, '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -220,7 +220,7 @@ describe('epic:delete command', function (): void {
     });
 
     it('shows error in JSON format when --json flag is used and epic not found', function (): void {
-        Artisan::call('epic:delete', ['id' => 'e-nonexistent', '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:delete', ['id' => 'e-nonexistent', '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
