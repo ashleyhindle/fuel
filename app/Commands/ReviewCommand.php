@@ -15,7 +15,9 @@ use LaravelZero\Framework\Commands\Command;
 
 class ReviewCommand extends Command
 {
-    protected $signature = 'review {taskId : The task ID to review}';
+    protected $signature = 'review 
+        {taskId : The task ID to review}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Trigger a review of a completed task';
 
@@ -35,7 +37,7 @@ class ReviewCommand extends Command
             return self::FAILURE;
         }
 
-        // Check task is in reviewable state (in_progress, review, or closed)
+        // Check task is in reviewable state (in_progress, review, or done)
         if ($task->status === TaskStatus::Open) {
             $this->error('Cannot review a task that has not been started');
 
