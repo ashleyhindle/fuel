@@ -174,7 +174,7 @@ class TaskService
         }
 
         $task = $taskModel->toArray();
-        $shortId = $task['id'];
+        $shortId = $task['short_id'];
         $updates = [];
 
         // Field mapping: data key => [column, validator, use_array_key_exists]
@@ -268,9 +268,9 @@ class TaskService
             $task['updated_at'] = $data['updated_at'];
         }
 
-        $this->taskRepository->updateByShortId($shortId, $updates);
+        $taskModel->update($updates);
 
-        return Task::fromArray($task);
+        return $taskModel->fresh();
     }
 
     /**
