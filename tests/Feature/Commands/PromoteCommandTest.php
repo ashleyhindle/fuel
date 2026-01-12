@@ -18,15 +18,16 @@ describe('promote command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
         $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
 
         $this->taskService = $this->app->make(TaskService::class);
-        $this->taskService->initialize();
     });
 
     afterEach(function (): void {
@@ -65,10 +66,10 @@ describe('promote command', function (): void {
             'description' => 'Description',
         ]);
         // Update to someday status (workaround since create() doesn't respect status field)
-        $item = $this->taskService->update($item['id'], ['status' => TaskStatus::Someday->value]);
+        $item = $this->taskService->update($item->short_id, ['status' => TaskStatus::Someday->value]);
 
         Artisan::call('promote', [
-            'ids' => [$item['id']],
+            'ids' => [$item->short_id],
             '--priority' => '2',
             '--type' => 'feature',
             '--cwd' => $this->tempDir,
@@ -76,17 +77,17 @@ describe('promote command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Promoted task');
-        expect($output)->toContain($item['id']);
+        expect($output)->toContain($item->short_id);
         expect($output)->toContain('from backlog to active');
         expect($output)->toContain('Future feature');
 
         // Verify task status changed to open
-        $task = $this->taskService->find($item['id']);
-        expect($task['title'])->toBe('Future feature');
-        expect($task['description'])->toBe('Description');
-        expect($task['status'])->toBe(TaskStatus::Open->value);
-        expect($task['priority'])->toBe(2);
-        expect($task['type'])->toBe('feature');
+        $task = $this->taskService->find($item->short_id);
+        expect($task->title)->toBe('Future feature');
+        expect($task->description)->toBe('Description');
+        expect($task->status)->toBe(TaskStatus::Open->value);
+        expect($task->priority)->toBe(2);
+        expect($task->type)->toBe('feature');
     });
 
     it('promotes backlog item with all task options', function (): void {
@@ -94,10 +95,10 @@ describe('promote command', function (): void {
             'title' => 'Complete feature',
             'description' => 'Full description',
         ]);
-        $item = $this->taskService->update($item['id'], ['status' => TaskStatus::Someday->value]);
+        $item = $this->taskService->update($item->short_id, ['status' => TaskStatus::Someday->value]);
 
         Artisan::call('promote', [
-            'ids' => [$item['id']],
+            'ids' => [$item->short_id],
             '--priority' => '3',
             '--type' => 'feature',
             '--complexity' => 'moderate',
@@ -120,9 +121,9 @@ describe('promote command', function (): void {
         $item = $this->taskService->create([
             'title' => 'Feature to promote',
         ]);
-        $item = $this->taskService->update($item['id'], ['status' => TaskStatus::Someday->value]);
+        $item = $this->taskService->update($item->short_id, ['status' => TaskStatus::Someday->value]);
 
-        $partialId = substr((string) $item['id'], 2, 3);
+        $partialId = substr((string) $item->short_id, 2, 3);
 
         Artisan::call('promote', [
             'ids' => [$partialId],
@@ -139,10 +140,10 @@ describe('promote command', function (): void {
         $item = $this->taskService->create([
             'title' => 'JSON feature',
         ]);
-        $item = $this->taskService->update($item['id'], ['status' => TaskStatus::Someday->value]);
+        $item = $this->taskService->update($item->short_id, ['status' => TaskStatus::Someday->value]);
 
         Artisan::call('promote', [
-            'ids' => [$item['id']],
+            'ids' => [$item->short_id],
             '--priority' => '2',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -150,7 +151,7 @@ describe('promote command', function (): void {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['id'])->toStartWith('f-');
+        expect($task['short_id'])->toStartWith('f-');
         expect($task['title'])->toBe('JSON feature');
         expect($task['priority'])->toBe(2);
     });
@@ -172,7 +173,7 @@ describe('promote command', function (): void {
         ]);
 
         $this->artisan('promote', [
-            'ids' => [$task['id']],
+            'ids' => [$task->short_id],
             '--priority' => '1',
             '--cwd' => $this->tempDir,
         ])
@@ -185,22 +186,22 @@ describe('promote command', function (): void {
             'title' => 'First feature',
             'description' => 'First description',
         ]);
-        $item1 = $this->taskService->update($item1['id'], ['status' => TaskStatus::Someday->value]);
+        $item1 = $this->taskService->update($item1->short_id, ['status' => TaskStatus::Someday->value]);
 
         $item2 = $this->taskService->create([
             'title' => 'Second feature',
             'description' => 'Second description',
         ]);
-        $item2 = $this->taskService->update($item2['id'], ['status' => TaskStatus::Someday->value]);
+        $item2 = $this->taskService->update($item2->short_id, ['status' => TaskStatus::Someday->value]);
 
         $item3 = $this->taskService->create([
             'title' => 'Third feature',
             'description' => 'Third description',
         ]);
-        $item3 = $this->taskService->update($item3['id'], ['status' => TaskStatus::Someday->value]);
+        $item3 = $this->taskService->update($item3->short_id, ['status' => TaskStatus::Someday->value]);
 
         Artisan::call('promote', [
-            'ids' => [$item1['id'], $item2['id'], $item3['id']],
+            'ids' => [$item1->short_id, $item2->short_id, $item3->short_id],
             '--priority' => '2',
             '--type' => 'feature',
             '--cwd' => $this->tempDir,
@@ -208,35 +209,35 @@ describe('promote command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Promoted task');
-        expect($output)->toContain($item1['id']);
-        expect($output)->toContain($item2['id']);
-        expect($output)->toContain($item3['id']);
+        expect($output)->toContain($item1->short_id);
+        expect($output)->toContain($item2->short_id);
+        expect($output)->toContain($item3->short_id);
         expect($output)->toContain('First feature');
         expect($output)->toContain('Second feature');
         expect($output)->toContain('Third feature');
 
         // Verify all tasks status changed to open
-        $task1 = $this->taskService->find($item1['id']);
-        $task2 = $this->taskService->find($item2['id']);
-        $task3 = $this->taskService->find($item3['id']);
-        expect($task1['status'])->toBe(TaskStatus::Open->value);
-        expect($task2['status'])->toBe(TaskStatus::Open->value);
-        expect($task3['status'])->toBe(TaskStatus::Open->value);
+        $task1 = $this->taskService->find($item1->short_id);
+        $task2 = $this->taskService->find($item2->short_id);
+        $task3 = $this->taskService->find($item3->short_id);
+        expect($task1->status)->toBe(TaskStatus::Open->value);
+        expect($task2->status)->toBe(TaskStatus::Open->value);
+        expect($task3->status)->toBe(TaskStatus::Open->value);
     });
 
     it('promotes multiple backlog items with JSON output', function (): void {
         $item1 = $this->taskService->create([
             'title' => 'JSON feature 1',
         ]);
-        $item1 = $this->taskService->update($item1['id'], ['status' => TaskStatus::Someday->value]);
+        $item1 = $this->taskService->update($item1->short_id, ['status' => TaskStatus::Someday->value]);
 
         $item2 = $this->taskService->create([
             'title' => 'JSON feature 2',
         ]);
-        $item2 = $this->taskService->update($item2['id'], ['status' => TaskStatus::Someday->value]);
+        $item2 = $this->taskService->update($item2->short_id, ['status' => TaskStatus::Someday->value]);
 
         Artisan::call('promote', [
-            'ids' => [$item1['id'], $item2['id']],
+            'ids' => [$item1->short_id, $item2->short_id],
             '--priority' => '1',
             '--cwd' => $this->tempDir,
             '--json' => true,
@@ -248,23 +249,23 @@ describe('promote command', function (): void {
         expect(count($tasks))->toBe(2);
         expect($tasks[0]['title'])->toBe('JSON feature 1');
         expect($tasks[1]['title'])->toBe('JSON feature 2');
-        expect($tasks[0]['id'])->toStartWith('f-');
-        expect($tasks[1]['id'])->toStartWith('f-');
+        expect($tasks[0]['short_id'])->toStartWith('f-');
+        expect($tasks[1]['short_id'])->toStartWith('f-');
     });
 
     it('handles partial failures when promoting multiple items', function (): void {
         $item1 = $this->taskService->create([
             'title' => 'Valid feature',
         ]);
-        $item1 = $this->taskService->update($item1['id'], ['status' => TaskStatus::Someday->value]);
+        $item1 = $this->taskService->update($item1->short_id, ['status' => TaskStatus::Someday->value]);
 
         $item2 = $this->taskService->create([
             'title' => 'Another valid feature',
         ]);
-        $item2 = $this->taskService->update($item2['id'], ['status' => TaskStatus::Someday->value]);
+        $item2 = $this->taskService->update($item2->short_id, ['status' => TaskStatus::Someday->value]);
 
         Artisan::call('promote', [
-            'ids' => [$item1['id'], 'f-nonexistent', $item2['id']],
+            'ids' => [$item1->short_id, 'f-nonexistent', $item2->short_id],
             '--priority' => '2',
             '--cwd' => $this->tempDir,
         ]);
@@ -279,9 +280,9 @@ describe('promote command', function (): void {
         expect($output)->toContain("Task 'f-nonexistent' not found");
 
         // Verify valid items were promoted
-        $task1 = $this->taskService->find($item1['id']);
-        $task2 = $this->taskService->find($item2['id']);
-        expect($task1['status'])->toBe(TaskStatus::Open->value);
-        expect($task2['status'])->toBe(TaskStatus::Open->value);
+        $task1 = $this->taskService->find($item1->short_id);
+        $task2 = $this->taskService->find($item2->short_id);
+        expect($task1->status)->toBe(TaskStatus::Open->value);
+        expect($task2->status)->toBe(TaskStatus::Open->value);
     });
 });
