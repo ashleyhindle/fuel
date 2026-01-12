@@ -44,6 +44,49 @@ class Task extends EloquentModel
         'consume_pid' => 'integer',
     ];
 
+    /** @var bool Flag to bypass casts/accessors for fromArray compatibility */
+    private bool $bypassCasts = false;
+
+    /**
+     * Backward compatibility: Create a Task instance from an array.
+     * This method exists for compatibility with TaskService until it's refactored.
+     * Creates a hydrated model instance without database interaction.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @deprecated Use Task::create() or new Task() with fill() instead
+     */
+    public static function fromArray(array $data): self
+    {
+        // Create instance without initializing connection
+        $task = new self;
+        $task->exists = true; // Mark as existing to prevent save() from inserting
+        $task->bypassCasts = true; // Disable casts for compatibility
+
+        // Directly set attributes array to bypass casts and accessors
+        // This is safe because TaskService provides data in the expected format
+        $task->attributes = $data;
+        $task->original = $data;
+
+        return $task;
+    }
+
+    /**
+     * Override getAttribute to bypass casts when in compatibility mode.
+     * This prevents database connection errors when using fromArray().
+     *
+     * @param  string  $key
+     * @return mixed
+     */
+    public function getAttribute($key)
+    {
+        if (property_exists($this, 'bypassCasts') && $this->bypassCasts && isset($this->attributes[$key])) {
+            return $this->attributes[$key];
+        }
+
+        return parent::getAttribute($key);
+    }
+
     /**
      * Scope tasks that are ready to work.
      */
