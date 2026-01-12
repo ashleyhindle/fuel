@@ -80,8 +80,6 @@ class ConsumeCommand extends Command
     {
         $this->configureCwd($this->fuelContext, $this->databaseService);
 
-        $this->taskService->initialize();
-
         // Validate config early before entering TUI
         try {
             $this->configService->validate();
@@ -395,6 +393,18 @@ Before exiting, you MUST:
 7. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
 
 CRITICAL: If you skip git add, your work will be lost. Verify YOUR files are staged before commit.
+
+⚠️  FILE COLLISION WARNING:
+If you see files in `git status` that you did NOT modify, DO NOT stage them with `git add`.
+Other agents may have modified those files while you were working. Only stage files YOU changed.
+
+CRITICAL - If you worked on the same file as another agent:
+- DO NOT remove, overwrite, or undo their changes
+- DO NOT assume your version is correct and theirs is wrong
+- Use `git diff <file>` to see ALL changes in the file
+- Preserve ALL changes from both agents - merge them together if needed
+- If you cannot safely merge, create a needs-human task and block yourself
+- When in doubt, preserve other agents' work - it's easier to add than to recover deleted work
 
 == CONTEXT ==
 Working directory: {$cwd}
