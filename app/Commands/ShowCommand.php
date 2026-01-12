@@ -12,6 +12,7 @@ use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\OutputParser;
+use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\File;
@@ -219,8 +220,14 @@ class ShowCommand extends Command
                             if ($this->option('tail') && $liveOutput !== null) {
                                 $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
                                 if ($stdoutPath !== null) {
-                                    $this->line('    <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
-                                    $this->tailFile($stdoutPath, $task->short_id, $runService);
+                                    // Check if process is still running
+                                    if ($task->consume_pid !== null && ! ProcessManager::isProcessAlive($task->consume_pid)) {
+                                        $this->line('    <fg=red>(agent not running - PID '.$task->consume_pid.' not found)</>');
+                                        $this->outputChunk($liveOutput, $this->option('raw'));
+                                    } else {
+                                        $this->line('    <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
+                                        $this->tailFile($stdoutPath, $task->short_id, $runService);
+                                    }
                                 }
                             } elseif ($liveOutput !== null) {
                                 $this->line('    <fg=yellow>(live output)</>');
@@ -238,8 +245,14 @@ class ShowCommand extends Command
                     if ($this->option('tail')) {
                         $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
                         if ($stdoutPath !== null) {
-                            $this->line('  <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
-                            $this->tailFile($stdoutPath, $task->short_id, $runService);
+                            // Check if process is still running
+                            if ($task->consume_pid !== null && ! ProcessManager::isProcessAlive($task->consume_pid)) {
+                                $this->line('  <fg=red>(agent not running - PID '.$task->consume_pid.' not found)</>');
+                                $this->outputChunk($liveOutput, $this->option('raw'));
+                            } else {
+                                $this->line('  <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
+                                $this->tailFile($stdoutPath, $task->short_id, $runService);
+                            }
                         }
                     } else {
                         $this->line('  <fg=gray>Showing live output (tail)...</>');
@@ -446,7 +459,13 @@ class ShowCommand extends Command
             });
         }
 
-        // Get the current file size and position
+        // Output existing content first (last 100 lines), then continue tailing
+        $existingContent = $this->readLastLines($filePath, 100);
+        if ($existingContent !== null && $existingContent !== '') {
+            $this->outputChunk($existingContent, $this->option('raw'));
+        }
+
+        // Get the current file size and position - start from end to only show new content
         $lastPosition = File::exists($filePath) ? File::size($filePath) : 0;
 
         $lastStatusCheck = 0;
