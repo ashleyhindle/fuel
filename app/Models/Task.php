@@ -39,6 +39,7 @@ class Task extends EloquentModel
         'labels' => 'array',
         'blocked_by' => 'array',
         'priority' => 'integer',
+        'status' => TaskStatus::class,
         'consumed' => 'boolean',
         'consumed_exit_code' => 'integer',
         'consume_pid' => 'integer',
@@ -93,17 +94,6 @@ class Task extends EloquentModel
         }
 
         return parent::getAttribute($key);
-    }
-
-    /**
-     * Include the short_id as id for backward compatibility in array/JSON output.
-     */
-    public function toArray(): array
-    {
-        $data = parent::toArray();
-        $data['id'] = $this->attributes['short_id'] ?? null;
-
-        return $data;
     }
 
     /**
@@ -171,13 +161,9 @@ class Task extends EloquentModel
      */
     public function isBlocked(): bool
     {
-        $blockedBy = $this->blocked_by;
+        $blockedBy = $this->getBlockedByArray();
 
-        if (empty($blockedBy)) {
-            $blockedBy = $this->getRawOriginal('blocked_by');
-        }
-
-        return ! empty($blockedBy);
+        return count($blockedBy) > 0;
     }
 
     /**
@@ -198,18 +184,25 @@ class Task extends EloquentModel
 
     /**
      * Check if the task is failed.
+     * Note: 'failed' is not a valid TaskStatus for tasks.
+     * This method exists for legacy compatibility but always returns false.
      */
     public function isFailed(): bool
     {
-        return $this->status === 'failed';
+        // Tasks cannot have a 'failed' status - they can be cancelled but not failed
+        return false;
     }
 
     /**
      * Check if the task is pending.
+     * Note: 'pending' is not a valid TaskStatus for tasks.
+     * Tasks use 'open' status instead of 'pending'.
+     * This method exists for legacy compatibility but always returns false.
      */
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        // Tasks use 'open' status, not 'pending'
+        return false;
     }
 
     /**
@@ -217,21 +210,7 @@ class Task extends EloquentModel
      */
     public function getLabelsArray(): array
     {
-        $labels = $this->labels;
-
-        if (empty($labels)) {
-            $labels = $this->getRawOriginal('labels');
-        }
-
-        if (empty($labels)) {
-            return [];
-        }
-
-        if (is_array($labels)) {
-            return $labels;
-        }
-
-        return array_map(trim(...), explode(',', (string) $labels));
+        return $this->normalizeArrayAttribute($this->labels);
     }
 
     /**
@@ -239,21 +218,34 @@ class Task extends EloquentModel
      */
     public function getBlockedByArray(): array
     {
-        $blockedBy = $this->blocked_by;
+        return $this->normalizeArrayAttribute($this->blocked_by);
+    }
 
-        if (empty($blockedBy)) {
-            $blockedBy = $this->getRawOriginal('blocked_by');
-        }
-
-        if (empty($blockedBy)) {
+    /**
+     * Normalize an array attribute that may be null, empty array, "[]" string, or actual array.
+     */
+    private function normalizeArrayAttribute(mixed $value): array
+    {
+        if ($value === null || $value === '' || $value === '[]') {
             return [];
         }
 
-        if (is_array($blockedBy)) {
-            return $blockedBy;
+        if (is_array($value)) {
+            return $value;
         }
 
-        return array_map(trim(...), explode(',', (string) $blockedBy));
+        // Handle JSON string
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+
+            // Fallback: comma-separated string
+            return array_filter(array_map('trim', explode(',', $value)));
+        }
+
+        return [];
     }
 
     /**
