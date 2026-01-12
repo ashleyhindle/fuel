@@ -21,8 +21,10 @@ describe('stuck command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -68,18 +70,17 @@ describe('stuck command', function (): void {
     });
 
     it('shows only consumed tasks with non-zero exit codes', function (): void {
-        $this->taskService->initialize();
 
         // Create tasks with different consumed states
         $successTask = $this->taskService->create(['title' => 'Success task']);
-        $this->taskService->update($successTask['id'], [
+        $this->taskService->update($successTask->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_exit_code' => 0,
         ]);
 
         $failedTask = $this->taskService->create(['title' => 'Failed task']);
-        $this->taskService->update($failedTask['id'], [
+        $this->taskService->update($failedTask->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_exit_code' => 1,
@@ -97,10 +98,9 @@ describe('stuck command', function (): void {
     });
 
     it('shows exit code and output for stuck tasks', function (): void {
-        $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Stuck task']);
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_exit_code' => 42,
@@ -117,11 +117,10 @@ describe('stuck command', function (): void {
     });
 
     it('truncates long output', function (): void {
-        $this->taskService->initialize();
 
         $longOutput = str_repeat('x', 600); // 600 characters
         $task = $this->taskService->create(['title' => 'Task with long output']);
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_exit_code' => 1,
@@ -138,10 +137,9 @@ describe('stuck command', function (): void {
     });
 
     it('excludes tasks with zero exit code', function (): void {
-        $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Successful task']);
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_exit_code' => 0,
@@ -155,10 +153,9 @@ describe('stuck command', function (): void {
     });
 
     it('excludes tasks without consumed flag', function (): void {
-        $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Unconsumed task']);
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task->short_id, [
             'consumed_exit_code' => 1,
         ]);
 
@@ -169,10 +166,9 @@ describe('stuck command', function (): void {
     });
 
     it('excludes tasks without exit code', function (): void {
-        $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Task without exit code']);
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
         ]);
@@ -184,10 +180,9 @@ describe('stuck command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
 
         $task = $this->taskService->create(['title' => 'Stuck task']);
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_exit_code' => 1,
@@ -200,14 +195,13 @@ describe('stuck command', function (): void {
         $data = json_decode($output, true);
         expect($data)->toBeArray();
         expect($data)->toHaveCount(1);
-        expect($data[0]['id'])->toBe($task['id']);
+        expect($data[0]['short_id'])->toBe($task->short_id);
         expect($data[0]['consumed'])->toBeTrue();
         expect($data[0]['consumed_exit_code'])->toBe(1);
         expect($data[0]['consumed_output'])->toBe('Error output');
     });
 
     it('outputs empty array as JSON when no stuck tasks', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('stuck', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -218,10 +212,9 @@ describe('stuck command', function (): void {
     });
 
     it('sorts stuck tasks by consumed_at descending', function (): void {
-        $this->taskService->initialize();
 
         $task1 = $this->taskService->create(['title' => 'First stuck task']);
-        $this->taskService->update($task1['id'], [
+        $this->taskService->update($task1->short_id, [
             'consumed' => true,
             'consumed_at' => date('c', time() - 100),
             'consumed_exit_code' => 1,
@@ -230,7 +223,7 @@ describe('stuck command', function (): void {
         sleep(1);
 
         $task2 = $this->taskService->create(['title' => 'Second stuck task']);
-        $this->taskService->update($task2['id'], [
+        $this->taskService->update($task2->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_exit_code' => 2,
