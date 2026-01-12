@@ -5,15 +5,103 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\TaskStatus;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model as EloquentModel;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Task extends Model
+class Task extends EloquentModel
 {
+    protected $table = 'tasks';
+
+    protected $fillable = [
+        'short_id',
+        'title',
+        'description',
+        'status',
+        'type',
+        'priority',
+        'complexity',
+        'labels',
+        'blocked_by',
+        'epic_id',
+        'commit_hash',
+        'reason',
+        'consumed',
+        'consumed_at',
+        'consumed_exit_code',
+        'consumed_output',
+        'consume_pid',
+        'last_review_issues',
+    ];
+
+    protected $casts = [
+        'labels' => 'array',
+        'blocked_by' => 'array',
+        'priority' => 'integer',
+        'consumed' => 'boolean',
+        'consumed_exit_code' => 'integer',
+        'consume_pid' => 'integer',
+    ];
+
     /**
-     * Create a Task instance from an array of data.
+     * Scope tasks that are ready to work.
      */
-    public static function fromArray(array $data): self
+    public function scopeReady(Builder $query): Builder
     {
-        return new self($data);
+        return $query
+            ->where('status', TaskStatus::Open->value)
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('blocked_by')
+                    ->orWhere('blocked_by', '')
+                    ->orWhere('blocked_by', '[]');
+            })
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('labels')
+                    ->orWhere('labels', '')
+                    ->orWhere('labels', '[]')
+                    ->orWhere('labels', 'not like', '%needs-human%');
+            });
+    }
+
+    /**
+     * Scope tasks that are blocked by other tasks.
+     */
+    public function scopeBlocked(Builder $query): Builder
+    {
+        return $query
+            ->where('status', TaskStatus::Open->value)
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNotNull('blocked_by')
+                    ->where('blocked_by', '!=', '')
+                    ->where('blocked_by', '!=', '[]');
+            });
+    }
+
+    /**
+     * Scope tasks that are in the backlog.
+     */
+    public function scopeBacklog(Builder $query): Builder
+    {
+        return $query->where('status', TaskStatus::Someday->value);
+    }
+
+    public function epic(): BelongsTo
+    {
+        return $this->belongsTo(Epic::class);
+    }
+
+    public function runs(): HasMany
+    {
+        return $this->hasMany(Run::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 
     /**
@@ -21,7 +109,13 @@ class Task extends Model
      */
     public function isBlocked(): bool
     {
-        return ! empty($this->attributes['blocked_by']);
+        $blockedBy = $this->blocked_by;
+
+        if (empty($blockedBy)) {
+            $blockedBy = $this->getRawOriginal('blocked_by');
+        }
+
+        return ! empty($blockedBy);
     }
 
     /**
@@ -29,7 +123,7 @@ class Task extends Model
      */
     public function isCompleted(): bool
     {
-        return $this->attributes['status'] === 'completed';
+        return $this->status === 'completed';
     }
 
     /**
@@ -37,7 +131,7 @@ class Task extends Model
      */
     public function isInProgress(): bool
     {
-        return $this->attributes['status'] === TaskStatus::InProgress->value;
+        return $this->status === TaskStatus::InProgress->value;
     }
 
     /**
@@ -45,7 +139,7 @@ class Task extends Model
      */
     public function isFailed(): bool
     {
-        return $this->attributes['status'] === 'failed';
+        return $this->status === 'failed';
     }
 
     /**
@@ -53,7 +147,7 @@ class Task extends Model
      */
     public function isPending(): bool
     {
-        return $this->attributes['status'] === 'pending';
+        return $this->status === 'pending';
     }
 
     /**
@@ -61,13 +155,21 @@ class Task extends Model
      */
     public function getLabelsArray(): array
     {
-        $labels = $this->attributes['labels'] ?? '';
+        $labels = $this->labels;
+
+        if (empty($labels)) {
+            $labels = $this->getRawOriginal('labels');
+        }
 
         if (empty($labels)) {
             return [];
         }
 
-        return array_map(trim(...), explode(',', $labels));
+        if (is_array($labels)) {
+            return $labels;
+        }
+
+        return array_map(trim(...), explode(',', (string) $labels));
     }
 
     /**
@@ -75,10 +177,18 @@ class Task extends Model
      */
     public function getBlockedByArray(): array
     {
-        $blockedBy = $this->attributes['blocked_by'] ?? '';
+        $blockedBy = $this->blocked_by;
+
+        if (empty($blockedBy)) {
+            $blockedBy = $this->getRawOriginal('blocked_by');
+        }
 
         if (empty($blockedBy)) {
             return [];
+        }
+
+        if (is_array($blockedBy)) {
+            return $blockedBy;
         }
 
         return array_map(trim(...), explode(',', (string) $blockedBy));
