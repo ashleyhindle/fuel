@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\DB;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
@@ -29,7 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // Configure Eloquent to use the dynamic database path from FuelContext
         // This allows each test to use its own isolated database
-        $this->configureDatabasePath();
+        static::configureDatabasePath();
     }
 
     /**
@@ -50,7 +51,7 @@ class AppServiceProvider extends ServiceProvider
         config(['database.connections.sqlite.database' => $databasePath]);
 
         // Purge any existing connection to force reconnection with new config
-        \Illuminate\Support\Facades\DB::purge('sqlite');
+        DB::purge('sqlite');
     }
 
     /**

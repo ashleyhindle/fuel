@@ -133,7 +133,7 @@ class ReviewService implements ReviewServiceInterface
         $task = Task::where('short_id', $taskId)->first();
         $reviewShortId = 'r-'.bin2hex(random_bytes(3));
 
-        $review = Review::create([
+        Review::create([
             'short_id' => $reviewShortId,
             'task_id' => $task?->id,
             'agent' => $reviewAgent,

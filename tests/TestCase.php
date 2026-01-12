@@ -47,6 +47,7 @@ YAML;
         // Configure FuelContext to use the isolated temp directory
         $this->testContext = new FuelContext($this->testDir.'/.fuel');
         $this->testContext->configureDatabase();
+
         $this->app->singleton(FuelContext::class, fn (): FuelContext => $this->testContext);
 
         // Rebind ConfigService to use the test FuelContext

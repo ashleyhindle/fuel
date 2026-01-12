@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use App\Enums\FailureType;
 use App\Process\AgentHealth;
 use App\Services\AgentHealthTracker;
@@ -12,7 +13,7 @@ beforeEach(function (): void {
 
     $this->database = new DatabaseService($this->dbPath);
     config(['database.connections.sqlite.database' => $this->dbPath]);
-    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+    Artisan::call('migrate', ['--force' => true]);
 
     $this->tracker = new AgentHealthTracker($this->database);
 });

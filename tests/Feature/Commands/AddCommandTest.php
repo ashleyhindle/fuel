@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TaskStatus;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -349,7 +350,7 @@ describe('add command', function (): void {
 
     it('supports partial IDs in --blocked-by flag', function (): void {
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
-        $partialId = substr($blocker->short_id, 2, 3); // Just hash part
+        $partialId = substr((string) $blocker->short_id, 2, 3); // Just hash part
 
         Artisan::call('add', [
             'title' => 'Blocked task',
@@ -447,7 +448,7 @@ describe('add command', function (): void {
 
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
-        $partialId = substr($epic->short_id, 2, 3); // Just hash part
+        $partialId = substr((string) $epic->short_id, 2, 3); // Just hash part
 
         Artisan::call('add', [
             'title' => 'Task with partial epic ID',
@@ -478,7 +479,7 @@ describe('add command', function (): void {
         $tasks = $this->taskService->all();
         expect($tasks->count())->toBe(1);
         expect($tasks->first()->title)->toBe('Future idea');
-        expect($tasks->first()->status)->toBe(\App\Enums\TaskStatus::Someday);
+        expect($tasks->first()->status)->toBe(TaskStatus::Someday);
     });
 
     it('adds item to backlog with --someday and --description flags', function (): void {
@@ -557,6 +558,6 @@ describe('add command', function (): void {
         $tasks = $this->taskService->all();
         expect($tasks->count())->toBe(1);
         expect($tasks->first()->title)->toBe('Future idea via backlog');
-        expect($tasks->first()->status)->toBe(\App\Enums\TaskStatus::Someday);
+        expect($tasks->first()->status)->toBe(TaskStatus::Someday);
     });
 });

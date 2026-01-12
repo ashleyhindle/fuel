@@ -362,7 +362,7 @@ test('findByPartialId throws exception on ambiguous match', function (): void {
     ]);
 
     // This should throw an exception because 'aaa' matches both
-    expect(fn () => Task::findByPartialId('aaa'))
+    expect(fn (): ?Task => Task::findByPartialId('aaa'))
         ->toThrow(\RuntimeException::class, "Ambiguous task ID 'aaa'");
 });
 

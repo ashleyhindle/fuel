@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Artisan;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
@@ -18,7 +19,7 @@ beforeEach(function (): void {
 
     $this->db = new DatabaseService($this->context->getDatabasePath());
     $this->context->configureDatabase();
-    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+    Artisan::call('migrate', ['--force' => true]);
 
     // Configure Eloquent to use the test database
     AppServiceProvider::configureDatabasePath($this->context);

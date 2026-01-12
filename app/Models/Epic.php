@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Model;
@@ -218,7 +219,7 @@ class Epic extends Model
     /**
      * Get epics pending review (has tasks, all tasks closed, not yet reviewed).
      */
-    public static function pendingReview(): \Illuminate\Database\Eloquent\Collection
+    public static function pendingReview(): Collection
     {
         return static::whereNull('reviewed_at')
             ->whereHas('tasks')

@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use App\Models\Run;
 use App\Services\DatabaseService;
 
@@ -13,7 +14,7 @@ beforeEach(function (): void {
 
     $this->databaseService = new DatabaseService($this->dbPath);
     config(['database.connections.sqlite.database' => $this->dbPath]);
-    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+    Artisan::call('migrate', ['--force' => true]);
 
     // Create a test task
     $this->taskId = 'f-test01';

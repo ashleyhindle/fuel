@@ -21,7 +21,7 @@ function createReviewForShowCommandTask(
 ): void {
     $taskId = $reviewRepo->resolveTaskId($taskShortId);
     if ($taskId === null) {
-        throw new RuntimeException("Task '{$taskShortId}' not found.");
+        throw new RuntimeException(sprintf("Task '%s' not found.", $taskShortId));
     }
 
     $reviewRepo->createReview($reviewShortId, $taskId, $agent, $runId);
@@ -140,7 +140,7 @@ it('supports partial ID matching', function (): void {
     createReviewForShowCommandTask($this->reviewRepo, 'f-xyz789', $reviewId, 'amp-free');
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
-    $partialId = substr((string) $reviewId, 2, 4);
+    $partialId = substr($reviewId, 2, 4);
 
     Artisan::call('review:show', ['id' => $partialId, '--cwd' => $this->tempDir]);
     $output = Artisan::output();

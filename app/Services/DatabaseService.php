@@ -109,8 +109,8 @@ class DatabaseService
 
         try {
             return DB::statement($sql, $params);
-        } catch (\Exception $e) {
-            throw new RuntimeException('Database query failed: '.$e->getMessage(), 0, $e);
+        } catch (\Exception $exception) {
+            throw new RuntimeException('Database query failed: '.$exception->getMessage(), 0, $exception);
         }
     }
 
@@ -126,9 +126,9 @@ class DatabaseService
             $results = DB::select($sql, $params);
 
             // DB::select returns array of stdClass, convert to associative arrays
-            return array_map(fn ($row) => (array) $row, $results);
-        } catch (\Exception $e) {
-            throw new RuntimeException('Database query failed: '.$e->getMessage(), 0, $e);
+            return array_map(fn ($row): array => (array) $row, $results);
+        } catch (\Exception $exception) {
+            throw new RuntimeException('Database query failed: '.$exception->getMessage(), 0, $exception);
         }
     }
 
@@ -208,36 +208,6 @@ class DatabaseService
         $task = $this->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$taskShortId]);
 
         return $task !== null ? (int) $task['id'] : null;
-    }
-
-    /**
-     * Resolve a task integer id to its short_id.
-     *
-     * @param  int|null  $taskIntId  The integer id
-     * @return string|null The short_id, or null if task not found
-     */
-    private function resolveTaskShortId(?int $taskIntId): ?string
-    {
-        if ($taskIntId === null) {
-            return null;
-        }
-
-        $task = $this->fetchOne('SELECT short_id FROM tasks WHERE id = ?', [$taskIntId]);
-
-        return $task !== null ? $task['short_id'] : null;
-    }
-
-    /**
-     * Resolve a run short_id to its integer id.
-     *
-     * @param  string  $runShortId  The run short_id (e.g., 'run-xxxxxx')
-     * @return int|null The integer id, or null if run not found
-     */
-    private function resolveRunId(string $runShortId): ?int
-    {
-        $run = $this->fetchOne('SELECT id FROM runs WHERE short_id = ?', [$runShortId]);
-
-        return $run !== null ? (int) $run['id'] : null;
     }
 
     /**

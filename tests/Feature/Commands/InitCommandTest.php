@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\File;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -68,7 +69,7 @@ describe('init command', function (): void {
 
         // Ensure it doesn't exist first (use recursive delete)
         if (is_dir($fuelDir)) {
-            \Illuminate\Support\Facades\File::deleteDirectory($fuelDir);
+            File::deleteDirectory($fuelDir);
         }
 
         Artisan::call('init', ['--cwd' => $this->tempDir]);

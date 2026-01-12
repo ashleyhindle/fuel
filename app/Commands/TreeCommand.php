@@ -35,7 +35,7 @@ class TreeCommand extends Command
         $epicFilter = $this->option('epic');
         if ($epicFilter !== null) {
             $epic = Epic::findByPartialId($epicFilter);
-            if ($epic === null) {
+            if (!$epic instanceof Epic) {
                 if ($this->option('json')) {
                     $this->outputJson(['error' => sprintf("Epic '%s' not found", $epicFilter)]);
                 } else {
@@ -44,6 +44,7 @@ class TreeCommand extends Command
 
                 return self::FAILURE;
             }
+
             $tasks = $tasks->filter(fn (Task $t): bool => $t->epic_id === $epic->id);
         }
 

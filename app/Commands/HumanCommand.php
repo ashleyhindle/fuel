@@ -102,7 +102,7 @@ class HumanCommand extends Command
 
     private function formatAge(?\DateTimeInterface $createdAt): string
     {
-        if (! $createdAt) {
+        if (!$createdAt instanceof \DateTimeInterface) {
             return 'unknown';
         }
 

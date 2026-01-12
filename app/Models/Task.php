@@ -116,7 +116,7 @@ class Task extends EloquentModel
     {
         $blockedBy = $this->getBlockedByArray();
 
-        return count($blockedBy) > 0;
+        return $blockedBy !== [];
     }
 
     /**
@@ -179,7 +179,7 @@ class Task extends EloquentModel
      */
     private function normalizeArrayAttribute(mixed $value): array
     {
-        if ($value === null || $value === '' || $value === '[]') {
+        if (in_array($value, [null, '', '[]'], true)) {
             return [];
         }
 
@@ -195,7 +195,7 @@ class Task extends EloquentModel
             }
 
             // Fallback: comma-separated string
-            return array_filter(array_map('trim', explode(',', $value)));
+            return array_filter(array_map(trim(...), explode(',', $value)));
         }
 
         return [];

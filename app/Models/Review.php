@@ -54,7 +54,7 @@ class Review extends Model
         $issuesArray = $this->getAttribute('issues');
 
         // Handle null or empty
-        if ($issuesArray === null || $issuesArray === '' || $issuesArray === []) {
+        if (in_array($issuesArray, [null, '', []], true)) {
             return [];
         }
 

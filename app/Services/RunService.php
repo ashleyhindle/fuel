@@ -346,7 +346,7 @@ class RunService
             ->whereNotNull('agent')
             ->groupBy('agent')
             ->pluck('avg_duration', 'agent')
-            ->map(fn ($val) => (float) $val)
+            ->map(fn ($val): float => (float) $val)
             ->toArray();
 
         $byModelMap = Run::selectRaw('model, AVG(duration_seconds) as avg_duration')
@@ -354,7 +354,7 @@ class RunService
             ->whereNotNull('model')
             ->groupBy('model')
             ->pluck('avg_duration', 'model')
-            ->map(fn ($val) => (float) $val)
+            ->map(fn ($val): float => (float) $val)
             ->toArray();
 
         $longest = Run::whereNotNull('duration_seconds')

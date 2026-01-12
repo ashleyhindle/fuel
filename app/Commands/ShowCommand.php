@@ -96,7 +96,7 @@ class ShowCommand extends Command
             } else {
                 $this->info('Task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
-                $this->line('  Status: '.($task->status instanceof \App\Enums\TaskStatus ? $task->status->value : $task->status));
+                $this->line('  Status: '.($task->status instanceof TaskStatus ? $task->status->value : $task->status));
 
                 if (isset($task->description) && $task->description !== null) {
                     $this->line('  Description: '.$task->description);
@@ -431,7 +431,7 @@ class ShowCommand extends Command
      */
     private function formatDateTime(?\DateTimeInterface $dateTimeString): string
     {
-        if ($dateTimeString === null) {
+        if (!$dateTimeString instanceof \DateTimeInterface) {
             return '';
         }
 
@@ -505,6 +505,7 @@ class ShowCommand extends Command
                             $this->outputRemainingContent($filePath, $lastPosition);
                             break;
                         }
+
                         $fileStableSince = null;
                     }
                 }

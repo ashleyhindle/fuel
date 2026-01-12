@@ -1283,6 +1283,7 @@ class StatsCommand extends Command
             // Level 1: #0e4429 (dark green)
             return "\e[38;2;14;68;41m";
         }
+
         if ($percentage <= 0.50) {
             // Level 2: #006d32 (medium green)
             return "\e[38;2;0;109;50m";

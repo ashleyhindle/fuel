@@ -91,7 +91,7 @@ function createReviewForTask(
 ): void {
     $taskId = $reviewRepo->resolveTaskId($taskShortId);
     if ($taskId === null) {
-        throw new RuntimeException("Task '{$taskShortId}' not found.");
+        throw new RuntimeException(sprintf("Task '%s' not found.", $taskShortId));
     }
 
     $reviewRepo->createReview($reviewShortId, $taskId, $agent, $runId);

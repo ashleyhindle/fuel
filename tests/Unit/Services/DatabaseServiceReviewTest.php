@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Artisan;
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 
@@ -20,7 +21,7 @@ beforeEach(function (): void {
     $this->dbPath = $this->tempDir.'/test-agent.db';
     $this->service = new DatabaseService($this->dbPath);
     config(['database.connections.sqlite.database' => $this->dbPath]);
-    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+    Artisan::call('migrate', ['--force' => true]);
     $this->reviewRepo = new ReviewRepository($this->service);
 });
 

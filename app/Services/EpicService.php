@@ -7,7 +7,6 @@ namespace App\Services;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
-use App\Models\Task;
 use Carbon\Carbon;
 use RuntimeException;
 
@@ -39,7 +38,7 @@ class EpicService
     public function getEpic(string $id): ?Epic
     {
         $epic = Epic::findByPartialId($id);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             return null;
         }
 
@@ -83,7 +82,7 @@ class EpicService
     public function updateEpic(string $id, array $data): Epic
     {
         $epic = Epic::findByPartialId($id);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
@@ -108,7 +107,7 @@ class EpicService
     public function markAsReviewed(string $id): Epic
     {
         $epic = Epic::findByPartialId($id);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
@@ -132,7 +131,7 @@ class EpicService
     public function approveEpic(string $id, ?string $approvedBy = null): Epic
     {
         $epic = Epic::findByPartialId($id);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
@@ -161,7 +160,7 @@ class EpicService
     public function rejectEpic(string $id, ?string $reason = null): Epic
     {
         $epic = Epic::findByPartialId($id);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
@@ -192,7 +191,7 @@ class EpicService
     public function deleteEpic(string $id): Epic
     {
         $epic = Epic::findByPartialId($id);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
@@ -205,7 +204,7 @@ class EpicService
     public function getTasksForEpic(string $epicId): array
     {
         $epic = Epic::findByPartialId($epicId);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
@@ -215,7 +214,7 @@ class EpicService
     public function getEpicStatus(string $epicId): EpicStatus
     {
         $epic = Epic::findByPartialId($epicId);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
@@ -286,13 +285,6 @@ class EpicService
         return 'e-'.bin2hex(random_bytes(3));
     }
 
-    private function resolveId(string $id): ?string
-    {
-        $epic = Epic::findByPartialId($id);
-
-        return $epic?->short_id;
-    }
-
     /**
      * Check if all tasks in an epic are complete.
      *
@@ -302,7 +294,7 @@ class EpicService
     public function checkEpicCompletion(string $epicId): array
     {
         $epic = Epic::findByPartialId($epicId);
-        if ($epic === null) {
+        if (!$epic instanceof Epic) {
             return ['completed' => false];
         }
 

@@ -54,7 +54,7 @@ class ReviewRepository
         return Review::where('task_id', $taskId)
             ->orderBy('started_at', 'desc')
             ->get()
-            ->map(fn (Review $review) => $this->formatReviewArray($review))
+            ->map(fn (Review $review): array => $this->formatReviewArray($review))
             ->all();
     }
 
@@ -66,7 +66,7 @@ class ReviewRepository
         return Review::where('status', $status)
             ->orderBy('started_at', 'asc')
             ->get()
-            ->map(fn (Review $review) => $this->formatReviewArray($review))
+            ->map(fn (Review $review): array => $this->formatReviewArray($review))
             ->all();
     }
 
@@ -102,7 +102,7 @@ class ReviewRepository
         return Review::where('agent', $agent)
             ->orderBy('started_at', 'desc')
             ->get()
-            ->map(fn (Review $review) => $this->formatReviewArray($review))
+            ->map(fn (Review $review): array => $this->formatReviewArray($review))
             ->all();
     }
 
@@ -114,7 +114,7 @@ class ReviewRepository
         return Review::where('run_id', $runId)
             ->orderBy('started_at', 'desc')
             ->get()
-            ->map(fn (Review $review) => $this->formatReviewArray($review))
+            ->map(fn (Review $review): array => $this->formatReviewArray($review))
             ->all();
     }
 
@@ -169,7 +169,7 @@ class ReviewRepository
     {
         $review = Review::findByPartialId($id);
 
-        return $review ? $this->formatReviewArray($review) : null;
+        return $review instanceof Review ? $this->formatReviewArray($review) : null;
     }
 
     /**
@@ -184,7 +184,7 @@ class ReviewRepository
         }
 
         return $query->get()
-            ->map(fn (Review $review) => $this->formatReviewArray($review))
+            ->map(fn (Review $review): array => $this->formatReviewArray($review))
             ->all();
     }
 
@@ -200,7 +200,7 @@ class ReviewRepository
         }
 
         return $query->get()
-            ->map(fn (Review $review) => $this->formatReviewArray($review))
+            ->map(fn (Review $review): array => $this->formatReviewArray($review))
             ->all();
     }
 

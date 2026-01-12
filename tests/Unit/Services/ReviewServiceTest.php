@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Artisan;
+use App\Enums\TaskStatus;
 use App\Contracts\ProcessManagerInterface;
 use App\Models\Task;
 use App\Process\Process;
@@ -57,7 +59,7 @@ YAML;
     // Create database service for test directory and initialize it
     $this->databaseService = new DatabaseService($this->context->getDatabasePath());
     $this->context->configureDatabase();
-    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+    Artisan::call('migrate', ['--force' => true]);
 
     $this->taskService = makeTaskService($this->databaseService);
     $this->configService = new ConfigService($this->context);
@@ -112,7 +114,7 @@ it('triggers a review by spawning a process', function (): void {
 
     // Verify task status was updated to review
     $updatedTask = $this->taskService->find($taskId);
-    expect($updatedTask->status)->toBe(App\Enums\TaskStatus::Review);
+    expect($updatedTask->status)->toBe(TaskStatus::Review);
 });
 
 it('updates task status to review when triggering review', function (): void {
@@ -125,7 +127,7 @@ it('updates task status to review when triggering review', function (): void {
     // Start the task (simulate work being done)
     $this->taskService->start($taskId);
     $startedTask = $this->taskService->find($taskId);
-    expect($startedTask->status)->toBe(App\Enums\TaskStatus::InProgress);
+    expect($startedTask->status)->toBe(TaskStatus::InProgress);
 
     // Mock process manager
     $this->processManager
@@ -155,7 +157,7 @@ it('updates task status to review when triggering review', function (): void {
 
     // Verify status is now 'review'
     $reviewedTask = $this->taskService->find($taskId);
-    expect($reviewedTask->status)->toBe(App\Enums\TaskStatus::Review);
+    expect($reviewedTask->status)->toBe(TaskStatus::Review);
 });
 
 it('returns correct pending reviews', function (): void {

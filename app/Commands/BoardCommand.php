@@ -397,7 +397,7 @@ class BoardCommand extends Command
             foreach ($tasks as $task) {
                 $shortId = $task->short_id;
                 $taskTitle = (string) $task->title;
-                $displayId = substr($shortId, 2, 6); // Skip 'f-' prefix for compact display
+                $displayId = substr((string) $shortId, 2, 6); // Skip 'f-' prefix for compact display
                 $complexityChar = $this->getComplexityChar($task);
 
                 // Show icon for tasks being consumed by fuel consume
@@ -476,7 +476,7 @@ class BoardCommand extends Command
         foreach ($humanTasks as $task) {
             $shortId = $task->short_id;
             $title = (string) $task->title;
-            $displayId = substr($shortId, 2, 6); // Skip 'f-' prefix for compact display
+            $displayId = substr((string) $shortId, 2, 6); // Skip 'f-' prefix for compact display
 
             // Calculate separator length if not first item
             $separatorLength = $items !== [] ? $this->visibleLength($separator) : 0;

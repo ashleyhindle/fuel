@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Commands;
 
 use Illuminate\Console\Scheduling\Schedule;
@@ -25,13 +27,7 @@ class ListCommand extends Command
             if ($command->isHidden()) {
                 continue;
             }
-
-            $namespace = $name;
-            if (strpos($name, ':') !== false) {
-                $namespace = explode(':', $name)[0];
-            } else {
-                $namespace = 'global';
-            }
+            $namespace = strpos((string) $name, ':') !== false ? explode(':', (string) $name)[0] : 'global';
 
             $grouped[$namespace][] = $command;
         }
@@ -39,10 +35,11 @@ class ListCommand extends Command
         ksort($grouped);
 
         foreach ($grouped as $namespace => $cmds) {
-            $this->line("<comment>$namespace</comment>");
+            $this->line(sprintf('<comment>%s</comment>', $namespace));
             foreach ($cmds as $cmd) {
                 $this->line(sprintf('  <info>%-30s</info> %s', $cmd->getName(), $cmd->getDescription()));
             }
+
             $this->newLine();
         }
 
