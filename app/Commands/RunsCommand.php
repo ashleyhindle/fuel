@@ -43,8 +43,7 @@ class RunsCommand extends Command
         DatabaseService $databaseService,
         TaskService $taskService,
         RunService $runService
-    ): int
-    {
+    ): int {
         $this->configureCwd($context, $databaseService);
 
         try {
@@ -55,7 +54,7 @@ class RunsCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
-            $taskId = $task->id;
+            $taskId = $task->short_id;
 
             // Get runs
             if ($this->option('last')) {

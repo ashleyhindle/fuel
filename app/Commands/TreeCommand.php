@@ -86,7 +86,7 @@ class TreeCommand extends Command
 
         $treeData = [];
         foreach ($tasks as $task) {
-            $taskId = $task->id;
+            $taskId = $task->short_id;
             $blocks = $blocksMap[$taskId] ?? [];
 
             $treeData[] = [

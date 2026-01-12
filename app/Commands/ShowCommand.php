@@ -74,6 +74,10 @@ class ShowCommand extends Command
 
             // Fetch epic information using Eloquent relationship
             $epic = $task->epic;
+            $epicStatus = null;
+            if ($epic instanceof Epic) {
+                $epicStatus = $epicService->getEpicStatus($epic->short_id)->value;
+            }
 
             if ($this->option('json')) {
                 $taskData = $task->toArray();
@@ -82,7 +86,7 @@ class ShowCommand extends Command
                     $taskData['epic'] = [
                         'id' => $epic->short_id,
                         'title' => $epic->title ?? null,
-                        'status' => $epic->status ?? null,
+                        'status' => $epicStatus,
                     ];
                 }
 
@@ -117,7 +121,7 @@ class ShowCommand extends Command
                 }
 
                 if ($epic instanceof Epic) {
-                    $this->line('  Epic: '.$epic->short_id.' - '.($epic->title ?? 'Untitled').' ('.$epic->status.')');
+                    $this->line('  Epic: '.$epic->short_id.' - '.($epic->title ?? 'Untitled').' ('.$epicStatus.')');
                 }
 
                 if (isset($task->reason)) {
@@ -188,8 +192,12 @@ class ShowCommand extends Command
                         // Duration
                         if (isset($run->started_at) && isset($run->ended_at)) {
                             try {
-                                $start = new \DateTime($run->started_at);
-                                $end = new \DateTime($run->ended_at);
+                                $start = $run->started_at instanceof \DateTimeInterface
+                                    ? $run->started_at
+                                    : new \DateTime((string) $run->started_at);
+                                $end = $run->ended_at instanceof \DateTimeInterface
+                                    ? $run->ended_at
+                                    : new \DateTime((string) $run->ended_at);
                                 $duration = $end->getTimestamp() - $start->getTimestamp();
                                 $parts[] = $duration < 60 ? $duration.'s' : (int) ($duration / 60).'m '.($duration % 60).'s';
                             } catch (\Exception) {

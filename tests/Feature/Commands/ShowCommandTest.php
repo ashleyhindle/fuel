@@ -160,7 +160,8 @@ describe('show command', function (): void {
 
         // Verify task has epic_id
         $taskData = $this->taskService->find($task['short_id']);
-        expect($taskData['epic_id'])->toBe($epic['short_id']);
+        expect($taskData->epic)->not->toBeNull();
+        expect($taskData->epic->short_id)->toBe($epic['short_id']);
 
         expect($output)->toContain('Epic: '.$epic['short_id']);
         expect($output)->toContain('Test Epic');

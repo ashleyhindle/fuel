@@ -37,7 +37,7 @@ class DepAddCommand extends Command
             if ($this->option('json')) {
                 $this->outputJson($task->toArray());
             } else {
-                $fromId = $task->id;
+                $fromId = $task->short_id;
                 $toId = $this->resolveToTaskId($taskService, $this->argument('to'));
 
                 $this->info(sprintf('Added dependency: %s blocked by %s', $fromId, $toId));
@@ -56,6 +56,6 @@ class DepAddCommand extends Command
     {
         $task = $taskService->find($toId);
 
-        return $task instanceof Task ? $task->id : $toId;
+        return $task instanceof Task ? $task->short_id : $toId;
     }
 }

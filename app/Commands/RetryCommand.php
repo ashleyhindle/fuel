@@ -47,7 +47,7 @@ class RetryCommand extends Command
                 return self::SUCCESS;
             }
 
-            $ids = $failedTasks->pluck('id')->all();
+            $ids = $failedTasks->pluck('short_id')->all();
         }
 
         $tasks = [];

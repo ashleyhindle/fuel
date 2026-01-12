@@ -246,10 +246,7 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
         }
 
-        return $this->taskService->all()
-            ->filter(fn (Task $task): bool => ($task->epic_id ?? null) === $epic->short_id)
-            ->values()
-            ->all();
+        return $epic->tasks->all();
     }
 
     public function getEpicStatus(string $epicId): EpicStatus

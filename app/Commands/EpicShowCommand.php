@@ -47,7 +47,7 @@ class EpicShowCommand extends Command
             $blockedIds = $taskService->getBlockedIds($allTasks);
 
             // Partition tasks into unblocked and blocked groups
-            [$unblockedTasks, $blockedTasks] = $tasksCollection->partition(fn (Task $task): bool => ! in_array($task->id ?? '', $blockedIds, true));
+            [$unblockedTasks, $blockedTasks] = $tasksCollection->partition(fn (Task $task): bool => ! in_array($task->short_id ?? '', $blockedIds, true));
 
             // Sort each group by priority ASC, then created_at ASC
             $sortedUnblocked = $unblockedTasks
@@ -107,7 +107,7 @@ class EpicShowCommand extends Command
                 $headers = ['ID', 'Title', 'Status', 'Type', 'Priority'];
                 $rows = array_map(function (Task $task) use ($blockedIds): array {
                     $status = $task->status ?? TaskStatus::Open->value;
-                    $isBlocked = in_array($task->id ?? '', $blockedIds, true);
+                    $isBlocked = in_array($task->short_id ?? '', $blockedIds, true);
 
                     // Add visual indicator for blocked tasks (like tree command)
                     if ($isBlocked && $status === TaskStatus::Open->value) {

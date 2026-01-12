@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,13 +35,13 @@ class Task extends EloquentModel
     ];
 
     protected $casts = [
-        'status' => TaskStatus::class,
         'labels' => 'array',
         'blocked_by' => 'array',
         'priority' => 'integer',
         'consumed' => 'boolean',
         'consumed_exit_code' => 'integer',
         'consume_pid' => 'integer',
+        'last_review_issues' => 'array',
     ];
 
     /** @var bool Flag to bypass casts/accessors for fromArray compatibility */
@@ -62,6 +61,10 @@ class Task extends EloquentModel
      */
     public static function fromArray(array $data): self
     {
+        if (! isset($data['short_id']) && isset($data['id'])) {
+            $data['short_id'] = $data['id'];
+        }
+
         // Create instance without initializing connection
         $task = new self;
         $task->exists = true; // Mark as existing to prevent save() from inserting
@@ -92,12 +95,44 @@ class Task extends EloquentModel
     }
 
     /**
+     * Support array access for legacy callers that expect 'id' to be the short ID.
+     */
+    public function offsetGet($offset): mixed
+    {
+        if ($offset === 'id') {
+            return $this->attributes['short_id'] ?? null;
+        }
+
+        return parent::offsetGet($offset);
+    }
+
+    public function offsetExists($offset): bool
+    {
+        if ($offset === 'id') {
+            return isset($this->attributes['short_id']);
+        }
+
+        return parent::offsetExists($offset);
+    }
+
+    /**
+     * Include the short_id as id for backward compatibility in array/JSON output.
+     */
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+        $data['id'] = $this->attributes['short_id'] ?? null;
+
+        return $data;
+    }
+
+    /**
      * Scope tasks that are ready to work.
      */
     public function scopeReady(Builder $query): Builder
     {
         return $query
-            ->where('status', TaskStatus::Open)
+            ->where('status', 'open')
             ->where(function (Builder $query): void {
                 $query
                     ->whereNull('blocked_by')
@@ -119,7 +154,7 @@ class Task extends EloquentModel
     public function scopeBlocked(Builder $query): Builder
     {
         return $query
-            ->where('status', TaskStatus::Open)
+            ->where('status', 'open')
             ->where(function (Builder $query): void {
                 $query
                     ->whereNotNull('blocked_by')
@@ -133,7 +168,7 @@ class Task extends EloquentModel
      */
     public function scopeBacklog(Builder $query): Builder
     {
-        return $query->where('status', TaskStatus::Someday);
+        return $query->where('status', 'someday');
     }
 
     public function epic(): BelongsTo
@@ -170,7 +205,7 @@ class Task extends EloquentModel
      */
     public function isCompleted(): bool
     {
-        return $this->status === 'completed';
+        return $this->status === 'closed';
     }
 
     /**
@@ -178,7 +213,7 @@ class Task extends EloquentModel
      */
     public function isInProgress(): bool
     {
-        return $this->status === TaskStatus::InProgress;
+        return $this->status === 'in_progress';
     }
 
     /**
@@ -242,11 +277,34 @@ class Task extends EloquentModel
     }
 
     /**
-     * Accessor: Map 'id' to 'short_id' for backward compatibility.
-     * This allows $task->id to return the short_id (f-xxxxxx) instead of the database primary key.
+     * Find a task by partial ID matching.
+     *
+     * @param  string  $id  Full or partial task ID
+     *
+     * @throws \RuntimeException When multiple tasks match the partial ID
      */
-    public function getIdAttribute($value): ?string
+    public static function findByPartialId(string $id): ?self
     {
-        return $this->attributes['short_id'] ?? null;
+        if (str_starts_with($id, 'f-') && strlen($id) === 8) {
+            return static::where('short_id', $id)->first();
+        }
+
+        $tasks = static::where('short_id', 'like', $id.'%')
+            ->orWhere('short_id', 'like', 'f-'.$id.'%')
+            ->orWhere('short_id', 'like', 'fuel-'.$id.'%')
+            ->get();
+
+        if ($tasks->count() === 1) {
+            return $tasks->first();
+        }
+
+        if ($tasks->count() > 1) {
+            $ids = $tasks->pluck('short_id')->toArray();
+            throw new \RuntimeException(
+                sprintf("Ambiguous task ID '%s'. Matches: %s", $id, implode(', ', $ids))
+            );
+        }
+
+        return null;
     }
 }

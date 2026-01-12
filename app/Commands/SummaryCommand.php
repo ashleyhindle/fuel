@@ -42,7 +42,7 @@ class SummaryCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
-            $taskId = $task->id;
+            $taskId = $task->short_id;
 
             // Get runs
             $runs = $runService->getRuns($taskId);

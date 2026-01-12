@@ -68,7 +68,7 @@ class RunCommand extends Command
             return $this->outputError('Task not found: '.$taskId);
         }
 
-        $taskId = $task->id; // Use full ID after partial match
+        $taskId = $task->short_id; // Use full ID after partial match
         $taskTitle = $task->title;
         $status = $task->status;
         $blockedBy = $task->blocked_by ?? [];
@@ -280,7 +280,7 @@ class RunCommand extends Command
 
     private function buildPrompt(Task $task, string $cwd): string
     {
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $taskDetails = $this->formatTaskForPrompt($task);
 
         return <<<PROMPT
@@ -335,7 +335,7 @@ PROMPT;
     private function formatTaskForPrompt(Task $task): string
     {
         $lines = [
-            'Task: '.$task->id,
+            'Task: '.$task->short_id,
             'Title: '.$task->title,
             'Status: '.($task->status instanceof \App\Enums\TaskStatus ? $task->status->value : $task->status),
         ];

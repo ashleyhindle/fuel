@@ -109,7 +109,7 @@ class EpicReviewCommand extends Command
             }
 
             // Get first run times for task ordering
-            $taskIds = array_map(fn ($t) => $t->id, $tasks);
+            $taskIds = array_map(fn ($t) => $t->short_id, $tasks);
             $firstRunTimes = $this->getTaskFirstRunTimes($dbService, $taskIds);
 
             // Text output
@@ -173,8 +173,8 @@ class EpicReviewCommand extends Command
         } else {
             // Sort tasks by first run time (oldest first), fallback to updated_at
             usort($tasks, function (Task $a, Task $b) use ($firstRunTimes): int {
-                $timeA = $firstRunTimes[$a->id] ?? $a->updated_at ?? '';
-                $timeB = $firstRunTimes[$b->id] ?? $b->updated_at ?? '';
+                $timeA = $firstRunTimes[$a->short_id] ?? $a->updated_at ?? '';
+                $timeB = $firstRunTimes[$b->short_id] ?? $b->updated_at ?? '';
 
                 return $timeA <=> $timeB;
             });

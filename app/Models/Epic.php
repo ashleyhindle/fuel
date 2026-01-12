@@ -123,7 +123,7 @@ class Epic extends Model
         if ($this->changes_requested_at !== null) {
             // If changes were requested, check if tasks are back in progress
             $hasActiveTask = $this->tasks()
-                ->whereIn('status', [TaskStatus::Open, TaskStatus::InProgress])
+                ->whereIn('status', [TaskStatus::Open->value, TaskStatus::InProgress->value])
                 ->exists();
 
             // If tasks are active again, it's in_progress; otherwise still changes_requested
@@ -145,7 +145,7 @@ class Epic extends Model
 
         // Check if any task is open or in_progress
         $hasActiveTask = $this->tasks()
-            ->whereIn('status', [TaskStatus::Open, TaskStatus::InProgress])
+            ->whereIn('status', [TaskStatus::Open->value, TaskStatus::InProgress->value])
             ->exists();
 
         if ($hasActiveTask) {
@@ -243,7 +243,7 @@ class Epic extends Model
         return static::whereNull('reviewed_at')
             ->whereHas('tasks')
             ->whereDoesntHave('tasks', function ($query): void {
-                $query->whereNotIn('status', [TaskStatus::Closed, TaskStatus::Cancelled]);
+                $query->whereNotIn('status', [TaskStatus::Closed->value, TaskStatus::Cancelled->value]);
             })
             ->orderBy('created_at', 'desc')
             ->get();

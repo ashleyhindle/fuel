@@ -28,6 +28,8 @@ trait HandlesJsonOutput
                 $databaseService->setDatabasePath($context->getDatabasePath());
             }
         }
+
+        $context->configureDatabase();
     }
 
     /**

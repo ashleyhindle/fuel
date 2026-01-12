@@ -101,12 +101,12 @@ test('isBlocked returns false when blocked_by is empty string', function (): voi
     expect($task->isBlocked())->toBeFalse();
 });
 
-test('isCompleted returns true when status is completed', function (): void {
-    $task = makeTask(['status' => 'completed']);
+test('isCompleted returns true when status is closed', function (): void {
+    $task = makeTask(['status' => 'closed']);
     expect($task->isCompleted())->toBeTrue();
 });
 
-test('isCompleted returns false when status is not completed', function (): void {
+test('isCompleted returns false when status is not closed', function (): void {
     $pendingTask = makeTask(['status' => 'pending']);
     expect($pendingTask->isCompleted())->toBeFalse();
 

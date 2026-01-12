@@ -76,7 +76,7 @@ class PromoteCommand extends Command
 
                 // Apply additional updates if any options were provided
                 if ($updates !== []) {
-                    $task = $taskService->update($task->id, $updates);
+                    $task = $taskService->update($task->short_id, $updates);
                 }
 
                 $results[] = ['task' => $task];

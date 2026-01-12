@@ -18,7 +18,6 @@ use App\Process\ReviewResult;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
-use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -68,7 +67,6 @@ class ConsumeCommand extends Command
         private ConfigService $configService,
         private RunService $runService,
         private ProcessManager $processManager,
-        private EpicService $epicService,
         private FuelContext $fuelContext,
         private DatabaseService $databaseService,
         private BackoffStrategy $backoffStrategy,
@@ -342,7 +340,7 @@ class ConsumeCommand extends Command
             return false;
         }
 
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $taskTitle = $task->title;
         $shortTitle = mb_strlen((string) $taskTitle) > 40 ? mb_substr((string) $taskTitle, 0, 37).'...' : $taskTitle;
 
@@ -909,10 +907,10 @@ PROMPT;
         ]);
 
         // Block the original task until permissions are configured
-        $this->taskService->addDependency($taskId, $humanTask->id);
+        $this->taskService->addDependency($taskId, $humanTask->short_id);
         $this->taskService->reopen($taskId);
 
-        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTask->id), 'yellow');
+        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTask->short_id), 'yellow');
     }
 
     /**
@@ -960,7 +958,7 @@ PROMPT;
         if ($failedTasks->isNotEmpty()) {
             $failedLines = [];
             foreach ($failedTasks as $task) {
-                $shortId = substr((string) $task->id, 2, 6);
+                $shortId = substr((string) $task->short_id, 2, 6);
                 $failedLines[] = '🪫 '.$shortId;
             }
 
@@ -1100,19 +1098,19 @@ PROMPT;
     private function formatTaskForPrompt(Task $task): string
     {
         $lines = [
-            'Task: '.$task->id,
+            'Task: '.$task->short_id,
             'Title: '.$task->title,
             'Status: '.$task->status,
         ];
 
         // Include epic information if task is part of an epic
         if (! empty($task->epic_id)) {
-            $epic = $this->epicService->getEpic($task->epic_id);
+            $epic = $task->epic;
             if ($epic instanceof Epic) {
                 $lines[] = '';
                 $lines[] = '== EPIC CONTEXT ==';
                 $lines[] = 'This task is part of a larger epic:';
-                $lines[] = 'Epic: '.$epic->id;
+                $lines[] = 'Epic: '.$epic->short_id;
                 $lines[] = 'Epic Title: '.$epic->title;
                 if (! empty($epic->description)) {
                     $lines[] = 'Epic Description: '.$epic->description;

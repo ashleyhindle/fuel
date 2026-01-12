@@ -1,8 +1,6 @@
 <?php
 
-use App\Repositories\EpicRepository;
 use App\Repositories\ReviewRepository;
-use App\Repositories\TaskRepository;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\RunService;
@@ -57,11 +55,7 @@ function something(): void
 
 function makeTaskService(DatabaseService $databaseService): TaskService
 {
-    return new TaskService(
-        $databaseService,
-        new TaskRepository($databaseService),
-        new EpicRepository($databaseService)
-    );
+    return new TaskService($databaseService);
 }
 
 function makeEpicService(DatabaseService $databaseService, TaskService $taskService): EpicService

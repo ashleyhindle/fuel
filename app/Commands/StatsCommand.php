@@ -246,7 +246,7 @@ class StatsCommand extends Command
             }
 
             // Count blocked separately
-            if (in_array($task->id, $blockedIds, true) && $status === 'open') {
+            if (in_array($task->short_id, $blockedIds, true) && $status === 'open') {
                 $statusCounts['blocked']++;
             }
 
@@ -853,7 +853,7 @@ class StatsCommand extends Command
             }
 
             // Count blocked separately
-            if (in_array($task->id, $blockedIds, true) && $status === 'open') {
+            if (in_array($task->short_id, $blockedIds, true) && $status === 'open') {
                 $statusCounts['blocked']++;
             }
 

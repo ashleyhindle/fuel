@@ -230,7 +230,7 @@ class BoardCommand extends Command
         $allTasks = $taskService->all();
 
         $readyTasks = $taskService->readyFrom($allTasks);
-        $readyIds = $readyTasks->pluck('id')->toArray();
+        $readyIds = $readyTasks->pluck('short_id')->toArray();
 
         $inProgressTasks = $allTasks
             ->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress->value)
@@ -244,7 +244,7 @@ class BoardCommand extends Command
 
         // Blocked tasks exclude needs-human (those are shown in a separate line)
         $blockedTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open->value && ! in_array($t->id, $readyIds, true))
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open->value && ! in_array($t->short_id, $readyIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
@@ -288,12 +288,12 @@ class BoardCommand extends Command
         $boardData = $this->getBoardData($taskService);
 
         return $this->hashBoardContent([
-            'ready' => $boardData['ready']->pluck('id')->toArray(),
-            'in_progress' => $boardData['in_progress']->pluck('id')->toArray(),
-            'review' => $boardData['review']->pluck('id')->toArray(),
-            'blocked' => $boardData['blocked']->pluck('id')->toArray(),
-            'human' => $boardData['human']->pluck('id')->toArray(),
-            'done' => $boardData['done']->pluck('id')->toArray(),
+            'ready' => $boardData['ready']->pluck('short_id')->toArray(),
+            'in_progress' => $boardData['in_progress']->pluck('short_id')->toArray(),
+            'review' => $boardData['review']->pluck('short_id')->toArray(),
+            'blocked' => $boardData['blocked']->pluck('short_id')->toArray(),
+            'human' => $boardData['human']->pluck('short_id')->toArray(),
+            'done' => $boardData['done']->pluck('short_id')->toArray(),
         ]);
     }
 

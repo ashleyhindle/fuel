@@ -35,8 +35,7 @@ class ResumeSessionCommand extends Command
         TaskService $taskService,
         RunService $runService,
         ConfigService $configService
-    ): int
-    {
+    ): int {
         $this->configureCwd($context, $databaseService);
 
         try {
@@ -46,7 +45,7 @@ class ResumeSessionCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $this->argument('id')));
             }
 
-            $taskId = $task->id;
+            $taskId = $task->short_id;
 
             $run = null;
             if ($this->option('run')) {

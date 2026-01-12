@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\TaskStatus;
+use App\Models\Epic;
 use App\Models\Task;
-use App\Repositories\EpicRepository;
-use App\Repositories\TaskRepository;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -20,9 +19,7 @@ class TaskService
     private string $prefix = 'f';
 
     public function __construct(
-        private readonly DatabaseService $db,
-        private readonly TaskRepository $taskRepository,
-        private readonly EpicRepository $epicRepository
+        private readonly DatabaseService $db
     ) {}
 
     /**
@@ -50,31 +47,7 @@ class TaskService
      */
     public function find(string $id): ?Task
     {
-        // Try exact match first
-        $task = Task::where('short_id', $id)->first();
-        if ($task !== null) {
-            return $task;
-        }
-
-        // Try partial match (prefix matching)
-        // Support both 'f-' prefix and bare ID
-        $rows = Task::where('short_id', 'like', $id.'%')
-            ->orWhere('short_id', 'like', $this->prefix.'-'.$id.'%')
-            ->orWhere('short_id', 'like', 'fuel-'.$id.'%')
-            ->get();
-
-        if ($rows->count() === 1) {
-            return $rows->first();
-        }
-
-        if ($rows->count() > 1) {
-            $ids = $rows->pluck('short_id')->toArray();
-            throw new RuntimeException(
-                sprintf("Ambiguous task ID '%s'. Matches: ", $id).implode(', ', $ids)
-            );
-        }
-
-        return null;
+        return Task::findByPartialId($id);
     }
 
     /**
@@ -95,6 +68,24 @@ class TaskService
                 sprintf("Invalid %s '%s'. Must be one of: ", $fieldName, $valueStr).implode(', ', $validValues)
             );
         }
+    }
+
+    /**
+     * Resolve an epic short ID (or integer ID) to the integer primary key.
+     */
+    private function resolveEpicId(mixed $epicId): ?int
+    {
+        if ($epicId === null) {
+            return null;
+        }
+
+        if (is_int($epicId)) {
+            return $epicId;
+        }
+
+        $epic = Epic::findByPartialId((string) $epicId);
+
+        return $epic?->getKey();
     }
 
     /**
@@ -142,8 +133,8 @@ class TaskService
 
         // Look up epic integer ID if provided
         $epicId = null;
-        if (isset($data['epic_id']) && $data['epic_id'] !== null) {
-            $epicId = $this->epicRepository->resolveToIntegerId($data['epic_id']);
+        if (array_key_exists('epic_id', $data) && $data['epic_id'] !== null) {
+            $epicId = $this->resolveEpicId($data['epic_id']);
         }
 
         $blockedBy = $data['blocked_by'] ?? [];
@@ -176,8 +167,6 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $task = $taskModel->toArray();
-        $shortId = $task['short_id'];
         $updates = [];
 
         // Field mapping: data key => [column, validator, use_array_key_exists]
@@ -201,12 +190,11 @@ class TaskService
                 }
 
                 $updates[$config['column']] = $value;
-                $task[$key] = $value;
             }
         }
 
         // Handle priority with custom validation
-        if (isset($data['priority'])) {
+        if (array_key_exists('priority', $data)) {
             $priority = $data['priority'];
             if (! is_int($priority) || $priority < 0 || $priority > 4) {
                 throw new RuntimeException(
@@ -215,23 +203,21 @@ class TaskService
             }
 
             $updates['priority'] = $priority;
-            $task['priority'] = $priority;
         }
 
         // Handle epic_id with custom logic
         if (array_key_exists('epic_id', $data)) {
             $epicId = null;
             if ($data['epic_id'] !== null) {
-                $epicId = $this->epicRepository->resolveToIntegerId($data['epic_id']);
+                $epicId = $this->resolveEpicId($data['epic_id']);
             }
 
             $updates['epic_id'] = $epicId;
-            $task['epic_id'] = $data['epic_id'];
         }
 
         // Handle labels updates with custom logic
         if (isset($data['add_labels']) || isset($data['remove_labels'])) {
-            $labels = $task['labels'] ?? [];
+            $labels = $taskModel->labels ?? [];
             $labels = is_array($labels) ? $labels : [];
 
             // Add labels
@@ -249,7 +235,6 @@ class TaskService
             }
 
             $updates['labels'] = $labels;
-            $task['labels'] = $labels;
         }
 
         // Handle arbitrary fields
@@ -257,18 +242,15 @@ class TaskService
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
                 $updates[$key] = $value;
-                $task[$key] = $value;
             }
         }
 
         // Update updated_at only if not explicitly provided
-        if (! isset($data['updated_at'])) {
+        if (! array_key_exists('updated_at', $data)) {
             $now = now()->toIso8601String();
             $updates['updated_at'] = $now;
-            $task['updated_at'] = $now;
         } else {
             $updates['updated_at'] = $data['updated_at'];
-            $task['updated_at'] = $data['updated_at'];
         }
 
         $taskModel->update($updates);
@@ -281,7 +263,7 @@ class TaskService
      */
     public function start(string $id): Task
     {
-        return $this->update($id, ['status' => TaskStatus::InProgress]);
+        return $this->update($id, ['status' => TaskStatus::InProgress->value]);
     }
 
     /**
@@ -299,7 +281,7 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' is not a backlog item (status is not 'someday')", $id));
         }
 
-        return $this->update($id, ['status' => TaskStatus::Open]);
+        return $this->update($id, ['status' => TaskStatus::Open->value]);
     }
 
     /**
@@ -307,7 +289,7 @@ class TaskService
      */
     public function defer(string $id): Task
     {
-        return $this->update($id, ['status' => TaskStatus::Someday]);
+        return $this->update($id, ['status' => TaskStatus::Someday->value]);
     }
 
     /**
@@ -318,7 +300,7 @@ class TaskService
      */
     public function done(string $id, ?string $reason = null, ?string $commitHash = null): Task
     {
-        $data = ['status' => TaskStatus::Closed];
+        $data = ['status' => TaskStatus::Closed->value];
         if ($reason !== null) {
             $data['reason'] = $reason;
         }
@@ -340,19 +322,7 @@ class TaskService
      */
     public function setLastReviewIssues(string $id, ?array $issues): Task
     {
-        $encodedIssues = $issues !== null ? json_encode($issues) : null;
-
-        $taskModel = $this->update($id, ['last_review_issues' => $encodedIssues]);
-        $task = $taskModel->toArray();
-
-        // Ensure the returned task has the decoded array, not the JSON string
-        if ($issues !== null) {
-            $task['last_review_issues'] = $issues;
-        } else {
-            unset($task['last_review_issues']);
-        }
-
-        return Task::fromArray($task);
+        return $this->update($id, ['last_review_issues' => $issues]);
     }
 
     /**
@@ -365,30 +335,19 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $task = $taskModel->toArray();
-        $status = $task['status'] ?? '';
+        $status = $taskModel->status ?? '';
         if (! in_array($status, [TaskStatus::Closed->value, TaskStatus::InProgress->value, TaskStatus::Review->value], true)) {
             throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
-        $shortId = $task['short_id'];
-        $now = now()->toIso8601String();
-
-        $this->taskRepository->updateByShortId($shortId, [
-            'status' => TaskStatus::Open,
+        return $this->update($id, [
+            'status' => TaskStatus::Open->value,
             'reason' => null,
             'consumed' => null,
             'consumed_at' => null,
             'consumed_exit_code' => null,
             'consumed_output' => null,
-            'updated_at' => $now,
         ]);
-
-        $task['status'] = TaskStatus::Open;
-        $task['updated_at'] = $now;
-        unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
-
-        return Task::fromArray($task);
     }
 
     /**
@@ -401,33 +360,22 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $task = $taskModel->toArray();
-        $consumed = ! empty($task['consumed']);
-        $status = $task['status'] ?? '';
+        $consumed = ! empty($taskModel->consumed);
+        $status = $taskModel->status ?? '';
 
         if (! ($consumed && $status === TaskStatus::InProgress->value)) {
             throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
         }
 
-        $shortId = $task['short_id'];
-        $now = now()->toIso8601String();
-
-        $this->taskRepository->updateByShortId($shortId, [
-            'status' => TaskStatus::Open,
+        return $this->update($id, [
+            'status' => TaskStatus::Open->value,
             'reason' => null,
             'consumed' => null,
             'consumed_at' => null,
             'consumed_exit_code' => null,
             'consumed_output' => null,
             'consume_pid' => null,
-            'updated_at' => $now,
         ]);
-
-        $task['status'] = TaskStatus::Open;
-        $task['updated_at'] = $now;
-        unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output'], $task['consume_pid']);
-
-        return Task::fromArray($task);
     }
 
     /**
@@ -490,7 +438,7 @@ class TaskService
 
         return $tasks
             ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
-            ->filter(fn (Task $t): bool => in_array($t->id, $blockedIds, true))
+            ->filter(fn (Task $t): bool => in_array($t->short_id, $blockedIds, true))
             ->sortBy([
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
@@ -590,8 +538,8 @@ class TaskService
             throw new RuntimeException(sprintf("Dependency target '%s' not found", $dependsOnId));
         }
 
-        $resolvedTaskId = $taskModel->id;
-        $resolvedDependsOnId = $dependsOnTask->id;
+        $resolvedTaskId = $taskModel->short_id;
+        $resolvedDependsOnId = $dependsOnTask->short_id;
 
         if ($resolvedTaskId === $resolvedDependsOnId) {
             throw new RuntimeException('A task cannot depend on itself');
@@ -613,13 +561,12 @@ class TaskService
         $blockedBy[] = $resolvedDependsOnId;
         $now = now()->toIso8601String();
 
-        $this->taskRepository->updateBlockedBy($resolvedTaskId, $blockedBy);
+        $taskModel->update([
+            'blocked_by' => $blockedBy,
+            'updated_at' => $now,
+        ]);
 
-        $task = $taskModel->toArray();
-        $task['blocked_by'] = $blockedBy;
-        $task['updated_at'] = $now;
-
-        return Task::fromArray($task);
+        return $taskModel->fresh();
     }
 
     /**
@@ -630,7 +577,7 @@ class TaskService
     public function getBlockers(string $taskId): Collection
     {
         $tasks = $this->all();
-        $taskMap = $tasks->keyBy('id');
+        $taskMap = $tasks->keyBy('short_id');
 
         $task = $this->findInCollection($tasks, $taskId);
         if (! $task instanceof Task) {
@@ -660,7 +607,7 @@ class TaskService
         $length = 6;
         $maxAttempts = 100;
 
-        $existingIds = $this->taskRepository->getAllShortIds();
+        $existingIds = Task::pluck('short_id')->all();
 
         $attempts = 0;
         while ($attempts < $maxAttempts) {
@@ -702,7 +649,7 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $this->taskRepository->deleteByShortId($task->short_id);
+        $task->delete();
 
         return $task;
     }
@@ -729,7 +676,7 @@ class TaskService
             $blockedBy = [];
         }
 
-        $resolvedToId = $toTask->id;
+        $resolvedToId = $toTask->short_id;
         $found = false;
         $newBlockedBy = [];
         foreach ($blockedBy as $blockerId) {
@@ -745,13 +692,12 @@ class TaskService
         }
 
         $now = now()->toIso8601String();
-        $this->taskRepository->updateBlockedBy($fromTaskModel->id, $newBlockedBy);
+        $fromTaskModel->update([
+            'blocked_by' => $newBlockedBy,
+            'updated_at' => $now,
+        ]);
 
-        $fromTask = $fromTaskModel->toArray();
-        $fromTask['blocked_by'] = $newBlockedBy;
-        $fromTask['updated_at'] = $now;
-
-        return Task::fromArray($fromTask);
+        return $fromTaskModel->fresh();
     }
 
     /**
@@ -761,7 +707,7 @@ class TaskService
      */
     private function validateNoCycles(Collection $tasks, string $taskId, string $dependsOnId): bool
     {
-        $taskMap = $tasks->keyBy('id');
+        $taskMap = $tasks->keyBy('short_id');
         $visited = [];
         $queue = [$dependsOnId];
 
@@ -799,13 +745,13 @@ class TaskService
      */
     private function findInCollection(Collection $tasks, string $id): ?Task
     {
-        $task = $tasks->firstWhere('id', $id);
+        $task = $tasks->firstWhere('short_id', $id);
         if ($task !== null) {
             return $task;
         }
 
         $matches = $tasks->filter(function (Task $task) use ($id): bool {
-            $taskId = $task->id;
+            $taskId = $task->short_id;
             if (! is_string($taskId)) {
                 return false;
             }
@@ -821,75 +767,10 @@ class TaskService
 
         if ($matches->count() > 1) {
             throw new RuntimeException(
-                sprintf("Ambiguous task ID '%s'. Matches: ", $id).$matches->pluck('id')->implode(', ')
+                sprintf("Ambiguous task ID '%s'. Matches: ", $id).$matches->pluck('short_id')->implode(', ')
             );
         }
 
         return null;
-    }
-
-    /**
-     * Convert a database row to a task array.
-     *
-     * @param  array<string, mixed>  $row
-     * @return array<string, mixed>
-     */
-    private function rowToTask(array $row): array
-    {
-        $task = [
-            'id' => $row['short_id'],
-            'title' => $row['title'],
-            'description' => $row['description'],
-            'status' => $row['status'],
-            'type' => $row['type'],
-            'priority' => (int) $row['priority'],
-            'complexity' => $row['complexity'],
-            'labels' => $row['labels'] !== null ? json_decode($row['labels'], true) : [],
-            'blocked_by' => $row['blocked_by'] !== null ? json_decode($row['blocked_by'], true) : [],
-            'created_at' => $row['created_at'],
-            'updated_at' => $row['updated_at'],
-        ];
-
-        // Add epic_id if present (map back to short_id for public interface)
-        if (isset($row['epic_id']) && $row['epic_id'] !== null) {
-            $task['epic_id'] = $this->epicRepository->resolveToShortId((int) $row['epic_id']);
-        } else {
-            $task['epic_id'] = null;
-        }
-
-        // Add optional fields if present
-        if (isset($row['commit_hash']) && $row['commit_hash'] !== null) {
-            $task['commit_hash'] = $row['commit_hash'];
-        }
-
-        if (isset($row['reason']) && $row['reason'] !== null) {
-            $task['reason'] = $row['reason'];
-        }
-
-        if (isset($row['consumed']) && $row['consumed'] !== null) {
-            $task['consumed'] = (bool) $row['consumed'];
-        }
-
-        if (isset($row['consumed_at']) && $row['consumed_at'] !== null) {
-            $task['consumed_at'] = $row['consumed_at'];
-        }
-
-        if (isset($row['consumed_exit_code']) && $row['consumed_exit_code'] !== null) {
-            $task['consumed_exit_code'] = (int) $row['consumed_exit_code'];
-        }
-
-        if (isset($row['consumed_output']) && $row['consumed_output'] !== null) {
-            $task['consumed_output'] = $row['consumed_output'];
-        }
-
-        if (isset($row['consume_pid']) && $row['consume_pid'] !== null) {
-            $task['consume_pid'] = (int) $row['consume_pid'];
-        }
-
-        if (isset($row['last_review_issues']) && $row['last_review_issues'] !== null) {
-            $task['last_review_issues'] = json_decode((string) $row['last_review_issues'], true);
-        }
-
-        return $task;
     }
 }

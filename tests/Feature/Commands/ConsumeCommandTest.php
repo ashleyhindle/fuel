@@ -208,7 +208,7 @@ describe('consume command integration', function (): void {
             'complexity' => 'trivial',
         ]);
 
-        $taskId = $task->id;
+        $taskId = $task->short_id;
 
         // Note: We can't easily test actual spawning without mocking Process
         // But we can verify the RunService methods work correctly
@@ -228,19 +228,19 @@ describe('consume command integration', function (): void {
         $task2 = $this->taskService->create(['title' => 'Task 2']);
 
         // Log runs for different tasks
-        $this->runService->logRun($task1->id, [
+        $this->runService->logRun($task1->short_id, [
             'agent' => 'agent1',
             'started_at' => date('c'),
         ]);
 
-        $this->runService->logRun($task2->id, [
+        $this->runService->logRun($task2->short_id, [
             'agent' => 'agent2',
             'started_at' => date('c'),
         ]);
 
         // Verify separate tracking
-        $runs1 = $this->runService->getRuns($task1->id);
-        $runs2 = $this->runService->getRuns($task2->id);
+        $runs1 = $this->runService->getRuns($task1->short_id);
+        $runs2 = $this->runService->getRuns($task2->short_id);
 
         expect($runs1)->toHaveCount(1);
         expect($runs2)->toHaveCount(1);
@@ -268,7 +268,7 @@ describe('consume command permission-blocked detection', function (): void {
             'title' => 'Test task that will be blocked',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
 
         // Start the task
         $this->taskService->start($taskId);
@@ -303,7 +303,7 @@ describe('consume command permission-blocked detection', function (): void {
         ]);
 
         // 2. Add dependency (original task blocked by needs-human task)
-        $this->taskService->addDependency($taskId, $humanTask->id);
+        $this->taskService->addDependency($taskId, $humanTask->short_id);
 
         // 3. Reopen original task
         $this->taskService->reopen($taskId);
@@ -319,7 +319,7 @@ describe('consume command permission-blocked detection', function (): void {
         expect($updatedTask->status)->toBe('open');
 
         // Verify dependency was added
-        expect($updatedTask->blocked_by)->toContain($humanTask->id);
+        expect($updatedTask->blocked_by)->toContain($humanTask->short_id);
 
         // Verify original task is NOT in ready list (because it's blocked)
         $readyTasks = $this->taskService->ready();
@@ -343,7 +343,7 @@ describe('consume command permission-blocked detection', function (): void {
             'title' => 'Another blocked task',
             'complexity' => 'simple',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Create script with different permission error pattern
@@ -361,13 +361,13 @@ describe('consume command permission-blocked detection', function (): void {
             'priority' => 1,
         ]);
 
-        $this->taskService->addDependency($taskId, $humanTask->id);
+        $this->taskService->addDependency($taskId, $humanTask->short_id);
         $this->taskService->reopen($taskId);
 
         // Verify results
         $updatedTask = $this->taskService->find($taskId);
         expect($updatedTask->status)->toBe('open');
-        expect($updatedTask->blocked_by)->toContain($humanTask->id);
+        expect($updatedTask->blocked_by)->toContain($humanTask->short_id);
         expect($humanTask->labels)->toContain('needs-human');
     });
 
@@ -387,7 +387,7 @@ describe('consume command permission-blocked detection', function (): void {
             'title' => 'Task requiring manual completion',
             'complexity' => 'simple',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Create script with manual completion message
@@ -405,13 +405,13 @@ describe('consume command permission-blocked detection', function (): void {
             'priority' => 1,
         ]);
 
-        $this->taskService->addDependency($taskId, $humanTask->id);
+        $this->taskService->addDependency($taskId, $humanTask->short_id);
         $this->taskService->reopen($taskId);
 
         // Verify results
         $updatedTask = $this->taskService->find($taskId);
         expect($updatedTask->status)->toBe('open');
-        expect($updatedTask->blocked_by)->toContain($humanTask->id);
+        expect($updatedTask->blocked_by)->toContain($humanTask->short_id);
     });
 
     it('completes normally when no permission errors are detected', function (): void {
@@ -430,7 +430,7 @@ describe('consume command permission-blocked detection', function (): void {
             'title' => 'Normal task completion',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Create script with normal output
@@ -473,7 +473,7 @@ describe('consume command permission-blocked detection', function (): void {
         file_put_contents($this->configPath, Yaml::dump($config));
 
         $task = $this->taskService->create(['title' => 'Case test', 'complexity' => 'simple']);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Test various case combinations
@@ -512,7 +512,7 @@ describe('consume command auto-close feature', function (): void {
             'title' => 'Task to be auto-closed',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Verify task is in_progress
@@ -561,7 +561,7 @@ describe('consume command auto-close feature', function (): void {
             'title' => 'Task closed by agent',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Simulate agent calling fuel done before exiting
@@ -604,7 +604,7 @@ describe('consume command auto-close feature', function (): void {
             'title' => 'Task for Artisan call test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Add auto-closed label first (as handleSuccess does)
@@ -647,7 +647,7 @@ describe('consume command auto-close feature', function (): void {
             'title' => 'Auto-closed for board test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Simulate auto-close behavior
@@ -691,7 +691,7 @@ describe('consume command auto-close feature', function (): void {
             'title' => 'Manually closed task',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Close without auto-closed label (agent called fuel done)
@@ -752,7 +752,7 @@ describe('consume command auto-close feature', function (): void {
 
         // Test case 1: Task already closed - should not auto-close again
         $task1 = $this->taskService->create(['title' => 'Already closed task']);
-        $taskId1 = $task1->id;
+        $taskId1 = $task1->short_id;
         $this->taskService->start($taskId1);
         $this->taskService->done($taskId1, 'Closed by agent');
 
@@ -765,7 +765,7 @@ describe('consume command auto-close feature', function (): void {
 
         // Test case 2: Task still in_progress - should auto-close
         $task2 = $this->taskService->create(['title' => 'Still in progress task']);
-        $taskId2 = $task2->id;
+        $taskId2 = $task2->short_id;
         $this->taskService->start($taskId2);
 
         $task2 = $this->taskService->find($taskId2);
@@ -796,7 +796,7 @@ describe('consume command review integration', function (): void {
             'title' => 'Task for skip-review test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Simulate what handleSuccess does with --skip-review
@@ -833,7 +833,7 @@ describe('consume command review integration', function (): void {
             'title' => 'Task for review trigger test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Verify the condition that would trigger review in handleSuccess
@@ -866,7 +866,7 @@ describe('consume command review integration', function (): void {
             'title' => 'Task already closed',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
         $this->taskService->done($taskId, 'Agent completed it');
 
@@ -898,7 +898,7 @@ describe('consume command review integration', function (): void {
             'title' => 'Task for review pass test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->update($taskId, ['status' => 'review']);
 
         // Create a ReviewResult that passed
@@ -944,7 +944,7 @@ describe('consume command review integration', function (): void {
             'title' => 'Task for review fail test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->update($taskId, ['status' => 'review']);
 
         // Create a ReviewResult that failed
@@ -983,7 +983,7 @@ describe('consume command review integration', function (): void {
             'title' => 'Task for fallback test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Simulate fallback auto-complete behavior (when ReviewService is null)
@@ -1021,7 +1021,7 @@ describe('consume command review integration', function (): void {
             'title' => 'Task for exception fallback test',
             'complexity' => 'trivial',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
         // Verify that if triggerReview throws RuntimeException,
@@ -1075,7 +1075,7 @@ describe('consume command epic context in prompt', function (): void {
             'complexity' => 'simple',
             'epic_id' => $epic->id,
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
 
         // Run consume with --dryrun to see the prompt
         Artisan::call('consume', [
@@ -1112,7 +1112,7 @@ describe('consume command epic context in prompt', function (): void {
             'title' => 'Task without epic',
             'complexity' => 'simple',
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
 
         // Run consume with --dryrun to see the prompt
         Artisan::call('consume', [
@@ -1150,7 +1150,7 @@ describe('consume command epic context in prompt', function (): void {
             'complexity' => 'simple',
             'epic_id' => $epic->id,
         ]);
-        $taskId = $task->id;
+        $taskId = $task->short_id;
 
         // Run consume with --dryrun to see the prompt
         Artisan::call('consume', [

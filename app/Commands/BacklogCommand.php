@@ -36,9 +36,9 @@ class BacklogCommand extends Command
             $this->table(
                 ['ID', 'Title', 'Created'],
                 $items->map(fn ($item): array => [
-                    $item['id'],
-                    $item['title'],
-                    $this->formatDate($item['created_at']),
+                    $item->short_id,
+                    $item->title,
+                    $this->formatDate((string) $item->created_at),
                 ])->toArray()
             );
         }

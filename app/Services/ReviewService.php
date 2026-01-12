@@ -379,7 +379,7 @@ class ReviewService implements ReviewServiceInterface
         $reviewTasks = $allTasks->filter(fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Review->value);
 
         foreach ($reviewTasks as $task) {
-            $taskId = $task->id;
+            $taskId = $task->short_id;
             $reviewTaskId = 'review-'.$taskId;
 
             // Check if review process is still running

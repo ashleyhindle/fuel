@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\EpicStatus;
+use App\Models\Epic;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
@@ -139,7 +140,9 @@ describe('add command with --epic flag', function (): void {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['epic_id'])->toBe($epic->id);
+        $epicModel = Epic::findByPartialId($epic->id);
+        expect($epicModel)->not->toBeNull();
+        expect($task['epic_id'])->toBe($epicModel->id);
     });
 
     it('fails when epic does not exist', function (): void {
@@ -167,7 +170,9 @@ describe('add command with --epic flag', function (): void {
         $output = Artisan::output();
         $task = json_decode($output, true);
 
-        expect($task['epic_id'])->toBe($epic->id);
+        $epicModel = Epic::findByPartialId($epic->id);
+        expect($epicModel)->not->toBeNull();
+        expect($task['epic_id'])->toBe($epicModel->id);
     });
 
     it('task is returned by getTasksForEpic', function (): void {

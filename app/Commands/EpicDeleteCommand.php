@@ -69,8 +69,8 @@ class EpicDeleteCommand extends Command
             $taskService->initialize();
             $unlinkedTaskIds = [];
             foreach ($linkedTasks as $task) {
-                $taskService->update($task->id, ['epic_id' => null]);
-                $unlinkedTaskIds[] = $task->id;
+                $taskService->update($task->short_id, ['epic_id' => null]);
+                $unlinkedTaskIds[] = $task->short_id;
             }
 
             $deletedEpic = $epicService->deleteEpic($epicId);

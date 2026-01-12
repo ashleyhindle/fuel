@@ -40,10 +40,10 @@ afterEach(function (): void {
 it('creates a task with hash-based ID', function (): void {
     $task = $this->taskService->create(['title' => 'Test task']);
 
-    expect($task->id)->toStartWith('f-');
-    expect(strlen((string) $task->id))->toBe(8); // f- + 6 chars
+    expect($task->short_id)->toStartWith('f-');
+    expect(strlen((string) $task->short_id))->toBe(8); // f- + 6 chars
     expect($task->title)->toBe('Test task');
-    expect($task->status)->toBe(App\Enums\TaskStatus::Open);
+    expect($task->status)->toBe(App\Enums\TaskStatus::Open->value);
     expect($task->created_at)->not->toBeNull();
     expect($task->updated_at)->not->toBeNull();
 });
@@ -130,12 +130,12 @@ it('validates task status enum', function (): void {
     // Valid statuses
     $validStatuses = ['open', 'in_progress', 'review', 'closed', 'cancelled', 'someday'];
     foreach ($validStatuses as $status) {
-        $updated = $this->taskService->update($task->id, ['status' => $status]);
-        expect($updated->status->value)->toBe($status);
+        $updated = $this->taskService->update($task->short_id, ['status' => $status]);
+        expect($updated->status)->toBe($status);
     }
 
     // Invalid status
-    $this->taskService->update($task->id, ['status' => 'invalid']);
+    $this->taskService->update($task->short_id, ['status' => 'invalid']);
 })->throws(RuntimeException::class, 'Invalid status');
 
 it('defaults complexity to simple when not provided', function (): void {
@@ -147,47 +147,47 @@ it('defaults complexity to simple when not provided', function (): void {
 it('finds task by exact ID', function (): void {
     $created = $this->taskService->create(['title' => 'Test task']);
 
-    $found = $this->taskService->find($created->id);
+    $found = $this->taskService->find($created->short_id);
 
     expect($found)->not->toBeNull();
-    expect($found->id)->toBe($created->id);
+    expect($found->short_id)->toBe($created->short_id);
 });
 
 it('finds task by partial ID', function (): void {
     $created = $this->taskService->create(['title' => 'Test task']);
 
     // Extract just the hash part (after 'f-')
-    $hashPart = substr((string) $created->id, 2, 2); // Just first 2 chars of hash
+    $hashPart = substr((string) $created->short_id, 2, 2); // Just first 2 chars of hash
 
     $found = $this->taskService->find($hashPart);
 
     expect($found)->not->toBeNull();
-    expect($found->id)->toBe($created->id);
+    expect($found->short_id)->toBe($created->short_id);
 });
 
 it('finds task by partial ID with f- prefix', function (): void {
     $created = $this->taskService->create(['title' => 'Test task']);
 
     // Use partial hash with f- prefix
-    $hashPart = substr((string) $created->id, 2, 3); // First 3 chars of hash
+    $hashPart = substr((string) $created->short_id, 2, 3); // First 3 chars of hash
     $partialId = 'f-'.$hashPart;
 
     $found = $this->taskService->find($partialId);
 
     expect($found)->not->toBeNull();
-    expect($found->id)->toBe($created->id);
+    expect($found->short_id)->toBe($created->short_id);
 });
 
 it('finds task by partial ID matching full ID prefix', function (): void {
     $created = $this->taskService->create(['title' => 'Test task']);
 
     // Use partial ID that matches the start of the full ID
-    $partialId = substr((string) $created->id, 0, 5); // First 5 chars: "f-d60"
+    $partialId = substr((string) $created->short_id, 0, 5); // First 5 chars: "f-d60"
 
     $found = $this->taskService->find($partialId);
 
     expect($found)->not->toBeNull();
-    expect($found->id)->toBe($created->id);
+    expect($found->short_id)->toBe($created->short_id);
 });
 
 it('finds old format task by partial ID with fuel- prefix', function (): void {
@@ -208,7 +208,7 @@ it('finds old format task by partial ID with fuel- prefix', function (): void {
     $found = $this->taskService->find($partialId);
 
     expect($found)->not->toBeNull();
-    expect($found->id)->toBe($oldFormatId);
+    expect($found->short_id)->toBe($oldFormatId);
 });
 
 it('finds old format task by partial hash only', function (): void {
@@ -228,7 +228,7 @@ it('finds old format task by partial hash only', function (): void {
     $found = $this->taskService->find($hashPart);
 
     expect($found)->not->toBeNull();
-    expect($found->id)->toBe($oldFormatId);
+    expect($found->short_id)->toBe($oldFormatId);
 });
 
 it('throws exception for ambiguous partial ID', function (): void {
@@ -248,14 +248,14 @@ it('returns null for non-existent task', function (): void {
 it('marks task as done', function (): void {
     $created = $this->taskService->create(['title' => 'Test task']);
 
-    $done = $this->taskService->done($created->id);
+    $done = $this->taskService->done($created->short_id);
 
-    expect($done->status)->toBe(App\Enums\TaskStatus::Closed);
+    expect($done->status)->toBe(App\Enums\TaskStatus::Closed->value);
     expect($done->updated_at)->not->toBeNull();
 
     // Verify it's actually persisted
-    $reloaded = $this->taskService->find($created->id);
-    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Closed);
+    $reloaded = $this->taskService->find($created->short_id);
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Closed->value);
 });
 
 it('throws exception when marking non-existent task as done', function (): void {
@@ -266,7 +266,7 @@ it('returns only open tasks from ready()', function (): void {
     $this->taskService->create(['title' => 'Open task']);
 
     $closed = $this->taskService->create(['title' => 'To be closed']);
-    $this->taskService->done($closed->id);
+    $this->taskService->done($closed->short_id);
 
     $ready = $this->taskService->ready();
 
@@ -278,7 +278,7 @@ it('generates unique IDs', function (): void {
     $ids = [];
     for ($i = 0; $i < 10; $i++) {
         $task = $this->taskService->create(['title' => 'Task '.$i]);
-        $ids[] = $task->id;
+        $ids[] = $task->short_id;
     }
 
     expect(count(array_unique($ids)))->toBe(10);
@@ -289,7 +289,7 @@ it('generates unique IDs with collision detection', function (): void {
     $ids = [];
     for ($i = 0; $i < 100; $i++) {
         $task = $this->taskService->create(['title' => 'Task '.$i]);
-        $ids[] = $task->id;
+        $ids[] = $task->short_id;
     }
 
     // All IDs should be unique
@@ -334,34 +334,34 @@ it('adds blocker to blocked_by array', function (): void {
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
-    $this->taskService->addDependency($blocked->id, $blocker->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
-    $updated = $this->taskService->find($blocked->id);
+    $updated = $this->taskService->find($blocked->short_id);
     expect($updated->blocked_by)->toHaveCount(1);
-    expect($updated->blocked_by[0])->toBe($blocker->id);
+    expect($updated->blocked_by[0])->toBe($blocker->short_id);
 });
 
 it('removes a dependency between tasks', function (): void {
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
-    $this->taskService->addDependency($blocked->id, $blocker->id);
-    $this->taskService->removeDependency($blocked->id, $blocker->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
+    $this->taskService->removeDependency($blocked->short_id, $blocker->short_id);
 
-    $updated = $this->taskService->find($blocked->id);
+    $updated = $this->taskService->find($blocked->short_id);
     expect($updated->blocked_by ?? [])->toBeEmpty();
 });
 
 it('throws exception when adding dependency to non-existent task', function (): void {
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
-    $this->taskService->addDependency('nonexistent', $blocker->id);
+    $this->taskService->addDependency('nonexistent', $blocker->short_id);
 })->throws(RuntimeException::class, 'not found');
 
 it('throws exception when adding dependency on non-existent task', function (): void {
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
-    $this->taskService->addDependency($blocked->id, 'nonexistent');
+    $this->taskService->addDependency($blocked->short_id, 'nonexistent');
 })->throws(RuntimeException::class, 'not found');
 
 it('throws exception when removing non-existent dependency', function (): void {
@@ -369,7 +369,7 @@ it('throws exception when removing non-existent dependency', function (): void {
     $task2 = $this->taskService->create(['title' => 'Task 2']);
 
     // No dependency exists between these tasks
-    $this->taskService->removeDependency($task1->id, $task2->id);
+    $this->taskService->removeDependency($task1->short_id, $task2->short_id);
 })->throws(RuntimeException::class, 'No dependency exists');
 
 // =============================================================================
@@ -381,10 +381,10 @@ it('detects simple cycle (A depends on B, B depends on A)', function (): void {
     $taskB = $this->taskService->create(['title' => 'Task B']);
 
     // A depends on B (B blocks A)
-    $this->taskService->addDependency($taskA->id, $taskB->id);
+    $this->taskService->addDependency($taskA->short_id, $taskB->short_id);
 
     // Try to make B depend on A (A blocks B) - should detect cycle
-    $this->taskService->addDependency($taskB->id, $taskA->id);
+    $this->taskService->addDependency($taskB->short_id, $taskA->short_id);
 })->throws(RuntimeException::class, 'Circular dependency detected');
 
 it('detects complex cycle (A->B->C->A)', function (): void {
@@ -393,12 +393,12 @@ it('detects complex cycle (A->B->C->A)', function (): void {
     $taskC = $this->taskService->create(['title' => 'Task C']);
 
     // A depends on B (B blocks A)
-    $this->taskService->addDependency($taskA->id, $taskB->id);
+    $this->taskService->addDependency($taskA->short_id, $taskB->short_id);
     // B depends on C (C blocks B)
-    $this->taskService->addDependency($taskB->id, $taskC->id);
+    $this->taskService->addDependency($taskB->short_id, $taskC->short_id);
 
     // Try to make C depend on A (A blocks C) - creates cycle A->B->C->A
-    $this->taskService->addDependency($taskC->id, $taskA->id);
+    $this->taskService->addDependency($taskC->short_id, $taskA->short_id);
 })->throws(RuntimeException::class, 'Circular dependency detected');
 
 it('allows valid non-cyclic dependencies', function (): void {
@@ -407,17 +407,17 @@ it('allows valid non-cyclic dependencies', function (): void {
     $taskC = $this->taskService->create(['title' => 'Task C']);
 
     // Linear chain: A depends on B, B depends on C (C blocks B blocks A)
-    $this->taskService->addDependency($taskA->id, $taskB->id);
-    $this->taskService->addDependency($taskB->id, $taskC->id);
+    $this->taskService->addDependency($taskA->short_id, $taskB->short_id);
+    $this->taskService->addDependency($taskB->short_id, $taskC->short_id);
 
     // Verify the chain was created
-    $updatedA = $this->taskService->find($taskA->id);
-    $updatedB = $this->taskService->find($taskB->id);
+    $updatedA = $this->taskService->find($taskA->short_id);
+    $updatedB = $this->taskService->find($taskB->short_id);
 
     expect($updatedA->blocked_by)->toHaveCount(1);
-    expect($updatedA->blocked_by[0])->toBe($taskB->id);
+    expect($updatedA->blocked_by[0])->toBe($taskB->short_id);
     expect($updatedB->blocked_by)->toHaveCount(1);
-    expect($updatedB->blocked_by[0])->toBe($taskC->id);
+    expect($updatedB->blocked_by[0])->toBe($taskC->short_id);
 });
 
 // =============================================================================
@@ -429,13 +429,13 @@ it('excludes blocked tasks from ready()', function (): void {
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
     // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
-    $this->taskService->addDependency($blocked->id, $blocker->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
     $ready = $this->taskService->ready();
 
     // Only the blocker should be ready (blocked task has open dependency)
     expect($ready)->toHaveCount(1);
-    expect($ready->first()->id)->toBe($blocker->id);
+    expect($ready->first()->short_id)->toBe($blocker->short_id);
 });
 
 it('includes tasks when blocker is closed', function (): void {
@@ -443,16 +443,16 @@ it('includes tasks when blocker is closed', function (): void {
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
     // Blocked task depends on blocker
-    $this->taskService->addDependency($blocked->id, $blocker->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
     // Close the blocker
-    $this->taskService->done($blocker->id);
+    $this->taskService->done($blocker->short_id);
 
     $ready = $this->taskService->ready();
 
     // Only the blocked task should be ready now (blocker is closed)
     expect($ready)->toHaveCount(1);
-    expect($ready->first()->id)->toBe($blocked->id);
+    expect($ready->first()->short_id)->toBe($blocked->short_id);
 });
 
 it('returns task with no blockers in ready()', function (): void {
@@ -461,7 +461,7 @@ it('returns task with no blockers in ready()', function (): void {
     $ready = $this->taskService->ready();
 
     expect($ready)->toHaveCount(1);
-    expect($ready->first()->id)->toBe($task->id);
+    expect($ready->first()->short_id)->toBe($task->short_id);
 });
 
 it('excludes tasks with needs-human label from ready()', function (): void {
@@ -479,9 +479,9 @@ it('excludes tasks with needs-human label from ready()', function (): void {
 
     // Only the normal task should be ready
     expect($ready)->toHaveCount(1);
-    expect($ready->first()->id)->toBe($normalTask->id);
-    expect($ready->pluck('id'))->not->toContain($needsHumanTask->id);
-    expect($ready->pluck('id'))->not->toContain($multiLabelTask->id);
+    expect($ready->first()->short_id)->toBe($normalTask->short_id);
+    expect($ready->pluck('short_id'))->not->toContain($needsHumanTask->short_id);
+    expect($ready->pluck('short_id'))->not->toContain($multiLabelTask->short_id);
 });
 
 // =============================================================================
@@ -494,13 +494,13 @@ it('returns only blocked tasks from blocked()', function (): void {
     $unblocked = $this->taskService->create(['title' => 'Unblocked task']);
 
     // Blocked task depends on blocker
-    $this->taskService->addDependency($blocked->id, $blocker->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
     $blockedTasks = $this->taskService->blocked();
 
     // Only the blocked task should be returned
     expect($blockedTasks)->toHaveCount(1);
-    expect($blockedTasks->first()->id)->toBe($blocked->id);
+    expect($blockedTasks->first()->short_id)->toBe($blocked->short_id);
 });
 
 it('excludes tasks when blocker is closed from blocked()', function (): void {
@@ -508,10 +508,10 @@ it('excludes tasks when blocker is closed from blocked()', function (): void {
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
     // Blocked task depends on blocker
-    $this->taskService->addDependency($blocked->id, $blocker->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
     // Close the blocker
-    $this->taskService->done($blocker->id);
+    $this->taskService->done($blocker->short_id);
 
     $blockedTasks = $this->taskService->blocked();
 
@@ -532,10 +532,10 @@ it('excludes in_progress tasks from blocked()', function (): void {
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
     // Blocked task depends on blocker
-    $this->taskService->addDependency($blocked->id, $blocker->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
     // Mark blocked task as in_progress
-    $this->taskService->start($blocked->id);
+    $this->taskService->start($blocked->short_id);
 
     $blockedTasks = $this->taskService->blocked();
 
@@ -553,23 +553,23 @@ it('returns open blockers for a task', function (): void {
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
     // Add two blockers
-    $this->taskService->addDependency($blocked->id, $blocker1->id);
-    $this->taskService->addDependency($blocked->id, $blocker2->id);
+    $this->taskService->addDependency($blocked->short_id, $blocker1->short_id);
+    $this->taskService->addDependency($blocked->short_id, $blocker2->short_id);
 
     // Close one blocker
-    $this->taskService->done($blocker1->id);
+    $this->taskService->done($blocker1->short_id);
 
-    $blockers = $this->taskService->getBlockers($blocked->id);
+    $blockers = $this->taskService->getBlockers($blocked->short_id);
 
     // Only blocker2 should be returned (blocker1 is closed)
     expect($blockers)->toHaveCount(1);
-    expect($blockers->first()->id)->toBe($blocker2->id);
+    expect($blockers->first()->short_id)->toBe($blocker2->short_id);
 });
 
 it('returns empty collection when no blockers', function (): void {
     $task = $this->taskService->create(['title' => 'Independent task']);
 
-    $blockers = $this->taskService->getBlockers($task->id);
+    $blockers = $this->taskService->getBlockers($task->short_id);
 
     expect($blockers)->toBeEmpty();
 });
@@ -585,7 +585,7 @@ it('preserves complexity when updating task without providing complexity', funct
     ]);
 
     // Update without providing complexity
-    $updated = $this->taskService->update($task->id, [
+    $updated = $this->taskService->update($task->short_id, [
         'title' => 'Updated title',
     ]);
 
@@ -593,7 +593,7 @@ it('preserves complexity when updating task without providing complexity', funct
     expect($updated->title)->toBe('Updated title');
 
     // Verify it's persisted
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->complexity)->toBe('moderate');
 });
 
@@ -601,7 +601,7 @@ it('preserves arbitrary fields when updating a task', function (): void {
     $task = $this->taskService->create(['title' => 'Test task']);
 
     // Update with arbitrary fields (like consume command does)
-    $updated = $this->taskService->update($task->id, [
+    $updated = $this->taskService->update($task->short_id, [
         'consumed' => true,
         'consumed_at' => '2026-01-07T13:51:11+00:00',
         'consumed_exit_code' => 1,
@@ -614,7 +614,7 @@ it('preserves arbitrary fields when updating a task', function (): void {
     expect($updated->consumed_output)->toBe('Some agent output here');
 
     // Verify it's persisted
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->consumed)->toBeTrue();
     expect($reloaded->consumed_exit_code)->toBe(1);
     expect($reloaded->consumed_output)->toBe('Some agent output here');
@@ -627,10 +627,10 @@ it('preserves arbitrary fields when updating a task', function (): void {
 it('deletes a task', function (): void {
     $task = $this->taskService->create(['title' => 'Task to delete']);
 
-    $deleted = $this->taskService->delete($task->id);
+    $deleted = $this->taskService->delete($task->short_id);
 
-    expect($deleted->id)->toBe($task->id);
-    expect($this->taskService->find($task->id))->toBeNull();
+    expect($deleted->short_id)->toBe($task->short_id);
+    expect($this->taskService->find($task->short_id))->toBeNull();
 });
 
 it('throws exception when deleting non-existent task', function (): void {
@@ -644,20 +644,20 @@ it('throws exception when deleting non-existent task', function (): void {
 it('persists consume_pid field correctly', function (): void {
     $task = $this->taskService->create(['title' => 'Task with PID']);
 
-    $updated = $this->taskService->update($task->id, [
+    $updated = $this->taskService->update($task->short_id, [
         'consume_pid' => 12345,
     ]);
 
     expect($updated->consume_pid)->toBe(12345);
 
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->consume_pid)->toBe(12345);
 });
 
 it('persists all consume fields together', function (): void {
     $task = $this->taskService->create(['title' => 'Task with consume fields']);
 
-    $updated = $this->taskService->update($task->id, [
+    $updated = $this->taskService->update($task->short_id, [
         'consumed' => true,
         'consumed_at' => '2026-01-10T10:00:00+00:00',
         'consumed_exit_code' => 0,
@@ -671,7 +671,7 @@ it('persists all consume fields together', function (): void {
     expect($updated->consumed_output)->toBe('Success output');
     expect($updated->consume_pid)->toBe(99999);
 
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->consumed)->toBeTrue();
     expect($reloaded->consumed_at)->toBe('2026-01-10T10:00:00+00:00');
     expect($reloaded->consumed_exit_code)->toBe(0);
@@ -686,14 +686,14 @@ it('persists all consume fields together', function (): void {
 it('sets last review issues on a task', function (): void {
     $task = $this->taskService->create(['title' => 'Task for review']);
 
-    $updated = $this->taskService->setLastReviewIssues($task->id, [
+    $updated = $this->taskService->setLastReviewIssues($task->short_id, [
         'uncommitted_changes',
         'tests_failing',
     ]);
 
     expect($updated->last_review_issues)->toBe(['uncommitted_changes', 'tests_failing']);
 
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->last_review_issues)->toBe(['uncommitted_changes', 'tests_failing']);
 });
 
@@ -701,14 +701,14 @@ it('clears last review issues when set to null', function (): void {
     $task = $this->taskService->create(['title' => 'Task for review']);
 
     // Set issues first
-    $this->taskService->setLastReviewIssues($task->id, ['uncommitted_changes']);
+    $this->taskService->setLastReviewIssues($task->short_id, ['uncommitted_changes']);
 
     // Now clear them
-    $updated = $this->taskService->setLastReviewIssues($task->id, null);
+    $updated = $this->taskService->setLastReviewIssues($task->short_id, null);
 
     expect($updated->last_review_issues ?? null)->toBeNull();
 
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->last_review_issues ?? null)->toBeNull();
 });
 
@@ -716,15 +716,15 @@ it('clears last review issues when task is marked done', function (): void {
     $task = $this->taskService->create(['title' => 'Task for review']);
 
     // Set issues first
-    $this->taskService->setLastReviewIssues($task->id, ['uncommitted_changes', 'tests_failing']);
+    $this->taskService->setLastReviewIssues($task->short_id, ['uncommitted_changes', 'tests_failing']);
 
     // Mark as done
-    $done = $this->taskService->done($task->id);
+    $done = $this->taskService->done($task->short_id);
 
     // Issues should be cleared
     expect($done->last_review_issues ?? null)->toBeNull();
 
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->last_review_issues ?? null)->toBeNull();
 });
 
@@ -732,17 +732,17 @@ it('preserves last review issues when task is reopened', function (): void {
     $task = $this->taskService->create(['title' => 'Task for review']);
 
     // Start and consume the task
-    $this->taskService->start($task->id);
-    $this->taskService->update($task->id, ['consumed' => true]);
+    $this->taskService->start($task->short_id);
+    $this->taskService->update($task->short_id, ['consumed' => true]);
 
     // Set issues
-    $this->taskService->setLastReviewIssues($task->id, ['uncommitted_changes']);
+    $this->taskService->setLastReviewIssues($task->short_id, ['uncommitted_changes']);
 
     // Reopen the task
-    $this->taskService->reopen($task->id);
+    $this->taskService->reopen($task->short_id);
 
     // Issues should still be present
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->last_review_issues)->toBe(['uncommitted_changes']);
 });
 
@@ -752,7 +752,7 @@ it('returns task without last_review_issues key when field is null', function ()
     // Field should not be present when null
     expect(isset($task->last_review_issues))->toBeFalse();
 
-    $reloaded = $this->taskService->find($task->id);
+    $reloaded = $this->taskService->find($task->short_id);
     expect(isset($reloaded->last_review_issues))->toBeFalse();
 });
 
@@ -763,11 +763,11 @@ it('returns task without last_review_issues key when field is null', function ()
 it('backlog() returns only tasks with status=someday', function (): void {
     $openTask = $this->taskService->create(['title' => 'Open task']);
     $somedayTask1 = $this->taskService->create(['title' => 'Someday task 1']);
-    $this->taskService->update($somedayTask1->id, ['status' => 'someday']);
+    $this->taskService->update($somedayTask1->short_id, ['status' => 'someday']);
     $somedayTask2 = $this->taskService->create(['title' => 'Someday task 2']);
-    $this->taskService->update($somedayTask2->id, ['status' => 'someday']);
+    $this->taskService->update($somedayTask2->short_id, ['status' => 'someday']);
     $closedTask = $this->taskService->create(['title' => 'Closed task']);
-    $this->taskService->done($closedTask->id);
+    $this->taskService->done($closedTask->short_id);
 
     $backlog = $this->taskService->backlog();
 
@@ -781,7 +781,7 @@ it('backlog() returns only tasks with status=someday', function (): void {
 it('backlog() returns empty collection when no someday tasks exist', function (): void {
     $this->taskService->create(['title' => 'Open task']);
     $closed = $this->taskService->create(['title' => 'Closed task']);
-    $this->taskService->done($closed->id);
+    $this->taskService->done($closed->short_id);
 
     $backlog = $this->taskService->backlog();
 
@@ -790,12 +790,12 @@ it('backlog() returns empty collection when no someday tasks exist', function ()
 
 it('backlog() orders tasks by created_at', function (): void {
     $task1 = $this->taskService->create(['title' => 'First someday']);
-    $this->taskService->update($task1->id, ['status' => 'someday']);
+    $this->taskService->update($task1->short_id, ['status' => 'someday']);
 
     sleep(1); // Ensure different timestamps
 
     $task2 = $this->taskService->create(['title' => 'Second someday']);
-    $this->taskService->update($task2->id, ['status' => 'someday']);
+    $this->taskService->update($task2->short_id, ['status' => 'someday']);
 
     $backlog = $this->taskService->backlog();
 
@@ -806,27 +806,27 @@ it('backlog() orders tasks by created_at', function (): void {
 
 it('promote() changes task status from someday to open', function (): void {
     $task = $this->taskService->create(['title' => 'Future idea']);
-    $this->taskService->update($task->id, ['status' => 'someday']);
+    $this->taskService->update($task->short_id, ['status' => 'someday']);
 
-    $promoted = $this->taskService->promote($task->id);
+    $promoted = $this->taskService->promote($task->short_id);
 
-    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open);
+    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open->value);
     expect($promoted->title)->toBe('Future idea');
 
     // Verify it's persisted
-    $reloaded = $this->taskService->find($task->id);
-    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Open);
+    $reloaded = $this->taskService->find($task->short_id);
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Open->value);
 });
 
 it('promote() works with partial ID', function (): void {
     $task = $this->taskService->create(['title' => 'Future feature']);
-    $this->taskService->update($task->id, ['status' => 'someday']);
-    $partialId = substr((string) $task->id, 2, 3);
+    $this->taskService->update($task->short_id, ['status' => 'someday']);
+    $partialId = substr((string) $task->short_id, 2, 3);
 
     $promoted = $this->taskService->promote($partialId);
 
-    expect($promoted->id)->toBe($task->id);
-    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open);
+    expect($promoted->short_id)->toBe($task->short_id);
+    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open->value);
 });
 
 it('promote() throws exception when task not found', function (): void {
@@ -836,39 +836,39 @@ it('promote() throws exception when task not found', function (): void {
 it('promote() throws exception when task status is not someday', function (): void {
     $task = $this->taskService->create(['title' => 'Open task']);
 
-    $this->taskService->promote($task->id);
+    $this->taskService->promote($task->short_id);
 })->throws(RuntimeException::class, 'is not a backlog item');
 
 it('defer() changes task status to someday', function (): void {
     $task = $this->taskService->create(['title' => 'Task to defer']);
 
-    $deferred = $this->taskService->defer($task->id);
+    $deferred = $this->taskService->defer($task->short_id);
 
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
     expect($deferred->title)->toBe('Task to defer');
 
     // Verify it's persisted
-    $reloaded = $this->taskService->find($task->id);
-    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Someday);
+    $reloaded = $this->taskService->find($task->short_id);
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Someday->value);
 });
 
 it('defer() works with partial ID', function (): void {
     $task = $this->taskService->create(['title' => 'Task to defer']);
-    $partialId = substr((string) $task->id, 2, 3);
+    $partialId = substr((string) $task->short_id, 2, 3);
 
     $deferred = $this->taskService->defer($partialId);
 
-    expect($deferred->id)->toBe($task->id);
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
+    expect($deferred->short_id)->toBe($task->short_id);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
 });
 
 it('defer() works on already someday tasks (idempotent)', function (): void {
     $task = $this->taskService->create(['title' => 'Already someday']);
-    $this->taskService->update($task->id, ['status' => 'someday']);
+    $this->taskService->update($task->short_id, ['status' => 'someday']);
 
-    $deferred = $this->taskService->defer($task->id);
+    $deferred = $this->taskService->defer($task->short_id);
 
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
 });
 
 it('defer() throws exception when task not found', function (): void {
@@ -885,9 +885,9 @@ it('defer() preserves task metadata when changing status', function (): void {
         'complexity' => 'moderate',
     ]);
 
-    $deferred = $this->taskService->defer($task->id);
+    $deferred = $this->taskService->defer($task->short_id);
 
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
     expect($deferred->title)->toBe('Complex task');
     expect($deferred->description)->toBe('Detailed description');
     expect($deferred->type)->toBe('feature');
