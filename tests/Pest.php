@@ -2,7 +2,6 @@
 
 use App\Repositories\EpicRepository;
 use App\Repositories\ReviewRepository;
-use App\Repositories\RunRepository;
 use App\Repositories\TaskRepository;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -25,6 +24,7 @@ use Tests\TestCase;
 */
 
 uses(TestCase::class)->in('Feature');
+uses(TestCase::class)->in('Unit');
 
 /*
 |--------------------------------------------------------------------------
@@ -75,10 +75,7 @@ function makeEpicService(DatabaseService $databaseService, TaskService $taskServ
 
 function makeRunService(DatabaseService $databaseService): RunService
 {
-    return new RunService(
-        new RunRepository($databaseService),
-        new TaskRepository($databaseService)
-    );
+    return new RunService;
 }
 
 /**

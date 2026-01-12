@@ -36,6 +36,15 @@ class Run extends Model
     }
 
     /**
+     * Virtual accessor for backward compatibility.
+     * Maps 'run_id' to 'short_id'.
+     */
+    public function getRunIdAttribute(): ?string
+    {
+        return $this->short_id;
+    }
+
+    /**
      * Check if the run is currently running.
      */
     public function isRunning(): bool

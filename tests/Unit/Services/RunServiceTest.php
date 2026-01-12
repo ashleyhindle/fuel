@@ -8,6 +8,9 @@ beforeEach(function (): void {
     mkdir($this->tempDir.'/.fuel', 0755, true);
     $this->dbPath = $this->tempDir.'/.fuel/agent.db';
 
+    // Configure database for Eloquent
+    config(['database.connections.sqlite.database' => $this->dbPath]);
+
     $this->databaseService = new DatabaseService($this->dbPath);
     $this->databaseService->initialize();
 
@@ -102,8 +105,8 @@ it('logs a run with all schema fields', function (): void {
     expect($runs[0])->toBeInstanceOf(Run::class);
     expect($runs[0]->agent)->toBe('test-agent');
     expect($runs[0]->model)->toBe('test-model');
-    expect($runs[0]->started_at)->toBe($startedAt);
-    expect($runs[0]->ended_at)->toBe($endedAt);
+    expect($runs[0]->started_at->toIso8601String())->toBe($startedAt);
+    expect($runs[0]->ended_at->toIso8601String())->toBe($endedAt);
     expect($runs[0]->exit_code)->toBe(0);
     expect($runs[0]->output)->toBe('Test output');
 });
@@ -117,7 +120,7 @@ it('defaults started_at to current time when not provided', function (): void {
     $runs = $this->runService->getRuns($this->taskId);
 
     expect($runs[0]->started_at)->not->toBeNull();
-    expect($runs[0]->started_at)->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/');
+    expect($runs[0]->started_at->toIso8601String())->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/');
 });
 
 it('allows null values for optional fields', function (): void {
@@ -352,8 +355,8 @@ it('updates the latest run with completion data', function (): void {
     $runs = $this->runService->getRuns($this->taskId);
 
     expect($runs)->toHaveCount(1);
-    expect($runs[0]->started_at)->toBe($startedAt);
-    expect($runs[0]->ended_at)->toBe($endedAt);
+    expect($runs[0]->started_at->toIso8601String())->toBe($startedAt);
+    expect($runs[0]->ended_at->toIso8601String())->toBe($endedAt);
     expect($runs[0]->exit_code)->toBe(0);
     expect($runs[0]->output)->toBe('Test output');
 });

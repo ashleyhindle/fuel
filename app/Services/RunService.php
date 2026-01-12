@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Run;
-use App\Repositories\RunRepository;
-use App\Repositories\TaskRepository;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class RunService
@@ -20,11 +19,6 @@ class RunService
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_FAILED = 'failed';
-
-    public function __construct(
-        private readonly RunRepository $runRepository,
-        private readonly TaskRepository $taskRepository
-    ) {}
 
     /**
      * Create a new run for a task with status='running'.
@@ -46,7 +40,7 @@ class RunService
         $shortId = $this->generateShortId();
 
         // Insert into runs table with status='running'
-        $this->runRepository->insert([
+        Run::create([
             'short_id' => $shortId,
             'task_id' => $taskIntId,
             'agent' => $data['agent'] ?? null,
@@ -98,7 +92,7 @@ class RunService
         }
 
         // Insert into runs table - id auto-increments, all runs start as STATUS_RUNNING
-        $this->runRepository->insert([
+        Run::create([
             'short_id' => $shortId,
             'task_id' => $taskIntId,
             'agent' => $data['agent'] ?? null,
@@ -128,22 +122,10 @@ class RunService
             return [];
         }
 
-        $runs = $this->runRepository->findByTaskId($taskIntId);
-
-        // Transform to Run models (short_id becomes run_id for backward compatibility)
-        return array_map(fn (array $run): Run => Run::fromArray([
-            'run_id' => $run['short_id'],
-            'agent' => $run['agent'],
-            'model' => $run['model'],
-            'started_at' => $run['started_at'],
-            'ended_at' => $run['ended_at'],
-            'exit_code' => $run['exit_code'],
-            'output' => $run['output'],
-            'session_id' => $run['session_id'],
-            'cost_usd' => $run['cost_usd'],
-            'duration_seconds' => $run['duration_seconds'],
-            'status' => $run['status'],
-        ]), $runs);
+        return Run::where('task_id', $taskIntId)
+            ->orderBy('id')
+            ->get()
+            ->all();
     }
 
     /**
@@ -159,26 +141,9 @@ class RunService
             return null;
         }
 
-        $run = $this->runRepository->getLatestForTask($taskIntId);
-
-        if ($run === null) {
-            return null;
-        }
-
-        // Transform to Run model (short_id becomes run_id for backward compatibility)
-        return Run::fromArray([
-            'run_id' => $run['short_id'],
-            'agent' => $run['agent'],
-            'model' => $run['model'],
-            'started_at' => $run['started_at'],
-            'ended_at' => $run['ended_at'],
-            'exit_code' => $run['exit_code'],
-            'output' => $run['output'],
-            'session_id' => $run['session_id'],
-            'cost_usd' => $run['cost_usd'],
-            'duration_seconds' => $run['duration_seconds'],
-            'status' => $run['status'],
-        ]);
+        return Run::where('task_id', $taskIntId)
+            ->latest('id')
+            ->first();
     }
 
     /**
@@ -196,7 +161,9 @@ class RunService
         }
 
         // Get the latest run ID and started_at (needed for duration calculation)
-        $latestRun = $this->runRepository->getLatestForTask($taskIntId);
+        $latestRun = Run::where('task_id', $taskIntId)
+            ->latest('id')
+            ->first();
 
         if ($latestRun === null) {
             throw new RuntimeException(sprintf('No runs found for task %s to update', $taskId));
@@ -217,8 +184,8 @@ class RunService
             $updateFields['status'] = self::STATUS_COMPLETED;
 
             // Calculate and set duration_seconds
-            if ($latestRun['started_at'] !== null) {
-                $start = strtotime($latestRun['started_at']);
+            if ($latestRun->started_at !== null) {
+                $start = $latestRun->started_at->getTimestamp();
                 $end = strtotime((string) $data['ended_at']);
                 if ($start !== false && $end !== false) {
                     $updateFields['duration_seconds'] = $end - $start;
@@ -246,7 +213,7 @@ class RunService
             return; // Nothing to update
         }
 
-        $this->runRepository->update((int) $latestRun['id'], $updateFields);
+        $latestRun->update($updateFields);
     }
 
     /**
@@ -259,9 +226,11 @@ class RunService
     public function cleanupOrphanedRuns(callable $isPidDead): int
     {
         // Find all runs with status='running' and ended_at IS NULL
-        $orphanedRuns = $this->runRepository->getOrphanedRuns();
+        $orphanedRuns = Run::where('status', self::STATUS_RUNNING)
+            ->whereNull('ended_at')
+            ->get();
 
-        if ($orphanedRuns === []) {
+        if ($orphanedRuns->isEmpty()) {
             return 0;
         }
 
@@ -270,12 +239,12 @@ class RunService
         $cleanupCount = 0;
 
         foreach ($orphanedRuns as $run) {
-            $this->runRepository->markAsFailed(
-                (int) $run['id'],
-                $endedAt,
-                -1,
-                '[Run orphaned - consume process died before completion]'
-            );
+            $run->update([
+                'status' => self::STATUS_FAILED,
+                'ended_at' => $endedAt,
+                'exit_code' => -1,
+                'output' => '[Run orphaned - consume process died before completion]',
+            ]);
             $cleanupCount++;
         }
 
@@ -296,7 +265,7 @@ class RunService
             $shortId = 'run-'.substr($hash, 0, $length);
 
             // Check if short_id already exists in database
-            if (! $this->runRepository->existsByShortId($shortId)) {
+            if (! Run::where('short_id', $shortId)->exists()) {
                 return $shortId;
             }
 
@@ -321,10 +290,31 @@ class RunService
     public function getStats(): array
     {
         // Get all runs with their agent, model, and status
-        $totalRuns = $this->runRepository->count();
-        $byStatus = $this->runRepository->countByStatus();
-        $byAgent = $this->runRepository->countByAgent();
-        $byModel = $this->runRepository->countByModel();
+        $totalRuns = Run::count();
+
+        $byStatus = Run::selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // Ensure all status keys exist with 0 default
+        $byStatus = array_merge([
+            self::STATUS_RUNNING => 0,
+            self::STATUS_COMPLETED => 0,
+            self::STATUS_FAILED => 0,
+        ], $byStatus);
+
+        $byAgent = Run::selectRaw('agent, COUNT(*) as count')
+            ->whereNotNull('agent')
+            ->groupBy('agent')
+            ->pluck('count', 'agent')
+            ->toArray();
+
+        $byModel = Run::selectRaw('model, COUNT(*) as count')
+            ->whereNotNull('model')
+            ->groupBy('model')
+            ->pluck('count', 'model')
+            ->toArray();
 
         return [
             'total_runs' => $totalRuns,
@@ -348,18 +338,37 @@ class RunService
     public function getTimingStats(): array
     {
         // Get average duration overall
-        $avgOverall = $this->runRepository->getAverageDuration();
-        $byAgentMap = $this->runRepository->getAverageDurationByAgent();
-        $byModelMap = $this->runRepository->getAverageDurationByModel();
-        $longest = $this->runRepository->getMaxDuration();
-        $shortest = $this->runRepository->getMinDuration();
+        $avgOverall = Run::whereNotNull('duration_seconds')
+            ->avg('duration_seconds');
+
+        $byAgentMap = Run::selectRaw('agent, AVG(duration_seconds) as avg_duration')
+            ->whereNotNull('duration_seconds')
+            ->whereNotNull('agent')
+            ->groupBy('agent')
+            ->pluck('avg_duration', 'agent')
+            ->map(fn ($val) => (float) $val)
+            ->toArray();
+
+        $byModelMap = Run::selectRaw('model, AVG(duration_seconds) as avg_duration')
+            ->whereNotNull('duration_seconds')
+            ->whereNotNull('model')
+            ->groupBy('model')
+            ->pluck('avg_duration', 'model')
+            ->map(fn ($val) => (float) $val)
+            ->toArray();
+
+        $longest = Run::whereNotNull('duration_seconds')
+            ->max('duration_seconds');
+
+        $shortest = Run::whereNotNull('duration_seconds')
+            ->min('duration_seconds');
 
         return [
-            'average_duration' => $avgOverall,
+            'average_duration' => $avgOverall !== null ? (float) $avgOverall : null,
             'by_agent' => $byAgentMap,
             'by_model' => $byModelMap,
-            'longest_run' => $longest,
-            'shortest_run' => $shortest,
+            'longest_run' => $longest !== null ? (int) $longest : null,
+            'shortest_run' => $shortest !== null ? (int) $shortest : null,
         ];
     }
 
@@ -371,6 +380,10 @@ class RunService
      */
     private function resolveTaskId(string $taskShortId): ?int
     {
-        return $this->taskRepository->resolveToIntegerId($taskShortId);
+        $result = DB::table('tasks')
+            ->where('short_id', $taskShortId)
+            ->value('id');
+
+        return $result !== null ? (int) $result : null;
     }
 }
