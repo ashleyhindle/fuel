@@ -337,7 +337,7 @@ PROMPT;
         $lines = [
             'Task: '.$task->id,
             'Title: '.$task->title,
-            'Status: '.$task->status,
+            'Status: '.($task->status instanceof \App\Enums\TaskStatus ? $task->status->value : $task->status),
         ];
 
         if (! empty($task->description)) {

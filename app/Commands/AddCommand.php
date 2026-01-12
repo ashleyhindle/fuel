@@ -108,7 +108,7 @@ class AddCommand extends Command
         } else {
             $this->info('Created task: '.$task->short_id);
             $this->line('  Title: '.$task->title);
-            $this->line('  Status: '.$task->status);
+            $this->line('  Status: '.($task->status instanceof \App\Enums\TaskStatus ? $task->status->value : $task->status));
 
             if (! empty($task->blocked_by)) {
                 $blockerIds = is_array($task->blocked_by) ? implode(', ', $task->blocked_by) : '';

@@ -90,7 +90,7 @@ class ShowCommand extends Command
             } else {
                 $this->info('Task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
-                $this->line('  Status: '.$task->status);
+                $this->line('  Status: '.($task->status instanceof \App\Enums\TaskStatus ? $task->status->value : $task->status));
 
                 if (isset($task->description) && $task->description !== null) {
                     $this->line('  Description: '.$task->description);
@@ -160,7 +160,8 @@ class ShowCommand extends Command
                 $runs = $runService->getRuns($task->short_id);
 
                 // Check for live output if task is in_progress (even if no runs exist)
-                $liveOutput = $this->getLiveOutput($task->short_id, $task->status ?? TaskStatus::Open->value, $runService);
+                $statusValue = $task->status instanceof TaskStatus ? $task->status->value : ($task->status ?? TaskStatus::Open->value);
+                $liveOutput = $this->getLiveOutput($task->short_id, $statusValue, $runService);
 
                 if ($runs !== []) {
                     $this->newLine();
