@@ -1110,7 +1110,7 @@ PROMPT;
         $lines = [
             'Task: '.$task->short_id,
             'Title: '.$task->title,
-            'Status: '.$task->status,
+            'Status: '.$task->status->value,
         ];
 
         // Include epic information if task is part of an epic
