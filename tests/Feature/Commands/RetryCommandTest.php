@@ -59,21 +59,21 @@ describe('retry command', function (): void {
     it('retries a stuck task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Stuck task']);
-        $this->taskService->start($task['id']);
+        $this->taskService->start($task['short_id']);
 
         // Mark task as consumed with non-zero exit code
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task['short_id'], [
             'consumed' => true,
             'consumed_at' => '2026-01-07T10:00:00+00:00',
             'consumed_exit_code' => 1,
             'consumed_output' => 'Some error output',
         ]);
 
-        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task['short_id']], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
 
-        $updated = $this->taskService->find($task['id']);
+        $updated = $this->taskService->find($task['short_id']);
         expect($updated['status'])->toBe('open');
         expect($updated)->not->toHaveKey('consumed');
         expect($updated)->not->toHaveKey('consumed_at');
@@ -84,35 +84,35 @@ describe('retry command', function (): void {
     it('supports partial ID matching', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID stuck task']);
-        $this->taskService->start($task['id']);
+        $this->taskService->start($task['short_id']);
 
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task['short_id'], [
             'consumed' => true,
             'consumed_exit_code' => 1,
         ]);
 
-        $partialId = substr((string) $task['id'], 2, 3); // Just 3 chars of the hash
+        $partialId = substr((string) $task['short_id'], 2, 3); // Just 3 chars of the hash
 
         $this->artisan('retry', ['ids' => [$partialId], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
 
-        $updated = $this->taskService->find($task['id']);
+        $updated = $this->taskService->find($task['short_id']);
         expect($updated['status'])->toBe('open');
     });
 
     it('outputs JSON when --json flag is used', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON retry task']);
-        $this->taskService->start($task['id']);
+        $this->taskService->start($task['short_id']);
 
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task['short_id'], [
             'consumed' => true,
             'consumed_exit_code' => 1,
         ]);
 
         Artisan::call('retry', [
-            'ids' => [$task['id']],
+            'ids' => [$task['short_id']],
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -120,7 +120,7 @@ describe('retry command', function (): void {
         $result = json_decode($output, true);
 
         expect($result)->toBeArray();
-        expect($result['id'])->toBe($task['id']);
+        expect($result['short_id'])->toBe($task['short_id']);
         expect($result['status'])->toBe('open');
         expect($result['title'])->toBe('JSON retry task');
     });
@@ -128,25 +128,25 @@ describe('retry command', function (): void {
     it('clears consumed fields when retrying a task', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with consumed fields']);
-        $this->taskService->start($task['id']);
+        $this->taskService->start($task['short_id']);
 
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task['short_id'], [
             'consumed' => true,
             'consumed_at' => '2026-01-07T10:00:00+00:00',
             'consumed_exit_code' => 1,
             'consumed_output' => 'Some error output',
         ]);
 
-        $stuckTask = $this->taskService->find($task['id']);
+        $stuckTask = $this->taskService->find($task['short_id']);
         expect($stuckTask['consumed'])->toBeTrue();
         expect($stuckTask['consumed_at'])->toBe('2026-01-07T10:00:00+00:00');
         expect($stuckTask['consumed_exit_code'])->toBe(1);
         expect($stuckTask['consumed_output'])->toBe('Some error output');
 
-        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task['short_id']], '--cwd' => $this->tempDir])
             ->assertExitCode(0);
 
-        $retriedTask = $this->taskService->find($task['id']);
+        $retriedTask = $this->taskService->find($task['short_id']);
         expect($retriedTask['status'])->toBe('open');
         expect($retriedTask)->not->toHaveKey('consumed');
         expect($retriedTask)->not->toHaveKey('consumed_at');
@@ -165,28 +165,28 @@ describe('retry command', function (): void {
     it('fails when task is not consumed', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Not consumed task']);
-        $this->taskService->start($task['id']);
+        $this->taskService->start($task['short_id']);
 
-        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task['short_id']], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('is not a consumed in_progress task')
             ->assertExitCode(1);
 
-        $updated = $this->taskService->find($task['id']);
+        $updated = $this->taskService->find($task['short_id']);
         expect($updated['status'])->toBe('in_progress');
     });
 
     it('retries task with zero exit code if still in_progress', function (): void {
         $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task with zero exit code']);
-        $this->taskService->start($task['id']);
+        $this->taskService->start($task['short_id']);
 
         // Agent exited cleanly but task still in_progress = something went wrong
-        $this->taskService->update($task['id'], [
+        $this->taskService->update($task['short_id'], [
             'consumed' => true,
             'consumed_exit_code' => 0,
         ]);
 
-        $this->artisan('retry', ['ids' => [$task['id']], '--cwd' => $this->tempDir])
+        $this->artisan('retry', ['ids' => [$task['short_id']], '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
     });
@@ -197,24 +197,24 @@ describe('retry command', function (): void {
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
         $task3 = $this->taskService->create(['title' => 'Stuck task 3']);
 
-        $this->taskService->start($task1['id']);
-        $this->taskService->start($task2['id']);
-        $this->taskService->start($task3['id']);
+        $this->taskService->start($task1['short_id']);
+        $this->taskService->start($task2['short_id']);
+        $this->taskService->start($task3['short_id']);
 
-        $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
-        $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 2]);
-        $this->taskService->update($task3['id'], ['consumed' => true, 'consumed_exit_code' => 3]);
+        $this->taskService->update($task1['short_id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task2['short_id'], ['consumed' => true, 'consumed_exit_code' => 2]);
+        $this->taskService->update($task3['short_id'], ['consumed' => true, 'consumed_exit_code' => 3]);
 
         $this->artisan('retry', [
-            'ids' => [$task1['id'], $task2['id'], $task3['id']],
+            'ids' => [$task1['short_id'], $task2['short_id'], $task3['short_id']],
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Retried task:')
             ->assertExitCode(0);
 
-        expect($this->taskService->find($task1['id'])['status'])->toBe('open');
-        expect($this->taskService->find($task2['id'])['status'])->toBe('open');
-        expect($this->taskService->find($task3['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task1['short_id'])['status'])->toBe('open');
+        expect($this->taskService->find($task2['short_id'])['status'])->toBe('open');
+        expect($this->taskService->find($task3['short_id'])['status'])->toBe('open');
     });
 
     it('outputs multiple tasks as JSON array when multiple IDs provided', function (): void {
@@ -222,14 +222,14 @@ describe('retry command', function (): void {
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
 
-        $this->taskService->start($task1['id']);
-        $this->taskService->start($task2['id']);
+        $this->taskService->start($task1['short_id']);
+        $this->taskService->start($task2['short_id']);
 
-        $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
-        $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task1['short_id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task2['short_id'], ['consumed' => true, 'consumed_exit_code' => 1]);
 
         Artisan::call('retry', [
-            'ids' => [$task1['id'], $task2['id']],
+            'ids' => [$task1['short_id'], $task2['short_id']],
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
@@ -240,7 +240,7 @@ describe('retry command', function (): void {
         expect($result)->toHaveCount(2);
         expect($result[0]['status'])->toBe('open');
         expect($result[1]['status'])->toBe('open');
-        expect(collect($result)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
+        expect(collect($result)->pluck('short_id')->toArray())->toContain($task1['short_id'], $task2['short_id']);
     });
 
     it('handles partial failures when retrying multiple tasks', function (): void {
@@ -248,14 +248,14 @@ describe('retry command', function (): void {
         $task1 = $this->taskService->create(['title' => 'Stuck task 1']);
         $task2 = $this->taskService->create(['title' => 'Stuck task 2']);
 
-        $this->taskService->start($task1['id']);
-        $this->taskService->start($task2['id']);
+        $this->taskService->start($task1['short_id']);
+        $this->taskService->start($task2['short_id']);
 
-        $this->taskService->update($task1['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
-        $this->taskService->update($task2['id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task1['short_id'], ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task2['short_id'], ['consumed' => true, 'consumed_exit_code' => 1]);
 
         $this->artisan('retry', [
-            'ids' => [$task1['id'], 'nonexistent', $task2['id']],
+            'ids' => [$task1['short_id'], 'nonexistent', $task2['short_id']],
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Retried task:')
@@ -263,8 +263,8 @@ describe('retry command', function (): void {
             ->assertExitCode(1);
 
         // Task1 should be retried
-        expect($this->taskService->find($task1['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task1['short_id'])['status'])->toBe('open');
         // Task2 should be retried
-        expect($this->taskService->find($task2['id'])['status'])->toBe('open');
+        expect($this->taskService->find($task2['short_id'])['status'])->toBe('open');
     });
 });

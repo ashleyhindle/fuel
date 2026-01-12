@@ -46,9 +46,9 @@ it('runs a basic command flow', function (): void {
     $task = json_decode(Artisan::output(), true);
 
     expect($task)->toBeArray();
-    expect($task)->toHaveKey('id');
+    expect($task)->toHaveKey('short_id');
 
-    $taskId = $task['id'];
+    $taskId = $task['short_id'];
 
     $databaseService = app(DatabaseService::class);
     $databaseService->setDatabasePath($cwd.'/.fuel/agent.db');
@@ -96,7 +96,7 @@ it('runs a basic command flow', function (): void {
     ]);
     $ready = json_decode(Artisan::output(), true);
 
-    expect(array_column($ready, 'id'))->toContain($taskId);
+    expect(array_column($ready, 'short_id'))->toContain($taskId);
 
     $availableExit = Artisan::call('available', [
         '--cwd' => $cwd,
@@ -109,7 +109,7 @@ it('runs a basic command flow', function (): void {
     ]);
     $tasks = json_decode(Artisan::output(), true);
 
-    expect(array_column($tasks, 'id'))->toContain($taskId);
+    expect(array_column($tasks, 'short_id'))->toContain($taskId);
 
     Artisan::call('tree', [
         '--cwd' => $cwd,
@@ -125,7 +125,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $blockerTask = json_decode(Artisan::output(), true);
-    $blockerId = $blockerTask['id'];
+    $blockerId = $blockerTask['short_id'];
 
     Artisan::call('add', [
         'title' => 'Blocked task',
@@ -133,7 +133,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $blockedTask = json_decode(Artisan::output(), true);
-    $blockedId = $blockedTask['id'];
+    $blockedId = $blockedTask['short_id'];
 
     Artisan::call('dep:add', [
         'from' => $blockedId,
@@ -143,7 +143,7 @@ it('runs a basic command flow', function (): void {
     ]);
     $dependency = json_decode(Artisan::output(), true);
 
-    expect($dependency['id'] ?? null)->toBe($blockedId);
+    expect($dependency['short_id'] ?? null)->toBe($blockedId);
 
     Artisan::call('blocked', [
         '--cwd' => $cwd,
@@ -151,7 +151,7 @@ it('runs a basic command flow', function (): void {
     ]);
     $blocked = json_decode(Artisan::output(), true);
 
-    expect(array_column($blocked, 'id'))->toContain($blockedId);
+    expect(array_column($blocked, 'short_id'))->toContain($blockedId);
 
     Artisan::call('dep:remove', [
         'from' => $blockedId,
@@ -161,7 +161,7 @@ it('runs a basic command flow', function (): void {
     ]);
     $dependencyRemoved = json_decode(Artisan::output(), true);
 
-    expect($dependencyRemoved['id'] ?? null)->toBe($blockedId);
+    expect($dependencyRemoved['short_id'] ?? null)->toBe($blockedId);
 
     Artisan::call('update', [
         'id' => $taskId,
@@ -189,7 +189,7 @@ it('runs a basic command flow', function (): void {
     ]);
     $shown = json_decode(Artisan::output(), true);
 
-    expect($shown['id'] ?? null)->toBe($taskId);
+    expect($shown['short_id'] ?? null)->toBe($taskId);
 
     Artisan::call('board', [
         '--cwd' => $cwd,
@@ -216,7 +216,7 @@ it('runs a basic command flow', function (): void {
     $completed = json_decode(Artisan::output(), true);
 
     expect($completed)->toBeArray();
-    expect(array_column($completed, 'id'))->toContain($taskId);
+    expect(array_column($completed, 'short_id'))->toContain($taskId);
 
     Artisan::call('reopen', [
         'ids' => [$taskId],
@@ -243,7 +243,7 @@ it('runs a basic command flow', function (): void {
     $deferTask = json_decode(Artisan::output(), true);
 
     Artisan::call('defer', [
-        'id' => $deferTask['id'],
+        'id' => $deferTask['short_id'],
         '--cwd' => $cwd,
         '--json' => true,
     ]);
@@ -256,7 +256,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $backlog = json_decode(Artisan::output(), true);
-    expect(array_column($backlog, 'id'))->toContain($deferredTaskId);
+    expect(array_column($backlog, 'short_id'))->toContain($deferredTaskId);
 
     Artisan::call('promote', [
         'ids' => [$deferredTaskId],
@@ -267,7 +267,7 @@ it('runs a basic command flow', function (): void {
         '--complexity' => 'simple',
     ]);
     $promoted = json_decode(Artisan::output(), true);
-    $promotedTaskId = $promoted['id'] ?? null;
+    $promotedTaskId = $promoted['short_id'] ?? null;
     expect($promotedTaskId)->not->toBeNull();
 
     Artisan::call('remove', [
@@ -276,7 +276,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $removed = json_decode(Artisan::output(), true);
-    expect($removed['id'] ?? null)->toBe($blockedId);
+    expect($removed['short_id'] ?? null)->toBe($blockedId);
 
     Artisan::call('epic:add', [
         'title' => 'Smoke epic',
@@ -285,7 +285,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $epic = json_decode(Artisan::output(), true);
-    $epicId = $epic['id'];
+    $epicId = $epic['short_id'];
 
     Artisan::call('add', [
         'title' => 'Epic linked task',
@@ -294,7 +294,7 @@ it('runs a basic command flow', function (): void {
         '--epic' => $epicId,
     ]);
     $epicLinkedTask = json_decode(Artisan::output(), true);
-    $epicLinkedTaskId = $epicLinkedTask['id'];
+    $epicLinkedTaskId = $epicLinkedTask['short_id'];
 
     Artisan::call('epic:show', [
         'id' => $epicId,
@@ -302,14 +302,14 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $epicShown = json_decode(Artisan::output(), true);
-    expect($epicShown['id'] ?? null)->toBe($epicId);
+    expect($epicShown['short_id'] ?? null)->toBe($epicId);
 
     Artisan::call('epics', [
         '--cwd' => $cwd,
         '--json' => true,
     ]);
     $epics = json_decode(Artisan::output(), true);
-    expect(array_column($epics, 'id'))->toContain($epicId);
+    expect(array_column($epics, 'short_id'))->toContain($epicId);
 
     Artisan::call('epic:approve', [
         'ids' => [$epicId],
@@ -317,7 +317,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $epicApproved = json_decode(Artisan::output(), true);
-    expect($epicApproved['id'] ?? null)->toBe($epicId);
+    expect($epicApproved['short_id'] ?? null)->toBe($epicId);
 
     Artisan::call('epic:reviewed', [
         'id' => $epicId,
@@ -325,7 +325,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $epicReviewed = json_decode(Artisan::output(), true);
-    expect($epicReviewed['id'] ?? null)->toBe($epicId);
+    expect($epicReviewed['short_id'] ?? null)->toBe($epicId);
 
     Artisan::call('epic:reject', [
         'id' => $epicId,
@@ -334,7 +334,7 @@ it('runs a basic command flow', function (): void {
         '--reason' => 'Needs changes',
     ]);
     $epicRejected = json_decode(Artisan::output(), true);
-    expect($epicRejected['id'] ?? null)->toBe($epicId);
+    expect($epicRejected['short_id'] ?? null)->toBe($epicId);
 
     Artisan::call('human', [
         '--cwd' => $cwd,
@@ -349,7 +349,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $epicDeleted = json_decode(Artisan::output(), true);
-    expect($epicDeleted['id'] ?? null)->toBe($epicId);
+    expect($epicDeleted['short_id'] ?? null)->toBe($epicId);
 
     $qExit = Artisan::call('q', [
         'title' => 'Quick task',
@@ -364,7 +364,7 @@ it('runs a basic command flow', function (): void {
         '--json' => true,
     ]);
     $retryTask = json_decode(Artisan::output(), true);
-    $retryTaskId = $retryTask['id'];
+    $retryTaskId = $retryTask['short_id'];
 
     $taskService->update($retryTaskId, [
         'status' => 'in_progress',

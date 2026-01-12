@@ -232,7 +232,7 @@ describe('epic status derivation via commands', function (): void {
         $task = json_decode(Artisan::output(), true);
 
         $this->artisan('start', [
-            'id' => $task['id'],
+            'id' => $task['short_id'],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
@@ -253,7 +253,7 @@ describe('epic status derivation via commands', function (): void {
         $task = json_decode(Artisan::output(), true);
 
         $this->artisan('done', [
-            'ids' => [$task['id']],
+            'ids' => [$task['short_id']],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
@@ -278,14 +278,14 @@ describe('epic status derivation via commands', function (): void {
         expect($this->epicService->getEpic($epic->id)->status)->toBe(EpicStatus::InProgress->value);
 
         $this->artisan('start', [
-            'id' => $task['id'],
+            'id' => $task['short_id'],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 
         expect($this->epicService->getEpic($epic->id)->status)->toBe(EpicStatus::InProgress->value);
 
         $this->artisan('done', [
-            'ids' => [$task['id']],
+            'ids' => [$task['short_id']],
             '--cwd' => $this->tempDir,
         ])->assertExitCode(0);
 

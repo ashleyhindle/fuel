@@ -84,12 +84,12 @@ describe('stats command', function (): void {
         // Create tasks with various states
         $open = $this->taskService->create(['title' => 'Open task', 'complexity' => 'simple', 'priority' => 1]);
         $inProgress = $this->taskService->create(['title' => 'In progress task', 'complexity' => 'moderate', 'priority' => 0]);
-        $this->taskService->start($inProgress['id']);
+        $this->taskService->start($inProgress['short_id']);
         $closed = $this->taskService->create(['title' => 'Closed task', 'complexity' => 'complex', 'priority' => 2]);
-        $this->taskService->done($closed['id']);
+        $this->taskService->done($closed['short_id']);
         $blocker = $this->taskService->create(['title' => 'Blocker', 'complexity' => 'trivial', 'priority' => 3]);
         $blocked = $this->taskService->create(['title' => 'Blocked task', 'complexity' => 'simple', 'priority' => 4]);
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked['short_id'], $blocker['short_id']);
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -127,24 +127,24 @@ describe('stats command', function (): void {
 
         // Create completed runs with different agents and models
         for ($i = 0; $i < 5; $i++) {
-            $this->runService->logRun($task1['id'], [
+            $this->runService->logRun($task1['short_id'], [
                 'agent' => 'cursor-agent',
                 'model' => 'claude-opus-4',
                 'started_at' => date('c'),
             ]);
-            $this->runService->updateLatestRun($task1['id'], [
+            $this->runService->updateLatestRun($task1['short_id'], [
                 'ended_at' => date('c'),
                 'exit_code' => 0,
             ]);
         }
 
         for ($i = 0; $i < 3; $i++) {
-            $this->runService->logRun($task2['id'], [
+            $this->runService->logRun($task2['short_id'], [
                 'agent' => 'claude',
                 'model' => 'claude-sonnet-4',
                 'started_at' => date('c'),
             ]);
-            $this->runService->updateLatestRun($task2['id'], [
+            $this->runService->updateLatestRun($task2['short_id'], [
                 'ended_at' => date('c'),
                 'exit_code' => 0,
             ]);
@@ -152,12 +152,12 @@ describe('stats command', function (): void {
 
         // Create 2 failed runs (completed with exit_code 1)
         for ($i = 0; $i < 2; $i++) {
-            $this->runService->logRun($task3['id'], [
+            $this->runService->logRun($task3['short_id'], [
                 'agent' => 'cursor-agent',
                 'model' => 'claude-sonnet-4',
                 'started_at' => date('c'),
             ]);
-            $this->runService->updateLatestRun($task3['id'], [
+            $this->runService->updateLatestRun($task3['short_id'], [
                 'ended_at' => date('c'),
                 'exit_code' => 1,
             ]);
@@ -186,34 +186,34 @@ describe('stats command', function (): void {
         $task3 = $this->taskService->create(['title' => 'Task 3']);
 
         // Create run 1 with 60s duration
-        $this->runService->logRun($task1['id'], [
+        $this->runService->logRun($task1['short_id'], [
             'agent' => 'cursor-agent',
             'model' => 'claude-opus-4',
             'started_at' => date('c', time() - 60),
         ]);
-        $this->runService->updateLatestRun($task1['id'], [
+        $this->runService->updateLatestRun($task1['short_id'], [
             'ended_at' => date('c'),
             'exit_code' => 0,
         ]);
 
         // Create run 2 with 120s duration
-        $this->runService->logRun($task2['id'], [
+        $this->runService->logRun($task2['short_id'], [
             'agent' => 'cursor-agent',
             'model' => 'claude-opus-4',
             'started_at' => date('c', time() - 120),
         ]);
-        $this->runService->updateLatestRun($task2['id'], [
+        $this->runService->updateLatestRun($task2['short_id'], [
             'ended_at' => date('c'),
             'exit_code' => 0,
         ]);
 
         // Create run 3 with 180s duration
-        $this->runService->logRun($task3['id'], [
+        $this->runService->logRun($task3['short_id'], [
             'agent' => 'claude',
             'model' => 'claude-sonnet-4',
             'started_at' => date('c', time() - 180),
         ]);
-        $this->runService->updateLatestRun($task3['id'], [
+        $this->runService->updateLatestRun($task3['short_id'], [
             'ended_at' => date('c'),
             'exit_code' => 0,
         ]);
@@ -266,11 +266,11 @@ describe('stats command', function (): void {
         // Create tasks completed on consecutive days
         for ($i = 0; $i < 5; $i++) {
             $task = $this->taskService->create(['title' => 'Task '.$i]);
-            $this->taskService->done($task['id']);
+            $this->taskService->done($task['short_id']);
 
             // Update the task's updated_at to be $i days ago
             // Get the integer ID from the task
-            $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
+            $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['short_id']]);
             $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
@@ -299,8 +299,8 @@ describe('stats command', function (): void {
         for ($day = 1; $day <= 3; $day++) {
             for ($count = 0; $count < $day; $count++) {
                 $task = $this->taskService->create(['title' => sprintf('Day %d Task %d', $day, $count)]);
-                $this->taskService->done($task['id']);
-                $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
+                $this->taskService->done($task['short_id']);
+                $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['short_id']]);
                 $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $day), [(int) $taskIntId['id']]);
             }
         }
@@ -352,7 +352,7 @@ describe('stats command', function (): void {
         // Epic 4: Create with completed tasks and approve it
         $epic4 = $this->epicService->createEpic('Epic 4', 'Description 4');
         $task4 = $this->taskService->create(['title' => 'Epic 4 task', 'epic_id' => $epic4->id]);
-        $this->taskService->done($task4['id']);
+        $this->taskService->done($task4['short_id']);
         $this->epicService->approveEpic($epic4->id);
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
@@ -401,7 +401,7 @@ describe('stats command', function (): void {
         // Create 10 complex tasks to earn "Complex Crusher" badge
         for ($i = 0; $i < 10; $i++) {
             $task = $this->taskService->create(['title' => 'Complex task '.$i, 'complexity' => 'complex']);
-            $this->taskService->done($task['id']);
+            $this->taskService->done($task['short_id']);
         }
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
@@ -433,20 +433,20 @@ describe('stats command', function (): void {
 
         // Create tasks completed today
         $task1 = $this->taskService->create(['title' => 'Today task 1']);
-        $this->taskService->done($task1['id']);
+        $this->taskService->done($task1['short_id']);
         $task2 = $this->taskService->create(['title' => 'Today task 2']);
-        $this->taskService->done($task2['id']);
+        $this->taskService->done($task2['short_id']);
 
         // Create tasks completed 5 days ago (this week)
         $task3 = $this->taskService->create(['title' => 'This week task']);
-        $this->taskService->done($task3['id']);
-        $taskIntId3 = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task3['id']]);
+        $this->taskService->done($task3['short_id']);
+        $taskIntId3 = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task3['short_id']]);
         $db->query("UPDATE tasks SET updated_at = datetime('now', '-5 days') WHERE id = ?", [(int) $taskIntId3['id']]);
 
         // Create tasks completed 20 days ago (this month)
         $task4 = $this->taskService->create(['title' => 'This month task']);
-        $this->taskService->done($task4['id']);
-        $taskIntId4 = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task4['id']]);
+        $this->taskService->done($task4['short_id']);
+        $taskIntId4 = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task4['short_id']]);
         $db->query("UPDATE tasks SET updated_at = datetime('now', '-20 days') WHERE id = ?", [(int) $taskIntId4['id']]);
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
@@ -466,7 +466,7 @@ describe('stats command', function (): void {
         $task = $this->taskService->create(['title' => 'Task 1']);
 
         // Create a running run (started but not completed - no ended_at)
-        $this->runService->logRun($task['id'], [
+        $this->runService->logRun($task['short_id'], [
             'agent' => 'cursor-agent',
             'model' => 'claude-opus-4',
             'started_at' => date('c'),
@@ -489,34 +489,34 @@ describe('stats command', function (): void {
         $task3 = $this->taskService->create(['title' => 'Task 3']);
 
         // Create run with duration less than 1 minute (45s)
-        $this->runService->logRun($task1['id'], [
+        $this->runService->logRun($task1['short_id'], [
             'agent' => 'cursor-agent',
             'model' => 'claude-opus-4',
             'started_at' => date('c', time() - 45),
         ]);
-        $this->runService->updateLatestRun($task1['id'], [
+        $this->runService->updateLatestRun($task1['short_id'], [
             'ended_at' => date('c'),
             'exit_code' => 0,
         ]);
 
         // Create run with duration in minutes (5m 30s = 330s)
-        $this->runService->logRun($task2['id'], [
+        $this->runService->logRun($task2['short_id'], [
             'agent' => 'cursor-agent',
             'model' => 'claude-opus-4',
             'started_at' => date('c', time() - 330),
         ]);
-        $this->runService->updateLatestRun($task2['id'], [
+        $this->runService->updateLatestRun($task2['short_id'], [
             'ended_at' => date('c'),
             'exit_code' => 0,
         ]);
 
         // Create run with duration in hours (1h 15m = 4500s)
-        $this->runService->logRun($task3['id'], [
+        $this->runService->logRun($task3['short_id'], [
             'agent' => 'cursor-agent',
             'model' => 'claude-opus-4',
             'started_at' => date('c', time() - 4500),
         ]);
-        $this->runService->updateLatestRun($task3['id'], [
+        $this->runService->updateLatestRun($task3['short_id'], [
             'ended_at' => date('c'),
             'exit_code' => 0,
         ]);
@@ -535,9 +535,9 @@ describe('stats command', function (): void {
 
         // Create tasks with review status
         $task1 = $this->taskService->create(['title' => 'Review task 1']);
-        $this->taskService->update($task1['id'], ['status' => 'review']);
+        $this->taskService->update($task1['short_id'], ['status' => 'review']);
         $task2 = $this->taskService->create(['title' => 'Review task 2']);
-        $this->taskService->update($task2['id'], ['status' => 'review']);
+        $this->taskService->update($task2['short_id'], ['status' => 'review']);
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -551,7 +551,7 @@ describe('stats command', function (): void {
 
         // Create a cancelled task
         $task = $this->taskService->create(['title' => 'Cancelled task']);
-        $this->taskService->update($task['id'], ['status' => 'cancelled']);
+        $this->taskService->update($task['short_id'], ['status' => 'cancelled']);
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -567,8 +567,8 @@ describe('stats command', function (): void {
         // Create first streak: 3 days (7, 8, 9 days ago)
         for ($i = 7; $i <= 9; $i++) {
             $task = $this->taskService->create(['title' => 'Streak 1 Day '.$i]);
-            $this->taskService->done($task['id']);
-            $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
+            $this->taskService->done($task['short_id']);
+            $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['short_id']]);
             $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
@@ -577,8 +577,8 @@ describe('stats command', function (): void {
         // Create second streak: 5 days (0, 1, 2, 3, 4 days ago) - current streak
         for ($i = 0; $i <= 4; $i++) {
             $task = $this->taskService->create(['title' => 'Streak 2 Day '.$i]);
-            $this->taskService->done($task['id']);
-            $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['id']]);
+            $this->taskService->done($task['short_id']);
+            $taskIntId = $db->fetchOne('SELECT id FROM tasks WHERE short_id = ?', [$task['short_id']]);
             $db->query(sprintf("UPDATE tasks SET updated_at = datetime('now', '-%d days') WHERE id = ?", $i), [(int) $taskIntId['id']]);
         }
 
