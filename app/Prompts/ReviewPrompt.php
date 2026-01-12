@@ -22,7 +22,7 @@ class ReviewPrompt
      */
     public function generate(Task $task, string $gitDiff, string $gitStatus): string
     {
-        $taskId = $task->id ?? 'unknown';
+        $taskId = $task->short_id ?? 'unknown';
         $title = $task->title ?? 'Untitled task';
         $description = $task->description ?? 'No description provided';
 
