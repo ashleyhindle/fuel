@@ -424,4 +424,133 @@ class ShowCommand extends Command
 
         return $dateTimeString->format('M j H:i');
     }
+
+    /**
+     * Tail a file and continuously output new lines as they are added.
+     *
+     * @param  string  $filePath  Path to the file to tail
+     * @param  string  $taskId  Task ID for checking status
+     * @param  RunService  $runService  RunService for checking task status
+     */
+    private function tailFile(string $filePath, string $taskId, RunService $runService): void
+    {
+        // Set up signal handler for graceful exit
+        $exiting = false;
+
+        if (function_exists('pcntl_signal')) {
+            pcntl_signal(SIGINT, function () use (&$exiting): void {
+                $exiting = true;
+            });
+            pcntl_signal(SIGTERM, function () use (&$exiting): void {
+                $exiting = true;
+            });
+        }
+
+        // Get the current file size and position
+        $lastPosition = File::exists($filePath) ? File::size($filePath) : 0;
+
+        $lastStatusCheck = 0;
+        $fileStableSince = null;
+
+        try {
+            while (true) {
+                // Handle signals if pcntl is available
+                if (function_exists('pcntl_signal_dispatch')) {
+                    pcntl_signal_dispatch();
+                }
+
+                // Check if we should exit
+                if ($exiting) {
+                    break;
+                }
+
+                // Check task status every second to see if it's no longer in_progress
+                if (time() - $lastStatusCheck >= 1) {
+                    $lastStatusCheck = time();
+                    $runs = $runService->getRuns($taskId);
+
+                    if ($runs === []) {
+                        // No runs exist, check if file has stopped growing
+                        if ($fileStableSince === null) {
+                            $fileStableSince = time();
+                        } elseif (time() - $fileStableSince >= 3) {
+                            // File hasn't grown in 3 seconds, exit
+                            $this->outputRemainingContent($filePath, $lastPosition);
+                            break;
+                        }
+                    } else {
+                        $latestRun = $runs[count($runs) - 1];
+                        // Check if latest run has ended
+                        if (isset($latestRun->ended_at) && $latestRun->ended_at !== null) {
+                            // Run has finished, output remaining content and exit
+                            $this->outputRemainingContent($filePath, $lastPosition);
+                            break;
+                        }
+                        $fileStableSince = null;
+                    }
+                }
+
+                // Check if file exists and get new content
+                if (File::exists($filePath)) {
+                    $currentSize = File::size($filePath);
+
+                    // If file has grown, read new content
+                    if ($currentSize > $lastPosition) {
+                        $handle = fopen($filePath, 'r');
+                        if ($handle !== false) {
+                            fseek($handle, $lastPosition);
+                            $newContent = fread($handle, $currentSize - $lastPosition);
+                            fclose($handle);
+
+                            if ($newContent !== false && $newContent !== '') {
+                                // Output the new content
+                                $this->outputChunk($newContent, $this->option('raw'));
+                            }
+
+                            $lastPosition = $currentSize;
+                            $fileStableSince = null;
+                        }
+                    }
+
+                    // If file shrunk (rotated or truncated), reset position
+                    if ($currentSize < $lastPosition) {
+                        $lastPosition = 0;
+                    }
+                }
+
+                // Sleep briefly to avoid CPU spinning (100ms)
+                usleep(100000);
+            }
+        } catch (\Exception) {
+            // Exit on error
+        }
+    }
+
+    /**
+     * Output remaining content from a file starting from a given position.
+     *
+     * @param  string  $filePath  Path to the file
+     * @param  int  $position  Starting position
+     */
+    private function outputRemainingContent(string $filePath, int $position): void
+    {
+        if (! File::exists($filePath)) {
+            return;
+        }
+
+        $currentSize = File::size($filePath);
+
+        if ($currentSize > $position) {
+            $handle = fopen($filePath, 'r');
+            if ($handle !== false) {
+                fseek($handle, $position);
+                $content = fread($handle, $currentSize - $position);
+                fclose($handle);
+
+                if ($content !== false && $content !== '') {
+                    $this->outputChunk($content, $this->option('raw'));
+                }
+            }
+        }
+    }
 }

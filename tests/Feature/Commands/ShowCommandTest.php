@@ -299,4 +299,12 @@ describe('show command', function (): void {
         expect($output)->not->toContain('Run Output (live)');
         expect($output)->toContain('Run output content');
     });
+
+    it('shows --tail flag in help output', function (): void {
+        Artisan::call('show', ['--help' => true]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('--tail');
+        expect($output)->toContain('Continuously tail the live output');
+    });
 });
