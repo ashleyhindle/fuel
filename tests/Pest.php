@@ -1,6 +1,7 @@
 <?php
 
 use App\Repositories\EpicRepository;
+use App\Repositories\ReviewRepository;
 use App\Repositories\RunRepository;
 use App\Repositories\TaskRepository;
 use App\Services\DatabaseService;
@@ -78,4 +79,33 @@ function makeRunService(DatabaseService $databaseService): RunService
         new RunRepository($databaseService),
         new TaskRepository($databaseService)
     );
+}
+
+/**
+ * Helper to create a task for testing reviews (needed for FK relationship).
+ */
+function createTaskForReview(DatabaseService $service, string $shortId): void
+{
+    $service->query(
+        'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [$shortId, 'Test Task '.$shortId, 'open', now()->toIso8601String(), now()->toIso8601String()]
+    );
+}
+
+/**
+ * Helper to create a review for a task using the repository.
+ */
+function createReviewForTask(
+    ReviewRepository $reviewRepo,
+    string $taskShortId,
+    string $reviewShortId,
+    string $agent,
+    ?int $runId = null
+): void {
+    $taskId = $reviewRepo->resolveTaskId($taskShortId);
+    if ($taskId === null) {
+        throw new RuntimeException("Task '{$taskShortId}' not found.");
+    }
+
+    $reviewRepo->createReview($reviewShortId, $taskId, $agent, $runId);
 }

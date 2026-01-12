@@ -7,34 +7,6 @@ use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use Illuminate\Support\Facades\Artisan;
 
-/**
- * Helper to create a task in the database for reviews tests.
- */
-function createTaskForReview(DatabaseService $service, string $shortId): void
-{
-    $service->query(
-        'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [$shortId, 'Test Task '.$shortId, 'open', now()->toIso8601String(), now()->toIso8601String()]
-    );
-}
-
-/**
- * Helper to create a review for a task using the repository.
- */
-function createReviewForTask(
-    ReviewRepository $reviewRepo,
-    string $taskShortId,
-    string $reviewShortId,
-    string $agent
-): void {
-    $taskId = $reviewRepo->resolveTaskId($taskShortId);
-    if ($taskId === null) {
-        throw new RuntimeException("Task '{$taskShortId}' not found.");
-    }
-
-    $reviewRepo->createReview($reviewShortId, $taskId, $agent);
-}
-
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir.'/.fuel', 0755, true);

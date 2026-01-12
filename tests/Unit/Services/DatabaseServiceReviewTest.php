@@ -5,6 +5,15 @@ declare(strict_types=1);
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 
+/**
+ * Helper to create a task for testing reviews (needed for FK relationship).
+ * Alias for createTaskForReview from Pest.php to maintain backward compatibility.
+ */
+function createTestTask(DatabaseService $service, string $shortId): void
+{
+    createTaskForReview($service, $shortId);
+}
+
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir);
@@ -31,35 +40,6 @@ afterEach(function (): void {
         rmdir($this->tempDir);
     }
 });
-
-/**
- * Helper to create a task for testing reviews (needed for FK relationship).
- */
-function createTestTask(DatabaseService $service, string $shortId): void
-{
-    $service->query(
-        'INSERT INTO tasks (short_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [$shortId, 'Test Task', 'open', now()->toIso8601String(), now()->toIso8601String()]
-    );
-}
-
-/**
- * Helper to create a review for a task using the repository.
- */
-function createReviewForTask(
-    ReviewRepository $reviewRepo,
-    string $taskShortId,
-    string $reviewShortId,
-    string $agent,
-    ?int $runId = null
-): void {
-    $taskId = $reviewRepo->resolveTaskId($taskShortId);
-    if ($taskId === null) {
-        throw new RuntimeException("Task '{$taskShortId}' not found.");
-    }
-
-    $reviewRepo->createReview($reviewShortId, $taskId, $agent, $runId);
-}
 
 it('creates reviews table with correct schema', function (): void {
     $columns = $this->service->fetchAll('PRAGMA table_info(reviews)');
