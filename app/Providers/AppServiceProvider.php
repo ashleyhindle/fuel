@@ -38,12 +38,12 @@ class AppServiceProvider extends ServiceProvider
         $argv = $_SERVER['argv'] ?? [];
 
         foreach ($argv as $arg) {
-            if (str_starts_with($arg, '--cwd=')) {
-                return substr($arg, 6).'/.fuel';
+            if (str_starts_with((string) $arg, '--cwd=')) {
+                return substr((string) $arg, 6).'/.fuel';
             }
         }
 
-        $cwdIndex = array_search('--cwd', $argv);
+        $cwdIndex = array_search('--cwd', $argv, true);
         if ($cwdIndex !== false && isset($argv[$cwdIndex + 1])) {
             return $argv[$cwdIndex + 1].'/.fuel';
         }
@@ -137,6 +137,7 @@ class AppServiceProvider extends ServiceProvider
             configService: $app->make(ConfigService::class),
             reviewPrompt: new ReviewPrompt,
             runService: $app->make(RunService::class),
+            fuelContext: $app->make(FuelContext::class),
         ));
     }
 }

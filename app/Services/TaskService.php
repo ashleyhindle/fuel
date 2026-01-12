@@ -18,10 +18,6 @@ class TaskService
 
     private string $prefix = 'f';
 
-    public function __construct(
-        private readonly DatabaseService $db
-    ) {}
-
     /**
      * Load all tasks from SQLite.
      *
@@ -292,14 +288,14 @@ class TaskService
     }
 
     /**
-     * Mark a task as done (closed).
+     * Mark a task as done.
      *
      * @param  string|null  $reason  Optional reason for completion
      * @param  string|null  $commitHash  Optional git commit hash
      */
     public function done(string $id, ?string $reason = null, ?string $commitHash = null): Task
     {
-        $data = ['status' => TaskStatus::Closed->value];
+        $data = ['status' => TaskStatus::Done->value];
         if ($reason !== null) {
             $data['reason'] = $reason;
         }
@@ -325,7 +321,7 @@ class TaskService
     }
 
     /**
-     * Reopen a closed or in_progress task (set status back to open).
+     * Reopen a done or in_progress task (set status back to open).
      */
     public function reopen(string $id): Task
     {
@@ -335,8 +331,8 @@ class TaskService
         }
 
         $status = $taskModel->status;
-        if (! in_array($status, [TaskStatus::Closed, TaskStatus::InProgress, TaskStatus::Review], true)) {
-            throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
+        if (! in_array($status, [TaskStatus::Done, TaskStatus::InProgress, TaskStatus::Review], true)) {
+            throw new RuntimeException(sprintf("Task '%s' is not done, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
         return $this->update($id, [
@@ -363,7 +359,7 @@ class TaskService
         $status = $taskModel->status;
 
         if (! ($consumed && $status === TaskStatus::InProgress)) {
-            throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
+            throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for done tasks.", $id));
         }
 
         return $this->update($id, [
@@ -461,7 +457,7 @@ class TaskService
             foreach ($blockedBy as $blockerId) {
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
-                    if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
+                    if ($blocker !== null && $blocker->status !== TaskStatus::Done) {
                         $blockedIds[] = $task->short_id;
                         break;
                     }
@@ -589,7 +585,7 @@ class TaskService
         foreach ($blockedBy as $blockerId) {
             if (is_string($blockerId)) {
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
+                if ($blocker !== null && $blocker->status !== TaskStatus::Done) {
                     $blockers->push($blocker);
                 }
             }
@@ -623,11 +619,6 @@ class TaskService
         throw new RuntimeException(
             sprintf('Failed to generate unique task ID after %d attempts.', $maxAttempts)
         );
-    }
-
-    public function setDatabasePath(string $path): void
-    {
-        $this->db->setDatabasePath($path);
     }
 
     /**

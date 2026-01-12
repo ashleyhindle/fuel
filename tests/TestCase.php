@@ -28,7 +28,7 @@ abstract class TestCase extends BaseTestCase
 
         // Create isolated temp directory for this test
         $this->testDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-        mkdir($this->testDir.'/.fuel', 0755, true);
+        @mkdir($this->testDir.'/.fuel', 0755, true);
 
         // Create minimal config file for tests
         $minimalConfig = <<<'YAML'
@@ -45,10 +45,12 @@ YAML;
         file_put_contents($this->testDir.'/.fuel/config.yaml', $minimalConfig);
 
         // Configure FuelContext to use the isolated temp directory
+        // Use forgetInstance + instance to properly override the AppServiceProvider binding
         $this->testContext = new FuelContext($this->testDir.'/.fuel');
         $this->testContext->configureDatabase();
 
-        $this->app->singleton(FuelContext::class, fn (): FuelContext => $this->testContext);
+        $this->app->forgetInstance(FuelContext::class);
+        $this->app->instance(FuelContext::class, $this->testContext);
 
         // Rebind ConfigService to use the test FuelContext
         // This must be done AFTER FuelContext is bound to ensure it gets the correct instance

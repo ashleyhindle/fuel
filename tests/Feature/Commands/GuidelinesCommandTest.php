@@ -139,7 +139,7 @@ describe('guidelines command', function (): void {
         $agentsMdPath = $customDir.'/AGENTS.md';
 
         try {
-            Artisan::call('guidelines', ['--add' => true]);
+            Artisan::call('guidelines', ['--add' => true, '--cwd' => $customDir]);
 
             expect(file_exists($agentsMdPath))->toBeTrue();
             $content = file_get_contents($agentsMdPath);

@@ -171,7 +171,7 @@ it('computes epic status as in_progress when task is in_progress', function (): 
     expect($epic->status)->toBe(EpicStatus::InProgress);
 });
 
-it('computes epic status as review_pending when all tasks are closed', function (): void {
+it('computes epic status as review_pending when all tasks are done', function (): void {
     $epic = $this->service->createEpic('Title');
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
@@ -331,8 +331,8 @@ it('returns not completed when epic has in_progress tasks', function (): void {
     expect($result)->toBe(['completed' => false]);
 });
 
-it('triggers completion when all tasks are closed', function (): void {
-    $epic = $this->service->createEpic('Epic with all closed tasks', 'Test epic description');
+it('triggers completion when all tasks are done', function (): void {
+    $epic = $this->service->createEpic('Epic with all done tasks', 'Test epic description');
 
     $task1 = $this->taskService->create([
         'title' => 'Task 1',
@@ -353,8 +353,8 @@ it('triggers completion when all tasks are closed', function (): void {
     expect($updatedEpic->status)->toBe(EpicStatus::ReviewPending);
 });
 
-it('triggers completion when tasks are closed or cancelled', function (): void {
-    $epic = $this->service->createEpic('Epic with mixed closed/cancelled');
+it('triggers completion when tasks are done or cancelled', function (): void {
+    $epic = $this->service->createEpic('Epic with mixed done/cancelled');
 
     $task1 = $this->taskService->create([
         'title' => 'Task 1',

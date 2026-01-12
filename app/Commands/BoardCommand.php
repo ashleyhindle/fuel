@@ -10,8 +10,6 @@ use App\Contracts\AgentHealthTrackerInterface;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\ConfigService;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
@@ -36,14 +34,11 @@ class BoardCommand extends Command
     private TaskService $taskService;
 
     public function handle(
-        FuelContext $context,
-        DatabaseService $databaseService,
         TaskService $taskService,
         ?ConfigService $configService = null,
         ?AgentHealthTrackerInterface $healthTracker = null
     ): int {
         $this->taskService = $taskService;
-        $this->configureCwd($context, $databaseService);
 
         // Live mode by default, unless --once is passed or --json is used
         if (! $this->option('once') && ! $this->option('json')) {
@@ -94,12 +89,14 @@ class BoardCommand extends Command
             $this->line(implode('  ', $row));
         }
 
-        $this->newLine();
+        if ($reviewTasks->isNotEmpty()) {
+            $this->newLine();
 
-        // Middle row: Review (show up to 10, but header shows total count)
-        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count(), 'review');
-        foreach ($reviewColumn as $line) {
-            $this->line($line);
+            // Middle row: Review (show up to 10, but header shows total count)
+            $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count(), 'review');
+            foreach ($reviewColumn as $line) {
+                $this->line($line);
+            }
         }
 
         $this->newLine();
@@ -266,7 +263,7 @@ class BoardCommand extends Command
             ->values();
 
         $doneTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Done)
             ->sortByDesc('updated_at')
             ->values();
 
@@ -336,12 +333,14 @@ class BoardCommand extends Command
             $this->line(implode('  ', $row));
         }
 
-        $this->newLine();
+        if ($reviewTasks->isNotEmpty()) {
+            $this->newLine();
 
-        // Middle row: Review (show up to 10, but header shows total count)
-        $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count(), 'review');
-        foreach ($reviewColumn as $line) {
-            $this->line($line);
+            // Middle row: Review (show up to 10, but header shows total count)
+            $reviewColumn = $this->buildColumn('Review', $reviewTasks->take(10)->all(), $this->topColumnWidth * 2 + 2, $reviewTasks->count(), 'review');
+            foreach ($reviewColumn as $line) {
+                $this->line($line);
+            }
         }
 
         $this->newLine();

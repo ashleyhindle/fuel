@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Services\FuelContext;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
@@ -365,15 +366,16 @@ class ShowCommand extends Command
             return null;
         }
 
-        // Determine the working directory
-        $cwd = $this->option('cwd') ?: getcwd();
+        // Use FuelContext to get the processes path
+        $fuelContext = app(FuelContext::class);
+        $processesPath = $fuelContext->getProcessesPath();
 
         // Get the latest run for this task to determine the correct process directory
         $latestRun = $runService->getLatestRun($taskId);
 
         // Use run ID if available, otherwise fall back to task ID for backward compatibility
         $processId = $latestRun?->run_id ?? $taskId;
-        $stdoutPath = $cwd.'/.fuel/processes/'.$processId.'/stdout.log';
+        $stdoutPath = $processesPath.'/'.$processId.'/stdout.log';
 
         // Check if stdout.log exists
         if (! File::exists($stdoutPath)) {

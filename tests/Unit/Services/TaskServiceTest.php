@@ -135,7 +135,7 @@ it('validates task status enum', function (): void {
         'open' => TaskStatus::Open,
         'in_progress' => TaskStatus::InProgress,
         'review' => TaskStatus::Review,
-        'closed' => TaskStatus::Closed,
+        'done' => TaskStatus::Done,
         'cancelled' => TaskStatus::Cancelled,
         'someday' => TaskStatus::Someday,
     ];
@@ -260,12 +260,12 @@ it('marks task as done', function (): void {
 
     $done = $this->taskService->done($created->short_id);
 
-    expect($done->status)->toBe(TaskStatus::Closed);
+    expect($done->status)->toBe(TaskStatus::Done);
     expect($done->updated_at)->not->toBeNull();
 
     // Verify it's actually persisted
     $reloaded = $this->taskService->find($created->short_id);
-    expect($reloaded->status)->toBe(TaskStatus::Closed);
+    expect($reloaded->status)->toBe(TaskStatus::Done);
 });
 
 it('throws exception when marking non-existent task as done', function (): void {
@@ -275,8 +275,8 @@ it('throws exception when marking non-existent task as done', function (): void 
 it('returns only open tasks from ready()', function (): void {
     $this->taskService->create(['title' => 'Open task']);
 
-    $closed = $this->taskService->create(['title' => 'To be closed']);
-    $this->taskService->done($closed->short_id);
+    $done = $this->taskService->create(['title' => 'To be done']);
+    $this->taskService->done($done->short_id);
 
     $ready = $this->taskService->ready();
 
@@ -448,7 +448,7 @@ it('excludes blocked tasks from ready()', function (): void {
     expect($ready->first()->short_id)->toBe($blocker->short_id);
 });
 
-it('includes tasks when blocker is closed', function (): void {
+it('includes tasks when blocker is done', function (): void {
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -460,7 +460,7 @@ it('includes tasks when blocker is closed', function (): void {
 
     $ready = $this->taskService->ready();
 
-    // Only the blocked task should be ready now (blocker is closed)
+    // Only the blocked task should be ready now (blocker is done)
     expect($ready)->toHaveCount(1);
     expect($ready->first()->short_id)->toBe($blocked->short_id);
 });
@@ -513,7 +513,7 @@ it('returns only blocked tasks from blocked()', function (): void {
     expect($blockedTasks->first()->short_id)->toBe($blocked->short_id);
 });
 
-it('excludes tasks when blocker is closed from blocked()', function (): void {
+it('excludes tasks when blocker is done from blocked()', function (): void {
     $blocker = $this->taskService->create(['title' => 'Blocker task']);
     $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
@@ -525,7 +525,7 @@ it('excludes tasks when blocker is closed from blocked()', function (): void {
 
     $blockedTasks = $this->taskService->blocked();
 
-    // No tasks should be blocked now (blocker is closed)
+    // No tasks should be blocked now (blocker is done)
     expect($blockedTasks)->toHaveCount(0);
 });
 
@@ -571,7 +571,7 @@ it('returns open blockers for a task', function (): void {
 
     $blockers = $this->taskService->getBlockers($blocked->short_id);
 
-    // Only blocker2 should be returned (blocker1 is closed)
+    // Only blocker2 should be returned (blocker1 is done)
     expect($blockers)->toHaveCount(1);
     expect($blockers->first()->short_id)->toBe($blocker2->short_id);
 });
@@ -790,8 +790,8 @@ it('backlog() returns only tasks with status=someday', function (): void {
 
 it('backlog() returns empty collection when no someday tasks exist', function (): void {
     $this->taskService->create(['title' => 'Open task']);
-    $closed = $this->taskService->create(['title' => 'Closed task']);
-    $this->taskService->done($closed->short_id);
+    $done = $this->taskService->create(['title' => 'Closed task']);
+    $this->taskService->done($done->short_id);
 
     $backlog = $this->taskService->backlog();
 

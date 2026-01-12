@@ -23,7 +23,7 @@ interface ReviewServiceInterface
      * Non-blocking - returns immediately, review runs in background.
      *
      * Returns false if no review agent is configured (review skipped).
-     * In this case, the task should be marked as closed directly.
+     * In this case, the task should be marked as done directly.
      *
      * @param  string  $taskId  The ID of the task to review
      * @param  string  $agent  The agent name that completed the task

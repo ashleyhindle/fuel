@@ -64,7 +64,7 @@ class EpicService
 
     /**
      * Get all epics that are pending human review.
-     * An epic is review_pending when: has tasks, all tasks closed, and not yet reviewed.
+     * An epic is review_pending when: has tasks, all tasks done, and not yet reviewed.
      *
      * @return array<int, Epic>
      */
@@ -175,10 +175,10 @@ class EpicService
         ]);
         $epic->refresh();
 
-        // Reopen tasks in the epic that were closed (move back to in_progress)
+        // Reopen tasks in the epic that were done (move back to in_progress)
         $tasks = $this->getTasksForEpic($epic->short_id);
         foreach ($tasks as $task) {
-            if ($task->status === TaskStatus::Closed) {
+            if ($task->status === TaskStatus::Done) {
                 $this->taskService->update($task->short_id, ['status' => TaskStatus::Open->value]);
             }
         }
@@ -263,20 +263,20 @@ class EpicService
             return EpicStatus::InProgress;
         }
 
-        // Check if all tasks are closed
-        $allClosed = true;
+        // Check if all tasks are done
+        $allDone = true;
         foreach ($tasks as $task) {
-            if ($task->status !== TaskStatus::Closed) {
-                $allClosed = false;
+            if ($task->status !== TaskStatus::Done) {
+                $allDone = false;
                 break;
             }
         }
 
-        if ($allClosed) {
+        if ($allDone) {
             return EpicStatus::ReviewPending;
         }
 
-        // Fallback: if tasks exist but not all closed and none active, still in_progress
+        // Fallback: if tasks exist but not all done and none active, still in_progress
         return EpicStatus::InProgress;
     }
 
@@ -303,15 +303,15 @@ class EpicService
             return ['completed' => false];
         }
 
-        $allClosed = true;
+        $allDone = true;
         foreach ($tasks as $task) {
-            if ($task->status !== TaskStatus::Closed && $task->status !== TaskStatus::Cancelled) {
-                $allClosed = false;
+            if ($task->status !== TaskStatus::Done && $task->status !== TaskStatus::Cancelled) {
+                $allDone = false;
                 break;
             }
         }
 
-        if (! $allClosed) {
+        if (! $allDone) {
             return ['completed' => false];
         }
 

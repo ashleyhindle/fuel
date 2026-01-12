@@ -115,16 +115,16 @@ class Epic extends Model
             return EpicStatus::InProgress;
         }
 
-        // Check if all tasks are closed
-        $allClosed = $this->tasks()
-            ->where('status', TaskStatus::Closed->value)
+        // Check if all tasks are done
+        $allDone = $this->tasks()
+            ->where('status', TaskStatus::Done->value)
             ->count() === $tasksCount;
 
-        if ($allClosed) {
+        if ($allDone) {
             return EpicStatus::ReviewPending;
         }
 
-        // Fallback: if tasks exist but not all closed and none active, still in_progress
+        // Fallback: if tasks exist but not all done and none active, still in_progress
         return EpicStatus::InProgress;
     }
 
@@ -217,14 +217,14 @@ class Epic extends Model
     }
 
     /**
-     * Get epics pending review (has tasks, all tasks closed, not yet reviewed).
+     * Get epics pending review (has tasks, all tasks done, not yet reviewed).
      */
     public static function pendingReview(): Collection
     {
         return static::whereNull('reviewed_at')
             ->whereHas('tasks')
             ->whereDoesntHave('tasks', function ($query): void {
-                $query->whereNotIn('status', [TaskStatus::Closed->value, TaskStatus::Cancelled->value]);
+                $query->whereNotIn('status', [TaskStatus::Done->value, TaskStatus::Cancelled->value]);
             })
             ->orderBy('created_at', 'desc')
             ->get();

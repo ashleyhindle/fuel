@@ -342,7 +342,7 @@ class ConsumeCommand extends Command
         $shortTitle = mb_strlen((string) $taskTitle) > 40 ? mb_substr((string) $taskTitle, 0, 37).'...' : $taskTitle;
 
         // Build structured prompt with task details
-        $cwd = $this->option('cwd') ?: getcwd();
+        $cwd = $this->fuelContext->getProjectPath();
         $fullPrompt = $this->promptBuilder->build($task, $cwd);
 
         // Determine agent name for capacity check and dryrun display
@@ -694,7 +694,7 @@ class ConsumeCommand extends Command
         array $data,
         array &$statusLines
     ): void {
-        if (! $this->taskService->find($taskId)) {
+        if (!$this->taskService->find($taskId) instanceof Task) {
             $statusLines[] = $this->formatStatus('⚠', sprintf('Skipping run update for missing task %s', $taskId), 'yellow');
 
             return;

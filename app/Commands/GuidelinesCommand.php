@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Services\FuelContext;
 use LaravelZero\Framework\Commands\Command;
 
 class GuidelinesCommand extends Command
@@ -14,12 +15,12 @@ class GuidelinesCommand extends Command
 
     protected $description = 'Output task management guidelines for CLAUDE.md';
 
-    public function handle(): int
+    public function handle(FuelContext $context): int
     {
         $content = $this->getGuidelinesContent();
 
         if ($this->option('add')) {
-            return $this->injectIntoAgentsMd($content);
+            return $this->injectIntoAgentsMd($content, $context);
         }
 
         $this->line($content);
@@ -27,9 +28,9 @@ class GuidelinesCommand extends Command
         return self::SUCCESS;
     }
 
-    protected function injectIntoAgentsMd(string $content): int
+    protected function injectIntoAgentsMd(string $content, FuelContext $context): int
     {
-        $cwd = $this->option('cwd') ?: getcwd();
+        $cwd = $this->option('cwd') ?: $context->getProjectPath();
         $agentsMdPath = $cwd.'/AGENTS.md';
 
         $fuelSection = "<fuel>\n{$content}</fuel>\n";
@@ -160,7 +161,7 @@ Descriptions should be explicit enough for a less capable agent to complete with
 fuel add "Implement API" --blocked-by=f-xxxx
 ```
 
-Blocked tasks won't appear in `fuel ready` until blockers are closed.
+Blocked tasks won't appear in `fuel ready` until blockers are done.
 
 ### Epics
 

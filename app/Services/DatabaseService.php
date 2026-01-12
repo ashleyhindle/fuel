@@ -14,7 +14,7 @@ class DatabaseService
 {
     private ?PDO $connection = null;
 
-    private string $dbPath;
+    private readonly string $dbPath;
 
     public function __construct(?string $dbPath = null)
     {

@@ -114,9 +114,7 @@ describe('remove command', function (): void {
         $command->setOutput($output);
 
         $exitCode = $command->handle(
-            $this->app->make(FuelContext::class),
-            $this->taskService,
-            $this->app->make(DatabaseService::class)
+            $this->taskService
         );
 
         expect($exitCode)->toBe(0);

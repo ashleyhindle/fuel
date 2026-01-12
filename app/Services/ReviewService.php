@@ -31,6 +31,7 @@ class ReviewService implements ReviewServiceInterface
         private readonly ConfigService $configService,
         private readonly ReviewPrompt $reviewPrompt,
         private readonly RunService $runService,
+        private readonly FuelContext $fuelContext,
     ) {}
 
     /**
@@ -120,7 +121,7 @@ class ReviewService implements ReviewServiceInterface
             $reviewTaskId,
             $reviewAgent,
             $command,
-            getcwd(),
+            $this->fuelContext->getProjectPath(),
             ProcessType::Review,
             $runShortId  // Pass run short_id for run-based directory
         );
@@ -231,9 +232,9 @@ class ReviewService implements ReviewServiceInterface
             $issues = $parsedResult['issues'];
         } else {
             // No valid JSON found - check if the review agent ran `fuel done`
-            // If so, the task status would be 'closed', meaning review passed
+            // If so, the task status would be 'done', meaning review passed
             $task = $this->taskService->find($taskId);
-            if ($task instanceof Task && $task->status === TaskStatus::Closed) {
+            if ($task instanceof Task && $task->status === TaskStatus::Done) {
                 $passed = true;
             } else {
                 // No JSON and task not done - review failed or agent crashed
@@ -404,8 +405,8 @@ class ReviewService implements ReviewServiceInterface
                 if ($triggered) {
                     $recovered[] = $taskId;
                 } else {
-                    // No review agent configured - mark task as closed
-                    $this->taskService->update($taskId, ['status' => TaskStatus::Closed->value]);
+                    // No review agent configured - mark task as done
+                    $this->taskService->update($taskId, ['status' => TaskStatus::Done->value]);
                 }
             } catch (\Throwable) {
                 // Failed to re-trigger, skip this task

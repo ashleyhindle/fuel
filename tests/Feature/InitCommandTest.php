@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
@@ -11,6 +12,15 @@ use Illuminate\Support\Facades\Schema;
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-init-test-'.uniqid();
     mkdir($this->tempDir, 0755, true);
+
+    // Bind FuelContext to the test's temp directory so init operates there
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->forgetInstance(FuelContext::class);
+    $this->app->instance(FuelContext::class, $context);
+
+    // Rebind ConfigService to use the new FuelContext
+    $this->app->forgetInstance(ConfigService::class);
+    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
 });
 
 afterEach(function (): void {
@@ -21,10 +31,12 @@ afterEach(function (): void {
 
         $items = scandir($dir);
         foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            if ($item === '.') {
                 continue;
             }
-
+            if ($item === '..') {
+                continue;
+            }
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
                 $deleteDir($path);
@@ -70,6 +82,7 @@ describe('init command', function (): void {
         // Use TaskService directly to verify (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
         $context->configureDatabase();
+
         $dbService = new DatabaseService($context->getDatabasePath());
         $taskService = new TaskService($dbService);
 
@@ -88,6 +101,7 @@ describe('init command', function (): void {
         // Use TaskService directly to verify (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
         $context->configureDatabase();
+
         $dbService = new DatabaseService($context->getDatabasePath());
         $taskService = new TaskService($dbService);
 
@@ -170,6 +184,7 @@ describe('init command', function (): void {
         // Use TaskService directly to add a task (path resolution now happens at boot).
         $context = new FuelContext($this->tempDir.'/.fuel');
         $context->configureDatabase();
+
         $dbService = new DatabaseService($context->getDatabasePath());
         $taskService = new TaskService($dbService);
 
@@ -186,7 +201,7 @@ describe('init command', function (): void {
 
         $tables = ['tasks', 'epics', 'runs', 'reviews', 'agent_health'];
         foreach ($tables as $table) {
-            expect(Schema::hasTable($table))->toBeTrue("Table $table should exist");
+            expect(Schema::hasTable($table))->toBeTrue(sprintf('Table %s should exist', $table));
         }
     });
 });

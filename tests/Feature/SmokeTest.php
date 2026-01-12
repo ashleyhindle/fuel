@@ -14,10 +14,7 @@ it('runs a basic command flow', function (): void {
 
     expect(file_exists($cwd.'/.fuel/agent.db'))->toBeTrue();
 
-    Artisan::call('guidelines', [
-        '--add' => true,
-    ]);
-
+    // init already calls guidelines --add, so AGENTS.md should exist
     expect(file_exists($cwd.'/AGENTS.md'))->toBeTrue();
 
     $consumeExit = Artisan::call('consume', [

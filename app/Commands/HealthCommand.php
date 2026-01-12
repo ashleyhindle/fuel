@@ -7,7 +7,6 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Process\AgentHealth;
 use App\Services\AgentHealthTracker;
-use App\Services\DatabaseService;
 use DateTimeImmutable;
 use LaravelZero\Framework\Commands\Command;
 
@@ -21,14 +20,8 @@ class HealthCommand extends Command
 
     protected $description = 'Display agent health status';
 
-    public function handle(AgentHealthTracker $healthTracker, DatabaseService $database): int
+    public function handle(AgentHealthTracker $healthTracker): int
     {
-        if ($cwd = $this->option('cwd')) {
-            $database->setDatabasePath($cwd.'/.fuel/agent.db');
-            // Recreate health tracker with updated database
-            $healthTracker = new AgentHealthTracker($database);
-        }
-
         $allHealth = $healthTracker->getAllHealthStatus();
 
         if ($this->option('json')) {

@@ -103,11 +103,11 @@ test('isBlocked returns false when blocked_by is null', function (): void {
     expect($task->isBlocked())->toBeFalse();
 });
 
-test('isCompleted returns true when status is closed', function (): void {
+test('isCompleted returns true when status is done', function (): void {
     $task = Task::create([
         'short_id' => 'f-test06',
         'title' => 'Test Task',
-        'status' => TaskStatus::Closed->value,
+        'status' => TaskStatus::Done->value,
         'type' => 'task',
         'priority' => 2,
     ]);
@@ -115,7 +115,7 @@ test('isCompleted returns true when status is closed', function (): void {
     expect($task->isCompleted())->toBeTrue();
 });
 
-test('isCompleted returns false when status is not closed', function (): void {
+test('isCompleted returns false when status is not done', function (): void {
     $openTask = Task::create([
         'short_id' => 'f-test07',
         'title' => 'Test Task',
@@ -169,7 +169,7 @@ test('isInProgress returns false when status is not in_progress', function (): v
     $closedTask = Task::create([
         'short_id' => 'f-test12',
         'title' => 'Test Task',
-        'status' => TaskStatus::Closed->value,
+        'status' => TaskStatus::Done->value,
         'type' => 'task',
         'priority' => 2,
     ]);
@@ -190,7 +190,7 @@ test('isFailed always returns false for tasks', function (): void {
     $closedTask = Task::create([
         'short_id' => 'f-test14',
         'title' => 'Test Task',
-        'status' => TaskStatus::Closed->value,
+        'status' => TaskStatus::Done->value,
         'type' => 'task',
         'priority' => 2,
     ]);
@@ -211,7 +211,7 @@ test('isPending always returns false for tasks', function (): void {
     $closedTask = Task::create([
         'short_id' => 'f-test16',
         'title' => 'Test Task',
-        'status' => TaskStatus::Closed->value,
+        'status' => TaskStatus::Done->value,
         'type' => 'task',
         'priority' => 2,
     ]);
@@ -395,11 +395,11 @@ test('ready scope returns tasks that are open and not blocked', function (): voi
         'blocked_by' => ['f-other'],
     ]);
 
-    // Create a closed task
+    // Create a done task
     $closedTask = Task::create([
         'short_id' => 'f-closed01',
         'title' => 'Closed Task',
-        'status' => TaskStatus::Closed->value,
+        'status' => TaskStatus::Done->value,
         'type' => 'task',
         'priority' => 1,
     ]);

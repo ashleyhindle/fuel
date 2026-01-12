@@ -26,8 +26,6 @@ class ReviewsCommand extends Command
 
     public function handle(DatabaseService $databaseService): int
     {
-        $this->configureDatabasePath($databaseService);
-
         try {
             // Determine which reviews to fetch
             $status = null;
@@ -75,16 +73,6 @@ class ReviewsCommand extends Command
             return self::SUCCESS;
         } catch (\Exception $exception) {
             return $this->outputError('Failed to fetch reviews: '.$exception->getMessage());
-        }
-    }
-
-    /**
-     * Configure the DatabaseService with --cwd option if provided.
-     */
-    protected function configureDatabasePath(DatabaseService $databaseService): void
-    {
-        if ($cwd = $this->option('cwd')) {
-            $databaseService->setDatabasePath($cwd.'/.fuel/agent.db');
         }
     }
 

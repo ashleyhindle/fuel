@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
-
 /**
  * Provides common JSON output for Fuel commands.
  *

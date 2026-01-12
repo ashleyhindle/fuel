@@ -124,7 +124,7 @@ class Task extends EloquentModel
      */
     public function isCompleted(): bool
     {
-        return $this->status === TaskStatus::Closed;
+        return $this->status === TaskStatus::Done;
     }
 
     /**

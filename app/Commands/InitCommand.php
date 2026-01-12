@@ -24,10 +24,12 @@ class InitCommand extends Command
 
     public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService): int
     {
-        $cwd = $this->option('cwd') ?: getcwd();
+        // Use FuelContext as source of truth, --cwd option only overrides if explicitly set
+        if ($this->option('cwd')) {
+            $context->basePath = $this->option('cwd').'/.fuel';
+        }
 
-        // Configure FuelContext with the working directory
-        $context->basePath = $cwd.'/.fuel';
+        $cwd = $context->getProjectPath();
 
         // Create .fuel directory and subdirectories
         $fuelDir = $context->basePath;
@@ -43,7 +45,7 @@ class InitCommand extends Command
         }
 
         // Configure database path and run migrations to create schema
-        $databaseService->setDatabasePath($context->getDatabasePath());
+        $context->configureDatabase();
         Artisan::call('migrate', ['--force' => true]);
 
         // Determine agent and model (from flags or defaults)

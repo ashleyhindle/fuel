@@ -43,6 +43,14 @@ class FuelContext
         return $this->basePath.'/config.yaml';
     }
 
+    /**
+     * Get the project root directory (parent of .fuel).
+     */
+    public function getProjectPath(): string
+    {
+        return dirname($this->basePath);
+    }
+
     private function ensureMigrationCompatibility(): void
     {
         if (! is_file($this->getDatabasePath())) {

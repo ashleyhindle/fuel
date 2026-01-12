@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Services\FuelContext;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Review;
 use App\Models\Task;
@@ -133,8 +134,9 @@ class ReviewShowCommand extends Command
 
         $runShortId = $run['short_id'];
 
-        $cwd = $this->option('cwd') ?: getcwd();
-        $stdoutPath = $cwd.'/.fuel/processes/'.$runShortId.'/stdout.log';
+        // Use FuelContext to get the processes path
+        $fuelContext = app(FuelContext::class);
+        $stdoutPath = $fuelContext->getProcessesPath().'/'.$runShortId.'/stdout.log';
 
         if (! File::exists($stdoutPath)) {
             return null;

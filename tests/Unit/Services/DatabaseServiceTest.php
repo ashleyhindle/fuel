@@ -146,18 +146,6 @@ it('supports transactions', function (): void {
     expect($result)->not->toBeNull();
 });
 
-it('can update database path', function (): void {
-    $newDbPath = $this->tempDir.'/new-agent.db';
-    $this->service->setDatabasePath($newDbPath);
-
-    expect(file_exists($newDbPath))->toBeTrue();
-    expect($this->service->getPath())->toBe($newDbPath);
-
-    if (file_exists($newDbPath)) {
-        unlink($newDbPath);
-    }
-});
-
 it('checks if database exists', function (): void {
     // Database file is now created in constructor via configureDatabase
     expect($this->service->exists())->toBeTrue();
