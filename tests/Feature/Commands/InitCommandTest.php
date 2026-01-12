@@ -21,8 +21,10 @@ describe('init command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -64,9 +66,9 @@ describe('init command', function (): void {
     it('creates .fuel directory', function (): void {
         $fuelDir = $this->tempDir.'/.fuel';
 
-        // Ensure it doesn't exist first
+        // Ensure it doesn't exist first (use recursive delete)
         if (is_dir($fuelDir)) {
-            rmdir($fuelDir);
+            \Illuminate\Support\Facades\File::deleteDirectory($fuelDir);
         }
 
         Artisan::call('init', ['--cwd' => $this->tempDir]);

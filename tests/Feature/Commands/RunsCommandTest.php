@@ -17,8 +17,10 @@ describe('runs command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -58,7 +60,6 @@ describe('runs command', function (): void {
     });
 
     it('shows error when task not found', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('runs', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
@@ -66,20 +67,18 @@ describe('runs command', function (): void {
     });
 
     it('shows error when no runs exist for task', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
-        $this->artisan('runs', ['id' => $task['id'], '--cwd' => $this->tempDir])
+        $this->artisan('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('No runs found for task')
             ->assertExitCode(1);
     });
 
     it('displays runs for a task', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'test-agent',
             'model' => 'test-model',
             'started_at' => '2026-01-07T10:00:00+00:00',
@@ -87,7 +86,7 @@ describe('runs command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Runs for task');
@@ -96,11 +95,10 @@ describe('runs command', function (): void {
     });
 
     it('displays multiple runs in table format', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'agent1',
             'model' => 'model1',
             'started_at' => '2026-01-07T10:00:00+00:00',
@@ -108,7 +106,7 @@ describe('runs command', function (): void {
             'exit_code' => 0,
         ]);
 
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'agent2',
             'model' => 'model2',
             'started_at' => '2026-01-07T11:00:00+00:00',
@@ -116,7 +114,7 @@ describe('runs command', function (): void {
             'exit_code' => 1,
         ]);
 
-        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Runs for task');
@@ -127,11 +125,10 @@ describe('runs command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'test-agent',
             'model' => 'test-model',
             'started_at' => '2026-01-07T10:00:00+00:00',
@@ -139,7 +136,7 @@ describe('runs command', function (): void {
             'exit_code' => 0,
         ]);
 
-        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -151,11 +148,10 @@ describe('runs command', function (): void {
     });
 
     it('shows latest run with --last flag', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'agent1',
             'model' => 'model1',
             'started_at' => '2026-01-07T10:00:00+00:00',
@@ -163,7 +159,7 @@ describe('runs command', function (): void {
             'exit_code' => 0,
         ]);
 
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'agent2',
             'model' => 'model2',
             'started_at' => '2026-01-07T11:00:00+00:00',
@@ -172,7 +168,7 @@ describe('runs command', function (): void {
             'output' => 'Test output',
         ]);
 
-        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir, '--last' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--last' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Latest run for task');
@@ -183,24 +179,23 @@ describe('runs command', function (): void {
     });
 
     it('shows latest run with full output in JSON format', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'agent1',
             'model' => 'model1',
             'started_at' => '2026-01-07T10:00:00+00:00',
         ]);
 
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'agent2',
             'model' => 'model2',
             'started_at' => '2026-01-07T11:00:00+00:00',
             'output' => 'Test output',
         ]);
 
-        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir, '--last' => true, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--last' => true, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -211,18 +206,17 @@ describe('runs command', function (): void {
     });
 
     it('calculates duration correctly', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'test-agent',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:30+00:00', // 5 minutes 30 seconds
             'exit_code' => 0,
         ]);
 
-        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -231,18 +225,17 @@ describe('runs command', function (): void {
     });
 
     it('handles running tasks with no end time', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'test-agent',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => null,
             'exit_code' => null,
         ]);
 
-        Artisan::call('runs', ['id' => $task['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('runs', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -251,17 +244,16 @@ describe('runs command', function (): void {
     });
 
     it('supports partial task ID matching', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'test-agent',
             'started_at' => '2026-01-07T10:00:00+00:00',
         ]);
 
         // Use partial ID (last 6 chars)
-        $partialId = substr((string) $task['id'], -6);
+        $partialId = substr((string) $task->short_id, -6);
 
         $this->artisan('runs', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Runs for task')

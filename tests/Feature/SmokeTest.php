@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Review;
 use App\Services\DatabaseService;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -70,6 +71,27 @@ it('runs a basic command flow', function (): void {
         'output' => 'Smoke run output',
         'cost_usd' => 0.01,
     ]);
+
+    // Create a review record for review:show and reviews tests
+    $taskModel = $taskService->find($taskId);
+    $review = Review::create([
+        'short_id' => 'r-smoke1',
+        'task_id' => $taskModel->id,
+        'agent' => 'claude',
+        'status' => 'completed',
+        'issues' => ['Test issue 1', 'Test issue 2'],
+        'started_at' => now()->subMinutes(5),
+        'completed_at' => now(),
+    ]);
+
+    Artisan::call('review:show', [
+        'id' => $review->short_id,
+        '--cwd' => $cwd,
+        '--json' => true,
+    ]);
+    $reviewShown = json_decode(Artisan::output(), true);
+    expect($reviewShown['short_id'] ?? null)->toBe('r-smoke1');
+    expect($reviewShown['status'] ?? null)->toBe('completed');
 
     Artisan::call('runs', [
         'id' => $taskId,
@@ -343,6 +365,27 @@ it('runs a basic command flow', function (): void {
     $human = json_decode(Artisan::output(), true);
     expect($human)->toHaveKeys(['tasks', 'epics']);
 
+    // Mark epic linked task done with commit hash for epic:review test
+    Artisan::call('start', [
+        'id' => $epicLinkedTaskId,
+        '--cwd' => $cwd,
+    ]);
+    Artisan::call('done', [
+        'ids' => [$epicLinkedTaskId],
+        '--cwd' => $cwd,
+        '--json' => true,
+        '--commit' => 'abc1234',
+    ]);
+
+    Artisan::call('epic:review', [
+        'epicId' => $epicId,
+        '--cwd' => $cwd,
+        '--json' => true,
+    ]);
+    $epicReview = json_decode(Artisan::output(), true);
+    expect($epicReview)->toHaveKey('epic');
+    expect($epicReview['epic']['short_id'] ?? null)->toBe($epicId);
+
     Artisan::call('epic:delete', [
         'id' => $epicId,
         '--cwd' => $cwd,
@@ -395,6 +438,19 @@ it('runs a basic command flow', function (): void {
     ]);
     $db = json_decode(Artisan::output(), true);
     expect($db['success'] ?? null)->toBeTrue();
+
+    $statsExit = Artisan::call('stats', [
+        '--cwd' => $cwd,
+    ]);
+    expect($statsExit)->toBe(0);
+
+    Artisan::call('reviews', [
+        '--cwd' => $cwd,
+        '--json' => true,
+    ]);
+    $reviews = json_decode(Artisan::output(), true);
+    expect($reviews)->toBeArray();
+    expect(array_column($reviews, 'short_id'))->toContain('r-smoke1');
 
     Artisan::call('stuck', [
         '--cwd' => $cwd,

@@ -18,8 +18,10 @@ describe('dep:remove command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -59,54 +61,51 @@ describe('dep:remove command', function (): void {
     });
 
     it('removes dependency via CLI', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // First add a dependency
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         // Then remove it via CLI
         $this->artisan('dep:remove', [
-            'from' => $blocked['id'],
-            'to' => $blocker['id'],
+            'from' => $blocked->short_id,
+            'to' => $blocker->short_id,
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Removed dependency')
             ->assertExitCode(0);
 
         // Verify blocker was removed from blocked_by array
-        $updated = $this->taskService->find($blocked['id']);
-        expect($updated['blocked_by'] ?? [])->toBeEmpty();
+        $updated = $this->taskService->find($blocked->short_id);
+        expect($updated->blocked_by ?? [])->toBeEmpty();
     });
 
     it('dep:remove outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // First add a dependency
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         Artisan::call('dep:remove', [
-            'from' => $blocked['id'],
-            'to' => $blocker['id'],
+            'from' => $blocked->short_id,
+            'to' => $blocker->short_id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
         $output = Artisan::output();
-        expect($output)->toContain($blocked['id']);
+        expect($output)->toContain($blocked->short_id);
         expect($output)->toContain('blocked_by');
     });
 
     it('dep:remove shows error for non-existent task', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
         $this->artisan('dep:remove', [
             'from' => 'nonexistent',
-            'to' => $blocker['id'],
+            'to' => $blocker->short_id,
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('not found')
@@ -114,14 +113,13 @@ describe('dep:remove command', function (): void {
     });
 
     it('dep:remove shows error when no dependency exists', function (): void {
-        $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
 
         // Try to remove a dependency that doesn't exist
         $this->artisan('dep:remove', [
-            'from' => $task1['id'],
-            'to' => $task2['id'],
+            'from' => $task1->short_id,
+            'to' => $task2->short_id,
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('No dependency exists')
@@ -129,16 +127,15 @@ describe('dep:remove command', function (): void {
     });
 
     it('dep:remove supports partial ID matching', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // First add a dependency
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         // Use partial IDs (just the hash part)
-        $blockerPartial = substr((string) $blocker['id'], 2, 3);
-        $blockedPartial = substr((string) $blocked['id'], 2, 3);
+        $blockerPartial = substr((string) $blocker->short_id, 2, 3);
+        $blockedPartial = substr((string) $blocked->short_id, 2, 3);
 
         $this->artisan('dep:remove', [
             'from' => $blockedPartial,
@@ -149,7 +146,7 @@ describe('dep:remove command', function (): void {
             ->assertExitCode(0);
 
         // Verify blocker was removed from blocked_by array using full ID
-        $updated = $this->taskService->find($blocked['id']);
-        expect($updated['blocked_by'] ?? [])->toBeEmpty();
+        $updated = $this->taskService->find($blocked->short_id);
+        expect($updated->blocked_by ?? [])->toBeEmpty();
     });
 });

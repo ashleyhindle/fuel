@@ -129,18 +129,22 @@ class RunsCommand extends Command
     /**
      * Format a datetime string for display.
      */
-    private function formatDateTime(string $dateTimeString): string
+    private function formatDateTime(string|\DateTimeInterface $dateTime): string
     {
-        if ($dateTimeString === '') {
+        if ($dateTime === '') {
             return '';
         }
 
+        if ($dateTime instanceof \DateTimeInterface) {
+            return $dateTime->format('Y-m-d H:i:s');
+        }
+
         try {
-            $date = new \DateTime($dateTimeString);
+            $date = new \DateTime($dateTime);
 
             return $date->format('Y-m-d H:i:s');
         } catch (\Exception) {
-            return $dateTimeString;
+            return $dateTime;
         }
     }
 

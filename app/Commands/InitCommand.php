@@ -42,17 +42,9 @@ class InitCommand extends Command
             mkdir($processesDir, 0755, true);
         }
 
-        // Initialize TaskService (creates database schema if needed)
-        // DatabaseService needs to be reconfigured since FuelContext changed
+        // Configure database path and run migrations to create schema
         $databaseService->setDatabasePath($context->getDatabasePath());
-        $taskService->initialize();
-
-        // Initialize database (creates agent.db with schema if needed)
-        $dbPath = $context->getDatabasePath();
-        $databaseService->initialize();
-        if (! file_exists($dbPath)) {
-            $this->info('Created agent.db with schema');
-        }
+        Artisan::call('migrate', ['--force' => true]);
 
         // Determine agent and model (from flags or defaults)
         $agent = $this->getAgent();

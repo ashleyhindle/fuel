@@ -16,8 +16,10 @@ describe('blocked command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -57,7 +59,6 @@ describe('blocked command', function (): void {
     });
 
     it('shows empty when no blocked tasks', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Unblocked task']);
 
         $this->artisan('blocked', ['--cwd' => $this->tempDir])
@@ -66,12 +67,11 @@ describe('blocked command', function (): void {
     });
 
     it('blocked includes tasks with open blockers', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         $this->artisan('blocked', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Blocked task')
@@ -80,15 +80,14 @@ describe('blocked command', function (): void {
     });
 
     it('blocked excludes tasks when blocker is closed', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         // Close the blocker
-        $this->taskService->done($blocker['id']);
+        $this->taskService->done($blocker->short_id);
 
         $this->artisan('blocked', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('No blocked tasks.')
@@ -97,17 +96,16 @@ describe('blocked command', function (): void {
     });
 
     it('blocked outputs JSON when --json flag is provided', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         Artisan::call('blocked', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain($blocked['id']);
+        expect($output)->toContain($blocked->short_id);
         expect($output)->toContain('Blocked task');
         expect($output)->not->toContain('Blocker task');
     });

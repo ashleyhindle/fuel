@@ -26,8 +26,10 @@ beforeEach(function (): void {
     mkdir($this->runsPath, 0755, true);
 
     // Bind test services
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
 
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -44,7 +46,6 @@ beforeEach(function (): void {
     $this->configService = $this->app->make(ConfigService::class);
 
     // Initialize storage
-    $this->taskService->initialize();
 
     // Create minimal config
     $config = [
@@ -96,10 +97,10 @@ it('triggers review for valid task', function (): void {
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task['id'], ['status' => 'in_progress']);
+    $this->taskService->update($task->short_id, ['status' => 'in_progress']);
 
     // Log a run with an agent
-    $this->runService->logRun($task['id'], [
+    $this->runService->logRun($task->short_id, [
         'agent' => 'test-agent',
         'started_at' => now()->toIso8601String(),
     ]);
@@ -108,14 +109,14 @@ it('triggers review for valid task', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent')
+        ->with($task->short_id, 'test-agent')
         ->andReturn(true);
 
-    $exitCode = Artisan::call('review', ['taskId' => $task['id']]);
+    $exitCode = Artisan::call('review', ['taskId' => $task->short_id]);
     $output = Artisan::output();
 
     expect($exitCode)->toBe(0);
-    expect($output)->toContain(sprintf('Triggering review for %s...', $task['id']));
+    expect($output)->toContain(sprintf('Triggering review for %s...', $task->short_id));
     expect($output)->toContain('Review spawned. Check `fuel board` for status.');
 });
 
@@ -133,7 +134,7 @@ it('shows error for open task', function (): void {
         'title' => 'Test task',
     ]);
 
-    $exitCode = Artisan::call('review', ['taskId' => $task['id']]);
+    $exitCode = Artisan::call('review', ['taskId' => $task->short_id]);
     $output = Artisan::output();
 
     expect($exitCode)->toBe(1);
@@ -145,15 +146,15 @@ it('uses agent from latest run when available', function (): void {
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task['id'], ['status' => 'in_progress']);
+    $this->taskService->update($task->short_id, ['status' => 'in_progress']);
 
     // Log multiple runs with different agents
-    $this->runService->logRun($task['id'], [
+    $this->runService->logRun($task->short_id, [
         'agent' => 'first-agent',
         'started_at' => now()->toIso8601String(),
     ]);
 
-    $this->runService->logRun($task['id'], [
+    $this->runService->logRun($task->short_id, [
         'agent' => 'latest-agent',
         'started_at' => now()->toIso8601String(),
     ]);
@@ -162,10 +163,10 @@ it('uses agent from latest run when available', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'latest-agent')
+        ->with($task->short_id, 'latest-agent')
         ->andReturn(true);
 
-    Artisan::call('review', ['taskId' => $task['id']]);
+    Artisan::call('review', ['taskId' => $task->short_id]);
 });
 
 it('uses config review agent when no run exists', function (): void {
@@ -192,16 +193,16 @@ it('uses config review agent when no run exists', function (): void {
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task['id'], ['status' => 'closed']);
+    $this->taskService->update($task->short_id, ['status' => 'closed']);
 
     // Expect triggerReview to be called with review agent from config
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'review-agent')
+        ->with($task->short_id, 'review-agent')
         ->andReturn(true);
 
-    Artisan::call('review', ['taskId' => $task['id']]);
+    Artisan::call('review', ['taskId' => $task->short_id]);
 });
 
 it('uses primary agent as fallback when no run and no review agent configured', function (): void {
@@ -209,16 +210,16 @@ it('uses primary agent as fallback when no run and no review agent configured', 
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task['id'], ['status' => 'closed']);
+    $this->taskService->update($task->short_id, ['status' => 'closed']);
 
     // Expect triggerReview to be called with primary agent
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent')
+        ->with($task->short_id, 'test-agent')
         ->andReturn(true);
 
-    Artisan::call('review', ['taskId' => $task['id']]);
+    Artisan::call('review', ['taskId' => $task->short_id]);
 });
 
 it('supports partial task ID matching', function (): void {
@@ -226,12 +227,12 @@ it('supports partial task ID matching', function (): void {
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task['id'], ['status' => 'in_progress']);
+    $this->taskService->update($task->short_id, ['status' => 'in_progress']);
 
     // Extract partial ID (last 6 characters)
-    $partialId = substr((string) $task['id'], -6);
+    $partialId = substr((string) $task->short_id, -6);
 
-    $this->runService->logRun($task['id'], [
+    $this->runService->logRun($task->short_id, [
         'agent' => 'test-agent',
         'started_at' => now()->toIso8601String(),
     ]);
@@ -240,12 +241,12 @@ it('supports partial task ID matching', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent');
+        ->with($task->short_id, 'test-agent');
 
     Artisan::call('review', ['taskId' => $partialId]);
     $output = Artisan::output();
 
-    expect($output)->toContain(sprintf('Triggering review for %s...', $task['id']));
+    expect($output)->toContain(sprintf('Triggering review for %s...', $task->short_id));
 });
 
 it('allows reviewing closed tasks', function (): void {
@@ -253,9 +254,9 @@ it('allows reviewing closed tasks', function (): void {
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task['id'], ['status' => 'closed']);
+    $this->taskService->update($task->short_id, ['status' => 'closed']);
 
-    $this->runService->logRun($task['id'], [
+    $this->runService->logRun($task->short_id, [
         'agent' => 'test-agent',
         'started_at' => now()->toIso8601String(),
     ]);
@@ -264,10 +265,10 @@ it('allows reviewing closed tasks', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent')
+        ->with($task->short_id, 'test-agent')
         ->andReturn(true);
 
-    Artisan::call('review', ['taskId' => $task['id']]);
+    Artisan::call('review', ['taskId' => $task->short_id]);
 });
 
 it('allows reviewing tasks in review status', function (): void {
@@ -275,9 +276,9 @@ it('allows reviewing tasks in review status', function (): void {
     $task = $this->taskService->create([
         'title' => 'Test task',
     ]);
-    $this->taskService->update($task['id'], ['status' => 'review']);
+    $this->taskService->update($task->short_id, ['status' => 'review']);
 
-    $this->runService->logRun($task['id'], [
+    $this->runService->logRun($task->short_id, [
         'agent' => 'test-agent',
         'started_at' => now()->toIso8601String(),
     ]);
@@ -286,8 +287,8 @@ it('allows reviewing tasks in review status', function (): void {
     $this->mockReviewService
         ->shouldReceive('triggerReview')
         ->once()
-        ->with($task['id'], 'test-agent')
+        ->with($task->short_id, 'test-agent')
         ->andReturn(true);
 
-    Artisan::call('review', ['taskId' => $task['id']]);
+    Artisan::call('review', ['taskId' => $task->short_id]);
 });

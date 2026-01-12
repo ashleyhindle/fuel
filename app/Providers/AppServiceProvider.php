@@ -38,6 +38,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public static function configureDatabasePath(?FuelContext $context = null): void
     {
+        // In testing environment, use the database configured in phpunit.xml.dist (:memory:)
+        if (app()->environment('testing')) {
+            return;
+        }
+
         $fuelContext = $context ?? app(FuelContext::class);
         $databasePath = $fuelContext->getDatabasePath();
 

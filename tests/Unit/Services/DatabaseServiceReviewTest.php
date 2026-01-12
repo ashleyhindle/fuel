@@ -19,7 +19,8 @@ beforeEach(function (): void {
     mkdir($this->tempDir);
     $this->dbPath = $this->tempDir.'/test-agent.db';
     $this->service = new DatabaseService($this->dbPath);
-    $this->service->initialize();
+    config(['database.connections.sqlite.database' => $this->dbPath]);
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
     $this->reviewRepo = new ReviewRepository($this->service);
 });
 

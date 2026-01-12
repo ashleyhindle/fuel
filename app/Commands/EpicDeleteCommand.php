@@ -43,7 +43,7 @@ class EpicDeleteCommand extends Command
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('id')));
             }
 
-            $epicId = $epic->id;
+            $epicId = $epic->short_id;
             $title = $epic->title ?? '';
 
             $linkedTasks = $epicService->getTasksForEpic($epicId);
@@ -66,7 +66,6 @@ class EpicDeleteCommand extends Command
                 }
             }
 
-            $taskService->initialize();
             $unlinkedTaskIds = [];
             foreach ($linkedTasks as $task) {
                 $taskService->update($task->short_id, ['epic_id' => null]);
@@ -77,7 +76,7 @@ class EpicDeleteCommand extends Command
 
             if ($this->option('json')) {
                 $this->outputJson([
-                    'id' => $epicId,
+                    'short_id' => $epicId,
                     'deleted' => $deletedEpic->toArray(),
                     'unlinked_tasks' => $unlinkedTaskIds,
                 ]);

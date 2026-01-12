@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
@@ -39,7 +38,7 @@ class EpicShowCommand extends Command
                 return $this->outputError(sprintf("Epic '%s' not found", $this->argument('id')));
             }
 
-            $tasks = $epicService->getTasksForEpic($epic->id);
+            $tasks = $epicService->getTasksForEpic($epic->short_id);
 
             // Sort tasks: unblocked first, then blocked; within each group by priority ASC, then created_at ASC
             $tasksCollection = collect($tasks);
@@ -69,7 +68,7 @@ class EpicShowCommand extends Command
 
             if ($this->option('json')) {
                 $totalCount = count($sortedTasks);
-                $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
+                $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
                 $epicArray = $epic->toArray();
                 $epicArray['tasks'] = array_map(fn (Task $task): array => $task->toArray(), $sortedTasks);
                 $epicArray['task_count'] = $totalCount;
@@ -81,13 +80,13 @@ class EpicShowCommand extends Command
 
             // Calculate progress
             $totalCount = count($sortedTasks);
-            $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
+            $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
             $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
             // Display epic details
             $this->info('Epic: '.$epic->short_id);
             $this->line('  Title: '.($epic->title ?? ''));
-            $this->line('  Status: '.($epic->status ?? EpicStatus::Planning->value));
+            $this->line('  Status: '.$epic->status->value);
             $this->line('  Progress: '.$progress);
 
             if (isset($epic->description) && $epic->description !== null) {
@@ -106,18 +105,17 @@ class EpicShowCommand extends Command
 
                 $headers = ['ID', 'Title', 'Status', 'Type', 'Priority'];
                 $rows = array_map(function (Task $task) use ($blockedIds): array {
-                    $status = $task->status ?? TaskStatus::Open->value;
-                    $isBlocked = in_array($task->short_id ?? '', $blockedIds, true);
+                    $isBlocked = in_array($task->short_id, $blockedIds, true);
 
                     // Add visual indicator for blocked tasks (like tree command)
-                    if ($isBlocked && $status === TaskStatus::Open->value) {
-                        $status = '<fg=yellow>blocked</>';
-                    }
+                    $statusDisplay = $isBlocked && $task->status === TaskStatus::Open
+                        ? '<fg=yellow>blocked</>'
+                        : $task->status->value;
 
                     return [
-                        $task->short_id ?? '',
+                        $task->short_id,
                         $task->title ?? '',
-                        $status,
+                        $statusDisplay,
                         $task->type ?? '',
                         isset($task->priority) ? (string) $task->priority : '',
                     ];

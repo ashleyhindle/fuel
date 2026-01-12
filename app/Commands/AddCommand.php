@@ -39,9 +39,6 @@ class AddCommand extends Command
         // Configure context with --cwd if provided
         $this->configureCwd($context, $dbService);
 
-        // Initialize task service
-        $taskService->initialize();
-
         $data = [
             'title' => $this->argument('title'),
         ];
@@ -94,7 +91,7 @@ class AddCommand extends Command
                 return $this->outputError(sprintf("Epic '%s' not found", $epic));
             }
 
-            $data['epic_id'] = $epicRecord->id;
+            $data['epic_id'] = $epicRecord->short_id;
         }
 
         try {
@@ -108,7 +105,7 @@ class AddCommand extends Command
         } else {
             $this->info('Created task: '.$task->short_id);
             $this->line('  Title: '.$task->title);
-            $this->line('  Status: '.($task->status instanceof \App\Enums\TaskStatus ? $task->status->value : $task->status));
+            $this->line('  Status: '.$task->status->value);
 
             if (! empty($task->blocked_by)) {
                 $blockerIds = is_array($task->blocked_by) ? implode(', ', $task->blocked_by) : '';

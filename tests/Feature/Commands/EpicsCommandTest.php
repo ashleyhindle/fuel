@@ -132,8 +132,8 @@ describe('epics command', function (): void {
         expect($output)->toContain('Epics (2):');
         expect($output)->toContain('First Epic');
         expect($output)->toContain('Second Epic');
-        expect($output)->toContain($epic1->id);
-        expect($output)->toContain($epic2->id);
+        expect($output)->toContain($epic1->short_id);
+        expect($output)->toContain($epic2->short_id);
         expect($output)->toContain('planning');
         expect($output)->toContain('Progress');
     });
@@ -164,11 +164,11 @@ describe('epics command', function (): void {
         $epic = $epicService->createEpic('Epic with Tasks');
         $task1 = $taskService->create([
             'title' => 'Task 1',
-            'epic_id' => $epic->id,
+            'epic_id' => $epic->short_id,
         ]);
         $task2 = $taskService->create([
             'title' => 'Task 2',
-            'epic_id' => $epic->id,
+            'epic_id' => $epic->short_id,
         ]);
 
         Artisan::call('epics', ['--cwd' => $this->tempDir]);
@@ -189,7 +189,7 @@ describe('epics command', function (): void {
         $epic2 = $epicService->createEpic('In Progress Epic');
         $taskService->create([
             'title' => 'Open Task',
-            'epic_id' => $epic2->id,
+            'epic_id' => $epic2->short_id,
             'status' => 'open',
         ]);
 
@@ -197,7 +197,7 @@ describe('epics command', function (): void {
         $epic3 = $epicService->createEpic('Review Pending Epic');
         $task3 = $taskService->create([
             'title' => 'Closed Task',
-            'epic_id' => $epic3->id,
+            'epic_id' => $epic3->short_id,
         ]);
         $taskService->update($task3->short_id, ['status' => 'closed']);
 
@@ -223,15 +223,15 @@ describe('epics command', function (): void {
         $epic = $epicService->createEpic('Epic with Mixed Tasks');
         $task1 = $taskService->create([
             'title' => 'Open Task',
-            'epic_id' => $epic->id,
+            'epic_id' => $epic->short_id,
         ]);
         $task2 = $taskService->create([
             'title' => 'Closed Task',
-            'epic_id' => $epic->id,
+            'epic_id' => $epic->short_id,
         ]);
         $task3 = $taskService->create([
             'title' => 'Another Closed Task',
-            'epic_id' => $epic->id,
+            'epic_id' => $epic->short_id,
         ]);
         // Update tasks to closed status
         $taskService->update($task2->short_id, ['status' => 'closed']);

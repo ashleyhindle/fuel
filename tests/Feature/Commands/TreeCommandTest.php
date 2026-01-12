@@ -16,8 +16,10 @@ describe('tree command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -57,7 +59,6 @@ describe('tree command', function (): void {
     });
 
     it('shows empty message when no pending tasks', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('tree', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('No pending tasks.')
@@ -65,7 +66,6 @@ describe('tree command', function (): void {
     });
 
     it('shows tasks without dependencies as flat list', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task one', 'priority' => 1]);
         $this->taskService->create(['title' => 'Task two', 'priority' => 2]);
 
@@ -76,10 +76,9 @@ describe('tree command', function (): void {
     });
 
     it('shows blocking tasks with blocked tasks indented underneath', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         Artisan::call('tree', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -90,12 +89,11 @@ describe('tree command', function (): void {
     });
 
     it('shows task with multiple blockers', function (): void {
-        $this->taskService->initialize();
         $blocker1 = $this->taskService->create(['title' => 'First blocker']);
         $blocker2 = $this->taskService->create(['title' => 'Second blocker']);
         $blocked = $this->taskService->create(['title' => 'Multi-blocked task']);
-        $this->taskService->addDependency($blocked['id'], $blocker1['id']);
-        $this->taskService->addDependency($blocked['id'], $blocker2['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker1->short_id);
+        $this->taskService->addDependency($blocked->short_id, $blocker2->short_id);
 
         $this->artisan('tree', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Multi-blocked task')
@@ -105,10 +103,9 @@ describe('tree command', function (): void {
     });
 
     it('excludes closed tasks from tree', function (): void {
-        $this->taskService->initialize();
         $openTask = $this->taskService->create(['title' => 'Open task']);
         $closedTask = $this->taskService->create(['title' => 'Closed task']);
-        $this->taskService->done($closedTask['id']);
+        $this->taskService->done($closedTask->short_id);
 
         $this->artisan('tree', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Open task')
@@ -117,10 +114,9 @@ describe('tree command', function (): void {
     });
 
     it('outputs JSON when --json flag is provided', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         Artisan::call('tree', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -137,7 +133,6 @@ describe('tree command', function (): void {
     });
 
     it('returns empty array in JSON when no tasks', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('tree', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -148,7 +143,6 @@ describe('tree command', function (): void {
     });
 
     it('sorts tasks by priority then created_at', function (): void {
-        $this->taskService->initialize();
         $lowPriority = $this->taskService->create(['title' => 'Low priority', 'priority' => 3]);
         $highPriority = $this->taskService->create(['title' => 'High priority', 'priority' => 0]);
 
@@ -161,7 +155,6 @@ describe('tree command', function (): void {
     });
 
     it('shows needs-human label with special indicator', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Human task', 'labels' => ['needs-human']]);
         $this->taskService->create(['title' => 'Normal task']);
 

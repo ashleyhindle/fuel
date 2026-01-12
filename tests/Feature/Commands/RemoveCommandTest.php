@@ -91,8 +91,8 @@ describe('remove command', function (): void {
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result)->toHaveKeys(['id', 'deleted']);
-        expect($result['id'])->toBe($task->short_id);
+        expect($result)->toHaveKeys(['short_id', 'deleted']);
+        expect($result['short_id'])->toBe($task->short_id);
         expect($result['deleted'])->toBeArray();
         expect($result['deleted']['short_id'])->toBe($task->short_id);
     });

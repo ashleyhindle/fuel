@@ -1075,7 +1075,7 @@ describe('consume command epic context in prompt', function (): void {
         $task = $this->taskService->create([
             'title' => 'Task in epic',
             'complexity' => 'simple',
-            'epic_id' => $epic->id,
+            'epic_id' => $epic->short_id,
         ]);
         $taskId = $task->short_id;
 
@@ -1090,7 +1090,7 @@ describe('consume command epic context in prompt', function (): void {
         // Verify epic context is included in the prompt
         expect($output)->toContain('== EPIC CONTEXT ==');
         expect($output)->toContain('This task is part of a larger epic:');
-        expect($output)->toContain('Epic: '.$epic->id);
+        expect($output)->toContain('Epic: '.$epic->short_id);
         expect($output)->toContain('Epic Title: '.$epic->title);
         expect($output)->toContain('Epic Description: '.$epic->description);
         expect($output)->toContain('You are working on a small part of this larger epic');
@@ -1150,7 +1150,7 @@ describe('consume command epic context in prompt', function (): void {
         $task = $this->taskService->create([
             'title' => 'Task in epic',
             'complexity' => 'simple',
-            'epic_id' => $epic->id,
+            'epic_id' => $epic->short_id,
         ]);
         $taskId = $task->short_id;
 
@@ -1164,7 +1164,7 @@ describe('consume command epic context in prompt', function (): void {
 
         // Verify epic context is included but without description line
         expect($output)->toContain('== EPIC CONTEXT ==');
-        expect($output)->toContain('Epic: '.$epic->id);
+        expect($output)->toContain('Epic: '.$epic->short_id);
         expect($output)->toContain('Epic Title: '.$epic->title);
         expect($output)->not->toContain('Epic Description:');
     });

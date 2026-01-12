@@ -36,7 +36,7 @@ class ReviewCommand extends Command
         }
 
         // Check task is in reviewable state (in_progress, review, or closed)
-        if ($task->status === TaskStatus::Open->value) {
+        if ($task->status === TaskStatus::Open) {
             $this->error('Cannot review a task that has not been started');
 
             return self::FAILURE;

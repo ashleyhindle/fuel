@@ -61,11 +61,11 @@ it('creates an epic with title and description', function (): void {
     $epic = $this->service->createEpic('My Epic', 'Epic description');
 
     expect($epic)->toBeInstanceOf(Epic::class);
-    expect($epic->id)->toStartWith('e-');
-    expect(strlen((string) $epic->id))->toBe(8);
+    expect($epic->short_id)->toStartWith('e-');
+    expect(strlen((string) $epic->short_id))->toBe(8);
     expect($epic->title)->toBe('My Epic');
     expect($epic->description)->toBe('Epic description');
-    expect($epic->status)->toBe('planning');
+    expect($epic->status)->toBe(EpicStatus::Planning);
     expect($epic->created_at)->not->toBeNull();
 });
 
@@ -80,11 +80,11 @@ it('creates an epic with title only', function (): void {
 it('gets an epic by ID', function (): void {
     $created = $this->service->createEpic('Test Epic', 'Description');
 
-    $epic = $this->service->getEpic($created->id);
+    $epic = $this->service->getEpic($created->short_id);
 
     expect($epic)->not->toBeNull();
     expect($epic)->toBeInstanceOf(Epic::class);
-    expect($epic->id)->toBe($created->id);
+    expect($epic->short_id)->toBe($created->short_id);
     expect($epic->title)->toBe('Test Epic');
 });
 
@@ -115,20 +115,20 @@ it('returns empty array when no epics exist', function (): void {
 it('updates epic title', function (): void {
     $created = $this->service->createEpic('Original Title', 'Description');
 
-    $updated = $this->service->updateEpic($created->id, ['title' => 'New Title']);
+    $updated = $this->service->updateEpic($created->short_id, ['title' => 'New Title']);
 
     expect($updated)->toBeInstanceOf(Epic::class);
     expect($updated->title)->toBe('New Title');
     expect($updated->description)->toBe('Description');
 
-    $fetched = $this->service->getEpic($created->id);
+    $fetched = $this->service->getEpic($created->short_id);
     expect($fetched->title)->toBe('New Title');
 });
 
 it('updates epic description', function (): void {
     $created = $this->service->createEpic('Title', 'Old Description');
 
-    $updated = $this->service->updateEpic($created->id, ['description' => 'New Description']);
+    $updated = $this->service->updateEpic($created->short_id, ['description' => 'New Description']);
 
     expect($updated)->toBeInstanceOf(Epic::class);
     expect($updated->description)->toBe('New Description');
@@ -137,7 +137,7 @@ it('updates epic description', function (): void {
 it('clears epic description with null', function (): void {
     $created = $this->service->createEpic('Title', 'Has Description');
 
-    $updated = $this->service->updateEpic($created->id, ['description' => null]);
+    $updated = $this->service->updateEpic($created->short_id, ['description' => null]);
 
     expect($updated)->toBeInstanceOf(Epic::class);
     expect($updated->description)->toBeNull();
@@ -146,68 +146,68 @@ it('clears epic description with null', function (): void {
 it('computes epic status as planning when no tasks', function (): void {
     $created = $this->service->createEpic('Title');
 
-    $epic = $this->service->getEpic($created->id);
+    $epic = $this->service->getEpic($created->short_id);
 
-    expect($epic->status)->toBe('planning');
+    expect($epic->status)->toBe(EpicStatus::Planning);
 });
 
 it('computes epic status as in_progress when task is open', function (): void {
     $epic = $this->service->createEpic('Title');
-    $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
+    $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
 
-    $epic = $this->service->getEpic($epic->id);
+    $epic = $this->service->getEpic($epic->short_id);
 
     expect($epic->status)->toBe(EpicStatus::InProgress);
 });
 
 it('computes epic status as in_progress when task is in_progress', function (): void {
     $epic = $this->service->createEpic('Title');
-    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
+    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $this->taskService->start($task->short_id);
 
-    $epic = $this->service->getEpic($epic->id);
+    $epic = $this->service->getEpic($epic->short_id);
 
     expect($epic->status)->toBe(EpicStatus::InProgress);
 });
 
 it('computes epic status as review_pending when all tasks are closed', function (): void {
     $epic = $this->service->createEpic('Title');
-    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
+    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
-    $epic = $this->service->getEpic($epic->id);
+    $epic = $this->service->getEpic($epic->short_id);
 
-    expect($epic->status)->toBe('review_pending');
+    expect($epic->status)->toBe(EpicStatus::ReviewPending);
 });
 
 it('computes epic status as reviewed when reviewed_at is set', function (): void {
     $epic = $this->service->createEpic('Title');
-    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
+    $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
     // Initially should be review_pending
-    $epic = $this->service->getEpic($epic->id);
-    expect($epic->status)->toBe('review_pending');
+    $epic = $this->service->getEpic($epic->short_id);
+    expect($epic->status)->toBe(EpicStatus::ReviewPending);
 
     // Set reviewed_at directly in DB
     $this->db->query(
         'UPDATE epics SET reviewed_at = ? WHERE short_id = ?',
-        [Carbon::now('UTC')->toIso8601String(), $epic->id]
+        [Carbon::now('UTC')->toIso8601String(), $epic->short_id]
     );
 
-    $epic = $this->service->getEpic($epic->id);
+    $epic = $this->service->getEpic($epic->short_id);
 
-    expect($epic->status)->toBe('reviewed');
+    expect($epic->status)->toBe(EpicStatus::Reviewed);
 });
 
 it('ignores status updates since status is computed', function (): void {
     $created = $this->service->createEpic('Title');
 
     // Status updates are ignored - status is purely computed
-    $updated = $this->service->updateEpic($created->id, ['status' => 'invalid']);
+    $updated = $this->service->updateEpic($created->short_id, ['status' => 'invalid']);
 
     // Status should still be computed correctly, not set to 'invalid'
-    expect($updated->status)->toBe('planning');
+    expect($updated->status)->toBe(EpicStatus::Planning);
 });
 
 it('throws exception when updating non-existent epic', function (): void {
@@ -218,11 +218,11 @@ it('throws exception when updating non-existent epic', function (): void {
 it('deletes an epic', function (): void {
     $created = $this->service->createEpic('To Delete');
 
-    $deleted = $this->service->deleteEpic($created->id);
+    $deleted = $this->service->deleteEpic($created->short_id);
 
     expect($deleted)->toBeInstanceOf(Epic::class);
-    expect($deleted->id)->toBe($created->id);
-    expect($this->service->getEpic($created->id))->toBeNull();
+    expect($deleted->short_id)->toBe($created->short_id);
+    expect($this->service->getEpic($created->short_id))->toBeNull();
 });
 
 it('throws exception when deleting non-existent epic', function (): void {
@@ -233,7 +233,7 @@ it('throws exception when deleting non-existent epic', function (): void {
 it('gets tasks for epic', function (): void {
     $epic = $this->service->createEpic('Test Epic');
 
-    $tasks = $this->service->getTasksForEpic($epic->id);
+    $tasks = $this->service->getTasksForEpic($epic->short_id);
 
     expect($tasks)->toBe([]);
 });
@@ -243,18 +243,18 @@ it('gets tasks for epic when tasks are linked', function (): void {
 
     $task1 = $this->taskService->create([
         'title' => 'Task 1',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
     $task2 = $this->taskService->create([
         'title' => 'Task 2',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
     // Create a task not linked to epic
     $task3 = $this->taskService->create([
         'title' => 'Task 3',
     ]);
 
-    $tasks = $this->service->getTasksForEpic($epic->id);
+    $tasks = $this->service->getTasksForEpic($epic->short_id);
 
     expect($tasks)->toHaveCount(2);
     $taskIds = array_column($tasks, 'short_id');
@@ -270,13 +270,13 @@ it('throws exception when getting tasks for non-existent epic', function (): voi
 
 it('supports partial ID matching', function (): void {
     $created = $this->service->createEpic('Test Epic');
-    $partialId = substr((string) $created->id, 2, 4);
+    $partialId = substr((string) $created->short_id, 2, 4);
 
     $epic = $this->service->getEpic($partialId);
 
     expect($epic)->not->toBeNull();
     expect($epic)->toBeInstanceOf(Epic::class);
-    expect($epic->id)->toBe($created->id);
+    expect($epic->short_id)->toBe($created->short_id);
 });
 
 it('throws exception for ambiguous partial ID', function (): void {
@@ -290,15 +290,15 @@ it('generates unique IDs in e-xxxxxx format', function (): void {
     $epic1 = $this->service->createEpic('Epic 1');
     $epic2 = $this->service->createEpic('Epic 2');
 
-    expect($epic1->id)->toMatch('/^e-[a-f0-9]{6}$/');
-    expect($epic2->id)->toMatch('/^e-[a-f0-9]{6}$/');
-    expect($epic1->id)->not->toBe($epic2->id);
+    expect($epic1->short_id)->toMatch('/^e-[a-f0-9]{6}$/');
+    expect($epic2->short_id)->toMatch('/^e-[a-f0-9]{6}$/');
+    expect($epic1->short_id)->not->toBe($epic2->short_id);
 });
 
 it('returns not completed when epic has no tasks', function (): void {
     $epic = $this->service->createEpic('Empty Epic');
 
-    $result = $this->service->checkEpicCompletion($epic->id);
+    $result = $this->service->checkEpicCompletion($epic->short_id);
 
     expect($result)->toBe(['completed' => false]);
 });
@@ -308,10 +308,10 @@ it('returns not completed when epic has open tasks', function (): void {
 
     $this->taskService->create([
         'title' => 'Open task',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
 
-    $result = $this->service->checkEpicCompletion($epic->id);
+    $result = $this->service->checkEpicCompletion($epic->short_id);
 
     expect($result)->toBe(['completed' => false]);
 });
@@ -321,11 +321,11 @@ it('returns not completed when epic has in_progress tasks', function (): void {
 
     $task = $this->taskService->create([
         'title' => 'In progress task',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
     $this->taskService->start($task->short_id);
 
-    $result = $this->service->checkEpicCompletion($epic->id);
+    $result = $this->service->checkEpicCompletion($epic->short_id);
 
     expect($result)->toBe(['completed' => false]);
 });
@@ -335,21 +335,21 @@ it('triggers completion when all tasks are closed', function (): void {
 
     $task1 = $this->taskService->create([
         'title' => 'Task 1',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
     $task2 = $this->taskService->create([
         'title' => 'Task 2',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
 
     $this->taskService->done($task1->short_id);
     $this->taskService->done($task2->short_id);
 
-    $result = $this->service->checkEpicCompletion($epic->id);
+    $result = $this->service->checkEpicCompletion($epic->short_id);
 
     expect($result['completed'])->toBeTrue();
-    $updatedEpic = $this->service->getEpic($epic->id);
-    expect($updatedEpic->status)->toBe('review_pending');
+    $updatedEpic = $this->service->getEpic($epic->short_id);
+    expect($updatedEpic->status)->toBe(EpicStatus::ReviewPending);
 });
 
 it('triggers completion when tasks are closed or cancelled', function (): void {
@@ -357,17 +357,17 @@ it('triggers completion when tasks are closed or cancelled', function (): void {
 
     $task1 = $this->taskService->create([
         'title' => 'Task 1',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
     $task2 = $this->taskService->create([
         'title' => 'Task 2',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
 
     $this->taskService->done($task1->short_id);
     $this->taskService->update($task2->short_id, ['status' => 'cancelled']);
 
-    $result = $this->service->checkEpicCompletion($epic->id);
+    $result = $this->service->checkEpicCompletion($epic->short_id);
 
     expect($result['completed'])->toBeTrue();
 });
@@ -383,22 +383,22 @@ it('does not create review tasks when checkEpicCompletion called multiple times'
 
     $task1 = $this->taskService->create([
         'title' => 'Task 1',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
     $task2 = $this->taskService->create([
         'title' => 'Task 2',
-        'epic_id' => $epic->id,
+        'epic_id' => $epic->short_id,
     ]);
 
     $this->taskService->done($task1->short_id);
     $this->taskService->done($task2->short_id);
 
     // First call marks completion
-    $result1 = $this->service->checkEpicCompletion($epic->id);
+    $result1 = $this->service->checkEpicCompletion($epic->short_id);
     expect($result1['completed'])->toBeTrue();
 
     // Second call should remain completed without creating tasks
-    $result2 = $this->service->checkEpicCompletion($epic->id);
+    $result2 = $this->service->checkEpicCompletion($epic->short_id);
     expect($result2['completed'])->toBeTrue();
 
     // Verify no review tasks exist
@@ -409,41 +409,41 @@ it('does not create review tasks when checkEpicCompletion called multiple times'
 
 it('approves an epic', function (): void {
     $epic = $this->service->createEpic('Epic to approve');
-    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->id]);
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
-    $approved = $this->service->approveEpic($epic->id, 'test-user');
+    $approved = $this->service->approveEpic($epic->short_id, 'test-user');
 
     expect($approved)->toBeInstanceOf(Epic::class);
     expect($approved->approved_at)->not->toBeNull();
     expect($approved->approved_by)->toBe('test-user');
-    expect($approved->status)->toBe('approved');
+    expect($approved->status)->toBe(EpicStatus::Approved);
 });
 
 it('approves an epic with default approved_by', function (): void {
     $epic = $this->service->createEpic('Epic to approve');
-    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->id]);
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
-    $approved = $this->service->approveEpic($epic->id);
+    $approved = $this->service->approveEpic($epic->short_id);
 
     expect($approved)->toBeInstanceOf(Epic::class);
     expect($approved->approved_at)->not->toBeNull();
     expect($approved->approved_by)->toBe('human');
-    expect($approved->status)->toBe('approved');
+    expect($approved->status)->toBe(EpicStatus::Approved);
 });
 
 it('rejects an epic and reopens tasks', function (): void {
     $epic = $this->service->createEpic('Epic to reject');
-    $task1 = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
-    $task2 = $this->taskService->create(['title' => 'Task 2', 'epic_id' => $epic->id]);
+    $task1 = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
+    $task2 = $this->taskService->create(['title' => 'Task 2', 'epic_id' => $epic->short_id]);
 
     // Close tasks
     $this->taskService->done($task1->short_id);
     $this->taskService->done($task2->short_id);
 
     // Reject epic
-    $rejected = $this->service->rejectEpic($epic->id, 'Needs more work');
+    $rejected = $this->service->rejectEpic($epic->short_id, 'Needs more work');
 
     expect($rejected)->toBeInstanceOf(Epic::class);
     expect($rejected->changes_requested_at)->not->toBeNull();
@@ -460,11 +460,11 @@ it('rejects an epic and reopens tasks', function (): void {
 
 it('shows changes_requested status when epic rejected but tasks not yet reopened', function (): void {
     $epic = $this->service->createEpic('Epic to reject');
-    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->id]);
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
     // Reject epic
-    $rejected = $this->service->rejectEpic($epic->id);
+    $rejected = $this->service->rejectEpic($epic->short_id);
 
     // Status should be in_progress because rejectEpic reopens tasks
     expect($rejected->status)->toBe(EpicStatus::InProgress);

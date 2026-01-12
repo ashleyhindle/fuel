@@ -38,9 +38,6 @@ class RemoveCommand extends Command
         $id = $this->argument('id');
 
         try {
-            // Initialize task service
-            $taskService->initialize();
-
             // Find the task (supports partial ID matching)
             $task = $taskService->find($id);
 
@@ -63,7 +60,7 @@ class RemoveCommand extends Command
 
             if ($this->option('json')) {
                 $this->outputJson([
-                    'id' => $resolvedId,
+                    'short_id' => $resolvedId,
                     'deleted' => $deletedTask->toArray(),
                 ]);
             } else {

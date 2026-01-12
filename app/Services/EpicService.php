@@ -22,7 +22,6 @@ class EpicService
         $shortId = $this->generateId();
         $now = Carbon::now('UTC')->toIso8601String();
 
-        // Note: status is not stored - it's computed from task states
         $epic = Epic::create([
             'short_id' => $shortId,
             'title' => $title,
@@ -31,21 +30,10 @@ class EpicService
             'updated_at' => $now,
         ]);
 
-        // Map short_id to id and compute status for backward compatibility
-        $epicArray = [
-            'id' => $shortId,
-            'short_id' => $shortId,
-            'title' => $title,
-            'description' => $description,
-            'created_at' => $now,
-            'updated_at' => $now,
-            'reviewed_at' => null,
-        ];
+        // Set computed status (will be 'planning' for new epic with no tasks)
+        $epic->status = $this->getEpicStatus($shortId);
 
-        // Compute status (will be 'planning' for new epic with no tasks)
-        $epicArray['status'] = $this->getEpicStatus($shortId)->value;
-
-        return Epic::fromArray($epicArray);
+        return $epic;
     }
 
     public function getEpic(string $id): ?Epic
@@ -55,12 +43,9 @@ class EpicService
             return null;
         }
 
-        // Convert to array for backward compatibility
-        $epicArray = $epic->toArray();
-        $epicArray['id'] = $epic->short_id;
-        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
+        $epic->status = $this->getEpicStatus($epic->short_id);
 
-        return Epic::fromArray($epicArray);
+        return $epic;
     }
 
     /**
@@ -70,13 +55,12 @@ class EpicService
     {
         $epics = Epic::orderBy('created_at', 'desc')->get();
 
-        return $epics->map(function (Epic $epic): Epic {
-            $epicArray = $epic->toArray();
-            $epicArray['id'] = $epic->short_id;
-            $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
+        // Set computed status on each epic as the enum (not string)
+        foreach ($epics as $epic) {
+            $epic->status = $this->getEpicStatus($epic->short_id);
+        }
 
-            return Epic::fromArray($epicArray);
-        })->all();
+        return $epics->all();
     }
 
     /**
@@ -89,13 +73,11 @@ class EpicService
     {
         $epics = Epic::pendingReview();
 
-        return $epics->map(function (Epic $epic): Epic {
-            $epicArray = $epic->toArray();
-            $epicArray['id'] = $epic->short_id;
-            $epicArray['status'] = EpicStatus::ReviewPending->value;
+        foreach ($epics as $epic) {
+            $epic->status = EpicStatus::ReviewPending;
+        }
 
-            return Epic::fromArray($epicArray);
-        })->all();
+        return $epics->all();
     }
 
     public function updateEpic(string $id, array $data): Epic
@@ -118,13 +100,9 @@ class EpicService
 
         $epic->update($updates);
         $epic->refresh();
+        $epic->status = $this->getEpicStatus($epic->short_id);
 
-        // Convert to array for backward compatibility
-        $epicArray = $epic->toArray();
-        $epicArray['id'] = $epic->short_id;
-        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
-
-        return Epic::fromArray($epicArray);
+        return $epic;
     }
 
     public function markAsReviewed(string $id): Epic
@@ -140,13 +118,9 @@ class EpicService
             'updated_at' => $now,
         ]);
         $epic->refresh();
+        $epic->status = $this->getEpicStatus($epic->short_id);
 
-        // Convert to array for backward compatibility
-        $epicArray = $epic->toArray();
-        $epicArray['id'] = $epic->short_id;
-        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
-
-        return Epic::fromArray($epicArray);
+        return $epic;
     }
 
     /**
@@ -173,13 +147,9 @@ class EpicService
             'updated_at' => $now,
         ]);
         $epic->refresh();
+        $epic->status = $this->getEpicStatus($epic->short_id);
 
-        // Convert to array for backward compatibility
-        $epicArray = $epic->toArray();
-        $epicArray['id'] = $epic->short_id;
-        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
-
-        return Epic::fromArray($epicArray);
+        return $epic;
     }
 
     /**
@@ -209,17 +179,14 @@ class EpicService
         // Reopen tasks in the epic that were closed (move back to in_progress)
         $tasks = $this->getTasksForEpic($epic->short_id);
         foreach ($tasks as $task) {
-            if (($task->status ?? '') === TaskStatus::Closed->value) {
+            if ($task->status === TaskStatus::Closed) {
                 $this->taskService->update($task->short_id, ['status' => TaskStatus::Open->value]);
             }
         }
 
-        // Convert to array for backward compatibility
-        $epicArray = $epic->toArray();
-        $epicArray['id'] = $epic->short_id;
-        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
+        $epic->status = $this->getEpicStatus($epic->short_id);
 
-        return Epic::fromArray($epicArray);
+        return $epic;
     }
 
     public function deleteEpic(string $id): Epic
@@ -229,14 +196,10 @@ class EpicService
             throw new RuntimeException(sprintf("Epic '%s' not found", $id));
         }
 
-        // Convert to array for backward compatibility before deleting
-        $epicArray = $epic->toArray();
-        $epicArray['id'] = $epic->short_id;
-        $epicArray['status'] = $this->getEpicStatus($epic->short_id)->value;
-
+        $epic->status = $this->getEpicStatus($epic->short_id);
         $epic->delete();
 
-        return Epic::fromArray($epicArray);
+        return $epic;
     }
 
     public function getTasksForEpic(string $epicId): array
@@ -266,8 +229,7 @@ class EpicService
             $tasks = $this->getTasksForEpic($epic->short_id);
             $hasActiveTask = false;
             foreach ($tasks as $task) {
-                $status = $task->status ?? '';
-                if ($status === TaskStatus::Open->value || $status === TaskStatus::InProgress->value) {
+                if ($task->status === TaskStatus::Open || $task->status === TaskStatus::InProgress) {
                     $hasActiveTask = true;
                     break;
                 }
@@ -292,8 +254,7 @@ class EpicService
         // Check if any task is open or in_progress
         $hasActiveTask = false;
         foreach ($tasks as $task) {
-            $status = $task->status ?? '';
-            if ($status === TaskStatus::Open->value || $status === TaskStatus::InProgress->value) {
+            if ($task->status === TaskStatus::Open || $task->status === TaskStatus::InProgress) {
                 $hasActiveTask = true;
                 break;
             }
@@ -306,8 +267,7 @@ class EpicService
         // Check if all tasks are closed
         $allClosed = true;
         foreach ($tasks as $task) {
-            $status = $task->status ?? '';
-            if ($status !== TaskStatus::Closed->value) {
+            if ($task->status !== TaskStatus::Closed) {
                 $allClosed = false;
                 break;
             }
@@ -353,8 +313,7 @@ class EpicService
 
         $allClosed = true;
         foreach ($tasks as $task) {
-            $status = $task->status ?? '';
-            if ($status !== TaskStatus::Closed->value && $status !== TaskStatus::Cancelled->value) {
+            if ($task->status !== TaskStatus::Closed && $task->status !== TaskStatus::Cancelled) {
                 $allClosed = false;
                 break;
             }

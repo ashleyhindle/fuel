@@ -16,8 +16,10 @@ describe('status command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -57,7 +59,6 @@ describe('status command', function (): void {
     });
 
     it('shows zero counts when no tasks exist', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('status', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Open')
@@ -69,16 +70,15 @@ describe('status command', function (): void {
     });
 
     it('counts tasks by status correctly', function (): void {
-        $this->taskService->initialize();
         $open1 = $this->taskService->create(['title' => 'Open task 1']);
         $open2 = $this->taskService->create(['title' => 'Open task 2']);
         $inProgress = $this->taskService->create(['title' => 'In progress task']);
         $closed1 = $this->taskService->create(['title' => 'Closed task 1']);
         $closed2 = $this->taskService->create(['title' => 'Closed task 2']);
 
-        $this->taskService->start($inProgress['id']);
-        $this->taskService->done($closed1['id']);
-        $this->taskService->done($closed2['id']);
+        $this->taskService->start($inProgress->short_id);
+        $this->taskService->done($closed1->short_id);
+        $this->taskService->done($closed2->short_id);
 
         $this->artisan('status', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Open')
@@ -88,14 +88,13 @@ describe('status command', function (): void {
     });
 
     it('counts blocked tasks correctly', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked1 = $this->taskService->create(['title' => 'Blocked task 1']);
         $blocked2 = $this->taskService->create(['title' => 'Blocked task 2']);
 
         // Add dependencies
-        $this->taskService->addDependency($blocked1['id'], $blocker['id']);
-        $this->taskService->addDependency($blocked2['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked1->short_id, $blocker->short_id);
+        $this->taskService->addDependency($blocked2->short_id, $blocker->short_id);
 
         $this->artisan('status', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Blocked')
@@ -103,15 +102,14 @@ describe('status command', function (): void {
     });
 
     it('does not count tasks as blocked when blocker is closed', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Add dependency
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         // Close the blocker
-        $this->taskService->done($blocker['id']);
+        $this->taskService->done($blocker->short_id);
 
         Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -121,14 +119,13 @@ describe('status command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open task']);
 
         $inProgress = $this->taskService->create(['title' => 'In progress task']);
         $closed = $this->taskService->create(['title' => 'Closed task']);
 
-        $this->taskService->start($inProgress['id']);
-        $this->taskService->done($closed['id']);
+        $this->taskService->start($inProgress->short_id);
+        $this->taskService->done($closed->short_id);
 
         Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -144,7 +141,6 @@ describe('status command', function (): void {
     });
 
     it('shows correct total count', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
         $this->taskService->create(['title' => 'Task 2']);
         $this->taskService->create(['title' => 'Task 3']);
@@ -158,7 +154,6 @@ describe('status command', function (): void {
     });
 
     it('handles empty state with JSON output', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -173,17 +168,16 @@ describe('status command', function (): void {
     });
 
     it('counts only open tasks as blocked', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blockedOpen = $this->taskService->create(['title' => 'Blocked open task']);
         $blockedInProgress = $this->taskService->create(['title' => 'Blocked in progress task']);
 
         // Add dependencies
-        $this->taskService->addDependency($blockedOpen['id'], $blocker['id']);
-        $this->taskService->addDependency($blockedInProgress['id'], $blocker['id']);
+        $this->taskService->addDependency($blockedOpen->short_id, $blocker->short_id);
+        $this->taskService->addDependency($blockedInProgress->short_id, $blocker->short_id);
 
         // Set one to in_progress
-        $this->taskService->start($blockedInProgress['id']);
+        $this->taskService->start($blockedInProgress->short_id);
 
         Artisan::call('status', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();

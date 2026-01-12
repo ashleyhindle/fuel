@@ -29,6 +29,46 @@ Break this down into discrete, implementable tasks for Fuel. Each task should:
    - `moderate` - Multiple files, coherent change
    - `complex` - Should probably be broken down further
 
+### Task Scope Test: "One Sentence Without 'And'"
+
+Can you describe the task in one sentence without conjoining unrelated work?
+- ✓ "Add user_id foreign key column to preferences table"
+- ✗ "Create migration and model and add relationships" → 3 tasks
+
+If you need "and" to describe it, split it into separate tasks.
+
+### Frame Tasks as Activities, Not Capabilities
+
+Use verbs (actions in a journey) rather than nouns (system capabilities):
+- ✓ Activity-oriented: "Upload photo", "Extract colors", "Export palette"
+- ✗ Capability-oriented: "Color extraction system", "Export functionality"
+
+Activities are naturally scoped by user intent and complete a discrete step.
+
+### Parallelization Checklist
+
+Before finalizing tasks, consider which can run in parallel:
+- **Different files?** → Can run parallel (no conflicts)
+- **Shared interface?** → Define interface first as blocking task, then parallelize implementations
+- **Same file touched?** → Must use dependencies (--blocked-by), not parallel
+
+Maximize parallel work by isolating tasks to separate files where possible.
+
+### Include Verification Criteria
+
+Each task description should include what success looks like:
+- What observable outcome indicates completion?
+- What tests should pass? (behavior, not implementation)
+- What edge cases matter?
+
+Example: "Validate timezone against timezone_identifiers_list(). Returns 422 with invalid timezone."
+
+### Give One Clear Path
+
+Subagents execute, they don't decide. Provide one clear solution, not options:
+- ✗ "Could use Redis or file cache or in-memory"
+- ✓ "Use Laravel's file cache driver in storage/framework/cache"
+
 ## Output Format
 
 For each task, provide the `fuel add` command:
@@ -86,3 +126,6 @@ fuel add "Add tests for preferences API" \
 - **Don't over-specify** - Trust the agent to make reasonable choices within scope
 - **Do specify file paths** - Reduces ambiguity significantly
 - **Consider the review** - Will the diff be reviewable? If touching 20 files, probably too big
+- **Don't assume not implemented** - Before creating a task, search the codebase. The functionality may already exist
+- **Context is precious** - Tight, focused tasks keep agents in the "smart zone" of their context window
+- **Placeholders waste effort** - Each task should be fully implementable, not a stub for later

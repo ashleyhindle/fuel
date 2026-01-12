@@ -11,7 +11,8 @@ beforeEach(function (): void {
     $this->dbPath = $this->tempDir.'/.fuel/agent.db';
 
     $this->database = new DatabaseService($this->dbPath);
-    $this->database->initialize();
+    config(['database.connections.sqlite.database' => $this->dbPath]);
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 
     $this->tracker = new AgentHealthTracker($this->database);
 });

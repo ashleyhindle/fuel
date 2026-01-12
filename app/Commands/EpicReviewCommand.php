@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Enums\EpicStatus;
-use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
@@ -45,7 +43,7 @@ class EpicReviewCommand extends Command
             }
 
             // Load all linked tasks
-            $tasks = $epicService->getTasksForEpic($epic->id);
+            $tasks = $epicService->getTasksForEpic($epic->short_id);
 
             // Collect commit hashes from tasks
             $commits = [];
@@ -155,7 +153,7 @@ class EpicReviewCommand extends Command
 
         // Epic details
         $this->line(sprintf('<fg=cyan>Title:</> %s', $epic->title ?? 'Untitled'));
-        $this->line(sprintf('<fg=cyan>Status:</> %s', $epic->status ?? EpicStatus::Planning->value));
+        $this->line(sprintf('<fg=cyan>Status:</> %s', $epic->status->value));
 
         if (isset($epic->description) && $epic->description !== null) {
             $this->newLine();
@@ -194,9 +192,9 @@ class EpicReviewCommand extends Command
                 }
 
                 return [
-                    $task->short_id ?? '',
+                    $task->short_id,
                     $task->title ?? '',
-                    $task->status ?? TaskStatus::Open->value,
+                    $task->status->value,
                     $commit,
                 ];
             }, $tasks);

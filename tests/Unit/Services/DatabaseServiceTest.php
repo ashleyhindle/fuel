@@ -9,6 +9,8 @@ beforeEach(function (): void {
     mkdir($this->tempDir);
     $this->dbPath = $this->tempDir.'/test-agent.db';
     $this->service = new DatabaseService($this->dbPath);
+    config(['database.connections.sqlite.database' => $this->dbPath]);
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 });
 
 it('creates database file on initialization', function (): void {
@@ -16,7 +18,6 @@ it('creates database file on initialization', function (): void {
     expect(file_exists($this->dbPath))->toBeTrue();
 
     // Initialize creates the tables
-    $this->service->initialize();
 
     // Verify tables exist
     $tables = $this->service->fetchAll(
@@ -26,7 +27,6 @@ it('creates database file on initialization', function (): void {
 });
 
 it('creates runs table with correct schema', function (): void {
-    $this->service->initialize();
 
     $columns = $this->service->fetchAll('PRAGMA table_info(runs)');
 
@@ -50,7 +50,6 @@ it('creates runs table with correct schema', function (): void {
 });
 
 it('creates agent_health table with correct schema', function (): void {
-    $this->service->initialize();
 
     $columns = $this->service->fetchAll('PRAGMA table_info(agent_health)');
 
@@ -67,7 +66,6 @@ it('creates agent_health table with correct schema', function (): void {
 });
 
 it('creates indexes on runs table', function (): void {
-    $this->service->initialize();
 
     $indexes = $this->service->fetchAll('PRAGMA index_list(runs)');
     $indexNames = array_column($indexes, 'name');
@@ -79,7 +77,6 @@ it('creates indexes on runs table', function (): void {
 });
 
 it('can insert and query data from runs table', function (): void {
-    $this->service->initialize();
 
     // Create a task first (required for foreign key constraint)
     $this->service->query(
@@ -103,7 +100,6 @@ it('can insert and query data from runs table', function (): void {
 });
 
 it('can insert and query data from agent_health table', function (): void {
-    $this->service->initialize();
 
     $this->service->query(
         'INSERT INTO agent_health (agent, total_runs, total_successes, consecutive_failures) VALUES (?, ?, ?, ?)',
@@ -120,7 +116,6 @@ it('can insert and query data from agent_health table', function (): void {
 });
 
 it('supports transactions', function (): void {
-    $this->service->initialize();
 
     // Create a task first (required for foreign key constraint)
     $this->service->query(
@@ -153,7 +148,6 @@ it('supports transactions', function (): void {
 it('can update database path', function (): void {
     $newDbPath = $this->tempDir.'/new-agent.db';
     $this->service->setDatabasePath($newDbPath);
-    $this->service->initialize();
 
     expect(file_exists($newDbPath))->toBeTrue();
     expect($this->service->getPath())->toBe($newDbPath);
@@ -167,17 +161,14 @@ it('checks if database exists', function (): void {
     // Database file is now created in constructor via configureDatabase
     expect($this->service->exists())->toBeTrue();
 
-    $this->service->initialize();
-
     expect($this->service->exists())->toBeTrue();
 });
 
 it('creates epics table with correct schema', function (): void {
-    $this->service->initialize();
 
     $columns = $this->service->fetchAll('PRAGMA table_info(epics)');
 
-    expect($columns)->toHaveCount(8);
+    expect($columns)->toHaveCount(11);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'short_id',
@@ -185,13 +176,15 @@ it('creates epics table with correct schema', function (): void {
         'description',
         'status',
         'reviewed_at',
+        'approved_at',
+        'approved_by',
+        'changes_requested_at',
         'created_at',
         'updated_at',
     ]);
 });
 
 it('creates index on epics status', function (): void {
-    $this->service->initialize();
 
     $indexes = $this->service->fetchAll('PRAGMA index_list(epics)');
     $indexNames = array_column($indexes, 'name');

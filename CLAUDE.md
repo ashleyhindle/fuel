@@ -41,7 +41,7 @@ fuel show <id>                  # View task details
 fuel board --once               # Kanban view
 fuel tree                       # Tree view
 fuel backlog                    # List backlog items
-fuel promote <f-id>             # Promote backlog item to task
+fuel promote <b-id>             # Promote backlog item to task
 fuel defer <f-id>               # Move task to backlog
 fuel dep:add <id> <blocker>     # Add dependency
 fuel dep:remove <id> <blocker>  # Remove dependency
@@ -76,6 +76,34 @@ Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 4. Discover new work? `fuel add "..." --blocked-by=<id>`
 5. `fuel done <id> --commit=<hash>` - Complete with commit hash
 6. Land the plane
+
+### Exiting Plan Mode
+
+**Immediately after exiting plan mode**, convert your approved plan into well-defined Fuel tasks:
+
+1. **Create an epic** for the overall feature or change
+2. **Break down into scoped tasks** - each task should have:
+   - Single, clear responsibility
+   - Accurate `--complexity` rating
+   - Proper `--blocked-by` dependencies
+   - Descriptive title and description
+3. **Order by dependencies** - foundational work first (models before services, services before commands)
+
+**Example: Converting a plan to Fuel tasks**
+
+After plan approval for "Add user authentication with JWT":
+
+```bash
+# Create epic for the feature
+fuel epic:add "Add user authentication" --description="JWT-based auth with login/logout endpoints"
+
+# Break into dependency-ordered tasks (note the epic ID from above)
+fuel add "Create User model and migration" --epic=e-xxxx --complexity=simple --priority=1
+fuel add "Implement JWT token service" --epic=e-xxxx --complexity=moderate --priority=1 --blocked-by=f-user-model
+fuel add "Add login/logout API endpoints" --epic=e-xxxx --complexity=moderate --priority=1 --blocked-by=f-jwt-service
+fuel add "Add auth middleware" --epic=e-xxxx --complexity=simple --priority=1 --blocked-by=f-jwt-service
+fuel add "Add auth tests" --epic=e-xxxx --complexity=simple --priority=1 --blocked-by=f-endpoints,f-middleware
+```
 
 ### Task Options
 
@@ -153,12 +181,12 @@ fuel remove <f-id>                        # Delete a backlog item
 When a backlog item is ready to work on:
 1. Review the backlog: `fuel backlog`
 2. Promote with task metadata: `fuel promote <f-id> --priority=2 --type=feature --complexity=moderate`
-3. The task status changes from 'someday' to 'open' and is ready to work on
+3. The backlog item status is updated from 'someday' to 'open'
 
 **Deferring tasks:**
 
 If a task isn't ready to work on (needs more planning, blocked externally, wrong priority):
-1. `fuel defer <f-id>` - Changes task status to 'someday', preserving title and description
+1. `fuel defer <f-id>` - Moves task to backlog, preserving title and description
 2. Later, promote it back when ready: `fuel promote <f-id> --priority=...`
 
 ### Needs-Human Workflow

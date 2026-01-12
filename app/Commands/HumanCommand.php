@@ -33,7 +33,7 @@ class HumanCommand extends Command
         // Get tasks with needs-human label (excluding epic-review tasks)
         $tasks = $taskService->all();
         $humanTasks = $tasks
-            ->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
@@ -52,7 +52,7 @@ class HumanCommand extends Command
 
         // Get epics with status review_pending
         $allEpics = $epicService->getAllEpics();
-        $pendingEpics = array_values(array_filter($allEpics, fn (Epic $epic): bool => ($epic->status ?? '') === EpicStatus::ReviewPending->value));
+        $pendingEpics = array_values(array_filter($allEpics, fn (Epic $epic): bool => $epic->status === EpicStatus::ReviewPending));
 
         if ($this->option('json')) {
             $this->outputJson([
@@ -100,10 +100,14 @@ class HumanCommand extends Command
         return self::SUCCESS;
     }
 
-    private function formatAge(?string $createdAt): string
+    private function formatAge(string|\DateTimeInterface|null $createdAt): string
     {
         if (! $createdAt) {
             return 'unknown';
+        }
+
+        if ($createdAt instanceof \DateTimeInterface) {
+            return Carbon::instance($createdAt)->diffForHumans();
         }
 
         return Carbon::parse($createdAt)->diffForHumans();

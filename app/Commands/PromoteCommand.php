@@ -33,8 +33,6 @@ class PromoteCommand extends Command
         // Configure context with --cwd if provided
         $this->configureCwd($context, $dbService);
 
-        $taskService->initialize();
-
         $ids = $this->argument('ids');
         $results = [];
         $errors = [];

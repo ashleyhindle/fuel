@@ -578,7 +578,7 @@ PROMPT;
                     if ($wasAlreadyClosed) {
                         // Task was already closed - confirm done (maybe update reason)
                         $task = $this->taskService->find($taskId);
-                        if ($task && ($task->status ?? '') !== TaskStatus::Closed->value) {
+                        if ($task && $task->status !== TaskStatus::Closed) {
                             // Task status changed (shouldn't happen, but handle gracefully)
                             Artisan::call('done', [
                                 'ids' => [$taskId],
@@ -714,8 +714,8 @@ PROMPT;
 
         // Always trigger review as quality gate for ALL completions (Phase 3 spec)
         // Track original status to handle already-closed tasks correctly
-        $originalStatus = $task->status ?? TaskStatus::InProgress->value;
-        $wasAlreadyClosed = $originalStatus === TaskStatus::Closed->value;
+        $originalStatus = $task->status;
+        $wasAlreadyClosed = $originalStatus === TaskStatus::Closed;
 
         if ($this->option('skip-review')) {
             // Skip review and mark done directly

@@ -18,8 +18,10 @@ describe('add command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $taskService = makeTaskService($databaseService);
         $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
@@ -254,7 +256,6 @@ describe('add command', function (): void {
     });
 
     it('creates task with --blocked-by flag (single blocker)', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
         Artisan::call('add', [
@@ -271,7 +272,6 @@ describe('add command', function (): void {
     });
 
     it('creates task with --blocked-by flag (multiple blockers)', function (): void {
-        $this->taskService->initialize();
         $blocker1 = $this->taskService->create(['title' => 'Blocker 1']);
         $blocker2 = $this->taskService->create(['title' => 'Blocker 2']);
 
@@ -290,7 +290,6 @@ describe('add command', function (): void {
     });
 
     it('creates task with --blocked-by flag (with spaces)', function (): void {
-        $this->taskService->initialize();
         $blocker1 = $this->taskService->create(['title' => 'Blocker 1']);
         $blocker2 = $this->taskService->create(['title' => 'Blocker 2']);
 
@@ -309,7 +308,6 @@ describe('add command', function (): void {
     });
 
     it('displays blocked-by info in non-JSON output', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
         Artisan::call('add', [
@@ -325,7 +323,6 @@ describe('add command', function (): void {
     });
 
     it('creates task with --blocked-by and other flags', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
         Artisan::call('add', [
@@ -351,7 +348,6 @@ describe('add command', function (): void {
     });
 
     it('supports partial IDs in --blocked-by flag', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $partialId = substr($blocker->short_id, 2, 3); // Just hash part
 
@@ -372,7 +368,6 @@ describe('add command', function (): void {
 
     it('creates task with --epic flag', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
-        $databaseService->initialize();
 
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
@@ -392,7 +387,6 @@ describe('add command', function (): void {
 
     it('creates task with -e flag (epic shortcut)', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
-        $databaseService->initialize();
 
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
@@ -422,7 +416,6 @@ describe('add command', function (): void {
 
     it('creates task with --epic and other flags', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
-        $databaseService->initialize();
 
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
@@ -451,7 +444,6 @@ describe('add command', function (): void {
 
     it('supports partial epic IDs in --epic flag', function (): void {
         $databaseService = $this->app->make(DatabaseService::class);
-        $databaseService->initialize();
 
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
@@ -483,11 +475,10 @@ describe('add command', function (): void {
         expect($output)->toContain('Status: someday');
 
         // Verify it's in tasks with status=someday
-        $this->taskService->initialize();
         $tasks = $this->taskService->all();
         expect($tasks->count())->toBe(1);
-        expect($tasks->first()['title'])->toBe('Future idea');
-        expect($tasks->first()['status'])->toBe('someday');
+        expect($tasks->first()->title)->toBe('Future idea');
+        expect($tasks->first()->status)->toBe(\App\Enums\TaskStatus::Someday);
     });
 
     it('adds item to backlog with --someday and --description flags', function (): void {
@@ -563,10 +554,9 @@ describe('add command', function (): void {
         expect($output)->toContain('Status: someday');
 
         // Verify it's in tasks with status=someday
-        $this->taskService->initialize();
         $tasks = $this->taskService->all();
         expect($tasks->count())->toBe(1);
-        expect($tasks->first()['title'])->toBe('Future idea via backlog');
-        expect($tasks->first()['status'])->toBe('someday');
+        expect($tasks->first()->title)->toBe('Future idea via backlog');
+        expect($tasks->first()->status)->toBe(\App\Enums\TaskStatus::Someday);
     });
 });

@@ -12,7 +12,8 @@ beforeEach(function (): void {
     config(['database.connections.sqlite.database' => $this->dbPath]);
 
     $this->databaseService = new DatabaseService($this->dbPath);
-    $this->databaseService->initialize();
+    config(['database.connections.sqlite.database' => $this->dbPath]);
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 
     // Create a test task
     $this->taskId = 'f-test01';

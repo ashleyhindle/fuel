@@ -7,7 +7,8 @@ beforeEach(function (): void {
     mkdir($this->tempDir.'/.fuel', 0755, true);
     $this->dbPath = $this->tempDir.'/.fuel/agent.db';
     $this->databaseService = new DatabaseService($this->dbPath);
-    $this->databaseService->initialize();
+    config(['database.connections.sqlite.database' => $this->dbPath]);
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 
     $this->taskService = makeTaskService($this->databaseService);
 });
@@ -43,7 +44,7 @@ it('creates a task with hash-based ID', function (): void {
     expect($task->short_id)->toStartWith('f-');
     expect(strlen((string) $task->short_id))->toBe(8); // f- + 6 chars
     expect($task->title)->toBe('Test task');
-    expect($task->status)->toBe(App\Enums\TaskStatus::Open->value);
+    expect($task->status)->toBe(App\Enums\TaskStatus::Open);
     expect($task->created_at)->not->toBeNull();
     expect($task->updated_at)->not->toBeNull();
 });
@@ -51,8 +52,8 @@ it('creates a task with hash-based ID', function (): void {
 it('creates a task with default schema fields', function (): void {
     $task = $this->taskService->create(['title' => 'Test task']);
 
-    // Verify all schema fields are present
-    expect($task->toArray())->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'complexity', 'blocked_by', 'created_at', 'updated_at']);
+    // Verify all schema fields are present (short_id is the public identifier, not id)
+    expect($task->toArray())->toHaveKeys(['short_id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'complexity', 'blocked_by', 'created_at', 'updated_at']);
     expect($task->description)->toBeNull();
     expect($task->type)->toBe('task');
     expect($task->priority)->toBe(2);
@@ -127,11 +128,18 @@ it('validates task complexity enum', function (): void {
 it('validates task status enum', function (): void {
     $task = $this->taskService->create(['title' => 'Test task']);
 
-    // Valid statuses
-    $validStatuses = ['open', 'in_progress', 'review', 'closed', 'cancelled', 'someday'];
-    foreach ($validStatuses as $status) {
-        $updated = $this->taskService->update($task->short_id, ['status' => $status]);
-        expect($updated->status)->toBe($status);
+    // Valid statuses - status is now cast to enum
+    $validStatuses = [
+        'open' => App\Enums\TaskStatus::Open,
+        'in_progress' => App\Enums\TaskStatus::InProgress,
+        'review' => App\Enums\TaskStatus::Review,
+        'closed' => App\Enums\TaskStatus::Closed,
+        'cancelled' => App\Enums\TaskStatus::Cancelled,
+        'someday' => App\Enums\TaskStatus::Someday,
+    ];
+    foreach ($validStatuses as $statusString => $statusEnum) {
+        $updated = $this->taskService->update($task->short_id, ['status' => $statusString]);
+        expect($updated->status)->toBe($statusEnum);
     }
 
     // Invalid status
@@ -250,12 +258,12 @@ it('marks task as done', function (): void {
 
     $done = $this->taskService->done($created->short_id);
 
-    expect($done->status)->toBe(App\Enums\TaskStatus::Closed->value);
+    expect($done->status)->toBe(App\Enums\TaskStatus::Closed);
     expect($done->updated_at)->not->toBeNull();
 
     // Verify it's actually persisted
     $reloaded = $this->taskService->find($created->short_id);
-    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Closed->value);
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Closed);
 });
 
 it('throws exception when marking non-existent task as done', function (): void {
@@ -810,12 +818,12 @@ it('promote() changes task status from someday to open', function (): void {
 
     $promoted = $this->taskService->promote($task->short_id);
 
-    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open->value);
+    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open);
     expect($promoted->title)->toBe('Future idea');
 
     // Verify it's persisted
     $reloaded = $this->taskService->find($task->short_id);
-    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Open->value);
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Open);
 });
 
 it('promote() works with partial ID', function (): void {
@@ -826,7 +834,7 @@ it('promote() works with partial ID', function (): void {
     $promoted = $this->taskService->promote($partialId);
 
     expect($promoted->short_id)->toBe($task->short_id);
-    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open->value);
+    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open);
 });
 
 it('promote() throws exception when task not found', function (): void {
@@ -844,12 +852,12 @@ it('defer() changes task status to someday', function (): void {
 
     $deferred = $this->taskService->defer($task->short_id);
 
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
     expect($deferred->title)->toBe('Task to defer');
 
     // Verify it's persisted
     $reloaded = $this->taskService->find($task->short_id);
-    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Someday->value);
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Someday);
 });
 
 it('defer() works with partial ID', function (): void {
@@ -859,7 +867,7 @@ it('defer() works with partial ID', function (): void {
     $deferred = $this->taskService->defer($partialId);
 
     expect($deferred->short_id)->toBe($task->short_id);
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
 });
 
 it('defer() works on already someday tasks (idempotent)', function (): void {
@@ -868,7 +876,7 @@ it('defer() works on already someday tasks (idempotent)', function (): void {
 
     $deferred = $this->taskService->defer($task->short_id);
 
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
 });
 
 it('defer() throws exception when task not found', function (): void {
@@ -887,7 +895,7 @@ it('defer() preserves task metadata when changing status', function (): void {
 
     $deferred = $this->taskService->defer($task->short_id);
 
-    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday->value);
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
     expect($deferred->title)->toBe('Complex task');
     expect($deferred->description)->toBe('Detailed description');
     expect($deferred->type)->toBe('feature');

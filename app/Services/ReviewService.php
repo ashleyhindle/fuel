@@ -233,7 +233,7 @@ class ReviewService implements ReviewServiceInterface
             // No valid JSON found - check if the review agent ran `fuel done`
             // If so, the task status would be 'closed', meaning review passed
             $task = $this->taskService->find($taskId);
-            if ($task instanceof Task && $task->status === TaskStatus::Closed->value) {
+            if ($task instanceof Task && $task->status === TaskStatus::Closed) {
                 $passed = true;
             } else {
                 // No JSON and task not done - review failed or agent crashed
@@ -376,7 +376,7 @@ class ReviewService implements ReviewServiceInterface
 
         // Find all tasks in 'review' status
         $allTasks = $this->taskService->all();
-        $reviewTasks = $allTasks->filter(fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Review->value);
+        $reviewTasks = $allTasks->filter(fn (Task $task): bool => $task->status === TaskStatus::Review);
 
         foreach ($reviewTasks as $task) {
             $taskId = $task->short_id;

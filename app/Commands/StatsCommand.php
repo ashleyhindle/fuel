@@ -240,7 +240,7 @@ class StatsCommand extends Command
 
         foreach ($tasks as $task) {
             // Count by status
-            $status = $task->status ?? 'open';
+            $status = $task->status->value;
             if (isset($statusCounts[$status])) {
                 $statusCounts[$status]++;
             }
@@ -348,7 +348,7 @@ class StatsCommand extends Command
         $done = 0;
 
         foreach ($epics as $epic) {
-            match ($epic->status) {
+            match ($epic->status->value) {
                 'planning' => $planning++,
                 'in_progress', 'changes_requested' => $inProgress++,
                 'review_pending', 'reviewed' => $reviewPending++,
@@ -847,7 +847,7 @@ class StatsCommand extends Command
 
         foreach ($tasks as $task) {
             // Count by status
-            $status = $task->status ?? 'open';
+            $status = $task->status->value;
             if (isset($statusCounts[$status])) {
                 $statusCounts[$status]++;
             }
@@ -963,7 +963,7 @@ class StatsCommand extends Command
         $done = 0;
 
         foreach ($epics as $epic) {
-            match ($epic->status) {
+            match ($epic->status->value) {
                 'planning' => $planning++,
                 'in_progress', 'changes_requested' => $inProgress++,
                 'review_pending', 'reviewed' => $reviewPending++,

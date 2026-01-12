@@ -18,8 +18,10 @@ describe('defer command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -59,7 +61,6 @@ describe('defer command', function (): void {
     });
 
     it('defers task to backlog', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'Task to defer',
             'description' => 'Task description',
@@ -67,28 +68,27 @@ describe('defer command', function (): void {
         ]);
 
         Artisan::call('defer', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deferred task:');
-        expect($output)->toContain($task['id']);
+        expect($output)->toContain($task->short_id);
         expect($output)->toContain('Task to defer');
 
         // Verify task still exists with status=someday
-        $deferredTask = $this->taskService->find($task['id']);
+        $deferredTask = $this->taskService->find($task->short_id);
         expect($deferredTask)->not->toBeNull();
-        expect($deferredTask->status)->toBe(TaskStatus::Someday->value);
+        expect($deferredTask->status)->toBe(TaskStatus::Someday);
         expect($deferredTask->title)->toBe('Task to defer');
         expect($deferredTask->description)->toBe('Task description');
         expect($deferredTask->priority)->toBe(2);
     });
 
     it('defers task with partial ID', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to defer']);
-        $partialId = substr((string) $task['id'], 2, 3);
+        $partialId = substr((string) $task->short_id, 2, 3);
 
         Artisan::call('defer', [
             'id' => $partialId,
@@ -99,26 +99,25 @@ describe('defer command', function (): void {
         expect($output)->toContain('Deferred task:');
 
         // Verify task still exists with status=someday
-        $deferredTask = $this->taskService->find($task['id']);
+        $deferredTask = $this->taskService->find($task->short_id);
         expect($deferredTask)->not->toBeNull();
-        expect($deferredTask->status)->toBe(TaskStatus::Someday->value);
+        expect($deferredTask->status)->toBe(TaskStatus::Someday);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON task']);
 
         Artisan::call('defer', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result['task_id'])->toBe($task['id']);
+        expect($result['task_id'])->toBe($task->short_id);
         expect($result['title'])->toBe('JSON task');
-        expect($result['status'])->toBe(TaskStatus::Someday->value);
+        expect($result['status'])->toBe(TaskStatus::Someday->value); // JSON output is string
     });
 
     it('returns error when task not found', function (): void {
@@ -131,23 +130,22 @@ describe('defer command', function (): void {
     });
 
     it('can defer task that is already someday', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Already deferred']);
 
         // Defer once
-        $this->taskService->defer($task['id']);
+        $this->taskService->defer($task->short_id);
 
         // Defer again - should succeed (idempotent)
         Artisan::call('defer', [
-            'id' => $task['id'],
+            'id' => $task->short_id,
             '--cwd' => $this->tempDir,
         ]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deferred task:');
 
-        $deferredTask = $this->taskService->find($task['id']);
+        $deferredTask = $this->taskService->find($task->short_id);
         expect($deferredTask)->not->toBeNull();
-        expect($deferredTask->status)->toBe(TaskStatus::Someday->value);
+        expect($deferredTask->status)->toBe(TaskStatus::Someday);
     });
 });

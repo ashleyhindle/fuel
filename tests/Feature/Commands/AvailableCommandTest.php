@@ -16,8 +16,10 @@ describe('available command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -57,7 +59,6 @@ describe('available command', function (): void {
     });
 
     it('outputs count of ready tasks', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
         $this->taskService->create(['title' => 'Task 2']);
 
@@ -68,7 +69,6 @@ describe('available command', function (): void {
     });
 
     it('exits with code 0 when tasks are available', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
 
         $this->artisan('available', ['--cwd' => $this->tempDir])
@@ -76,7 +76,6 @@ describe('available command', function (): void {
     });
 
     it('exits with code 1 when no tasks are available', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('available', ['--cwd' => $this->tempDir])
             ->expectsOutput('0')
@@ -84,7 +83,6 @@ describe('available command', function (): void {
     });
 
     it('outputs 0 when no tasks are available', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('available', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -93,10 +91,9 @@ describe('available command', function (): void {
     });
 
     it('excludes in_progress tasks from count', function (): void {
-        $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
-        $this->taskService->start($task1['id']);
+        $this->taskService->start($task1->short_id);
 
         Artisan::call('available', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -106,10 +103,9 @@ describe('available command', function (): void {
     });
 
     it('excludes blocked tasks from count', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker']);
         $blocked = $this->taskService->create(['title' => 'Blocked']);
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         Artisan::call('available', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -119,7 +115,6 @@ describe('available command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
 
         Artisan::call('available', ['--cwd' => $this->tempDir, '--json' => true]);
@@ -132,7 +127,6 @@ describe('available command', function (): void {
     });
 
     it('outputs JSON with available false when no tasks', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('available', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -144,7 +138,6 @@ describe('available command', function (): void {
     });
 
     it('supports --cwd flag', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
 
         Artisan::call('available', ['--cwd' => $this->tempDir]);

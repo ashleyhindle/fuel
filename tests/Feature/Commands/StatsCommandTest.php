@@ -19,8 +19,10 @@ describe('stats command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -65,7 +67,6 @@ describe('stats command', function (): void {
     });
 
     it('runs without error on empty database', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -79,7 +80,6 @@ describe('stats command', function (): void {
     });
 
     it('displays task counts correctly', function (): void {
-        $this->taskService->initialize();
 
         // Create tasks with various states
         $open = $this->taskService->create(['title' => 'Open task', 'complexity' => 'simple', 'priority' => 1]);
@@ -118,7 +118,6 @@ describe('stats command', function (): void {
     });
 
     it('displays run statistics correctly', function (): void {
-        $this->taskService->initialize();
 
         // Create tasks first
         $task1 = $this->taskService->create(['title' => 'Task 1']);
@@ -178,7 +177,6 @@ describe('stats command', function (): void {
     });
 
     it('displays timing stats with known durations', function (): void {
-        $this->taskService->initialize();
 
         // Create tasks first
         $task1 = $this->taskService->create(['title' => 'Task 1']);
@@ -238,7 +236,6 @@ describe('stats command', function (): void {
     });
 
     it('heatmap renders correct number of weeks', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -260,7 +257,6 @@ describe('stats command', function (): void {
     });
 
     it('streak calculation is accurate', function (): void {
-        $this->taskService->initialize();
         $db = $this->databaseService;
 
         // Create tasks completed on consecutive days
@@ -287,7 +283,6 @@ describe('stats command', function (): void {
     });
 
     it('sparkline output matches expected pattern', function (): void {
-        $this->taskService->initialize();
         $db = $this->databaseService;
 
         // Create tasks with known pattern over last 14 days
@@ -318,7 +313,6 @@ describe('stats command', function (): void {
     });
 
     it('box rendering produces valid output', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -339,7 +333,6 @@ describe('stats command', function (): void {
     });
 
     it('displays epic statistics correctly', function (): void {
-        $this->taskService->initialize();
 
         // Create epics with different statuses
         $epic1 = $this->epicService->createEpic('Epic 1', 'Description 1');
@@ -367,7 +360,6 @@ describe('stats command', function (): void {
     });
 
     it('displays task type counts correctly', function (): void {
-        $this->taskService->initialize();
 
         // Create tasks with various types
         $this->taskService->create(['title' => 'Bug task', 'type' => 'bug']);
@@ -395,7 +387,6 @@ describe('stats command', function (): void {
     });
 
     it('displays badges when achievements are earned', function (): void {
-        $this->taskService->initialize();
         $db = $this->databaseService;
 
         // Create 10 complex tasks to earn "Complex Crusher" badge
@@ -415,7 +406,6 @@ describe('stats command', function (): void {
     });
 
     it('shows no badges message when none earned', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('stats', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -428,7 +418,6 @@ describe('stats command', function (): void {
     });
 
     it('displays completion counts for different time periods', function (): void {
-        $this->taskService->initialize();
         $db = $this->databaseService;
 
         // Create tasks completed today
@@ -460,7 +449,6 @@ describe('stats command', function (): void {
     });
 
     it('handles running runs in status count', function (): void {
-        $this->taskService->initialize();
 
         // Create a task first
         $task = $this->taskService->create(['title' => 'Task 1']);
@@ -481,7 +469,6 @@ describe('stats command', function (): void {
     });
 
     it('formats durations correctly for different time scales', function (): void {
-        $this->taskService->initialize();
 
         // Create tasks first
         $task1 = $this->taskService->create(['title' => 'Task 1']);
@@ -531,7 +518,6 @@ describe('stats command', function (): void {
     });
 
     it('displays review status when present', function (): void {
-        $this->taskService->initialize();
 
         // Create tasks with review status
         $task1 = $this->taskService->create(['title' => 'Review task 1']);
@@ -547,7 +533,6 @@ describe('stats command', function (): void {
     });
 
     it('displays cancelled status when present', function (): void {
-        $this->taskService->initialize();
 
         // Create a cancelled task
         $task = $this->taskService->create(['title' => 'Cancelled task']);
@@ -561,7 +546,6 @@ describe('stats command', function (): void {
     });
 
     it('calculates longest streak correctly across gaps', function (): void {
-        $this->taskService->initialize();
         $db = $this->databaseService;
 
         // Create first streak: 3 days (7, 8, 9 days ago)

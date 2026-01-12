@@ -127,7 +127,7 @@ class RetryCommand extends Command
         }
 
         $pid = $task->consume_pid ?? null;
-        if (($task->status ?? '') === TaskStatus::InProgress->value && ! empty($task->consumed)) {
+        if ($task->status === TaskStatus::InProgress && ! empty($task->consumed)) {
             if ($pid === null) {
                 return 'spawn failed / PID lost';
             }

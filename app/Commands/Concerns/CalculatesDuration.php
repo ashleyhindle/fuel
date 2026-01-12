@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
+use DateTimeInterface;
+
 /**
  * Provides duration calculation between two timestamps.
  */
@@ -12,15 +14,15 @@ trait CalculatesDuration
     /**
      * Calculate duration between two timestamps.
      */
-    protected function calculateDuration(?string $startedAt, ?string $endedAt): string
+    protected function calculateDuration(string|DateTimeInterface|null $startedAt, string|DateTimeInterface|null $endedAt): string
     {
         if ($startedAt === null) {
             return '';
         }
 
         try {
-            $start = new \DateTime($startedAt);
-            $end = $endedAt !== null ? new \DateTime($endedAt) : new \DateTime;
+            $start = $startedAt instanceof DateTimeInterface ? $startedAt : new \DateTime($startedAt);
+            $end = $endedAt instanceof DateTimeInterface ? $endedAt : ($endedAt !== null ? new \DateTime($endedAt) : new \DateTime);
 
             $diff = $start->diff($end);
 

@@ -16,8 +16,10 @@ describe('backlog command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -66,20 +68,20 @@ describe('backlog command', function (): void {
         $taskService = $this->app->make(TaskService::class);
 
         $item1 = $taskService->create(['title' => 'Item 1']);
-        $taskService->update($item1['id'], ['status' => 'someday']);
-        $item1 = $taskService->find($item1['id']);
+        $taskService->update($item1->short_id, ['status' => 'someday']);
+        $item1 = $taskService->find($item1->short_id);
 
         $item2 = $taskService->create(['title' => 'Item 2', 'description' => 'Description']);
-        $taskService->update($item2['id'], ['status' => 'someday']);
-        $item2 = $taskService->find($item2['id']);
+        $taskService->update($item2->short_id, ['status' => 'someday']);
+        $item2 = $taskService->find($item2->short_id);
 
         Artisan::call('backlog');
         $output = Artisan::output();
 
         expect($output)->toContain('Backlog items (2):');
-        expect($output)->toContain($item1['id']);
+        expect($output)->toContain($item1->short_id);
         expect($output)->toContain('Item 1');
-        expect($output)->toContain($item2['id']);
+        expect($output)->toContain($item2->short_id);
         expect($output)->toContain('Item 2');
     });
 
@@ -87,10 +89,10 @@ describe('backlog command', function (): void {
         $taskService = $this->app->make(TaskService::class);
 
         $item1 = $taskService->create(['title' => 'Item 1']);
-        $taskService->update($item1['id'], ['status' => 'someday']);
+        $taskService->update($item1->short_id, ['status' => 'someday']);
 
         $item2 = $taskService->create(['title' => 'Item 2']);
-        $taskService->update($item2['id'], ['status' => 'someday']);
+        $taskService->update($item2->short_id, ['status' => 'someday']);
 
         Artisan::call('backlog', ['--json' => true]);
         $output = Artisan::output();
@@ -98,7 +100,7 @@ describe('backlog command', function (): void {
 
         expect($items)->toBeArray();
         expect($items)->toHaveCount(2);
-        expect($items[0]['id'])->toStartWith('f-');
-        expect($items[1]['id'])->toStartWith('f-');
+        expect($items[0]['short_id'])->toStartWith('f-');
+        expect($items[1]['short_id'])->toStartWith('f-');
     });
 });

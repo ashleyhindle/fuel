@@ -112,7 +112,7 @@ it('triggers a review by spawning a process', function (): void {
 
     // Verify task status was updated to review
     $updatedTask = $this->taskService->find($taskId);
-    expect($updatedTask['status'])->toBe('review');
+    expect($updatedTask->status)->toBe(App\Enums\TaskStatus::Review);
 });
 
 it('updates task status to review when triggering review', function (): void {
@@ -125,7 +125,7 @@ it('updates task status to review when triggering review', function (): void {
     // Start the task (simulate work being done)
     $this->taskService->start($taskId);
     $startedTask = $this->taskService->find($taskId);
-    expect($startedTask['status'])->toBe('in_progress');
+    expect($startedTask->status)->toBe(App\Enums\TaskStatus::InProgress);
 
     // Mock process manager
     $this->processManager
@@ -155,7 +155,7 @@ it('updates task status to review when triggering review', function (): void {
 
     // Verify status is now 'review'
     $reviewedTask = $this->taskService->find($taskId);
-    expect($reviewedTask['status'])->toBe('review');
+    expect($reviewedTask->status)->toBe(App\Enums\TaskStatus::Review);
 });
 
 it('returns correct pending reviews', function (): void {
@@ -326,7 +326,7 @@ YAML;
 
     // Create a task
     $task = $this->taskService->create(['title' => 'No review agent test']);
-    $taskId = $task['short_id'];
+    $taskId = $task->short_id;
 
     // Expect spawn to be called with test-agent (primary agent fallback)
     $this->processManager

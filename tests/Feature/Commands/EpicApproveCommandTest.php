@@ -118,13 +118,13 @@ describe('epic:approve command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic', 'Test Description');
 
-        Artisan::call('epic:approve', ['ids' => [$epic->id], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:approve', ['ids' => [$epic->short_id], '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
-        expect($output)->toContain(sprintf('Epic %s approved', $epic->id));
+        expect($output)->toContain(sprintf('Epic %s approved', $epic->short_id));
 
         // Verify the epic was actually approved
-        $updatedEpic = $epicService->getEpic($epic->id);
+        $updatedEpic = $epicService->getEpic($epic->short_id);
         expect($updatedEpic->approved_at)->not->toBeNull();
         expect($updatedEpic->approved_by)->toBe('human');
     });
@@ -135,17 +135,17 @@ describe('epic:approve command', function (): void {
         $epic2 = $epicService->createEpic('Epic 2', 'Description 2');
         $epic3 = $epicService->createEpic('Epic 3', 'Description 3');
 
-        Artisan::call('epic:approve', ['ids' => [$epic1->id, $epic2->id, $epic3->id], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:approve', ['ids' => [$epic1->short_id, $epic2->short_id, $epic3->short_id], '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
-        expect($output)->toContain(sprintf('Epic %s approved', $epic1->id));
-        expect($output)->toContain(sprintf('Epic %s approved', $epic2->id));
-        expect($output)->toContain(sprintf('Epic %s approved', $epic3->id));
+        expect($output)->toContain(sprintf('Epic %s approved', $epic1->short_id));
+        expect($output)->toContain(sprintf('Epic %s approved', $epic2->short_id));
+        expect($output)->toContain(sprintf('Epic %s approved', $epic3->short_id));
 
         // Verify all epics were approved
-        $updatedEpic1 = $epicService->getEpic($epic1->id);
-        $updatedEpic2 = $epicService->getEpic($epic2->id);
-        $updatedEpic3 = $epicService->getEpic($epic3->id);
+        $updatedEpic1 = $epicService->getEpic($epic1->short_id);
+        $updatedEpic2 = $epicService->getEpic($epic2->short_id);
+        $updatedEpic3 = $epicService->getEpic($epic3->short_id);
 
         expect($updatedEpic1->approved_at)->not->toBeNull();
         expect($updatedEpic2->approved_at)->not->toBeNull();
@@ -163,7 +163,7 @@ describe('epic:approve command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('JSON Epic', 'JSON Description');
 
-        Artisan::call('epic:approve', ['ids' => [$epic->id], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:approve', ['ids' => [$epic->short_id], '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -180,7 +180,7 @@ describe('epic:approve command', function (): void {
         $epic1 = $epicService->createEpic('Epic 1', 'Description 1');
         $epic2 = $epicService->createEpic('Epic 2', 'Description 2');
 
-        Artisan::call('epic:approve', ['ids' => [$epic1->id, $epic2->id], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('epic:approve', ['ids' => [$epic1->short_id, $epic2->short_id], '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
@@ -197,15 +197,15 @@ describe('epic:approve command', function (): void {
         $epic = $epicService->createEpic('Partial ID Epic');
 
         // Use partial ID (without e- prefix)
-        $partialId = substr((string) $epic->id, 2);
+        $partialId = substr((string) $epic->short_id, 2);
 
         Artisan::call('epic:approve', ['ids' => [$partialId], '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
-        expect($output)->toContain(sprintf('Epic %s approved', $epic->id));
+        expect($output)->toContain(sprintf('Epic %s approved', $epic->short_id));
 
         // Verify the epic was actually approved
-        $updatedEpic = $epicService->getEpic($epic->id);
+        $updatedEpic = $epicService->getEpic($epic->short_id);
         expect($updatedEpic->approved_at)->not->toBeNull();
     });
 
@@ -213,14 +213,14 @@ describe('epic:approve command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
 
-        Artisan::call('epic:approve', ['ids' => [$epic->id], '--cwd' => $this->tempDir, '--by' => 'admin']);
+        Artisan::call('epic:approve', ['ids' => [$epic->short_id], '--cwd' => $this->tempDir, '--by' => 'admin']);
         $output = Artisan::output();
 
-        expect($output)->toContain(sprintf('Epic %s approved', $epic->id));
+        expect($output)->toContain(sprintf('Epic %s approved', $epic->short_id));
         expect($output)->toContain('Approved by: admin');
 
         // Verify the epic was approved by the specified user
-        $updatedEpic = $epicService->getEpic($epic->id);
+        $updatedEpic = $epicService->getEpic($epic->short_id);
         expect($updatedEpic->approved_by)->toBe('admin');
     });
 
@@ -228,16 +228,16 @@ describe('epic:approve command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic1 = $epicService->createEpic('Epic 1');
 
-        Artisan::call('epic:approve', ['ids' => [$epic1->id, 'e-invalid'], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:approve', ['ids' => [$epic1->short_id, 'e-invalid'], '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         // Should approve the valid one
-        expect($output)->toContain(sprintf('Epic %s approved', $epic1->id));
+        expect($output)->toContain(sprintf('Epic %s approved', $epic1->short_id));
         // Should show error for the invalid one
         expect($output)->toContain("Epic 'e-invalid'");
 
         // Verify the valid epic was approved
-        $updatedEpic1 = $epicService->getEpic($epic1->id);
+        $updatedEpic1 = $epicService->getEpic($epic1->short_id);
         expect($updatedEpic1->approved_at)->not->toBeNull();
     });
 
@@ -246,17 +246,17 @@ describe('epic:approve command', function (): void {
         $epic = $epicService->createEpic('Test Epic');
 
         // First reject to set changes_requested_at
-        $epicService->rejectEpic($epic->id, 'Needs work');
+        $epicService->rejectEpic($epic->short_id, 'Needs work');
 
         // Verify changes were requested
-        $rejectedEpic = $epicService->getEpic($epic->id);
+        $rejectedEpic = $epicService->getEpic($epic->short_id);
         expect($rejectedEpic->changes_requested_at)->not->toBeNull();
 
         // Now approve
-        Artisan::call('epic:approve', ['ids' => [$epic->id], '--cwd' => $this->tempDir]);
+        Artisan::call('epic:approve', ['ids' => [$epic->short_id], '--cwd' => $this->tempDir]);
 
         // Verify changes_requested_at is cleared and approved_at is set
-        $approvedEpic = $epicService->getEpic($epic->id);
+        $approvedEpic = $epicService->getEpic($epic->short_id);
         expect($approvedEpic->approved_at)->not->toBeNull();
         expect($approvedEpic->changes_requested_at)->toBeNull();
     });

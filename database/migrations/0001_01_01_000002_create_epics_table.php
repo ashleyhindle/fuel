@@ -15,6 +15,9 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->text('status')->default('planning');
             $table->text('reviewed_at')->nullable();
+            $table->text('approved_at')->nullable();
+            $table->text('approved_by')->nullable();
+            $table->text('changes_requested_at')->nullable();
             $table->text('created_at')->nullable();
             $table->text('updated_at')->nullable();
 

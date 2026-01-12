@@ -16,8 +16,10 @@ describe('ready command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -57,7 +59,6 @@ describe('ready command', function (): void {
     });
 
     it('shows no tasks when empty', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('ready', ['--cwd' => $this->tempDir])
             ->expectsOutput('No open tasks.')
@@ -65,7 +66,6 @@ describe('ready command', function (): void {
     });
 
     it('shows open tasks', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task one']);
         $this->taskService->create(['title' => 'Task two']);
 
@@ -76,11 +76,10 @@ describe('ready command', function (): void {
     });
 
     it('excludes closed tasks', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open task']);
 
         $closed = $this->taskService->create(['title' => 'Closed task']);
-        $this->taskService->done($closed['id']);
+        $this->taskService->done($closed->short_id);
 
         $this->artisan('ready', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Open task')
@@ -89,7 +88,6 @@ describe('ready command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'JSON task']);
 
         $this->artisan('ready', ['--cwd' => $this->tempDir, '--json' => true])
@@ -98,7 +96,6 @@ describe('ready command', function (): void {
     });
 
     it('outputs empty array as JSON when no tasks', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('ready', ['--cwd' => $this->tempDir, '--json' => true])
             ->expectsOutput('[]')
@@ -116,8 +113,10 @@ describe('ready command with dependencies', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -157,12 +156,11 @@ describe('ready command with dependencies', function (): void {
     });
 
     it('ready excludes tasks with open blockers', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         $this->artisan('ready', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Blocker task')
@@ -171,15 +169,14 @@ describe('ready command with dependencies', function (): void {
     });
 
     it('ready includes tasks when blocker is closed', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Add blocker to blocked_by array: blocked task has blocker in its blocked_by array
-        $this->taskService->addDependency($blocked['id'], $blocker['id']);
+        $this->taskService->addDependency($blocked->short_id, $blocker->short_id);
 
         // Close the blocker
-        $this->taskService->done($blocker['id']);
+        $this->taskService->done($blocker->short_id);
 
         $this->artisan('ready', ['--cwd' => $this->tempDir])
             ->expectsOutputToContain('Blocked task')

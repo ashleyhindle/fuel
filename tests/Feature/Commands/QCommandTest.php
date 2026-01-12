@@ -19,8 +19,10 @@ describe('q command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -60,7 +62,6 @@ describe('q command', function (): void {
     });
 
     it('creates task and outputs only the ID', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('q', ['title' => 'Quick task', '--cwd' => $this->tempDir]);
         $output = trim(Artisan::output());
@@ -71,11 +72,10 @@ describe('q command', function (): void {
         // Verify task was actually created
         $task = $this->taskService->find($output);
         expect($task)->not->toBeNull();
-        expect($task['title'])->toBe('Quick task');
+        expect($task->title)->toBe('Quick task');
     });
 
     it('returns exit code 0 on success', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('q', ['title' => 'Quick task', '--cwd' => $this->tempDir])
             ->assertExitCode(0);
@@ -84,7 +84,6 @@ describe('q command', function (): void {
     it('handles RuntimeException from TaskService::create()', function (): void {
         // Create a mock TaskService that throws RuntimeException
         $mockTaskService = \Mockery::mock(TaskService::class);
-        $mockTaskService->shouldReceive('initialize')->once();
         $mockTaskService->shouldReceive('create')
             ->once()
             ->andThrow(new \RuntimeException('Failed to create task'));

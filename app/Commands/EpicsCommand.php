@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
@@ -35,9 +34,9 @@ class EpicsCommand extends Command
             if ($this->option('json')) {
                 // For JSON output, include task count and completed count for each epic
                 $epicsWithProgress = array_map(function (Epic $epic) use ($epicService): array {
-                    $tasks = $epicService->getTasksForEpic($epic->id);
+                    $tasks = $epicService->getTasksForEpic($epic->short_id);
                     $totalCount = count($tasks);
-                    $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
+                    $completedCount = count(array_filter($tasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
                     $epicArray = $epic->toArray();
                     $epicArray['task_count'] = $totalCount;
                     $epicArray['completed_count'] = $completedCount;
@@ -62,15 +61,15 @@ class EpicsCommand extends Command
             // Build table rows with progress tracking
             $headers = ['ID', 'Title', 'Status', 'Progress', 'Created'];
             $rows = array_map(function (Epic $epic) use ($epicService): array {
-                $tasks = $epicService->getTasksForEpic($epic->id);
+                $tasks = $epicService->getTasksForEpic($epic->short_id);
                 $totalCount = count($tasks);
-                $completedCount = count(array_filter($tasks, fn (Task $task): bool => ($task->status ?? '') === TaskStatus::Closed->value));
+                $completedCount = count(array_filter($tasks, fn (Task $task): bool => $task->status === TaskStatus::Closed));
                 $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
 
                 return [
                     $epic->short_id,
                     $epic->title ?? '',
-                    $epic->status ?? EpicStatus::Planning->value,
+                    $epic->status->value,
                     $progress,
                     $this->formatDate($epic->created_at ?? ''),
                 ];
@@ -85,12 +84,12 @@ class EpicsCommand extends Command
     }
 
     /**
-     * Format a date string into a human-readable format.
+     * Format a date into a human-readable format.
      */
-    private function formatDate(string $dateString): string
+    private function formatDate(string|\DateTimeInterface $dateInput): string
     {
         try {
-            $date = new \DateTime($dateString);
+            $date = $dateInput instanceof \DateTimeInterface ? $dateInput : new \DateTime($dateInput);
             $now = new \DateTime;
             $diff = $now->diff($date);
 

@@ -34,8 +34,10 @@ beforeEach(function (): void {
     $context = new FuelContext($this->tempDir.'/.fuel');
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(ReviewRepository::class, fn (): ReviewRepository => new ReviewRepository($databaseService));
 
     $taskService = makeTaskService($databaseService);
@@ -45,7 +47,6 @@ beforeEach(function (): void {
     $this->app->singleton(RunService::class, fn (): RunService => $runService);
 
     $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->databaseService->initialize();
     $this->reviewRepo = $this->app->make(ReviewRepository::class);
 
     $this->taskService = $this->app->make(TaskService::class);
@@ -163,7 +164,7 @@ it('outputs JSON format with --json option', function (): void {
     $data = json_decode($output, true);
 
     expect($data)->toBeArray();
-    expect($data['id'])->toBe($reviewId);
+    expect($data['short_id'])->toBe($reviewId);
     expect($data['task_id'])->toBe('f-json01');
     expect($data['agent'])->toBe('gemini');
     expect($data['status'])->toBe('failed');

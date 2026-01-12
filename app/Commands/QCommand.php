@@ -26,8 +26,6 @@ class QCommand extends Command
     {
         $this->configureCwd($context, $databaseService);
 
-        $taskService->initialize();
-
         try {
             $task = $taskService->create([
                 'title' => $this->argument('title'),
