@@ -29,13 +29,13 @@ class StatusCommand extends Command
         $tasks = $taskService->all();
 
         // Group by status
-        $open = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Open->value);
-        $inProgress = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::InProgress->value);
-        $review = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Review->value);
-        $closed = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === TaskStatus::Closed->value);
+        $open = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Open);
+        $inProgress = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress);
+        $review = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Review);
+        $closed = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed);
 
         // Calculate blocked count (open tasks with open blockers)
-        $taskMap = $tasks->keyBy('id');
+        $taskMap = $tasks->keyBy('short_id');
         $blockedCount = 0;
         foreach ($open as $task) {
             $blockedBy = $task->blocked_by ?? [];
@@ -43,7 +43,7 @@ class StatusCommand extends Command
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
                     // Task is blocked if the blocker exists and is not closed
-                    if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
+                    if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
                         $blockedCount++;
                         break; // No need to check other blockers
                     }

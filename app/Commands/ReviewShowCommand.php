@@ -10,7 +10,6 @@ use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
-use App\Services\TaskService;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -27,7 +26,7 @@ class ReviewShowCommand extends Command
 
     protected $description = 'Show detailed review information including agent output';
 
-    public function handle(FuelContext $context, DatabaseService $dbService, TaskService $taskService, RunService $runService): int
+    public function handle(FuelContext $context, DatabaseService $dbService, RunService $runService): int
     {
         $this->configureCwd($context, $dbService);
 
@@ -44,11 +43,8 @@ class ReviewShowCommand extends Command
             return $this->outputError(sprintf("Review '%s' not found", $reviewId));
         }
 
-        // Get associated task info
-        $task = null;
-        if ($review->task_id) {
-            $task = $taskService->find($review->task_id);
-        }
+        // Get associated task info via relationship
+        $task = $review->task;
 
         // Get stdout from process directory using run ID
         $stdout = $this->getReviewOutput($review->run_id, $dbService);
@@ -57,6 +53,7 @@ class ReviewShowCommand extends Command
             $data = $review->toArray();
             if ($task instanceof Task) {
                 $data['task_title'] = $task->title;
+                $data['task_id'] = $task->short_id;
             }
 
             if ($stdout !== null) {
@@ -75,8 +72,9 @@ class ReviewShowCommand extends Command
             default => 'yellow',
         };
 
-        $this->info('Review: '.$review->id);
-        $this->line('  Task: '.($review->task_id ?? 'N/A').($task instanceof Task ? ' - '.$task->title : ''));
+        $this->info('Review: '.$review->short_id);
+        $taskDisplay = $task instanceof Task ? $task->short_id.' - '.$task->title : ($review->task_id ?? 'N/A');
+        $this->line('  Task: '.$taskDisplay);
         $this->line(sprintf('  Status: <fg=%s>%s</>', $statusColor, strtoupper($review->status ?? 'pending')));
         $this->line('  Agent: '.($review->agent ?? 'N/A'));
 
@@ -154,18 +152,18 @@ class ReviewShowCommand extends Command
         }
     }
 
-    private function formatDateTime(string $dateTimeString): string
+    private function formatDateTime(string|\DateTimeInterface $dateInput): string
     {
-        if ($dateTimeString === '') {
+        if ($dateInput === '') {
             return '';
         }
 
         try {
-            $date = new \DateTime($dateTimeString);
+            $date = $dateInput instanceof \DateTimeInterface ? $dateInput : new \DateTime($dateInput);
 
             return $date->format('M j H:i');
         } catch (\Exception) {
-            return $dateTimeString;
+            return is_string($dateInput) ? $dateInput : '';
         }
     }
 }

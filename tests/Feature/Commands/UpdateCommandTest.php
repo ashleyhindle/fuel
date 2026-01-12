@@ -18,8 +18,10 @@ describe('update command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -59,7 +61,6 @@ describe('update command', function (): void {
     });
 
     it('updates task title', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Original title']);
 
         Artisan::call('update', [
@@ -76,7 +77,6 @@ describe('update command', function (): void {
     });
 
     it('updates task description', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
         Artisan::call('update', [
@@ -92,7 +92,6 @@ describe('update command', function (): void {
     });
 
     it('clears task description when empty string provided', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'description' => 'Old description']);
 
         Artisan::call('update', [
@@ -108,7 +107,6 @@ describe('update command', function (): void {
     });
 
     it('updates task type', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'type' => 'task']);
 
         Artisan::call('update', [
@@ -124,7 +122,6 @@ describe('update command', function (): void {
     });
 
     it('validates task type enum', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('update', [
@@ -137,7 +134,6 @@ describe('update command', function (): void {
     });
 
     it('updates task priority', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'priority' => 2]);
 
         Artisan::call('update', [
@@ -153,7 +149,6 @@ describe('update command', function (): void {
     });
 
     it('validates priority range', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('update', [
@@ -166,7 +161,6 @@ describe('update command', function (): void {
     });
 
     it('updates task status', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
         Artisan::call('update', [
@@ -182,7 +176,6 @@ describe('update command', function (): void {
     });
 
     it('adds labels with --add-labels flag', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['existing']]);
 
         Artisan::call('update', [
@@ -198,7 +191,6 @@ describe('update command', function (): void {
     });
 
     it('removes labels with --remove-labels flag', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['keep', 'remove1', 'remove2']]);
 
         Artisan::call('update', [
@@ -214,7 +206,6 @@ describe('update command', function (): void {
     });
 
     it('adds and removes labels in same update', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'labels' => ['old1', 'old2']]);
 
         Artisan::call('update', [
@@ -232,7 +223,6 @@ describe('update command', function (): void {
     });
 
     it('updates multiple fields at once', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Original', 'type' => 'task', 'priority' => 2]);
 
         Artisan::call('update', [
@@ -254,7 +244,6 @@ describe('update command', function (): void {
     });
 
     it('shows error when no update fields provided', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('update', [
@@ -266,7 +255,6 @@ describe('update command', function (): void {
     });
 
     it('shows error for non-existent task', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('update', [
             'id' => 'nonexistent',
@@ -278,7 +266,6 @@ describe('update command', function (): void {
     });
 
     it('supports partial ID matching', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
         $partialId = substr((string) $task->short_id, 2, 3);
 
@@ -296,7 +283,6 @@ describe('update command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
         Artisan::call('update', [
@@ -308,13 +294,12 @@ describe('update command', function (): void {
         $output = Artisan::output();
         $updated = json_decode($output, true);
 
-        expect($updated)->toHaveKey('id');
+        expect($updated)->toHaveKey('short_id');
         expect($updated)->toHaveKey('title');
         expect($updated['title'])->toBe('Updated');
     });
 
     it('updates task complexity', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task', 'complexity' => 'simple']);
 
         Artisan::call('update', [
@@ -330,7 +315,6 @@ describe('update command', function (): void {
     });
 
     it('validates complexity enum', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task']);
 
         $this->artisan('update', [

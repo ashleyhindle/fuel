@@ -84,7 +84,7 @@ class ShowCommand extends Command
                 // Include epic info in JSON output
                 if ($epic instanceof Epic) {
                     $taskData['epic'] = [
-                        'id' => $epic->short_id,
+                        'short_id' => $epic->short_id,
                         'title' => $epic->title ?? null,
                         'status' => $epicStatus,
                     ];
@@ -164,8 +164,7 @@ class ShowCommand extends Command
                 $runs = $runService->getRuns($task->short_id);
 
                 // Check for live output if task is in_progress (even if no runs exist)
-                $statusValue = $task->status instanceof TaskStatus ? $task->status->value : ($task->status ?? TaskStatus::Open->value);
-                $liveOutput = $this->getLiveOutput($task->short_id, $statusValue, $runService);
+                $liveOutput = $this->getLiveOutput($task->short_id, $task->status->value, $runService);
 
                 if ($runs !== []) {
                     $this->newLine();

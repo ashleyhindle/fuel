@@ -45,7 +45,16 @@ class ReviewsCommand extends Command
             $reviews = $databaseService->getAllReviews($status, $limit);
 
             if ($this->option('json')) {
-                $this->outputJson(array_map(fn (Review $r): array => $r->toArray(), $reviews));
+                $data = array_map(function (Review $r): array {
+                    $reviewData = $r->toArray();
+                    if ($r->task instanceof \App\Models\Task) {
+                        $reviewData['task_id'] = $r->task->short_id;
+                    }
+
+                    return $reviewData;
+                }, $reviews);
+
+                $this->outputJson($data);
 
                 return self::SUCCESS;
             }
@@ -83,7 +92,7 @@ class ReviewsCommand extends Command
      */
     private function displayReview(Review $review): void
     {
-        $taskId = $review->task_id ?? '';
+        $taskId = $review->task?->short_id ?? '';
         $status = $review->status ?? 'pending';
         $agent = $review->agent ?? '';
         $startedAt = $review->started_at ?? null;
@@ -121,14 +130,16 @@ class ReviewsCommand extends Command
     /**
      * Format a date string into relative time (e.g., "2m ago", "1h ago").
      */
-    private function formatRelativeTime(?string $dateString): string
+    private function formatRelativeTime(string|\DateTimeInterface|null $dateString): string
     {
         if ($dateString === null || $dateString === '') {
             return 'unknown';
         }
 
         try {
-            $date = Carbon::parse($dateString)->setTimezone('UTC');
+            $date = $dateString instanceof \DateTimeInterface
+                ? Carbon::instance($dateString)->setTimezone('UTC')
+                : Carbon::parse($dateString)->setTimezone('UTC');
             $now = Carbon::now('UTC');
             $diff = $now->diff($date);
 

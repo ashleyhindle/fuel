@@ -90,12 +90,12 @@ class SummaryCommand extends Command
     private function displayTaskHeader(Task $task, array $runs): void
     {
         $statusLabel = match ($task->status) {
-            TaskStatus::Open->value => '<fg=yellow>open</>',
-            TaskStatus::InProgress->value => '<fg=blue>in progress</>',
-            TaskStatus::Review->value => '<fg=magenta>review</>',
-            TaskStatus::Closed->value => '<fg=green>closed</>',
-            TaskStatus::Cancelled->value => '<fg=gray>cancelled</>',
-            default => $task->status,
+            TaskStatus::Open => '<fg=yellow>open</>',
+            TaskStatus::InProgress => '<fg=blue>in progress</>',
+            TaskStatus::Review => '<fg=magenta>review</>',
+            TaskStatus::Closed => '<fg=green>closed</>',
+            TaskStatus::Cancelled => '<fg=gray>cancelled</>',
+            default => $task->status->value,
         };
 
         $this->line(sprintf('<fg=cyan>Task:</> %s - %s', $task->short_id, $task->title));

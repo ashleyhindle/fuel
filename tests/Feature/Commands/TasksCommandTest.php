@@ -17,8 +17,10 @@ describe('tasks command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -58,7 +60,6 @@ describe('tasks command', function (): void {
     });
 
     it('lists all tasks', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task 1']);
         $this->taskService->create(['title' => 'Task 2']);
 
@@ -69,7 +70,6 @@ describe('tasks command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
 
@@ -78,14 +78,13 @@ describe('tasks command', function (): void {
         $tasks = json_decode($output, true);
 
         expect($tasks)->toHaveCount(2);
-        expect(collect($tasks)->pluck('id')->toArray())->toContain($task1['id'], $task2['id']);
+        expect(collect($tasks)->pluck('short_id')->toArray())->toContain($task1->short_id, $task2->short_id);
     });
 
     it('filters by --status flag', function (): void {
-        $this->taskService->initialize();
         $open = $this->taskService->create(['title' => 'Open task']);
         $closed = $this->taskService->create(['title' => 'Closed task']);
-        $this->taskService->done($closed['id']);
+        $this->taskService->done($closed->short_id);
 
         $this->artisan('tasks', ['--status' => 'open', '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Open task')
@@ -94,7 +93,6 @@ describe('tasks command', function (): void {
     });
 
     it('filters by --type flag', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Bug task', 'type' => 'bug']);
         $this->taskService->create(['title' => 'Feature task', 'type' => 'feature']);
 
@@ -105,7 +103,6 @@ describe('tasks command', function (): void {
     });
 
     it('filters by --priority flag', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'High priority', 'priority' => 4]);
         $this->taskService->create(['title' => 'Low priority', 'priority' => 1]);
 
@@ -116,7 +113,6 @@ describe('tasks command', function (): void {
     });
 
     it('filters by --labels flag', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Frontend task', 'labels' => ['frontend', 'ui']]);
         $this->taskService->create(['title' => 'Backend task', 'labels' => ['backend', 'api']]);
         $this->taskService->create(['title' => 'No labels']);
@@ -129,7 +125,6 @@ describe('tasks command', function (): void {
     });
 
     it('filters by multiple labels (comma-separated)', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Task with frontend', 'labels' => ['frontend']]);
         $this->taskService->create(['title' => 'Task with backend', 'labels' => ['backend']]);
         $this->taskService->create(['title' => 'Task with both', 'labels' => ['frontend', 'backend']]);
@@ -142,11 +137,10 @@ describe('tasks command', function (): void {
     });
 
     it('applies multiple filters together', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open bug', 'type' => 'bug']);
 
         $closedBug = $this->taskService->create(['title' => 'Closed bug', 'type' => 'bug']);
-        $this->taskService->done($closedBug['id']);
+        $this->taskService->done($closedBug->short_id);
         $this->taskService->create(['title' => 'Open feature', 'type' => 'feature']);
 
         $this->artisan('tasks', [
@@ -161,7 +155,6 @@ describe('tasks command', function (): void {
     });
 
     it('shows empty message when no tasks match filters', function (): void {
-        $this->taskService->initialize();
         $this->taskService->create(['title' => 'Open task']);
 
         $this->artisan('tasks', ['--status' => 'closed', '--cwd' => $this->tempDir])
@@ -170,7 +163,6 @@ describe('tasks command', function (): void {
     });
 
     it('outputs all schema fields in JSON', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create([
             'title' => 'Complete task',
             'description' => 'Full description',
@@ -184,7 +176,7 @@ describe('tasks command', function (): void {
         $tasks = json_decode($output, true);
 
         expect($tasks)->toHaveCount(1);
-        expect($tasks[0])->toHaveKeys(['id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'blocked_by', 'created_at', 'updated_at']);
+        expect($tasks[0])->toHaveKeys(['short_id', 'title', 'status', 'description', 'type', 'priority', 'labels', 'blocked_by', 'created_at', 'updated_at']);
         expect($tasks[0]['description'])->toBe('Full description');
         expect($tasks[0]['type'])->toBe('feature');
         expect($tasks[0]['priority'])->toBe(3);

@@ -28,7 +28,7 @@ class TreeCommand extends Command
         $this->configureCwd($context, $databaseService);
 
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => ($t->status ?? '') !== TaskStatus::Closed->value)
+            ->filter(fn (Task $t): bool => $t->status !== TaskStatus::Closed)
             ->sortBy([
                 ['priority', 'asc'],
                 ['created_at', 'asc'],
@@ -45,7 +45,7 @@ class TreeCommand extends Command
             return self::SUCCESS;
         }
 
-        $taskMap = $tasks->keyBy('id');
+        $taskMap = $tasks->keyBy('short_id');
         $treeData = $this->buildTreeData($tasks, $taskMap);
 
         if ($this->option('json')) {
@@ -78,7 +78,7 @@ class TreeCommand extends Command
             foreach ($blockedBy as $blockerId) {
                 // Only include if blocker is not closed
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && ($blocker->status ?? '') !== TaskStatus::Closed->value) {
+                if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
                     $blocksMap[$blockerId][] = $task;
                 }
             }
@@ -151,7 +151,6 @@ class TreeCommand extends Command
     private function getDisplayStatus(Task $task): string
     {
         $blockedBy = $task->blocked_by ?? [];
-        $status = $task->status ?? TaskStatus::Open->value;
 
         // Check for needs-human label first
         if ($this->hasNeedsHumanLabel($task)) {
@@ -163,7 +162,7 @@ class TreeCommand extends Command
             return 'blocked';
         }
 
-        return $status;
+        return $task->status->value;
     }
 
     /**

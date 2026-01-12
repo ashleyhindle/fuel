@@ -16,13 +16,14 @@ beforeEach(function (): void {
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
     // Bind our test DatabaseService instance
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(ReviewRepository::class, fn (): ReviewRepository => new ReviewRepository($databaseService));
 
     $this->databaseService = $this->app->make(DatabaseService::class);
     $this->reviewRepo = $this->app->make(ReviewRepository::class);
-    $this->databaseService->initialize();
 });
 
 afterEach(function (): void {
@@ -234,7 +235,7 @@ it('outputs JSON format with --json option', function (): void {
 
     expect($data)->toBeArray();
     expect($data)->toHaveCount(1);
-    expect($data[0]['id'])->toBe($reviewId);
+    expect($data[0]['short_id'])->toBe($reviewId);
     expect($data[0]['task_id'])->toBe('f-abc123');
     expect($data[0]['agent'])->toBe('claude-sonnet');
     expect($data[0]['status'])->toBe('failed');
@@ -261,7 +262,7 @@ it('outputs JSON format with --json and --pending options', function (): void {
 
     expect($data)->toBeArray();
     expect($data)->toHaveCount(1);
-    expect($data[0]['id'])->toBe($reviewId2);
+    expect($data[0]['short_id'])->toBe($reviewId2);
     expect($data[0]['status'])->toBe('pending');
 });
 
@@ -285,7 +286,7 @@ it('outputs JSON format with --json and --failed options', function (): void {
 
     expect($data)->toBeArray();
     expect($data)->toHaveCount(1);
-    expect($data[0]['id'])->toBe($reviewId2);
+    expect($data[0]['short_id'])->toBe($reviewId2);
     expect($data[0]['status'])->toBe('failed');
 });
 

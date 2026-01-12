@@ -20,8 +20,10 @@ describe('summary command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -61,7 +63,6 @@ describe('summary command', function (): void {
     });
 
     it('shows error when task not found', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('summary', ['id' => 'f-nonexistent', '--cwd' => $this->tempDir])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
@@ -69,21 +70,19 @@ describe('summary command', function (): void {
     });
 
     it('shows error when no runs exist for task', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
-        $this->artisan('summary', ['id' => $task['id'], '--cwd' => $this->tempDir])
+        $this->artisan('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('No runs found for task')
             ->assertExitCode(1);
     });
 
     it('displays summary for task with single run', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
-        $this->taskService->done($task['id']);
+        $this->taskService->done($task->short_id);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'model' => 'sonnet',
             'started_at' => '2026-01-07T10:00:00+00:00',
@@ -94,7 +93,7 @@ describe('summary command', function (): void {
             'output' => 'Task completed',
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Test task');
@@ -109,11 +108,10 @@ describe('summary command', function (): void {
     });
 
     it('parses file operations from output', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
@@ -121,7 +119,7 @@ describe('summary command', function (): void {
             'output' => 'Created app/Services/AuthService.php. Modified tests/Feature/AuthTest.php. Deleted old/LegacyAuth.php.',
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Created file: app/Services/AuthService.php');
@@ -130,11 +128,10 @@ describe('summary command', function (): void {
     });
 
     it('parses test results from output', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
@@ -142,7 +139,7 @@ describe('summary command', function (): void {
             'output' => 'Tests: 5 passed. Assertions: 15 passed.',
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('5 tests passed');
@@ -150,11 +147,10 @@ describe('summary command', function (): void {
     });
 
     it('parses git commits from output', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
@@ -162,32 +158,31 @@ describe('summary command', function (): void {
             'output' => '[main abc1234] feat: add authentication',
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Git commit: abc1234');
     });
 
     it('shows all runs when --all flag is used', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
             'exit_code' => 0,
         ]);
 
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'cursor-agent',
             'started_at' => '2026-01-07T11:00:00+00:00',
             'ended_at' => '2026-01-07T11:10:00+00:00',
             'exit_code' => 1,
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir, '--all' => true]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--all' => true]);
         $output = Artisan::output();
 
         expect($output)->toContain('Claude');
@@ -197,11 +192,10 @@ describe('summary command', function (): void {
     });
 
     it('outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
@@ -209,13 +203,13 @@ describe('summary command', function (): void {
             'output' => 'Created app/Test.php',
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $data = json_decode($output, true);
 
         expect($data)->toBeArray();
         expect($data)->toHaveKeys(['task', 'runs']);
-        expect($data['task']['id'])->toBe($task['id']);
+        expect($data['task']['short_id'])->toBe($task->short_id);
         expect($data['runs'])->toHaveCount(1);
         expect($data['runs'][0])->toHaveKey('duration');
         expect($data['runs'][0])->toHaveKey('parsed_summary');
@@ -223,11 +217,10 @@ describe('summary command', function (): void {
     });
 
     it('shows no actionable items when output has no parseable content', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
@@ -235,18 +228,17 @@ describe('summary command', function (): void {
             'output' => 'Some random text without patterns',
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('No actionable items detected');
     });
 
     it('supports partial task ID matching', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
@@ -254,7 +246,7 @@ describe('summary command', function (): void {
         ]);
 
         // Use partial ID (first 5 chars after f-)
-        $partialId = substr((string) $task['id'], 2, 5);
+        $partialId = substr((string) $task->short_id, 2, 5);
 
         $this->artisan('summary', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Test task')
@@ -262,11 +254,10 @@ describe('summary command', function (): void {
     });
 
     it('parses fuel task operations from output', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
@@ -274,7 +265,7 @@ describe('summary command', function (): void {
             'output' => 'Created task f-abc123. Ran fuel done f-abc123.',
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         expect($output)->toContain('Created task: f-abc123');
@@ -282,18 +273,17 @@ describe('summary command', function (): void {
     });
 
     it('displays status with color coding', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Test task']);
 
         $runService = $this->app->make(RunService::class);
-        $runService->logRun($task['id'], [
+        $runService->logRun($task->short_id, [
             'agent' => 'claude',
             'started_at' => '2026-01-07T10:00:00+00:00',
             'ended_at' => '2026-01-07T10:05:00+00:00',
             'exit_code' => 0,
         ]);
 
-        Artisan::call('summary', ['id' => $task['id'], '--cwd' => $this->tempDir]);
+        Artisan::call('summary', ['id' => $task->short_id, '--cwd' => $this->tempDir]);
         $output = Artisan::output();
 
         // The output should contain the task status

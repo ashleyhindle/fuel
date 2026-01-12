@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
@@ -34,7 +33,7 @@ class TasksCommand extends Command
 
         // Apply filters
         if ($status = $this->option('status')) {
-            $tasks = $tasks->filter(fn (Task $t): bool => ($t->status ?? '') === $status);
+            $tasks = $tasks->filter(fn (Task $t): bool => $t->status->value === $status);
         }
 
         if ($type = $this->option('type')) {
@@ -79,7 +78,7 @@ class TasksCommand extends Command
             $rows = $tasks->map(fn (Task $t): array => [
                 $t->short_id,
                 $t->title,
-                $t->status ?? TaskStatus::Open->value,
+                $t->status->value,
                 $t->type ?? 'task',
                 $t->priority ?? 2,
                 isset($t->labels) && ! empty($t->labels) && is_array($t->labels) ? implode(', ', $t->labels) : '',
