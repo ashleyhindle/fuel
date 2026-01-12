@@ -16,7 +16,7 @@ trait CalculatesDuration
      */
     protected function calculateDuration(?DateTimeInterface $startedAt, ?DateTimeInterface $endedAt): string
     {
-        if (!$startedAt instanceof \DateTimeInterface) {
+        if (! $startedAt instanceof \DateTimeInterface) {
             return '';
         }
 

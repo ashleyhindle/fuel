@@ -27,7 +27,8 @@ class ListCommand extends Command
             if ($command->isHidden()) {
                 continue;
             }
-            $namespace = strpos((string) $name, ':') !== false ? explode(':', (string) $name)[0] : 'global';
+
+            $namespace = str_contains((string) $name, ':') ? explode(':', (string) $name)[0] : 'global';
 
             $grouped[$namespace][] = $command;
         }

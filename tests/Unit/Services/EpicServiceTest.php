@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Illuminate\Support\Facades\Artisan;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
@@ -11,6 +10,7 @@ use App\Providers\AppServiceProvider;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-epic-test-'.uniqid();

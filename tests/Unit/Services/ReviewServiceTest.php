@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-use Illuminate\Support\Facades\Artisan;
-use App\Enums\TaskStatus;
 use App\Contracts\ProcessManagerInterface;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\Process;
 use App\Process\ProcessOutput;
@@ -15,6 +14,7 @@ use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\ReviewService;
+use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function (): void {
     // Create FuelContext for test directory

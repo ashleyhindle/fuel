@@ -431,7 +431,7 @@ class ShowCommand extends Command
      */
     private function formatDateTime(?\DateTimeInterface $dateTimeString): string
     {
-        if (!$dateTimeString instanceof \DateTimeInterface) {
+        if (! $dateTimeString instanceof \DateTimeInterface) {
             return '';
         }
 

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Review;
+use App\Models\Task;
 use App\Services\DatabaseService;
 use Carbon\Carbon;
 use LaravelZero\Framework\Commands\Command;
@@ -133,7 +133,7 @@ class ReviewsCommand extends Command
      */
     private function formatRelativeTime(?\DateTimeInterface $dateString): string
     {
-        if (!$dateString instanceof \DateTimeInterface) {
+        if (! $dateString instanceof \DateTimeInterface) {
             return 'unknown';
         }
 

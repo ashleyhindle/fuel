@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\DB;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
@@ -19,6 +18,7 @@ use App\Services\ReviewService;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider

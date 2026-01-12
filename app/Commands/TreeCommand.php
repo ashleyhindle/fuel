@@ -35,7 +35,7 @@ class TreeCommand extends Command
         $epicFilter = $this->option('epic');
         if ($epicFilter !== null) {
             $epic = Epic::findByPartialId($epicFilter);
-            if (!$epic instanceof Epic) {
+            if (! $epic instanceof Epic) {
                 if ($this->option('json')) {
                     $this->outputJson(['error' => sprintf("Epic '%s' not found", $epicFilter)]);
                 } else {

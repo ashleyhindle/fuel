@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Illuminate\Support\Facades\Artisan;
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
+use Illuminate\Support\Facades\Artisan;
 
 /**
  * Helper to create a task for testing reviews (needed for FK relationship).
