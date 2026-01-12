@@ -9,7 +9,6 @@ use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\FailureType;
 use App\Enums\TaskStatus;
-use App\Models\Epic;
 use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
@@ -20,6 +19,7 @@ use App\Services\ConfigService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\RunService;
+use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
@@ -68,6 +68,7 @@ class ConsumeCommand extends Command
         private ProcessManager $processManager,
         private FuelContext $fuelContext,
         private BackoffStrategy $backoffStrategy,
+        private TaskPromptBuilder $promptBuilder,
         private ?AgentHealthTrackerInterface $healthTracker = null,
         private ?ReviewServiceInterface $reviewService = null,
     ) {
@@ -76,7 +77,7 @@ class ConsumeCommand extends Command
 
     public function handle(): int
     {
-        Artisan::call('migrate', ['--force' => true]);
+        $this->call('migrate', ['--force' => true]);
 
         // Validate config early before entering TUI
         try {
@@ -342,72 +343,7 @@ class ConsumeCommand extends Command
 
         // Build structured prompt with task details
         $cwd = $this->option('cwd') ?: getcwd();
-        $taskDetails = $this->formatTaskForPrompt($task);
-
-        $fullPrompt = <<<PROMPT
-IMPORTANT: You are being orchestrated. Trust the system.
-
-== YOUR ASSIGNMENT ==
-You are assigned EXACTLY ONE task: {$taskId}
-You must ONLY work on this task. Nothing else.
-
-== TASK DETAILS ==
-{$taskDetails}
-
-== TEAMWORK - YOU ARE NOT ALONE ==
-You are ONE agent in a team working in parallel on this codebase.
-Other teammates are working on other tasks RIGHT NOW. They're counting on you to:
-- Stay in your lane (only work on YOUR assigned task)
-- Not step on their toes (don't touch tasks assigned to others)
-- Be a good teammate (log discovered work for others, don't hoard it)
-
-Breaking these rules wastes your teammates' work and corrupts the workflow:
-
-FORBIDDEN - DO NOT DO THESE:
-- NEVER run `fuel start` on ANY task (your task is already started)
-- NEVER run `fuel ready` or `fuel board` (you don't need to see other tasks)
-- NEVER work on tasks other than {$taskId}, even if you see them
-- NEVER "help" by picking up additional work - other agents will handle it
-
-ALLOWED:
-- `fuel add "..."` to LOG discovered work for OTHER agents to do later
-- `fuel done {$taskId}` to mark YOUR task complete
-- `fuel dep:add {$taskId} <other-task>` to add dependencies to YOUR task
-
-== WHEN BLOCKED ==
-If you need human input (credentials, decisions, file permissions):
-1. ./fuel add 'What you need' --labels=needs-human --description='Exact steps for human'
-2. ./fuel dep:add {$taskId} <needs-human-task-id>
-3. Exit immediately - do NOT wait or retry
-
-== CLOSING PROTOCOL ==
-Before exiting, you MUST:
-1. If you changed code: run tests and linter/formatter
-2. Run `git status` to see modified files
-3. Run `git add <files>` for each file YOU modified (not files from other agents)
-4. VERIFY: `git diff --cached --stat` shows all YOUR changes are staged
-5. git commit -m "feat/fix: description"
-6. ./fuel done {$taskId} --commit=<hash>
-7. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
-
-CRITICAL: If you skip git add, your work will be lost. Verify YOUR files are staged before commit.
-
-⚠️  FILE COLLISION WARNING:
-If you see files in `git status` that you did NOT modify, DO NOT stage them with `git add`.
-Other agents may have modified those files while you were working. Only stage files YOU changed.
-
-CRITICAL - If you worked on the same file as another agent:
-- DO NOT remove, overwrite, or undo their changes
-- DO NOT assume your version is correct and theirs is wrong
-- Use `git diff <file>` to see ALL changes in the file
-- Preserve ALL changes from both agents - merge them together if needed
-- If you cannot safely merge, create a needs-human task and block yourself
-- When in doubt, preserve other agents' work - it's easier to add than to recover deleted work
-
-== CONTEXT ==
-Working directory: {$cwd}
-Task ID: {$taskId}
-PROMPT;
+        $fullPrompt = $this->promptBuilder->build($task, $cwd);
 
         // Determine agent name for capacity check and dryrun display
         $agentName = $agentOverride;
@@ -532,9 +468,9 @@ PROMPT;
             }
 
             if ($process->getSessionId() !== null) {
-                $this->runService->updateLatestRun($process->getTaskId(), [
+                $this->updateLatestRunIfTaskExists($process->getTaskId(), [
                     'session_id' => $process->getSessionId(),
-                ]);
+                ], $statusLines);
             }
         }
 
@@ -665,7 +601,7 @@ PROMPT;
             $runData['model'] = $completion->model;
         }
 
-        $this->runService->updateLatestRun($taskId, $runData);
+        $this->updateLatestRunIfTaskExists($taskId, $runData, $statusLines);
 
         // Clear PID from task
         $this->taskService->update($taskId, [
@@ -745,6 +681,26 @@ PROMPT;
             // No ReviewService - fall back to auto-complete
             $this->fallbackAutoComplete($taskId, $statusLines, $durationStr);
         }
+    }
+
+    /**
+     * Update the latest run for a task, skipping if the task no longer exists.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<string>  $statusLines
+     */
+    private function updateLatestRunIfTaskExists(
+        string $taskId,
+        array $data,
+        array &$statusLines
+    ): void {
+        if (! $this->taskService->find($taskId)) {
+            $statusLines[] = $this->formatStatus('⚠', sprintf('Skipping run update for missing task %s', $taskId), 'yellow');
+
+            return;
+        }
+
+        $this->runService->updateLatestRun($taskId, $data);
     }
 
     /**
@@ -1098,73 +1054,6 @@ PROMPT;
         }
 
         return $statusLines;
-    }
-
-    /**
-     * @param  array<string, mixed>  $task
-     */
-    private function formatTaskForPrompt(Task $task): string
-    {
-        $lines = [
-            'Task: '.$task->short_id,
-            'Title: '.$task->title,
-            'Status: '.$task->status->value,
-        ];
-
-        // Include epic information if task is part of an epic
-        if (! empty($task->epic_id)) {
-            $epic = $task->epic;
-            if ($epic instanceof Epic) {
-                $lines[] = '';
-                $lines[] = '== EPIC CONTEXT ==';
-                $lines[] = 'This task is part of a larger epic:';
-                $lines[] = 'Epic: '.$epic->short_id;
-                $lines[] = 'Epic Title: '.$epic->title;
-                if (! empty($epic->description)) {
-                    $lines[] = 'Epic Description: '.$epic->description;
-                }
-
-                $lines[] = '';
-                $lines[] = 'You are working on a small part of this larger epic. Understanding the epic context will help you build better solutions that align with the overall goal.';
-                $lines[] = '';
-            }
-        }
-
-        if (! empty($task->description)) {
-            $lines[] = 'Description: '.$task->description;
-        }
-
-        if (! empty($task->type)) {
-            $lines[] = 'Type: '.$task->type;
-        }
-
-        if (! empty($task->priority)) {
-            $lines[] = 'Priority: P'.$task->priority;
-        }
-
-        if (! empty($task->labels)) {
-            $lines[] = 'Labels: '.implode(', ', $task->labels);
-        }
-
-        if (! empty($task->blocked_by)) {
-            $lines[] = 'Blocked by: '.implode(', ', $task->blocked_by);
-        }
-
-        // Include previous review issues if present
-        if (! empty($task->last_review_issues)) {
-            $lines[] = '';
-            $lines[] = '⚠️ PREVIOUS ATTEMPT FAILED REVIEW';
-            $lines[] = 'You ALREADY completed this task, but a reviewer found issues:';
-            foreach ($task->last_review_issues as $issue) {
-                $lines[] = '  - '.$issue;
-            }
-
-            $lines[] = '';
-            $lines[] = 'DO NOT redo the entire task from scratch.';
-            $lines[] = 'ONLY fix the specific issues listed above, then run the closing protocol again.';
-        }
-
-        return implode("\n", $lines);
     }
 
     /**

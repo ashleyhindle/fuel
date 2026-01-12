@@ -138,8 +138,7 @@ describe('show command', function (): void {
     it('shows epic information when task has epic_id', function (): void {
 
         // Initialize database for epics
-        $dbService = new DatabaseService;
-        $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
+        $dbService = new DatabaseService($this->tempDir.'/.fuel/agent.db');
 
         $epicService = makeEpicService($dbService, $this->taskService);
         $epic = $epicService->createEpic('Test Epic', 'Epic description');
@@ -165,8 +164,7 @@ describe('show command', function (): void {
     it('includes epic information in JSON output when task has epic_id', function (): void {
 
         // Initialize database for epics
-        $dbService = new DatabaseService;
-        $dbService->setDatabasePath($this->tempDir.'/.fuel/agent.db');
+        $dbService = new DatabaseService($this->tempDir.'/.fuel/agent.db');
 
         $epicService = makeEpicService($dbService, $this->taskService);
         $epic = $epicService->createEpic('JSON Epic', 'Epic description');
@@ -255,10 +253,10 @@ describe('show command', function (): void {
             'output' => 'Run output content',
         ]);
 
-        // Mark task as closed
+        // Mark task as done
         $this->taskService->done($task->short_id);
 
-        // Create stdout.log (should be ignored for closed tasks)
+        // Create stdout.log (should be ignored for done tasks)
         $databaseService = $this->app->make(DatabaseService::class);
         $run = $databaseService->fetchOne(
             'SELECT short_id FROM runs WHERE task_id = (SELECT id FROM tasks WHERE short_id = ?) ORDER BY id DESC LIMIT 1',
