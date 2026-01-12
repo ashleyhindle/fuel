@@ -9,7 +9,7 @@ enum TaskStatus: string
     case Open = 'open';
     case InProgress = 'in_progress';
     case Review = 'review';
-    case Closed = 'closed';
+    case Done = 'done';
     case Cancelled = 'cancelled';
     case Someday = 'someday';
 }
