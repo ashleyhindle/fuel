@@ -21,8 +21,10 @@ describe('completed command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -74,11 +76,11 @@ describe('completed command', function (): void {
         $task3 = $this->taskService->create(['title' => 'Third task']);
 
         // Close them in order
-        $this->taskService->done($task1['id']);
+        $this->taskService->done($task1->short_id);
         sleep(1); // Ensure different timestamps
-        $this->taskService->done($task2['id']);
+        $this->taskService->done($task2->short_id);
         sleep(1);
-        $this->taskService->done($task3['id']);
+        $this->taskService->done($task3->short_id);
 
         Artisan::call('completed', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -94,8 +96,8 @@ describe('completed command', function (): void {
         $inProgress = $this->taskService->create(['title' => 'In progress task']);
         $closed = $this->taskService->create(['title' => 'Closed task']);
 
-        $this->taskService->start($inProgress['id']);
-        $this->taskService->done($closed['id']);
+        $this->taskService->start($inProgress->short_id);
+        $this->taskService->done($closed->short_id);
 
         Artisan::call('completed', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -117,10 +119,10 @@ describe('completed command', function (): void {
                 // Set time for this task (each task gets a different timestamp)
                 Carbon::setTestNow($baseTime->copy()->addSeconds($i));
                 $task = $this->taskService->create(['title' => 'Task '.$i]);
-                $taskIds[] = $task['id'];
+                $taskIds[] = $task->short_id;
                 // Increment time slightly for done() call to ensure updated_at differs
                 Carbon::setTestNow($baseTime->copy()->addSeconds($i)->addMilliseconds(100));
-                $this->taskService->done($task['id']);
+                $this->taskService->done($task->short_id);
             }
 
             Artisan::call('completed', ['--cwd' => $this->tempDir, '--limit' => 3, '--json' => true]);
@@ -142,7 +144,7 @@ describe('completed command', function (): void {
 
     it('outputs JSON when --json flag is used', function (): void {
         $task = $this->taskService->create(['title' => 'Completed task']);
-        $this->taskService->done($task['id']);
+        $this->taskService->done($task->short_id);
 
         Artisan::call('completed', ['--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
@@ -150,7 +152,7 @@ describe('completed command', function (): void {
         $data = json_decode($output, true);
         expect($data)->toBeArray();
         expect($data)->toHaveCount(1);
-        expect($data[0]['id'])->toBe($task['id']);
+        expect($data[0]['short_id'])->toBe($task->short_id);
         expect($data[0]['status'])->toBe('closed');
     });
 
@@ -169,7 +171,7 @@ describe('completed command', function (): void {
             'type' => 'feature',
             'priority' => 1,
         ]);
-        $this->taskService->done($task['id']);
+        $this->taskService->done($task->short_id);
 
         Artisan::call('completed', ['--cwd' => $this->tempDir]);
         $output = Artisan::output();
@@ -179,7 +181,7 @@ describe('completed command', function (): void {
         expect($output)->toContain('Completed');
         expect($output)->toContain('Type');
         expect($output)->toContain('Priority');
-        expect($output)->toContain($task['id']);
+        expect($output)->toContain($task->short_id);
         expect($output)->toContain('Test completed task');
         expect($output)->toContain('feature');
         expect($output)->toContain('1');
