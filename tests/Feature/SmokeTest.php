@@ -25,7 +25,6 @@ it('runs a basic command flow', function (): void {
     $consumeExit = Artisan::call('consume', [
         '--cwd' => $cwd,
         '--dryrun' => true,
-        '--skip-review' => true,
     ]);
 
     expect($consumeExit)->toBe(0);

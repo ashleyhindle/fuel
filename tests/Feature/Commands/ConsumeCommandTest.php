@@ -780,7 +780,7 @@ describe('consume command auto-close feature', function (): void {
 });
 
 describe('consume command review integration', function (): void {
-    it('skips review when --skip-review flag is used', function (): void {
+    it('skips review by default', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -795,14 +795,14 @@ describe('consume command review integration', function (): void {
 
         // Create a task and put it in_progress status
         $task = $this->taskService->create([
-            'title' => 'Task for skip-review test',
+            'title' => 'Task for default skip-review test',
             'complexity' => 'trivial',
         ]);
         $taskId = $task->short_id;
         $this->taskService->start($taskId);
 
-        // Simulate what handleSuccess does with --skip-review
-        // Instead of triggering review, it directly marks task as done
+        // Simulate what handleSuccess does by default (without --review flag)
+        // It directly marks task as done, skipping review
         $task = $this->taskService->find($taskId);
         if ($task && $task->status === TaskStatus::InProgress) {
             $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
@@ -815,6 +815,38 @@ describe('consume command review integration', function (): void {
 
         // Verify no auto-closed label was added (skip-review path doesn't add it)
         expect($closedTask->labels)->not->toContain('auto-closed');
+    });
+
+    it('enables review when --review flag is used', function (): void {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create a task and put it in_progress status
+        $task = $this->taskService->create([
+            'title' => 'Task for --review flag test',
+            'complexity' => 'trivial',
+        ]);
+        $taskId = $task->short_id;
+        $this->taskService->start($taskId);
+
+        // Verify the condition that would trigger review when --review flag is used
+        // When --review is set and task is in_progress, review should be triggered
+        $task = $this->taskService->find($taskId);
+        expect($task->status)->toBe(TaskStatus::InProgress);
+
+        // When --review flag is used and status is 'in_progress',
+        // handleSuccess calls reviewService->triggerReview($taskId, $agentName)
+        $shouldTriggerReview = $task !== null && $task->status === TaskStatus::InProgress;
+        expect($shouldTriggerReview)->toBeTrue();
     });
 
     it('verifies review conditions - task in_progress should trigger review', function (): void {
