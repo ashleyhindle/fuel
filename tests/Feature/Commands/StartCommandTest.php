@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TaskStatus;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -16,8 +17,10 @@ describe('start command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -57,24 +60,22 @@ describe('start command', function (): void {
     });
 
     it('sets status to in_progress', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Task to start']);
 
-        $this->artisan('start', ['id' => $task['short_id'], '--cwd' => $this->tempDir])
+        $this->artisan('start', ['id' => $task->short_id, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Started task:')
             ->assertExitCode(0);
 
-        $updated = $this->taskService->find($task['short_id']);
-        expect($updated['status'])->toBe('in_progress');
+        $updated = $this->taskService->find($task->short_id);
+        expect($updated->status)->toBe(TaskStatus::InProgress);
     });
 
     it('excludes task from ready() output', function (): void {
-        $this->taskService->initialize();
         $task1 = $this->taskService->create(['title' => 'Task 1']);
         $task2 = $this->taskService->create(['title' => 'Task 2']);
 
         // Start task1
-        $this->artisan('start', ['id' => $task1['short_id'], '--cwd' => $this->tempDir])
+        $this->artisan('start', ['id' => $task1->short_id, '--cwd' => $this->tempDir])
             ->assertExitCode(0);
 
         // Task1 should not appear in ready output
@@ -85,34 +86,31 @@ describe('start command', function (): void {
     });
 
     it('supports partial ID matching', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'Partial ID task']);
-        $partialId = substr((string) $task['short_id'], 2, 3); // Just 3 chars of the hash
+        $partialId = substr((string) $task->short_id, 2, 3); // Just 3 chars of the hash
 
         $this->artisan('start', ['id' => $partialId, '--cwd' => $this->tempDir])
             ->expectsOutputToContain('Started task:')
             ->assertExitCode(0);
 
-        $updated = $this->taskService->find($task['short_id']);
-        expect($updated['status'])->toBe('in_progress');
+        $updated = $this->taskService->find($task->short_id);
+        expect($updated->status)->toBe(TaskStatus::InProgress);
     });
 
     it('returns JSON when --json flag used', function (): void {
-        $this->taskService->initialize();
         $task = $this->taskService->create(['title' => 'JSON start task']);
 
-        Artisan::call('start', ['id' => $task['short_id'], '--cwd' => $this->tempDir, '--json' => true]);
+        Artisan::call('start', ['id' => $task->short_id, '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
         expect($result)->toBeArray();
-        expect($result['short_id'])->toBe($task['short_id']);
+        expect($result['short_id'])->toBe($task->short_id);
         expect($result['status'])->toBe('in_progress');
         expect($result['title'])->toBe('JSON start task');
     });
 
     it('handles invalid IDs gracefully', function (): void {
-        $this->taskService->initialize();
 
         $this->artisan('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir])
             ->expectsOutputToContain('not found')
@@ -120,7 +118,6 @@ describe('start command', function (): void {
     });
 
     it('outputs JSON error for invalid ID with --json flag', function (): void {
-        $this->taskService->initialize();
 
         Artisan::call('start', ['id' => 'nonexistent', '--cwd' => $this->tempDir, '--json' => true]);
         $output = Artisan::output();

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TaskStatus;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Process\ReviewResult;
@@ -23,8 +24,10 @@ beforeEach(function (): void {
     $this->configPath = $context->getConfigPath();
 
     // Bind test services
+    $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
 
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -43,7 +46,6 @@ beforeEach(function (): void {
     $this->runService = $this->app->make(RunService::class);
 
     // Initialize storage
-    $this->taskService->initialize();
 });
 
 afterEach(function (): void {
@@ -316,7 +318,7 @@ describe('consume command permission-blocked detection', function (): void {
 
         // Verify original task was reopened
         $updatedTask = $this->taskService->find($taskId);
-        expect($updatedTask->status)->toBe('open');
+        expect($updatedTask->status)->toBe(TaskStatus::Open);
 
         // Verify dependency was added
         expect($updatedTask->blocked_by)->toContain($humanTask->short_id);
@@ -366,7 +368,7 @@ describe('consume command permission-blocked detection', function (): void {
 
         // Verify results
         $updatedTask = $this->taskService->find($taskId);
-        expect($updatedTask->status)->toBe('open');
+        expect($updatedTask->status)->toBe(TaskStatus::Open);
         expect($updatedTask->blocked_by)->toContain($humanTask->short_id);
         expect($humanTask->labels)->toContain('needs-human');
     });
@@ -410,7 +412,7 @@ describe('consume command permission-blocked detection', function (): void {
 
         // Verify results
         $updatedTask = $this->taskService->find($taskId);
-        expect($updatedTask->status)->toBe('open');
+        expect($updatedTask->status)->toBe(TaskStatus::Open);
         expect($updatedTask->blocked_by)->toContain($humanTask->short_id);
     });
 
@@ -445,13 +447,13 @@ describe('consume command permission-blocked detection', function (): void {
 
         // Simulate normal completion (what handleProcessCompletion does for exit 0)
         $task = $this->taskService->find($taskId);
-        if ($task && $task->status === 'in_progress') {
+        if ($task && $task->status === TaskStatus::InProgress) {
             $this->taskService->done($taskId, 'Auto-completed by consume (agent exit 0)');
         }
 
         // Verify task was completed
         $completedTask = $this->taskService->find($taskId);
-        expect($completedTask->status)->toBe('closed');
+        expect($completedTask->status)->toBe(TaskStatus::Closed);
         expect($completedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
 
         // Verify no needs-human tasks were created
@@ -517,12 +519,12 @@ describe('consume command auto-close feature', function (): void {
 
         // Verify task is in_progress
         $task = $this->taskService->find($taskId);
-        expect($task->status)->toBe('in_progress');
+        expect($task->status)->toBe(TaskStatus::InProgress);
 
         // Simulate what ConsumeCommand::handleSuccess does when agent exits 0
         // but task is still in_progress (agent didn't call fuel done)
         $task = $this->taskService->find($taskId);
-        if ($task && $task->status === 'in_progress') {
+        if ($task && $task->status === TaskStatus::InProgress) {
             // Add 'auto-closed' label to indicate it wasn't self-reported
             $this->taskService->update($taskId, [
                 'add_labels' => ['auto-closed'],
@@ -538,7 +540,7 @@ describe('consume command auto-close feature', function (): void {
 
         // Verify task was closed with auto-closed label
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe('closed');
+        expect($closedTask->status)->toBe(TaskStatus::Closed);
         expect($closedTask->labels)->toContain('auto-closed');
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
@@ -575,7 +577,7 @@ describe('consume command auto-close feature', function (): void {
         $task = $this->taskService->find($taskId);
 
         // Task should already be closed (by agent), so handleSuccess skips auto-close
-        expect($task->status)->toBe('closed');
+        expect($task->status)->toBe(TaskStatus::Closed);
 
         // The condition in handleSuccess ($task->status === 'in_progress') is false
         // so auto-closed label should NOT be added
@@ -624,7 +626,7 @@ describe('consume command auto-close feature', function (): void {
 
         // Verify task was closed correctly
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe('closed');
+        expect($closedTask->status)->toBe(TaskStatus::Closed);
         expect($closedTask->labels)->toContain('auto-closed');
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
@@ -757,10 +759,10 @@ describe('consume command auto-close feature', function (): void {
         $this->taskService->done($taskId1, 'Closed by agent');
 
         $task1 = $this->taskService->find($taskId1);
-        expect($task1->status)->toBe('closed');
+        expect($task1->status)->toBe(TaskStatus::Closed);
 
         // Simulate handleSuccess check - condition ($task->status === 'in_progress') is false
-        $shouldAutoClose = $task1->status === 'in_progress';
+        $shouldAutoClose = $task1->status === TaskStatus::InProgress;
         expect($shouldAutoClose)->toBeFalse();
 
         // Test case 2: Task still in_progress - should auto-close
@@ -769,10 +771,10 @@ describe('consume command auto-close feature', function (): void {
         $this->taskService->start($taskId2);
 
         $task2 = $this->taskService->find($taskId2);
-        expect($task2->status)->toBe('in_progress');
+        expect($task2->status)->toBe(TaskStatus::InProgress);
 
         // Simulate handleSuccess check - condition ($task->status === 'in_progress') is true
-        $shouldAutoClose = $task2->status === 'in_progress';
+        $shouldAutoClose = $task2->status === TaskStatus::InProgress;
         expect($shouldAutoClose)->toBeTrue();
     });
 });
@@ -802,13 +804,13 @@ describe('consume command review integration', function (): void {
         // Simulate what handleSuccess does with --skip-review
         // Instead of triggering review, it directly marks task as done
         $task = $this->taskService->find($taskId);
-        if ($task && $task->status === 'in_progress') {
+        if ($task && $task->status === TaskStatus::InProgress) {
             $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
         }
 
         // Verify task was closed with the skip-review reason
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe('closed');
+        expect($closedTask->status)->toBe(TaskStatus::Closed);
         expect($closedTask->reason)->toBe('Auto-completed by consume (review skipped)');
 
         // Verify no auto-closed label was added (skip-review path doesn't add it)
@@ -838,13 +840,13 @@ describe('consume command review integration', function (): void {
 
         // Verify the condition that would trigger review in handleSuccess
         $task = $this->taskService->find($taskId);
-        expect($task->status)->toBe('in_progress');
+        expect($task->status)->toBe(TaskStatus::InProgress);
 
         // In handleSuccess, when status is 'in_progress' and ReviewService is available,
         // it calls reviewService->triggerReview($taskId, $agentName)
         // The condition is: $task && $task->status !== 'in_progress' returns early
         // So status === 'in_progress' means we should trigger review
-        $shouldTriggerReview = $task !== null && $task->status === 'in_progress';
+        $shouldTriggerReview = $task !== null && $task->status === TaskStatus::InProgress;
         expect($shouldTriggerReview)->toBeTrue();
     });
 
@@ -872,11 +874,11 @@ describe('consume command review integration', function (): void {
 
         // Verify the condition that would skip review in handleSuccess
         $task = $this->taskService->find($taskId);
-        expect($task->status)->toBe('closed');
+        expect($task->status)->toBe(TaskStatus::Closed);
 
         // In handleSuccess, when status is NOT 'in_progress', it returns early
         // So status === 'closed' means we should NOT trigger review
-        $shouldTriggerReview = $task !== null && $task->status === 'in_progress';
+        $shouldTriggerReview = $task !== null && $task->status === TaskStatus::InProgress;
         expect($shouldTriggerReview)->toBeFalse();
     });
 
@@ -922,7 +924,7 @@ describe('consume command review integration', function (): void {
 
         // Verify task was closed
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe('closed');
+        expect($closedTask->status)->toBe(TaskStatus::Closed);
         expect($closedTask->reason)->toBe('Review passed');
     });
 
@@ -962,7 +964,7 @@ describe('consume command review integration', function (): void {
 
         // Task should stay in 'review' status (don't call done)
         $reviewTask = $this->taskService->find($taskId);
-        expect($reviewTask->status)->toBe('review');
+        expect($reviewTask->status)->toBe(TaskStatus::Review);
     });
 
     it('falls back to auto-complete when ReviewService is not available', function (): void {
@@ -998,7 +1000,7 @@ describe('consume command review integration', function (): void {
 
         // Verify task was auto-closed
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe('closed');
+        expect($closedTask->status)->toBe(TaskStatus::Closed);
         expect($closedTask->labels)->toContain('auto-closed');
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
@@ -1042,7 +1044,7 @@ describe('consume command review integration', function (): void {
 
         // Verify fallback worked
         $closedTask = $this->taskService->find($taskId);
-        expect($closedTask->status)->toBe('closed');
+        expect($closedTask->status)->toBe(TaskStatus::Closed);
         expect($closedTask->labels)->toContain('auto-closed');
     });
 

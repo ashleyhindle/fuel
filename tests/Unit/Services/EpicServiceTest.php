@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Enums\EpicStatus;
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Providers\AppServiceProvider;
@@ -15,7 +17,8 @@ beforeEach(function (): void {
     $this->context = new FuelContext($this->tempDir.'/.fuel');
 
     $this->db = new DatabaseService($this->context->getDatabasePath());
-    $this->db->initialize(); // Create tables in test database
+    $this->context->configureDatabase();
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 
     // Configure Eloquent to use the test database
     AppServiceProvider::configureDatabasePath($this->context);
@@ -103,7 +106,6 @@ it('gets all epics', function (): void {
 });
 
 it('returns empty array when no epics exist', function (): void {
-    $this->db->initialize();
 
     $epics = $this->service->getAllEpics();
 
@@ -155,7 +157,7 @@ it('computes epic status as in_progress when task is open', function (): void {
 
     $epic = $this->service->getEpic($epic->id);
 
-    expect($epic->status)->toBe('in_progress');
+    expect($epic->status)->toBe(EpicStatus::InProgress);
 });
 
 it('computes epic status as in_progress when task is in_progress', function (): void {
@@ -165,7 +167,7 @@ it('computes epic status as in_progress when task is in_progress', function (): 
 
     $epic = $this->service->getEpic($epic->id);
 
-    expect($epic->status)->toBe('in_progress');
+    expect($epic->status)->toBe(EpicStatus::InProgress);
 });
 
 it('computes epic status as review_pending when all tasks are closed', function (): void {
@@ -188,7 +190,6 @@ it('computes epic status as reviewed when reviewed_at is set', function (): void
     expect($epic->status)->toBe('review_pending');
 
     // Set reviewed_at directly in DB
-    $this->db->initialize();
     $this->db->query(
         'UPDATE epics SET reviewed_at = ? WHERE short_id = ?',
         [Carbon::now('UTC')->toIso8601String(), $epic->id]
@@ -210,7 +211,6 @@ it('ignores status updates since status is computed', function (): void {
 });
 
 it('throws exception when updating non-existent epic', function (): void {
-    $this->db->initialize();
 
     $this->service->updateEpic('e-000000', ['title' => 'New']);
 })->throws(RuntimeException::class, "Epic 'e-000000' not found");
@@ -226,7 +226,6 @@ it('deletes an epic', function (): void {
 });
 
 it('throws exception when deleting non-existent epic', function (): void {
-    $this->db->initialize();
 
     $this->service->deleteEpic('e-000000');
 })->throws(RuntimeException::class, "Epic 'e-000000' not found");
@@ -265,7 +264,6 @@ it('gets tasks for epic when tasks are linked', function (): void {
 });
 
 it('throws exception when getting tasks for non-existent epic', function (): void {
-    $this->db->initialize();
 
     $this->service->getTasksForEpic('e-000000');
 })->throws(RuntimeException::class, "Epic 'e-000000' not found");
@@ -451,13 +449,13 @@ it('rejects an epic and reopens tasks', function (): void {
     expect($rejected->changes_requested_at)->not->toBeNull();
     expect($rejected->approved_at)->toBeNull();
     expect($rejected->approved_by)->toBeNull();
-    expect($rejected->status)->toBe('in_progress'); // Tasks reopened, so in_progress
+    expect($rejected->status)->toBe(EpicStatus::InProgress); // Tasks reopened, so in_progress
 
     // Verify tasks were reopened
     $task1Updated = $this->taskService->find($task1->short_id);
     $task2Updated = $this->taskService->find($task2->short_id);
-    expect($task1Updated->status)->toBe('open');
-    expect($task2Updated->status)->toBe('open');
+    expect($task1Updated->status)->toBe(TaskStatus::Open);
+    expect($task2Updated->status)->toBe(TaskStatus::Open);
 });
 
 it('shows changes_requested status when epic rejected but tasks not yet reopened', function (): void {
@@ -469,7 +467,7 @@ it('shows changes_requested status when epic rejected but tasks not yet reopened
     $rejected = $this->service->rejectEpic($epic->id);
 
     // Status should be in_progress because rejectEpic reopens tasks
-    expect($rejected->status)->toBe('in_progress');
+    expect($rejected->status)->toBe(EpicStatus::InProgress);
 });
 
 it('throws exception when approving non-existent epic', function (): void {

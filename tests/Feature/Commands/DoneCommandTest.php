@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TaskStatus;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -66,7 +67,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe('closed');
+        expect($updated->status)->toBe(TaskStatus::Closed);
     });
 
     it('supports partial ID matching', function (): void {
@@ -78,7 +79,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe('closed');
+        expect($updated->status)->toBe(TaskStatus::Closed);
     });
 
     it('shows error for non-existent task', function (): void {
@@ -116,7 +117,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe('closed');
+        expect($updated->status)->toBe(TaskStatus::Closed);
         expect($updated->reason)->toBe('Fixed the bug');
     });
 
@@ -143,7 +144,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe('closed');
+        expect($updated->status)->toBe(TaskStatus::Closed);
         expect($updated->reason)->toBeNull();
     });
 
@@ -161,7 +162,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe('closed');
+        expect($updated->status)->toBe(TaskStatus::Closed);
         expect($updated->commit_hash)->toBe($commitHash);
     });
 
@@ -189,7 +190,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe('closed');
+        expect($updated->status)->toBe(TaskStatus::Closed);
         expect($updated->commit_hash)->toBeNull();
     });
 
@@ -209,7 +210,7 @@ describe('done command', function (): void {
             ->assertExitCode(0);
 
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe('closed');
+        expect($updated->status)->toBe(TaskStatus::Closed);
         expect($updated->reason)->toBe('Fixed the bug');
         expect($updated->commit_hash)->toBe($commitHash);
     });
@@ -226,9 +227,9 @@ describe('done command', function (): void {
             ->expectsOutputToContain('Completed task:')
             ->assertExitCode(0);
 
-        expect($this->taskService->find($task1->short_id)->status)->toBe('closed');
-        expect($this->taskService->find($task2->short_id)->status)->toBe('closed');
-        expect($this->taskService->find($task3->short_id)->status)->toBe('closed');
+        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Closed);
+        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Closed);
+        expect($this->taskService->find($task3->short_id)->status)->toBe(TaskStatus::Closed);
     });
 
     it('outputs multiple tasks as JSON array when multiple IDs provided', function (): void {
@@ -280,9 +281,9 @@ describe('done command', function (): void {
             ->assertExitCode(1);
 
         // Task1 should be closed
-        expect($this->taskService->find($task1->short_id)->status)->toBe('closed');
+        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Closed);
         // Task2 should be closed
-        expect($this->taskService->find($task2->short_id)->status)->toBe('closed');
+        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Closed);
     });
 
     it('applies same reason to all tasks when --reason provided', function (): void {
@@ -312,7 +313,7 @@ describe('done command', function (): void {
         ])
             ->assertExitCode(0);
 
-        expect($this->taskService->find($task1->short_id)->status)->toBe('closed');
-        expect($this->taskService->find($task2->short_id)->status)->toBe('closed');
+        expect($this->taskService->find($task1->short_id)->status)->toBe(TaskStatus::Closed);
+        expect($this->taskService->find($task2->short_id)->status)->toBe(TaskStatus::Closed);
     });
 });
