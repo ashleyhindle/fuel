@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\Run;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
+use App\Models\Run;
 use App\Models\Task;
 
 class TaskPromptBuilder
@@ -178,7 +178,7 @@ PROMPT;
     private function appendRetryInfo(array &$lines, Task $task): void
     {
         $latestRun = $this->runService->getLatestRun($task->short_id);
-        if (!$latestRun instanceof Run) {
+        if (! $latestRun instanceof Run) {
             return;
         }
 

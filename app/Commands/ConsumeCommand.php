@@ -694,7 +694,7 @@ class ConsumeCommand extends Command
         array $data,
         array &$statusLines
     ): void {
-        if (!$this->taskService->find($taskId) instanceof Task) {
+        if (! $this->taskService->find($taskId) instanceof Task) {
             $statusLines[] = $this->formatStatus('⚠', sprintf('Skipping run update for missing task %s', $taskId), 'yellow');
 
             return;

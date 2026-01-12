@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Services\FuelContext;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\ProcessManager;
 use App\Services\RunService;

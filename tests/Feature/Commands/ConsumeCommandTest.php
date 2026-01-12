@@ -35,7 +35,7 @@ beforeEach(function (): void {
 
     $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
 
-    $this->app->singleton(EpicService::class, function () use ($databaseService): EpicService {
+    $this->app->singleton(EpicService::class, function (): EpicService {
         $taskService = $this->app->make(TaskService::class);
 
         return makeEpicService($taskService);
