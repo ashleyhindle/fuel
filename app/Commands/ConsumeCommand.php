@@ -485,7 +485,7 @@ PROMPT;
         ]);
 
         // Spawn via ProcessManager with run ID
-        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $agentOverride, $runId);
+        $result = $this->processManager->spawnForTask($task, $fullPrompt, $cwd, $agentOverride, $runId);
 
         if (! $result->success) {
             // Agent in backoff should already be caught above, but handle just in case

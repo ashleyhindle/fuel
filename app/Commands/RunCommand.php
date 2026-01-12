@@ -50,7 +50,6 @@ class RunCommand extends Command
     public function handle(): int
     {
         $this->configureCwd($this->fuelContext, $this->databaseService);
-        $this->taskService->initialize();
 
         $cwd = $this->option('cwd') ?: getcwd();
 
@@ -126,7 +125,7 @@ class RunCommand extends Command
         $this->line('<fg=gray>─────────────────────────────────────────</>');
         $this->newLine();
 
-        $result = $this->processManager->spawnForTask($task->toArray(), $fullPrompt, $cwd, $this->option('agent'), $runId);
+        $result = $this->processManager->spawnForTask($task, $fullPrompt, $cwd, $this->option('agent'), $runId);
 
         if (! $result->success) {
             $this->error('Failed to spawn agent: '.($result->error ?? 'Unknown error'));
