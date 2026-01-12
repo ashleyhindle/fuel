@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Services\FuelContext;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -95,6 +96,14 @@ class SelfUpdateCommand extends Command
 
         $this->info('Updated to '.$version);
 
+        $projectPath = app(FuelContext::class)->getProjectPath();
+        if ($this->shouldRunMigrations($projectPath)) {
+            $this->info('Running migrations in current project...');
+            $this->runMigrations($targetPath);
+        } else {
+            $this->line('No .fuel directory found in current path. Skipping migrations.');
+        }
+
         return self::SUCCESS;
     }
 
@@ -149,6 +158,74 @@ class SelfUpdateCommand extends Command
         }
 
         return $home;
+    }
+
+    private function shouldRunMigrations(string $startDir): bool
+    {
+        $currentDir = $startDir;
+        $maxLevels = 5;
+
+        for ($i = 0; $i < $maxLevels; $i++) {
+            if (is_dir($currentDir.'/.fuel')) {
+                return true;
+            }
+
+            if (is_dir($currentDir.'/.git')) {
+                break;
+            }
+
+            $parentDir = dirname($currentDir);
+            if ($parentDir === $currentDir) {
+                break;
+            }
+
+            $currentDir = $parentDir;
+        }
+
+        return false;
+    }
+
+    private function runMigrations(string $binaryPath): void
+    {
+        if (! function_exists('proc_open')) {
+            $this->warn('proc_open is unavailable; skipping migrations.');
+
+            return;
+        }
+
+        $process = proc_open(
+            [$binaryPath, 'migrate', '--force'],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes
+        );
+
+        if (! is_resource($process)) {
+            $this->warn('Failed to start migration process.');
+
+            return;
+        }
+
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]) ?: '';
+        $stderr = stream_get_contents($pipes[2]) ?: '';
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_close($process);
+        if ($stdout !== '') {
+            $this->line(trim($stdout));
+        }
+
+        if ($exitCode !== 0) {
+            $this->warn('Migrations failed. Run `fuel migrate --force` manually.');
+            if ($stderr !== '') {
+                $this->line(trim($stderr));
+            }
+        }
     }
 
     /**

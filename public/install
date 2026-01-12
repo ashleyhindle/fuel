@@ -82,8 +82,43 @@ done
 # Export PATH for current session so user doesn't need to restart terminal
 export PATH="$PATH:$INSTALL_DIR"
 
+find_fuel_dir() {
+    dir="$1"
+    i=0
+    max_levels=5
+
+    while [ $i -lt $max_levels ]; do
+        if [ -d "$dir/.fuel" ]; then
+            echo "$dir/.fuel"
+            return 0
+        fi
+
+        if [ -d "$dir/.git" ]; then
+            break
+        fi
+
+        parent=$(dirname "$dir")
+        if [ "$parent" = "$dir" ]; then
+            break
+        fi
+
+        dir="$parent"
+        i=$((i + 1))
+    done
+
+    return 1
+}
+
 if [ -n "$ADDED_TO" ]; then
     printf "${GREEN}Added Fuel to PATH in:%s${NC}\n" "$ADDED_TO"
+fi
+
+FUEL_DIR=$(find_fuel_dir "$(pwd)" || true)
+if [ -n "$FUEL_DIR" ]; then
+    echo ""
+    echo "Detected existing Fuel setup at $FUEL_DIR"
+    echo "Running migrations..."
+    "$INSTALL_DIR/$BINARY_NAME" migrate --force || true
 fi
 
 echo ""
