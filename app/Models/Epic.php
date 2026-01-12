@@ -39,6 +39,7 @@ class Epic extends Model
     ];
 
     protected $casts = [
+        'status' => EpicStatus::class,
         'reviewed_at' => 'datetime',
         'approved_at' => 'datetime',
         'changes_requested_at' => 'datetime',
@@ -116,22 +117,22 @@ class Epic extends Model
         // Future Eloquent usage: compute status from tasks and review state
         // Check approval/rejection status first (these override computed status)
         if ($this->approved_at !== null) {
-            return EpicStatus::Approved->value;
+            return EpicStatus::Approved;
         }
 
         if ($this->changes_requested_at !== null) {
             // If changes were requested, check if tasks are back in progress
             $hasActiveTask = $this->tasks()
-                ->whereIn('status', [TaskStatus::Open->value, TaskStatus::InProgress->value])
+                ->whereIn('status', [TaskStatus::Open, TaskStatus::InProgress])
                 ->exists();
 
             // If tasks are active again, it's in_progress; otherwise still changes_requested
-            return $hasActiveTask ? EpicStatus::InProgress->value : EpicStatus::ChangesRequested->value;
+            return $hasActiveTask ? EpicStatus::InProgress : EpicStatus::ChangesRequested;
         }
 
         // If reviewed_at is set but not approved, epic is reviewed (but not approved)
         if ($this->reviewed_at !== null) {
-            return EpicStatus::Reviewed->value;
+            return EpicStatus::Reviewed;
         }
 
         // Check task states
@@ -139,16 +140,16 @@ class Epic extends Model
 
         // If no tasks, epic is in planning
         if ($tasksCount === 0) {
-            return EpicStatus::Planning->value;
+            return EpicStatus::Planning;
         }
 
         // Check if any task is open or in_progress
         $hasActiveTask = $this->tasks()
-            ->whereIn('status', [TaskStatus::Open->value, TaskStatus::InProgress->value])
+            ->whereIn('status', [TaskStatus::Open, TaskStatus::InProgress])
             ->exists();
 
         if ($hasActiveTask) {
-            return EpicStatus::InProgress->value;
+            return EpicStatus::InProgress;
         }
 
         // Check if all tasks are closed
@@ -157,11 +158,11 @@ class Epic extends Model
             ->count() === $tasksCount;
 
         if ($allClosed) {
-            return EpicStatus::ReviewPending->value;
+            return EpicStatus::ReviewPending;
         }
 
         // Fallback: if tasks exist but not all closed and none active, still in_progress
-        return EpicStatus::InProgress->value;
+        return EpicStatus::InProgress;
     }
 
     /**
@@ -169,7 +170,7 @@ class Epic extends Model
      */
     public function isPlanning(): bool
     {
-        return $this->computed_status === EpicStatus::Planning->value;
+        return $this->computed_status === EpicStatus::Planning;
     }
 
     /**
@@ -194,8 +195,8 @@ class Epic extends Model
     public function isPlanningOrInProgress(): bool
     {
         return in_array($this->computed_status, [
-            EpicStatus::Planning->value,
-            EpicStatus::InProgress->value,
+            EpicStatus::Planning,
+            EpicStatus::InProgress,
         ], true);
     }
 
@@ -242,7 +243,7 @@ class Epic extends Model
         return static::whereNull('reviewed_at')
             ->whereHas('tasks')
             ->whereDoesntHave('tasks', function ($query): void {
-                $query->whereNotIn('status', [TaskStatus::Closed->value, TaskStatus::Cancelled->value]);
+                $query->whereNotIn('status', [TaskStatus::Closed, TaskStatus::Cancelled]);
             })
             ->orderBy('created_at', 'desc')
             ->get();

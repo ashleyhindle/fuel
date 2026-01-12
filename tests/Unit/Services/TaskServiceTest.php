@@ -43,7 +43,7 @@ it('creates a task with hash-based ID', function (): void {
     expect($task->id)->toStartWith('f-');
     expect(strlen((string) $task->id))->toBe(8); // f- + 6 chars
     expect($task->title)->toBe('Test task');
-    expect($task->status)->toBe('open');
+    expect($task->status)->toBe(App\Enums\TaskStatus::Open);
     expect($task->created_at)->not->toBeNull();
     expect($task->updated_at)->not->toBeNull();
 });
@@ -131,7 +131,7 @@ it('validates task status enum', function (): void {
     $validStatuses = ['open', 'in_progress', 'review', 'closed', 'cancelled', 'someday'];
     foreach ($validStatuses as $status) {
         $updated = $this->taskService->update($task->id, ['status' => $status]);
-        expect($updated->status)->toBe($status);
+        expect($updated->status->value)->toBe($status);
     }
 
     // Invalid status
@@ -250,12 +250,12 @@ it('marks task as done', function (): void {
 
     $done = $this->taskService->done($created->id);
 
-    expect($done->status)->toBe('closed');
+    expect($done->status)->toBe(App\Enums\TaskStatus::Closed);
     expect($done->updated_at)->not->toBeNull();
 
     // Verify it's actually persisted
     $reloaded = $this->taskService->find($created->id);
-    expect($reloaded->status)->toBe('closed');
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Closed);
 });
 
 it('throws exception when marking non-existent task as done', function (): void {
@@ -810,12 +810,12 @@ it('promote() changes task status from someday to open', function (): void {
 
     $promoted = $this->taskService->promote($task->id);
 
-    expect($promoted->status)->toBe('open');
+    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open);
     expect($promoted->title)->toBe('Future idea');
 
     // Verify it's persisted
     $reloaded = $this->taskService->find($task->id);
-    expect($reloaded->status)->toBe('open');
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Open);
 });
 
 it('promote() works with partial ID', function (): void {
@@ -826,7 +826,7 @@ it('promote() works with partial ID', function (): void {
     $promoted = $this->taskService->promote($partialId);
 
     expect($promoted->id)->toBe($task->id);
-    expect($promoted->status)->toBe('open');
+    expect($promoted->status)->toBe(App\Enums\TaskStatus::Open);
 });
 
 it('promote() throws exception when task not found', function (): void {
@@ -844,12 +844,12 @@ it('defer() changes task status to someday', function (): void {
 
     $deferred = $this->taskService->defer($task->id);
 
-    expect($deferred->status)->toBe('someday');
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
     expect($deferred->title)->toBe('Task to defer');
 
     // Verify it's persisted
     $reloaded = $this->taskService->find($task->id);
-    expect($reloaded->status)->toBe('someday');
+    expect($reloaded->status)->toBe(App\Enums\TaskStatus::Someday);
 });
 
 it('defer() works with partial ID', function (): void {
@@ -859,7 +859,7 @@ it('defer() works with partial ID', function (): void {
     $deferred = $this->taskService->defer($partialId);
 
     expect($deferred->id)->toBe($task->id);
-    expect($deferred->status)->toBe('someday');
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
 });
 
 it('defer() works on already someday tasks (idempotent)', function (): void {
@@ -868,7 +868,7 @@ it('defer() works on already someday tasks (idempotent)', function (): void {
 
     $deferred = $this->taskService->defer($task->id);
 
-    expect($deferred->status)->toBe('someday');
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
 });
 
 it('defer() throws exception when task not found', function (): void {
@@ -887,7 +887,7 @@ it('defer() preserves task metadata when changing status', function (): void {
 
     $deferred = $this->taskService->defer($task->id);
 
-    expect($deferred->status)->toBe('someday');
+    expect($deferred->status)->toBe(App\Enums\TaskStatus::Someday);
     expect($deferred->title)->toBe('Complex task');
     expect($deferred->description)->toBe('Detailed description');
     expect($deferred->type)->toBe('feature');

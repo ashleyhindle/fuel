@@ -36,6 +36,7 @@ class Task extends EloquentModel
     ];
 
     protected $casts = [
+        'status' => TaskStatus::class,
         'labels' => 'array',
         'blocked_by' => 'array',
         'priority' => 'integer',
@@ -46,6 +47,9 @@ class Task extends EloquentModel
 
     /** @var bool Flag to bypass casts/accessors for fromArray compatibility */
     private bool $bypassCasts = false;
+
+    // Hide the integer primary key 'id' from array/JSON output
+    protected $hidden = ['id'];
 
     /**
      * Backward compatibility: Create a Task instance from an array.
@@ -93,7 +97,7 @@ class Task extends EloquentModel
     public function scopeReady(Builder $query): Builder
     {
         return $query
-            ->where('status', TaskStatus::Open->value)
+            ->where('status', TaskStatus::Open)
             ->where(function (Builder $query): void {
                 $query
                     ->whereNull('blocked_by')
@@ -115,7 +119,7 @@ class Task extends EloquentModel
     public function scopeBlocked(Builder $query): Builder
     {
         return $query
-            ->where('status', TaskStatus::Open->value)
+            ->where('status', TaskStatus::Open)
             ->where(function (Builder $query): void {
                 $query
                     ->whereNotNull('blocked_by')
@@ -129,7 +133,7 @@ class Task extends EloquentModel
      */
     public function scopeBacklog(Builder $query): Builder
     {
-        return $query->where('status', TaskStatus::Someday->value);
+        return $query->where('status', TaskStatus::Someday);
     }
 
     public function epic(): BelongsTo
@@ -174,7 +178,7 @@ class Task extends EloquentModel
      */
     public function isInProgress(): bool
     {
-        return $this->status === TaskStatus::InProgress->value;
+        return $this->status === TaskStatus::InProgress;
     }
 
     /**
@@ -235,5 +239,14 @@ class Task extends EloquentModel
         }
 
         return array_map(trim(...), explode(',', (string) $blockedBy));
+    }
+
+    /**
+     * Accessor: Map 'id' to 'short_id' for backward compatibility.
+     * This allows $task->id to return the short_id (f-xxxxxx) instead of the database primary key.
+     */
+    public function getIdAttribute($value): ?string
+    {
+        return $this->attributes['short_id'] ?? null;
     }
 }

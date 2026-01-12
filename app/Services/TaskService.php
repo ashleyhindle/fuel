@@ -86,7 +86,10 @@ class TaskService
      */
     private function validateEnum(mixed $value, array $validValues, string $fieldName): void
     {
-        if (! in_array($value, $validValues, true)) {
+        // Convert enum to its string value for validation
+        $valueToCheck = $value instanceof \BackedEnum ? $value->value : $value;
+
+        if (! in_array($valueToCheck, $validValues, true)) {
             $valueStr = is_object($value) ? $value::class : (string) $value;
             throw new RuntimeException(
                 sprintf("Invalid %s '%s'. Must be one of: ", $fieldName, $valueStr).implode(', ', $validValues)
@@ -278,7 +281,7 @@ class TaskService
      */
     public function start(string $id): Task
     {
-        return $this->update($id, ['status' => TaskStatus::InProgress->value]);
+        return $this->update($id, ['status' => TaskStatus::InProgress]);
     }
 
     /**
@@ -296,7 +299,7 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' is not a backlog item (status is not 'someday')", $id));
         }
 
-        return $this->update($id, ['status' => TaskStatus::Open->value]);
+        return $this->update($id, ['status' => TaskStatus::Open]);
     }
 
     /**
@@ -304,7 +307,7 @@ class TaskService
      */
     public function defer(string $id): Task
     {
-        return $this->update($id, ['status' => TaskStatus::Someday->value]);
+        return $this->update($id, ['status' => TaskStatus::Someday]);
     }
 
     /**
@@ -315,7 +318,7 @@ class TaskService
      */
     public function done(string $id, ?string $reason = null, ?string $commitHash = null): Task
     {
-        $data = ['status' => TaskStatus::Closed->value];
+        $data = ['status' => TaskStatus::Closed];
         if ($reason !== null) {
             $data['reason'] = $reason;
         }
@@ -368,11 +371,11 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' is not closed, in_progress, or review. Only these statuses can be reopened.", $id));
         }
 
-        $shortId = $task['id'];
+        $shortId = $task['short_id'];
         $now = now()->toIso8601String();
 
         $this->taskRepository->updateByShortId($shortId, [
-            'status' => TaskStatus::Open->value,
+            'status' => TaskStatus::Open,
             'reason' => null,
             'consumed' => null,
             'consumed_at' => null,
@@ -381,7 +384,7 @@ class TaskService
             'updated_at' => $now,
         ]);
 
-        $task['status'] = TaskStatus::Open->value;
+        $task['status'] = TaskStatus::Open;
         $task['updated_at'] = $now;
         unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output']);
 
@@ -406,11 +409,11 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' is not a consumed in_progress task. Use 'reopen' for closed tasks.", $id));
         }
 
-        $shortId = $task['id'];
+        $shortId = $task['short_id'];
         $now = now()->toIso8601String();
 
         $this->taskRepository->updateByShortId($shortId, [
-            'status' => TaskStatus::Open->value,
+            'status' => TaskStatus::Open,
             'reason' => null,
             'consumed' => null,
             'consumed_at' => null,
@@ -420,7 +423,7 @@ class TaskService
             'updated_at' => $now,
         ]);
 
-        $task['status'] = TaskStatus::Open->value;
+        $task['status'] = TaskStatus::Open;
         $task['updated_at'] = $now;
         unset($task['reason'], $task['consumed'], $task['consumed_at'], $task['consumed_exit_code'], $task['consumed_output'], $task['consume_pid']);
 
