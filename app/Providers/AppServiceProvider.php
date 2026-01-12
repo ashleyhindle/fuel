@@ -33,6 +33,46 @@ class AppServiceProvider extends ServiceProvider
         static::configureDatabasePath();
     }
 
+    private function resolveBasePath(): string
+    {
+        $argv = $_SERVER['argv'] ?? [];
+
+        foreach ($argv as $arg) {
+            if (str_starts_with($arg, '--cwd=')) {
+                return substr($arg, 6).'/.fuel';
+            }
+        }
+
+        $cwdIndex = array_search('--cwd', $argv);
+        if ($cwdIndex !== false && isset($argv[$cwdIndex + 1])) {
+            return $argv[$cwdIndex + 1].'/.fuel';
+        }
+
+        $currentDir = getcwd();
+        $maxLevels = 5;
+
+        for ($i = 0; $i < $maxLevels; $i++) {
+            $fuelDir = $currentDir.'/.fuel';
+            if (is_dir($fuelDir)) {
+                return $fuelDir;
+            }
+
+            $gitDir = $currentDir.'/.git';
+            if (is_dir($gitDir)) {
+                break;
+            }
+
+            $parentDir = dirname($currentDir);
+            if ($parentDir === $currentDir) {
+                break;
+            }
+
+            $currentDir = $parentDir;
+        }
+
+        return getcwd().'/.fuel';
+    }
+
     /**
      * Configure the database path from FuelContext.
      * Can be called from tests to reconfigure the database path.
@@ -60,7 +100,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // FuelContext must be registered first - all path-dependent services use it
-        $this->app->singleton(FuelContext::class, fn (): FuelContext => new FuelContext);
+        $this->app->singleton(FuelContext::class, fn (): FuelContext => new FuelContext($this->resolveBasePath()));
 
         // DatabaseService must be registered before TaskService (TaskService depends on it)
         $this->app->singleton(DatabaseService::class, fn (Application $app): DatabaseService => new DatabaseService(
