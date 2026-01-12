@@ -43,7 +43,7 @@
         }
     },
     "scripts": {
-        "test": "pest",
+        "test": "pest --parallel --compact",
         "test:coverage": "XDEBUG_MODE=coverage php -d memory_limit=-1 vendor/bin/pest --parallel --coverage --min=60 --compact",
         "test:type-coverage": "php -d memory_limit=-1 vendor/bin/pest --type-coverage --min=100 --compact",
         "format": "pint",
