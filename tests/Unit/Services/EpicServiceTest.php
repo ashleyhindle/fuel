@@ -161,7 +161,7 @@ it('computes epic status as in_progress when task is open', function (): void {
 it('computes epic status as in_progress when task is in_progress', function (): void {
     $epic = $this->service->createEpic('Title');
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
-    $this->taskService->start($task['id']);
+    $this->taskService->start($task->short_id);
 
     $epic = $this->service->getEpic($epic->id);
 
@@ -171,7 +171,7 @@ it('computes epic status as in_progress when task is in_progress', function (): 
 it('computes epic status as review_pending when all tasks are closed', function (): void {
     $epic = $this->service->createEpic('Title');
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
-    $this->taskService->done($task['id']);
+    $this->taskService->done($task->short_id);
 
     $epic = $this->service->getEpic($epic->id);
 
@@ -181,7 +181,7 @@ it('computes epic status as review_pending when all tasks are closed', function 
 it('computes epic status as reviewed when reviewed_at is set', function (): void {
     $epic = $this->service->createEpic('Title');
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->id]);
-    $this->taskService->done($task['id']);
+    $this->taskService->done($task->short_id);
 
     // Initially should be review_pending
     $epic = $this->service->getEpic($epic->id);
@@ -258,10 +258,10 @@ it('gets tasks for epic when tasks are linked', function (): void {
     $tasks = $this->service->getTasksForEpic($epic->id);
 
     expect($tasks)->toHaveCount(2);
-    $taskIds = array_column($tasks, 'id');
-    expect($taskIds)->toContain($task1['id']);
-    expect($taskIds)->toContain($task2['id']);
-    expect($taskIds)->not->toContain($task3['id']);
+    $taskIds = array_column($tasks, 'short_id');
+    expect($taskIds)->toContain($task1->short_id);
+    expect($taskIds)->toContain($task2->short_id);
+    expect($taskIds)->not->toContain($task3->short_id);
 });
 
 it('throws exception when getting tasks for non-existent epic', function (): void {
@@ -325,7 +325,7 @@ it('returns not completed when epic has in_progress tasks', function (): void {
         'title' => 'In progress task',
         'epic_id' => $epic->id,
     ]);
-    $this->taskService->start($task['id']);
+    $this->taskService->start($task->short_id);
 
     $result = $this->service->checkEpicCompletion($epic->id);
 
@@ -344,8 +344,8 @@ it('triggers completion when all tasks are closed', function (): void {
         'epic_id' => $epic->id,
     ]);
 
-    $this->taskService->done($task1['id']);
-    $this->taskService->done($task2['id']);
+    $this->taskService->done($task1->short_id);
+    $this->taskService->done($task2->short_id);
 
     $result = $this->service->checkEpicCompletion($epic->id);
 
@@ -366,8 +366,8 @@ it('triggers completion when tasks are closed or cancelled', function (): void {
         'epic_id' => $epic->id,
     ]);
 
-    $this->taskService->done($task1['id']);
-    $this->taskService->update($task2['id'], ['status' => 'cancelled']);
+    $this->taskService->done($task1->short_id);
+    $this->taskService->update($task2->short_id, ['status' => 'cancelled']);
 
     $result = $this->service->checkEpicCompletion($epic->id);
 
@@ -392,8 +392,8 @@ it('does not create review tasks when checkEpicCompletion called multiple times'
         'epic_id' => $epic->id,
     ]);
 
-    $this->taskService->done($task1['id']);
-    $this->taskService->done($task2['id']);
+    $this->taskService->done($task1->short_id);
+    $this->taskService->done($task2->short_id);
 
     // First call marks completion
     $result1 = $this->service->checkEpicCompletion($epic->id);
@@ -412,7 +412,7 @@ it('does not create review tasks when checkEpicCompletion called multiple times'
 it('approves an epic', function (): void {
     $epic = $this->service->createEpic('Epic to approve');
     $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->id]);
-    $this->taskService->done($task['id']);
+    $this->taskService->done($task->short_id);
 
     $approved = $this->service->approveEpic($epic->id, 'test-user');
 
@@ -425,7 +425,7 @@ it('approves an epic', function (): void {
 it('approves an epic with default approved_by', function (): void {
     $epic = $this->service->createEpic('Epic to approve');
     $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->id]);
-    $this->taskService->done($task['id']);
+    $this->taskService->done($task->short_id);
 
     $approved = $this->service->approveEpic($epic->id);
 
@@ -441,8 +441,8 @@ it('rejects an epic and reopens tasks', function (): void {
     $task2 = $this->taskService->create(['title' => 'Task 2', 'epic_id' => $epic->id]);
 
     // Close tasks
-    $this->taskService->done($task1['id']);
-    $this->taskService->done($task2['id']);
+    $this->taskService->done($task1->short_id);
+    $this->taskService->done($task2->short_id);
 
     // Reject epic
     $rejected = $this->service->rejectEpic($epic->id, 'Needs more work');
@@ -454,16 +454,16 @@ it('rejects an epic and reopens tasks', function (): void {
     expect($rejected->status)->toBe('in_progress'); // Tasks reopened, so in_progress
 
     // Verify tasks were reopened
-    $task1Updated = $this->taskService->find($task1['id']);
-    $task2Updated = $this->taskService->find($task2['id']);
-    expect($task1Updated['status'])->toBe('open');
-    expect($task2Updated['status'])->toBe('open');
+    $task1Updated = $this->taskService->find($task1->short_id);
+    $task2Updated = $this->taskService->find($task2->short_id);
+    expect($task1Updated->status)->toBe('open');
+    expect($task2Updated->status)->toBe('open');
 });
 
 it('shows changes_requested status when epic rejected but tasks not yet reopened', function (): void {
     $epic = $this->service->createEpic('Epic to reject');
     $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->id]);
-    $this->taskService->done($task['id']);
+    $this->taskService->done($task->short_id);
 
     // Reject epic
     $rejected = $this->service->rejectEpic($epic->id);
