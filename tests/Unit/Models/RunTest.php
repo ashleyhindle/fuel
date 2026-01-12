@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 use App\Models\Run;
+use Illuminate\Support\Carbon;
 
 describe('Run Model', function (): void {
-    it('allows access to properties via fromArray', function (): void {
-        $run = Run::fromArray([
-            'id' => 1,
+    it('allows access to properties', function (): void {
+        $run = new Run([
             'short_id' => 'run-abc123',
             'task_id' => 5,
             'agent' => 'cursor-agent',
@@ -23,14 +23,13 @@ describe('Run Model', function (): void {
             'cost_usd' => 0.05,
         ]);
 
-        expect($run->id)->toBe(1);
         expect($run->short_id)->toBe('run-abc123');
         expect($run->task_id)->toBe(5);
         expect($run->agent)->toBe('cursor-agent');
         expect($run->status)->toBe('completed');
         expect($run->exit_code)->toBe(0);
-        expect($run->started_at)->toBe('2025-01-11T10:00:00+00:00');
-        expect($run->ended_at)->toBe('2025-01-11T10:05:00+00:00');
+        expect($run->started_at)->toBeInstanceOf(Carbon::class);
+        expect($run->ended_at)->toBeInstanceOf(Carbon::class);
         expect($run->duration_seconds)->toBe(300);
         expect($run->session_id)->toBe('sess-123');
         expect($run->error_type)->toBeNull();
@@ -179,45 +178,15 @@ describe('Run Model', function (): void {
         });
     });
 
-    describe('fromArray()', function (): void {
-        it('creates a Run instance from an array', function (): void {
-            $data = [
-                'id' => 1,
-                'short_id' => 'run-xyz789',
-                'task_id' => 10,
-                'agent' => 'claude',
-                'status' => 'running',
-            ];
-
-            $run = Run::fromArray($data);
-
-            expect($run)->toBeInstanceOf(Run::class);
-            expect($run->id)->toBe(1);
-            expect($run->short_id)->toBe('run-xyz789');
-            expect($run->task_id)->toBe(10);
-            expect($run->agent)->toBe('claude');
-            expect($run->status)->toBe('running');
-        });
-
-        it('creates a Run instance from an empty array', function (): void {
-            $run = Run::fromArray([]);
-            expect($run)->toBeInstanceOf(Run::class);
-        });
-    });
-
     describe('toArray()', function (): void {
         it('returns the underlying attributes array', function (): void {
-            $data = [
-                'id' => 1,
+            $run = new Run([
                 'short_id' => 'run-abc123',
                 'task_id' => 5,
                 'agent' => 'cursor-agent',
-            ];
-
-            $run = Run::fromArray($data);
+            ]);
             $array = $run->toArray();
 
-            expect($array['id'])->toBe(1);
             expect($array['short_id'])->toBe('run-abc123');
             expect($array['task_id'])->toBe(5);
             expect($array['agent'])->toBe('cursor-agent');

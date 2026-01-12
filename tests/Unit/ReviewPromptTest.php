@@ -8,8 +8,8 @@ beforeEach(function (): void {
 });
 
 it('contains the task ID in the prompt', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'A test description',
     ]);
@@ -22,8 +22,8 @@ it('contains the task ID in the prompt', function (): void {
 });
 
 it('contains the task title in the prompt', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Implement user authentication',
         'description' => 'Add login flow',
     ]);
@@ -34,8 +34,8 @@ it('contains the task title in the prompt', function (): void {
 });
 
 it('contains the task description in the prompt', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'This is a detailed description of the task requirements.',
     ]);
@@ -46,8 +46,8 @@ it('contains the task description in the prompt', function (): void {
 });
 
 it('contains the git diff in the prompt', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);
@@ -72,8 +72,8 @@ DIFF;
 });
 
 it('contains the git status in the prompt', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);
@@ -96,8 +96,8 @@ STATUS;
 });
 
 it('contains fuel commands in the prompt', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);
@@ -109,8 +109,8 @@ it('contains fuel commands in the prompt', function (): void {
 });
 
 it('contains review checklist sections', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);
@@ -124,8 +124,8 @@ it('contains review checklist sections', function (): void {
 });
 
 it('truncates large diffs', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);
@@ -146,8 +146,8 @@ it('truncates large diffs', function (): void {
 });
 
 it('does not truncate small diffs', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);
@@ -169,8 +169,8 @@ DIFF;
 });
 
 it('handles empty task description gracefully', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => null,
     ]);
@@ -181,8 +181,8 @@ it('handles empty task description gracefully', function (): void {
 });
 
 it('handles missing task fields gracefully', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
     ]);
 
     $prompt = $this->reviewPrompt->generate($task, '', '');
@@ -193,8 +193,8 @@ it('handles missing task fields gracefully', function (): void {
 });
 
 it('includes guidance for running tests', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);
@@ -206,8 +206,8 @@ it('includes guidance for running tests', function (): void {
 });
 
 it('includes instruction to not run fuel done when issues found', function (): void {
-    $task = Task::fromArray([
-        'id' => 'f-abc123',
+    $task = new Task([
+        'short_id' => 'f-abc123',
         'title' => 'Test task',
         'description' => 'Description',
     ]);

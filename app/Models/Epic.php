@@ -21,9 +21,6 @@ class Epic extends Model
 
     public const UPDATED_AT = 'updated_at';
 
-    /** @var bool Flag to bypass casts/accessors for fromArray compatibility */
-    private bool $bypassCasts = false;
-
     // Hide the integer primary key 'id' from array/JSON output
     protected $hidden = ['id'];
 
@@ -46,41 +43,6 @@ class Epic extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
-
-    /**
-     * Backward compatibility: Create an Epic instance from an array.
-     * This method exists for compatibility with EpicService until it's refactored.
-     * Creates a hydrated model instance without database interaction.
-     *
-     * @deprecated Use Epic::create() or new Epic() with fill() instead
-     */
-    public static function fromArray(array $data): self
-    {
-        // Create instance without initializing connection
-        $epic = new self;
-        $epic->exists = true; // Mark as existing to prevent save() from inserting
-        $epic->bypassCasts = true; // Disable casts for compatibility
-
-        // Directly set attributes array to bypass casts and accessors
-        // This is safe because EpicService provides data in the expected format
-        $epic->attributes = $data;
-        $epic->original = $data;
-
-        return $epic;
-    }
-
-    /**
-     * Override getAttribute to bypass casts when in compatibility mode.
-     * This prevents database connection errors when using fromArray().
-     */
-    public function getAttribute($key)
-    {
-        if ($this->bypassCasts && isset($this->attributes[$key])) {
-            return $this->attributes[$key];
-        }
-
-        return parent::getAttribute($key);
-    }
 
     /**
      * Short ID accessor - provides public 'id' attribute mapped to 'short_id'.
@@ -166,11 +128,21 @@ class Epic extends Model
     }
 
     /**
+     * Get the status as a string value for comparison.
+     */
+    private function getStatusValue(): string
+    {
+        $status = $this->computed_status;
+
+        return $status instanceof EpicStatus ? $status->value : (string) $status;
+    }
+
+    /**
      * Check if the epic is in planning status.
      */
     public function isPlanning(): bool
     {
-        return $this->computed_status === EpicStatus::Planning;
+        return $this->getStatusValue() === EpicStatus::Planning->value;
     }
 
     /**
@@ -178,7 +150,7 @@ class Epic extends Model
      */
     public function isApproved(): bool
     {
-        return $this->computed_status === EpicStatus::Approved->value;
+        return $this->getStatusValue() === EpicStatus::Approved->value;
     }
 
     /**
@@ -186,7 +158,7 @@ class Epic extends Model
      */
     public function isReviewed(): bool
     {
-        return $this->reviewed_at !== null;
+        return $this->reviewed_at !== null && $this->reviewed_at !== '';
     }
 
     /**
@@ -194,9 +166,9 @@ class Epic extends Model
      */
     public function isPlanningOrInProgress(): bool
     {
-        return in_array($this->computed_status, [
-            EpicStatus::Planning,
-            EpicStatus::InProgress,
+        return in_array($this->getStatusValue(), [
+            EpicStatus::Planning->value,
+            EpicStatus::InProgress->value,
         ], true);
     }
 

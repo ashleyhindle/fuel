@@ -448,24 +448,3 @@ test('blocked scope returns tasks that are blocked', function (): void {
     expect($blockedTasks->pluck('short_id')->toArray())->toContain('f-blocked02', 'f-blocked03');
     expect($blockedTasks->pluck('short_id')->toArray())->not->toContain('f-notblocked01');
 });
-
-test('fromArray compatibility method works', function (): void {
-    // Test the backward compatibility method
-    $task = Task::fromArray([
-        'id' => 1,
-        'short_id' => 'f-compat01',
-        'title' => 'Compat Task',
-        'description' => 'Test description',
-        'type' => 'feature',
-        'status' => TaskStatus::Open->value,
-        'priority' => 1,
-        'complexity' => 'simple',
-        'labels' => '["api","urgent"]',
-        'blocked_by' => '["f-xyz789"]',
-        'epic_id' => 'e-epic01',
-    ]);
-
-    expect($task)->toBeInstanceOf(Task::class);
-    expect($task->short_id)->toBe('f-compat01');
-    expect($task->title)->toBe('Compat Task');
-});

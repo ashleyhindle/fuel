@@ -40,27 +40,6 @@ class Run extends Model
     }
 
     /**
-     * Backward compatibility: Create a Run instance from an array.
-     * Creates a hydrated model instance without database interaction.
-     *
-     * @param  array<string, mixed>  $data
-     *
-     * @deprecated Use Run::create() or new Run() with fill() instead
-     */
-    public static function fromArray(array $data): self
-    {
-        $run = new self;
-        $run->exists = true;
-
-        foreach ($data as $key => $value) {
-            $run->attributes[$key] = $value;
-        }
-        $run->original = $run->attributes;
-
-        return $run;
-    }
-
-    /**
      * Virtual accessor for backward compatibility.
      * Maps 'run_id' to 'short_id'.
      */

@@ -561,8 +561,8 @@ it('generates review prompt via getReviewPrompt', function (): void {
         $this->runService
     );
 
-    $task = Task::fromArray([
-        'id' => 'f-test123',
+    $task = new Task([
+        'short_id' => 'f-test123',
         'title' => 'Test task',
         'description' => 'A test description',
     ]);

@@ -35,33 +35,6 @@ class Review extends Model
     }
 
     /**
-     * Backward compatibility: Create a Review instance from an array.
-     * Creates a hydrated model instance without database interaction.
-     *
-     * @param  array<string, mixed>  $data
-     *
-     * @deprecated Use Review::create() or new Review() with fill() instead
-     */
-    public static function fromArray(array $data): self
-    {
-        $review = new self;
-        $review->exists = true;
-
-        foreach ($data as $key => $value) {
-            // Handle 'issues' field: Eloquent's array cast expects JSON strings
-            // If an already-decoded array is passed, json_encode it first
-            if ($key === 'issues' && is_array($value)) {
-                $review->attributes[$key] = json_encode($value);
-            } else {
-                $review->attributes[$key] = $value;
-            }
-        }
-        $review->original = $review->attributes;
-
-        return $review;
-    }
-
-    /**
      * Get the run that this review belongs to.
      */
     public function run(): BelongsTo
