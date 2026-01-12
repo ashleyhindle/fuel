@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\File;
 
 it('shows error when database does not exist', function (): void {
     $tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
@@ -11,8 +12,7 @@ it('shows error when database does not exist', function (): void {
         ->assertExitCode(1);
 
     // Cleanup
-    rmdir($tempDir.'/.fuel');
-    rmdir($tempDir);
+    File::deleteDirectory($tempDir);
 });
 
 it('shows error in JSON format when database does not exist', function (): void {
@@ -30,8 +30,7 @@ it('shows error in JSON format when database does not exist', function (): void 
     expect($data['error'])->toContain('Database not found');
 
     // Cleanup
-    rmdir($tempDir.'/.fuel');
-    rmdir($tempDir);
+    File::deleteDirectory($tempDir);
 });
 
 it('outputs success message when database exists', function (): void {
@@ -46,9 +45,7 @@ it('outputs success message when database exists', function (): void {
         ->assertExitCode(0);
 
     // Cleanup
-    unlink($tempDir.'/.fuel/agent.db');
-    rmdir($tempDir.'/.fuel');
-    rmdir($tempDir);
+    File::deleteDirectory($tempDir);
 });
 
 it('outputs JSON success when database exists', function (): void {
@@ -71,7 +68,5 @@ it('outputs JSON success when database exists', function (): void {
     expect($data['path'])->toContain('agent.db');
 
     // Cleanup
-    unlink($tempDir.'/.fuel/agent.db');
-    rmdir($tempDir.'/.fuel');
-    rmdir($tempDir);
+    File::deleteDirectory($tempDir);
 });
