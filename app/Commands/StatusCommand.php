@@ -7,8 +7,6 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -22,17 +20,15 @@ class StatusCommand extends Command
 
     protected $description = 'Show task statistics overview';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         $tasks = $taskService->all();
 
         // Group by status
         $open = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Open);
         $inProgress = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress);
         $review = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Review);
-        $closed = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed);
+        $done = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Done);
 
         // Calculate blocked count (open tasks with open blockers)
         $taskMap = $tasks->keyBy('short_id');
@@ -42,8 +38,8 @@ class StatusCommand extends Command
             foreach ($blockedBy as $blockerId) {
                 if (is_string($blockerId)) {
                     $blocker = $taskMap->get($blockerId);
-                    // Task is blocked if the blocker exists and is not closed
-                    if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
+                    // Task is blocked if the blocker exists and is not done
+                    if ($blocker !== null && $blocker->status !== TaskStatus::Done) {
                         $blockedCount++;
                         break; // No need to check other blockers
                     }
@@ -55,7 +51,7 @@ class StatusCommand extends Command
             'open' => $open->count(),
             'in_progress' => $inProgress->count(),
             'review' => $review->count(),
-            'closed' => $closed->count(),
+            'done' => $done->count(),
             'blocked' => $blockedCount,
             'total' => $tasks->count(),
         ];
@@ -71,7 +67,7 @@ class StatusCommand extends Command
                     ['Open', $stats['open']],
                     ['In Progress', $stats['in_progress']],
                     ['Review', $stats['review']],
-                    ['Closed', $stats['closed']],
+                    ['Done', $stats['done']],
                     ['Blocked', $stats['blocked']],
                     ['Total', $stats['total']],
                 ]

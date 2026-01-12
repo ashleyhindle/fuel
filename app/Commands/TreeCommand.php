@@ -8,8 +8,6 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
@@ -25,12 +23,10 @@ class TreeCommand extends Command
 
     protected $description = 'Show pending tasks as a dependency tree';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => $t->status !== TaskStatus::Closed);
+            ->filter(fn (Task $t): bool => $t->status !== TaskStatus::Done);
 
         $epicFilter = $this->option('epic');
         if ($epicFilter !== null) {
@@ -95,9 +91,9 @@ class TreeCommand extends Command
         foreach ($tasks as $task) {
             $blockedBy = $task->blocked_by ?? [];
             foreach ($blockedBy as $blockerId) {
-                // Only include if blocker is not closed
+                // Only include if blocker is not done
                 $blocker = $taskMap->get($blockerId);
-                if ($blocker !== null && $blocker->status !== TaskStatus::Closed) {
+                if ($blocker !== null && $blocker->status !== TaskStatus::Done) {
                     $blocksMap[$blockerId][] = $task;
                 }
             }

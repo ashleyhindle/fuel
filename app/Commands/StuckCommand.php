@@ -6,8 +6,6 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -22,10 +20,8 @@ class StuckCommand extends Command
 
     protected $description = 'List failed/stuck tasks (dead processes or non-zero exit codes)';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         $stuckTasks = $taskService->failed()->sortByDesc('consumed_at')->values();
 
         if ($this->option('json')) {

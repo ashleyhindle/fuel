@@ -7,7 +7,6 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use App\Support\BoxRenderer;
@@ -36,7 +35,6 @@ class StatsCommand extends Command
     protected $description = 'Display project statistics and metrics';
 
     public function handle(
-        FuelContext $context,
         TaskService $taskService,
         RunService $runService,
         EpicService $epicService,
@@ -44,8 +42,6 @@ class StatsCommand extends Command
     ): int {
         // Clear screen for clean dashboard experience
         $this->output->write("\e[2J\e[H");
-
-        $this->configureCwd($context, $databaseService);
 
         // Detect terminal width
         $termWidth = $this->detectTerminalWidth();
@@ -198,7 +194,7 @@ class StatsCommand extends Command
         $statusCounts = [
             'open' => 0,
             'in_progress' => 0,
-            'closed' => 0,
+            'done' => 0,
             'blocked' => 0,
             'review' => 0,
             'cancelled' => 0,
@@ -275,8 +271,8 @@ class StatsCommand extends Command
         $lines[] = '';
         $lines[] = '<fg=cyan>By Status:</>';
         $lines[] = sprintf(
-            '  <fg=green>✅ Closed: %d</>  <fg=yellow>🔄 In Progress: %d</>',
-            $statusCounts['closed'],
+            '  <fg=green>✅ Done: %d</>  <fg=yellow>🔄 In Progress: %d</>',
+            $statusCounts['done'],
             $statusCounts['in_progress']
         );
         $lines[] = sprintf(
@@ -693,7 +689,7 @@ class StatsCommand extends Command
         // Get last 14 days of task completions
         $taskQuery = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
                       FROM tasks
-                      WHERE status = 'closed'
+                      WHERE status = 'done'
                       AND updated_at >= date('now', '-14 days')
                       GROUP BY DATE(updated_at)
                       ORDER BY day ASC";
@@ -805,7 +801,7 @@ class StatsCommand extends Command
         $statusCounts = [
             'open' => 0,
             'in_progress' => 0,
-            'closed' => 0,
+            'done' => 0,
             'blocked' => 0,
             'review' => 0,
             'cancelled' => 0,
@@ -882,8 +878,8 @@ class StatsCommand extends Command
         $lines[] = '';
         $lines[] = '<fg=cyan>By Status:</>';
         $lines[] = sprintf(
-            '  <fg=green>✅ Closed: %d</>  <fg=yellow>🔄 In Progress: %d</>',
-            $statusCounts['closed'],
+            '  <fg=green>✅ Done: %d</>  <fg=yellow>🔄 In Progress: %d</>',
+            $statusCounts['done'],
             $statusCounts['in_progress']
         );
         $lines[] = sprintf(
@@ -1105,7 +1101,7 @@ class StatsCommand extends Command
         // Get last 14 days of task completions
         $taskQuery = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
                       FROM tasks
-                      WHERE status = 'closed'
+                      WHERE status = 'done'
                       AND updated_at >= date('now', '-14 days')
                       GROUP BY DATE(updated_at)
                       ORDER BY day ASC";
@@ -1338,7 +1334,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT DATE(updated_at) as day
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   ORDER BY day DESC";
         $results = $db->fetchAll($query);
 
@@ -1379,7 +1375,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT DATE(updated_at) as day
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   ORDER BY day ASC";
         $results = $db->fetchAll($query);
 
@@ -1483,7 +1479,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   AND DATE(updated_at) = DATE('now')";
         $result = $db->fetchAll($query);
 
@@ -1494,7 +1490,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   AND updated_at >= date('now', '-7 days')";
         $result = $db->fetchAll($query);
 
@@ -1505,7 +1501,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   AND updated_at >= date('now', '-30 days')";
         $result = $db->fetchAll($query);
 
@@ -1516,7 +1512,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'";
+                  WHERE status = 'done'";
         $result = $db->fetchAll($query);
 
         return (int) ($result[0]['cnt'] ?? 0);
@@ -1526,7 +1522,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT DATE(updated_at) as day, COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   GROUP BY DATE(updated_at)
                   ORDER BY cnt DESC
                   LIMIT 1";
@@ -1539,7 +1535,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   AND complexity = 'complex'";
         $result = $db->fetchAll($query);
 
@@ -1550,7 +1546,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   AND type = 'docs'";
         $result = $db->fetchAll($query);
 
@@ -1561,7 +1557,7 @@ class StatsCommand extends Command
     {
         $query = "SELECT COUNT(*) as cnt
                   FROM tasks
-                  WHERE status = 'closed'
+                  WHERE status = 'done'
                   AND type = 'bug'";
         $result = $db->fetchAll($query);
 

@@ -10,7 +10,6 @@ use App\Models\Epic;
 use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -40,7 +39,6 @@ class ShowCommand extends Command
     }
 
     public function handle(
-        FuelContext $context,
         DatabaseService $databaseService,
         TaskService $taskService,
         RunService $runService,
@@ -64,8 +62,6 @@ class ShowCommand extends Command
                 '--json' => $this->option('json'),
             ]);
         }
-
-        $this->configureCwd($context, $databaseService);
 
         try {
             $task = $taskService->find($id);

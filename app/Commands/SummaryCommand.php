@@ -10,8 +10,6 @@ use App\Enums\Agent;
 use App\Enums\TaskStatus;
 use App\Models\Run;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -30,10 +28,8 @@ class SummaryCommand extends Command
 
     protected $description = 'View task outcome summary with intelligent output parsing';
 
-    public function handle(FuelContext $context, TaskService $taskService, RunService $runService, DatabaseService $dbService): int
+    public function handle(TaskService $taskService, RunService $runService): int
     {
-        $this->configureCwd($context, $dbService);
-
         try {
             // Validate task exists
             $task = $taskService->find($this->argument('id'));
@@ -93,7 +89,7 @@ class SummaryCommand extends Command
             TaskStatus::Open => '<fg=yellow>open</>',
             TaskStatus::InProgress => '<fg=blue>in progress</>',
             TaskStatus::Review => '<fg=magenta>review</>',
-            TaskStatus::Closed => '<fg=green>closed</>',
+            TaskStatus::Done => '<fg=green>done</>',
             TaskStatus::Cancelled => '<fg=gray>cancelled</>',
             default => $task->status->value,
         };

@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -23,17 +21,15 @@ class UpdateCommand extends Command
         {--description= : Update task description}
         {--type= : Update task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Update task priority (0-4)}
-        {--status= : Update task status (open|closed)}
+        {--status= : Update task status (open|done)}
         {--complexity= : Update task complexity (trivial|simple|moderate|complex)}
         {--add-labels= : Add labels (comma-separated)}
         {--remove-labels= : Remove labels (comma-separated)}';
 
     protected $description = 'Update task fields';
 
-    public function handle(FuelContext $context, DatabaseService $databaseService, TaskService $taskService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $databaseService);
-
         $updateData = [];
 
         if ($title = $this->option('title')) {

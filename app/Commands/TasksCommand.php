@@ -6,8 +6,6 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -18,17 +16,15 @@ class TasksCommand extends Command
     protected $signature = 'tasks
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
-        {--status= : Filter by status (open|closed)}
+        {--status= : Filter by status (open|done)}
         {--type= : Filter by type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Filter by priority (0-4)}
         {--labels= : Filter by labels (comma-separated)}';
 
     protected $description = 'List tasks with optional filters';
 
-    public function handle(FuelContext $context, TaskService $taskService, DatabaseService $dbService): int
+    public function handle(TaskService $taskService): int
     {
-        $this->configureCwd($context, $dbService);
-
         $tasks = $taskService->all();
 
         // Apply filters
