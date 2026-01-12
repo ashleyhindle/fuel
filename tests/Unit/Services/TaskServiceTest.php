@@ -12,7 +12,7 @@ beforeEach(function (): void {
     config(['database.connections.sqlite.database' => $this->dbPath]);
     Artisan::call('migrate', ['--force' => true]);
 
-    $this->taskService = makeTaskService($this->databaseService);
+    $this->taskService = makeTaskService();
 });
 
 afterEach(function (): void {

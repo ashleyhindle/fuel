@@ -22,9 +22,8 @@ beforeEach(function (): void {
     $databaseService = new DatabaseService($context->getDatabasePath());
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
     Artisan::call('migrate', ['--force' => true]);
-    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
     $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
-        $this->app->make(DatabaseService::class),
         $this->app->make(TaskService::class)
     ));
 
@@ -76,9 +75,9 @@ describe('epic:delete command', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });

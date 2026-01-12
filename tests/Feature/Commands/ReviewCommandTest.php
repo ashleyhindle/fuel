@@ -31,9 +31,9 @@ beforeEach(function (): void {
     $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
     Artisan::call('migrate', ['--force' => true]);
 
-    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-    $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+    $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
     $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
 

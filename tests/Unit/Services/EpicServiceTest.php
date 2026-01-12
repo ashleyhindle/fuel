@@ -24,8 +24,8 @@ beforeEach(function (): void {
     // Configure Eloquent to use the test database
     AppServiceProvider::configureDatabasePath($this->context);
 
-    $this->taskService = makeTaskService($this->db);
-    $this->service = makeEpicService($this->db, $this->taskService);
+    $this->taskService = makeTaskService();
+    $this->service = makeEpicService($this->taskService);
 });
 
 afterEach(function (): void {

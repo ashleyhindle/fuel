@@ -48,22 +48,17 @@ expect()->extend('toBeOne', fn () => $this->toBe(1));
 |
 */
 
-function something(): void
+function makeTaskService(): TaskService
 {
-    // ..
+    return new TaskService;
 }
 
-function makeTaskService(DatabaseService $databaseService): TaskService
-{
-    return new TaskService($databaseService);
-}
-
-function makeEpicService(DatabaseService $databaseService, TaskService $taskService): EpicService
+function makeEpicService(TaskService $taskService): EpicService
 {
     return new EpicService($taskService);
 }
 
-function makeRunService(DatabaseService $databaseService): RunService
+function makeRunService(): RunService
 {
     return new RunService;
 }

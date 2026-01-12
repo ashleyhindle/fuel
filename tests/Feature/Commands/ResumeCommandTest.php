@@ -23,9 +23,9 @@ describe('resume command', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });

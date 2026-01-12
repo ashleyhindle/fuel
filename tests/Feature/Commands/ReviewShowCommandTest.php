@@ -40,10 +40,10 @@ beforeEach(function (): void {
     Artisan::call('migrate', ['--force' => true]);
     $this->app->singleton(ReviewRepository::class, fn (): ReviewRepository => new ReviewRepository($databaseService));
 
-    $taskService = makeTaskService($databaseService);
+    $taskService = makeTaskService();
     $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
 
-    $runService = makeRunService($databaseService);
+    $runService = makeRunService();
     $this->app->singleton(RunService::class, fn (): RunService => $runService);
 
     $this->databaseService = $this->app->make(DatabaseService::class);

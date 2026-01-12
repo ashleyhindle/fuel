@@ -22,9 +22,9 @@ describe('show command', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -140,7 +140,7 @@ describe('show command', function (): void {
         // Initialize database for epics
         $dbService = new DatabaseService($this->tempDir.'/.fuel/agent.db');
 
-        $epicService = makeEpicService($dbService, $this->taskService);
+        $epicService = makeEpicService($this->taskService);
         $epic = $epicService->createEpic('Test Epic', 'Epic description');
 
         $task = $this->taskService->create([
@@ -166,7 +166,7 @@ describe('show command', function (): void {
         // Initialize database for epics
         $dbService = new DatabaseService($this->tempDir.'/.fuel/agent.db');
 
-        $epicService = makeEpicService($dbService, $this->taskService);
+        $epicService = makeEpicService($this->taskService);
         $epic = $epicService->createEpic('JSON Epic', 'Epic description');
 
         $task = $this->taskService->create([

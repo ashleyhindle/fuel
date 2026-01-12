@@ -61,9 +61,9 @@ describe('OS detection mapping', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -170,9 +170,9 @@ describe('Architecture detection mapping', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -293,9 +293,9 @@ describe('Error handling for unsupported OS', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -368,9 +368,9 @@ describe('Binary URL construction', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -490,9 +490,9 @@ describe('GitHub API URL construction', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -575,9 +575,9 @@ describe('Download flow and HTTP handling', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });
@@ -671,9 +671,9 @@ describe('File operations', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
     });

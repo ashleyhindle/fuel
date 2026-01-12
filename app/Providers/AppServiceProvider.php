@@ -107,9 +107,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(FuelContext::class)->getDatabasePath()
         ));
 
-        $this->app->singleton(TaskService::class, fn (Application $app): TaskService => new TaskService(
-            $app->make(DatabaseService::class)
-        ));
+        $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService);
 
         $this->app->singleton(EpicService::class, fn (Application $app): EpicService => new EpicService(
             $app->make(TaskService::class)

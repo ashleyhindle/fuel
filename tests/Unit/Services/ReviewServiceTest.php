@@ -61,7 +61,7 @@ YAML;
     $this->context->configureDatabase();
     Artisan::call('migrate', ['--force' => true]);
 
-    $this->taskService = makeTaskService($this->databaseService);
+    $this->taskService = makeTaskService();
     $this->configService = new ConfigService($this->context);
     $this->reviewPrompt = new ReviewPrompt;
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);

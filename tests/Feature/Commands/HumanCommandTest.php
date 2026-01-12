@@ -26,11 +26,11 @@ describe('human command', function (): void {
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
         Artisan::call('migrate', ['--force' => true]);
 
-        $taskService = makeTaskService($databaseService);
+        $taskService = makeTaskService();
         $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
-        $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($databaseService, $taskService));
+        $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($taskService));
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService($databaseService));
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $taskService;
     });
