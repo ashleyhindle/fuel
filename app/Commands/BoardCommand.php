@@ -43,7 +43,7 @@ class BoardCommand extends Command
         ?AgentHealthTrackerInterface $healthTracker = null
     ): int {
         $this->taskService = $taskService;
-        $this->configureCwd($context);
+        $this->configureCwd($context, $databaseService);
 
         // Live mode by default, unless --once is passed or --json is used
         if (! $this->option('once') && ! $this->option('json')) {
@@ -233,18 +233,18 @@ class BoardCommand extends Command
         $readyIds = $readyTasks->pluck('short_id')->toArray();
 
         $inProgressTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress)
             ->sortByDesc('updated_at')
             ->values();
 
         $reviewTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Review->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Review)
             ->sortByDesc('updated_at')
             ->values();
 
         // Blocked tasks exclude needs-human (those are shown in a separate line)
         $blockedTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open->value && ! in_array($t->short_id, $readyIds, true))
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open && ! in_array($t->short_id, $readyIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
                 if (! is_array($labels)) {
@@ -257,7 +257,7 @@ class BoardCommand extends Command
 
         // Needs-human tasks (open tasks with needs-human label)
         $humanTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
 
@@ -266,7 +266,7 @@ class BoardCommand extends Command
             ->values();
 
         $doneTasks = $allTasks
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed->value)
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Closed)
             ->sortByDesc('updated_at')
             ->values();
 
