@@ -13,6 +13,7 @@ use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\ProcessManager;
 use App\Services\RunService;
+use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -40,6 +41,7 @@ class RunCommand extends Command
         private RunService $runService,
         private ProcessManager $processManager,
         private OutputParser $outputParser,
+        private TaskPromptBuilder $promptBuilder,
         private FuelContext $fuelContext,
     ) {
         parent::__construct();
@@ -47,7 +49,7 @@ class RunCommand extends Command
 
     public function handle(): int
     {
-        $cwd = $this->option('cwd') ?: getcwd();
+        $cwd = $this->fuelContext->getProjectPath();
 
         // Ensure processes directory exists
         $processesDir = $this->fuelContext->getProcessesPath();
@@ -100,7 +102,7 @@ class RunCommand extends Command
         $this->info('Agent: '.$agentName);
 
         // Build prompt
-        $fullPrompt = $this->option('prompt') ?? $this->buildPrompt($task, $cwd);
+        $fullPrompt = $this->option('prompt') ?? $this->promptBuilder->build($task, $cwd);
 
         // Mark task as in_progress unless --no-start
         if (! $this->option('no-start') && $task->status !== TaskStatus::InProgress) {
@@ -271,91 +273,6 @@ class RunCommand extends Command
         }
 
         return self::FAILURE;
-    }
-
-    private function buildPrompt(Task $task, string $cwd): string
-    {
-        $taskId = $task->short_id;
-        $taskDetails = $this->formatTaskForPrompt($task);
-
-        return <<<PROMPT
-IMPORTANT: You are being orchestrated. Trust the system.
-
-== YOUR ASSIGNMENT ==
-You are assigned EXACTLY ONE task: {$taskId}
-You must ONLY work on this task. Nothing else.
-
-== TASK DETAILS ==
-{$taskDetails}
-
-== TEAMWORK - YOU ARE NOT ALONE ==
-You are ONE agent in a team working in parallel on this codebase.
-Other teammates are working on other tasks RIGHT NOW. They're counting on you to:
-- Stay in your lane (only work on YOUR assigned task)
-- Not step on their toes (don't touch tasks assigned to others)
-- Be a good teammate (log discovered work for others, don't hoard it)
-
-Breaking these rules wastes your teammates' work and corrupts the workflow:
-
-FORBIDDEN - DO NOT DO THESE:
-- NEVER run `fuel start` on ANY task (your task is already started)
-- NEVER run `fuel ready` or `fuel board` (you don't need to see other tasks)
-- NEVER work on tasks other than {$taskId}, even if you see them
-- NEVER "help" by picking up additional work - other agents will handle it
-
-ALLOWED:
-- `fuel add "..."` to LOG discovered work for OTHER agents to do later
-- `fuel done {$taskId}` to mark YOUR task complete
-- `fuel dep:add {$taskId} <other-task>` to add dependencies to YOUR task
-
-== WHEN BLOCKED ==
-If you need human input (credentials, decisions, file permissions):
-1. ./fuel add 'What you need' --labels=needs-human --description='Exact steps for human'
-2. ./fuel dep:add {$taskId} <needs-human-task-id>
-3. Exit immediately - do NOT wait or retry
-
-== CLOSING PROTOCOL ==
-Before exiting, you MUST:
-1. If you changed code: run tests and linter/formatter
-2. git add <files> && git commit -m "feat/fix: description"
-3. ./fuel done {$taskId}
-4. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
-
-== CONTEXT ==
-Working directory: {$cwd}
-Task ID: {$taskId}
-PROMPT;
-    }
-
-    private function formatTaskForPrompt(Task $task): string
-    {
-        $lines = [
-            'Task: '.$task->short_id,
-            'Title: '.$task->title,
-            'Status: '.($task->status instanceof TaskStatus ? $task->status->value : $task->status),
-        ];
-
-        if (! empty($task->description)) {
-            $lines[] = 'Description: '.$task->description;
-        }
-
-        if (! empty($task->type)) {
-            $lines[] = 'Type: '.$task->type;
-        }
-
-        if (! empty($task->priority)) {
-            $lines[] = 'Priority: P'.$task->priority;
-        }
-
-        if (! empty($task->labels)) {
-            $lines[] = 'Labels: '.implode(', ', $task->labels);
-        }
-
-        if (! empty($task->blocked_by)) {
-            $lines[] = 'Blocked by: '.implode(', ', $task->blocked_by);
-        }
-
-        return implode("\n", $lines);
     }
 
     private function formatDuration(int $seconds): string
