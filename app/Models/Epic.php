@@ -24,6 +24,9 @@ class Epic extends Model
     /** @var bool Flag to bypass casts/accessors for fromArray compatibility */
     private bool $bypassCasts = false;
 
+    // Hide the integer primary key 'id' from array/JSON output
+    protected $hidden = ['id'];
+
     protected $fillable = [
         'short_id',
         'title',
@@ -79,17 +82,12 @@ class Epic extends Model
     }
 
     /**
-     * ID accessor - maps 'id' to 'short_id' for backward compatibility.
-     * EpicService uses 'id' as the public interface but stores 'short_id' in DB.
+     * Short ID accessor - provides public 'id' attribute mapped to 'short_id'.
+     * This maintains backward compatibility where 'id' refers to the short_id (e-xxxxxx).
+     * The database 'id' (integer primary key) is hidden from the public interface.
      */
-    public function getIdAttribute(): ?string
+    protected function getShortIdForPublicId(): ?string
     {
-        // If 'id' was explicitly set in attributes (via fromArray), use it
-        if (array_key_exists('id', $this->attributes)) {
-            return $this->attributes['id'];
-        }
-
-        // Otherwise, map to short_id for Eloquent usage
         return $this->attributes['short_id'] ?? null;
     }
 
@@ -98,7 +96,7 @@ class Epic extends Model
      */
     public function tasks(): HasMany
     {
-        return $this->hasMany(Task::class, 'epic_id', 'short_id');
+        return $this->hasMany(Task::class);
     }
 
     /**
@@ -199,5 +197,54 @@ class Epic extends Model
             EpicStatus::Planning->value,
             EpicStatus::InProgress->value,
         ], true);
+    }
+
+    /**
+     * Find an epic by partial ID matching.
+     * Supports full ID (e-xxxxxx) or partial match (xxxx or e-xxxx).
+     *
+     * @param  string  $id  Full or partial epic ID
+     * @return static|null The epic instance or null if not found
+     *
+     * @throws \RuntimeException When multiple epics match the partial ID
+     */
+    public static function findByPartialId(string $id): ?self
+    {
+        // Exact match for full ID format (e-xxxxxx)
+        if (str_starts_with($id, 'e-') && strlen($id) === 8) {
+            return static::where('short_id', $id)->first();
+        }
+
+        // Partial match - try both with and without 'e-' prefix
+        $epics = static::where('short_id', 'LIKE', $id.'%')
+            ->orWhere('short_id', 'LIKE', 'e-'.$id.'%')
+            ->get();
+
+        if ($epics->count() === 1) {
+            return $epics->first();
+        }
+
+        if ($epics->count() > 1) {
+            $ids = $epics->pluck('short_id')->toArray();
+            throw new \RuntimeException(
+                sprintf("Ambiguous epic ID '%s'. Matches: %s", $id, implode(', ', $ids))
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Get epics pending review (has tasks, all tasks closed, not yet reviewed).
+     */
+    public static function pendingReview(): \Illuminate\Database\Eloquent\Collection
+    {
+        return static::whereNull('reviewed_at')
+            ->whereHas('tasks')
+            ->whereDoesntHave('tasks', function ($query): void {
+                $query->whereNotIn('status', [TaskStatus::Closed->value, TaskStatus::Cancelled->value]);
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
     }
 }

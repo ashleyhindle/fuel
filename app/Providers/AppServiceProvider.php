@@ -31,7 +31,25 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Configure Eloquent to use the dynamic database path from FuelContext
+        // This allows each test to use its own isolated database
+        $this->configureDatabasePath();
+    }
+
+    /**
+     * Configure the database path from FuelContext.
+     * Can be called from tests to reconfigure the database path.
+     */
+    public static function configureDatabasePath(?FuelContext $context = null): void
+    {
+        $fuelContext = $context ?? app(FuelContext::class);
+        $databasePath = $fuelContext->getDatabasePath();
+
+        // Update the database configuration to use the .fuel/agent.db path
+        config(['database.connections.sqlite.database' => $databasePath]);
+
+        // Purge any existing connection to force reconnection with new config
+        \Illuminate\Support\Facades\DB::purge('sqlite');
     }
 
     /**

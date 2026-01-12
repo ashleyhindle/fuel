@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Epic;
 use App\Models\Task;
+use App\Providers\AppServiceProvider;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use Carbon\Carbon;
@@ -14,6 +15,11 @@ beforeEach(function (): void {
     $this->context = new FuelContext($this->tempDir.'/.fuel');
 
     $this->db = new DatabaseService($this->context->getDatabasePath());
+    $this->db->initialize(); // Create tables in test database
+
+    // Configure Eloquent to use the test database
+    AppServiceProvider::configureDatabasePath($this->context);
+
     $this->taskService = makeTaskService($this->db);
     $this->service = makeEpicService($this->db, $this->taskService);
 });

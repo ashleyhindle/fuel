@@ -66,11 +66,7 @@ function makeTaskService(DatabaseService $databaseService): TaskService
 
 function makeEpicService(DatabaseService $databaseService, TaskService $taskService): EpicService
 {
-    return new EpicService(
-        $databaseService,
-        $taskService,
-        new EpicRepository($databaseService)
-    );
+    return new EpicService($taskService);
 }
 
 function makeRunService(DatabaseService $databaseService): RunService
