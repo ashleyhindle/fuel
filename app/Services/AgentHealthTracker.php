@@ -38,7 +38,7 @@ class AgentHealthTracker implements AgentHealthTrackerInterface
     {
         $now = (new DateTimeImmutable)->format('c');
 
-        $this->database->getConnection()->beginTransaction();
+        $this->database->beginTransaction();
 
         try {
             // Check if agent exists
@@ -83,7 +83,7 @@ class AgentHealthTracker implements AgentHealthTrackerInterface
         $now = new DateTimeImmutable;
         $nowStr = $now->format('c');
 
-        $this->database->getConnection()->beginTransaction();
+        $this->database->beginTransaction();
 
         try {
             // Get current state

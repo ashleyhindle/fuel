@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Review;
+use Illuminate\Support\Facades\DB;
 use PDO;
 use PDOException;
 use RuntimeException;
@@ -20,16 +21,36 @@ class DatabaseService
     public function __construct(?string $dbPath = null)
     {
         $this->dbPath = $dbPath ?? getcwd().'/.fuel/agent.db';
+        $this->configureDatabase();
     }
 
     /**
-     * Set the database path.
+     * Set the database path and configure Laravel's DB connection.
      */
     public function setDatabasePath(string $path): void
     {
         $this->dbPath = $path;
         $this->connection = null;
         $this->migrated = false;
+        $this->configureDatabase();
+    }
+
+    /**
+     * Configure Laravel's database connection to use this path.
+     * Creates the database file if it doesn't exist.
+     */
+    private function configureDatabase(): void
+    {
+        // Create database file if it doesn't exist (Laravel's SQLite connector requires this)
+        if (! file_exists($this->dbPath)) {
+            $dir = dirname($this->dbPath);
+            if (is_dir($dir)) {
+                touch($this->dbPath);
+            }
+        }
+
+        config(['database.connections.sqlite.database' => $this->dbPath]);
+        DB::purge('sqlite'); // Clear cached connection so new path is used
     }
 
     /**
@@ -912,17 +933,18 @@ class DatabaseService
     }
 
     /**
-     * Execute a query and return the PDO statement.
+     * Execute a write query (INSERT, UPDATE, DELETE).
+     * For SELECT queries, use fetchAll() or fetchOne() instead.
      */
-    public function query(string $sql, array $params = []): \PDOStatement
+    public function query(string $sql, array $params = []): bool
     {
-        try {
-            $stmt = $this->getConnection()->prepare($sql);
-            $stmt->execute($params);
+        // Ensure migrations have run
+        $this->getConnection();
 
-            return $stmt;
-        } catch (PDOException $pdoException) {
-            throw new RuntimeException('Database query failed: '.$pdoException->getMessage(), 0, $pdoException);
+        try {
+            return DB::statement($sql, $params);
+        } catch (\Exception $e) {
+            throw new RuntimeException('Database query failed: '.$e->getMessage(), 0, $e);
         }
     }
 
@@ -931,7 +953,17 @@ class DatabaseService
      */
     public function fetchAll(string $sql, array $params = []): array
     {
-        return $this->query($sql, $params)->fetchAll();
+        // Ensure migrations have run
+        $this->getConnection();
+
+        try {
+            $results = DB::select($sql, $params);
+
+            // DB::select returns array of stdClass, convert to associative arrays
+            return array_map(fn ($row) => (array) $row, $results);
+        } catch (\Exception $e) {
+            throw new RuntimeException('Database query failed: '.$e->getMessage(), 0, $e);
+        }
     }
 
     /**
@@ -939,9 +971,9 @@ class DatabaseService
      */
     public function fetchOne(string $sql, array $params = []): ?array
     {
-        $result = $this->query($sql, $params)->fetch();
+        $results = $this->fetchAll($sql, $params);
 
-        return $result !== false ? $result : null;
+        return $results[0] ?? null;
     }
 
     /**
@@ -949,7 +981,7 @@ class DatabaseService
      */
     public function beginTransaction(): void
     {
-        $this->getConnection()->beginTransaction();
+        DB::beginTransaction();
     }
 
     /**
@@ -957,7 +989,7 @@ class DatabaseService
      */
     public function commit(): void
     {
-        $this->getConnection()->commit();
+        DB::commit();
     }
 
     /**
@@ -965,7 +997,15 @@ class DatabaseService
      */
     public function rollback(): void
     {
-        $this->getConnection()->rollBack();
+        DB::rollBack();
+    }
+
+    /**
+     * Get the last inserted ID.
+     */
+    public function lastInsertId(): int
+    {
+        return (int) DB::getPdo()->lastInsertId();
     }
 
     /**

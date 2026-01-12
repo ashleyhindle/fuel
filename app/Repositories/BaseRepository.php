@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Services\DatabaseService;
-use PDO;
-use PDOStatement;
 
 abstract class BaseRepository
 {
@@ -39,9 +37,9 @@ abstract class BaseRepository
     }
 
     /**
-     * Execute a query and return the PDO statement.
+     * Execute a write query (INSERT, UPDATE, DELETE).
      */
-    protected function query(string $sql, array $params = []): PDOStatement
+    protected function query(string $sql, array $params = []): bool
     {
         return $this->db->query($sql, $params);
     }
@@ -147,7 +145,7 @@ abstract class BaseRepository
 
         $this->query($sql, array_values($data));
 
-        return (int) $this->db->getConnection()->lastInsertId();
+        return $this->db->lastInsertId();
     }
 
     /**

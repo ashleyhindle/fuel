@@ -335,9 +335,7 @@ class EpicReviewCommand extends Command
                 GROUP BY task_id";
 
         try {
-            $stmt = $dbService->getConnection()->prepare($sql);
-            $stmt->execute($taskIds);
-            $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $results = $dbService->fetchAll($sql, $taskIds);
 
             $times = [];
             foreach ($results as $row) {
