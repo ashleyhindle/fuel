@@ -37,7 +37,7 @@ class ConsumeCommand extends Command
         {--prompt=Consume one task from fuel, then land the plane : Prompt to send to agent}
         {--dryrun : Show what would happen without claiming tasks or spawning agents}
         {--health : Show agent health status and exit}
-        {--skip-review : Skip automatic review of completed work}';
+        {--review : Enable automatic review of completed work}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
@@ -717,13 +717,13 @@ PROMPT;
         $originalStatus = $task->status;
         $wasAlreadyClosed = $originalStatus === TaskStatus::Closed;
 
-        if ($this->option('skip-review')) {
+        if (! $this->option('review')) {
             // Skip review and mark done directly
             if (! $wasAlreadyClosed) {
                 $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
             }
 
-            $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (review skipped) (%s)', $taskId, $durationStr), 'green');
+            $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (no review) (%s)', $taskId, $durationStr), 'green');
         } elseif ($this->reviewService instanceof ReviewServiceInterface) {
             // Trigger review if ReviewService is available
             try {
