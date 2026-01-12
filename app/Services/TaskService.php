@@ -245,7 +245,7 @@ class TaskService
                 $labels = array_values(array_filter($labels, fn (string $label): bool => ! in_array($label, $data['remove_labels'], true)));
             }
 
-            $updates['labels'] = json_encode($labels);
+            $updates['labels'] = $labels;
             $task['labels'] = $labels;
         }
 

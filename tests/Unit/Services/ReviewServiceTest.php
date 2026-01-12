@@ -15,9 +15,6 @@ use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\ReviewService;
-use Tests\TestCase;
-
-uses(TestCase::class);
 
 beforeEach(function (): void {
     // Create FuelContext for test directory
