@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
+use App\Models\Task;
 use App\Process\AgentProcess;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
@@ -574,20 +575,20 @@ class ProcessManager implements ProcessManagerInterface
      *
      * This is the method that ConsumeCommand should call.
      *
-     * @param  array  $task  The task data
+     * @param  Task  $task  The task model
      * @param  string  $fullPrompt  The prompt to send to the agent
      * @param  string  $cwd  The current working directory
      * @param  ?string  $agentOverride  Optional agent override name
      * @param  ?string  $runId  Optional run ID for directory organization
      * @return SpawnResult The spawn result with success status and process or error
      */
-    public function spawnForTask(array $task, string $fullPrompt, string $cwd, ?string $agentOverride = null, ?string $runId = null): SpawnResult
+    public function spawnForTask(Task $task, string $fullPrompt, string $cwd, ?string $agentOverride = null, ?string $runId = null): SpawnResult
     {
-        $taskId = $task['id'];
+        $taskId = $task->short_id;
         $agentName = $agentOverride;
 
         if ($agentName === null) {
-            $complexity = $task['complexity'] ?? 'simple';
+            $complexity = $task->complexity ?? 'simple';
             try {
                 $agentName = $this->configService->getAgentForComplexity($complexity);
             } catch (\RuntimeException $e) {
