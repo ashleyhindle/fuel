@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\FailureType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,6 +26,7 @@ class Run extends Model
         'cost_usd' => 'float',
         'started_at' => 'datetime',
         'ended_at' => 'datetime',
+        'error_type' => FailureType::class,
     ];
 
     protected $appends = ['run_id'];
