@@ -171,7 +171,7 @@ class Task extends EloquentModel
      */
     public function isCompleted(): bool
     {
-        return $this->status === TaskStatus::Closed->value;
+        return $this->status === TaskStatus::Closed;
     }
 
     /**
@@ -179,7 +179,7 @@ class Task extends EloquentModel
      */
     public function isInProgress(): bool
     {
-        return $this->status === TaskStatus::InProgress->value;
+        return $this->status === TaskStatus::InProgress;
     }
 
     /**

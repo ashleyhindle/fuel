@@ -24,7 +24,7 @@ test('can create task with attributes', function (): void {
     expect($task->title)->toBe('Test Task');
     expect($task->description)->toBe('Test description');
     expect($task->type)->toBe('feature');
-    expect($task->status)->toBe(TaskStatus::Open->value);
+    expect($task->status)->toBe(TaskStatus::Open);
     expect($task->priority)->toBe(1);
     expect($task->complexity)->toBe('simple');
     expect($task->labels)->toBe(['api', 'urgent']);
