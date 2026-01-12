@@ -108,7 +108,7 @@ class RunsCommand extends Command
                             $run->run_id ?? '',
                             $run->agent ?? '',
                             $run->model ?? '',
-                            $this->formatDateTime($run->started_at ?? ''),
+                            $this->formatDateTime($run->started_at ?? new \DateTime),
                             $duration,
                             $run->exit_code !== null ? (string) $run->exit_code : '',
                             $run->cost_usd !== null ? '$'.number_format($run->cost_usd, 2) : '',
@@ -129,23 +129,9 @@ class RunsCommand extends Command
     /**
      * Format a datetime string for display.
      */
-    private function formatDateTime(string|\DateTimeInterface $dateTime): string
+    private function formatDateTime(\DateTimeInterface $dateTime): string
     {
-        if ($dateTime === '') {
-            return '';
-        }
-
-        if ($dateTime instanceof \DateTimeInterface) {
-            return $dateTime->format('Y-m-d H:i:s');
-        }
-
-        try {
-            $date = new \DateTime($dateTime);
-
-            return $date->format('Y-m-d H:i:s');
-        } catch (\Exception) {
-            return $dateTime;
-        }
+        return $dateTime->format('Y-m-d H:i:s');
     }
 
     /**

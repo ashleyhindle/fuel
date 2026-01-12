@@ -130,16 +130,14 @@ class ReviewsCommand extends Command
     /**
      * Format a date string into relative time (e.g., "2m ago", "1h ago").
      */
-    private function formatRelativeTime(string|\DateTimeInterface|null $dateString): string
+    private function formatRelativeTime(?\DateTimeInterface $dateString): string
     {
-        if ($dateString === null || $dateString === '') {
+        if ($dateString === null) {
             return 'unknown';
         }
 
         try {
-            $date = $dateString instanceof \DateTimeInterface
-                ? Carbon::instance($dateString)->setTimezone('UTC')
-                : Carbon::parse($dateString)->setTimezone('UTC');
+            $date = Carbon::instance($dateString)->setTimezone('UTC');
             $now = Carbon::now('UTC');
             $diff = $now->diff($date);
 

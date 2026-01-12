@@ -152,18 +152,8 @@ class ReviewShowCommand extends Command
         }
     }
 
-    private function formatDateTime(string|\DateTimeInterface $dateInput): string
+    private function formatDateTime(\DateTimeInterface $dateInput): string
     {
-        if ($dateInput === '') {
-            return '';
-        }
-
-        try {
-            $date = $dateInput instanceof \DateTimeInterface ? $dateInput : new \DateTime($dateInput);
-
-            return $date->format('M j H:i');
-        } catch (\Exception) {
-            return is_string($dateInput) ? $dateInput : '';
-        }
+        return $dateInput->format('M j H:i');
     }
 }

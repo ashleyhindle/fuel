@@ -100,16 +100,12 @@ class HumanCommand extends Command
         return self::SUCCESS;
     }
 
-    private function formatAge(string|\DateTimeInterface|null $createdAt): string
+    private function formatAge(?\DateTimeInterface $createdAt): string
     {
         if (! $createdAt) {
             return 'unknown';
         }
 
-        if ($createdAt instanceof \DateTimeInterface) {
-            return Carbon::instance($createdAt)->diffForHumans();
-        }
-
-        return Carbon::parse($createdAt)->diffForHumans();
+        return Carbon::instance($createdAt)->diffForHumans();
     }
 }

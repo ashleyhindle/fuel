@@ -71,7 +71,7 @@ class EpicsCommand extends Command
                     $epic->title ?? '',
                     $epic->status->value,
                     $progress,
-                    $this->formatDate($epic->created_at ?? ''),
+                    $this->formatDate($epic->created_at ?? new \DateTime),
                 ];
             }, $epics);
 
@@ -86,10 +86,10 @@ class EpicsCommand extends Command
     /**
      * Format a date into a human-readable format.
      */
-    private function formatDate(string|\DateTimeInterface $dateInput): string
+    private function formatDate(\DateTimeInterface $dateInput): string
     {
         try {
-            $date = $dateInput instanceof \DateTimeInterface ? $dateInput : new \DateTime($dateInput);
+            $date = $dateInput;
             $now = new \DateTime;
             $diff = $now->diff($date);
 
@@ -128,7 +128,7 @@ class EpicsCommand extends Command
             return $date->format('M j, Y');
         } catch (\Exception) {
             // Fallback to original if parsing fails
-            return $dateString;
+            return $dateInput->format('Y-m-d H:i:s');
         }
     }
 }

@@ -68,12 +68,11 @@ class CompletedCommand extends Command
     /**
      * Format a date string into a human-readable format.
      */
-    private function formatDate(string|\DateTimeInterface $date): string
+    private function formatDate(\DateTimeInterface $date): string
     {
         try {
-            $dateObj = $date instanceof \DateTimeInterface ? $date : new \DateTime($date);
             $now = new \DateTime;
-            $diff = $now->diff($dateObj);
+            $diff = $now->diff($date);
 
             // If less than 1 minute ago
             if ($diff->days === 0 && $diff->h === 0 && $diff->i === 0) {
@@ -102,15 +101,15 @@ class CompletedCommand extends Command
             }
 
             // If same year, show "Mon Day" (e.g., "Jan 7")
-            if ($dateObj->format('Y') === $now->format('Y')) {
-                return $dateObj->format('M j');
+            if ($date->format('Y') === $now->format('Y')) {
+                return $date->format('M j');
             }
 
             // Different year, show "Mon Day, Year" (e.g., "Jan 7, 2025")
-            return $dateObj->format('M j, Y');
+            return $date->format('M j, Y');
         } catch (\Exception) {
             // Fallback to original if parsing fails
-            return $date instanceof \DateTimeInterface ? $date->format('Y-m-d H:i:s') : $date;
+            return $date->format('Y-m-d H:i:s');
         }
     }
 }

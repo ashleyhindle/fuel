@@ -14,15 +14,15 @@ trait CalculatesDuration
     /**
      * Calculate duration between two timestamps.
      */
-    protected function calculateDuration(string|DateTimeInterface|null $startedAt, string|DateTimeInterface|null $endedAt): string
+    protected function calculateDuration(?DateTimeInterface $startedAt, ?DateTimeInterface $endedAt): string
     {
         if ($startedAt === null) {
             return '';
         }
 
         try {
-            $start = $startedAt instanceof DateTimeInterface ? $startedAt : new \DateTime($startedAt);
-            $end = $endedAt instanceof DateTimeInterface ? $endedAt : ($endedAt !== null ? new \DateTime($endedAt) : new \DateTime);
+            $start = $startedAt;
+            $end = $endedAt ?? new \DateTime;
 
             $diff = $start->diff($end);
 

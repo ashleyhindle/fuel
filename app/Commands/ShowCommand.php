@@ -27,7 +27,8 @@ class ShowCommand extends Command
         {id : The task ID (supports partial matching)}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
-        {--raw : Show raw JSON output instead of formatted}';
+        {--raw : Show raw JSON output instead of formatted}
+        {--tail : Continuously tail the live output (like tail -f)}';
 
     protected $description = 'Show task details including all fields';
 
@@ -215,7 +216,13 @@ class ShowCommand extends Command
 
                         // Show output only for latest run
                         if ($isLatest) {
-                            if ($liveOutput !== null) {
+                            if ($this->option('tail') && $liveOutput !== null) {
+                                $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
+                                if ($stdoutPath !== null) {
+                                    $this->line('    <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
+                                    $this->tailFile($stdoutPath, $task->short_id, $runService);
+                                }
+                            } elseif ($liveOutput !== null) {
                                 $this->line('    <fg=yellow>(live output)</>');
                                 $this->line('    <fg=gray>Showing live output (tail)...</>');
                                 $this->outputChunk($liveOutput, $this->option('raw'));
@@ -228,8 +235,16 @@ class ShowCommand extends Command
                 } elseif ($liveOutput !== null) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Run Output (live) ──</>');
-                    $this->line('  <fg=gray>Showing live output (tail)...</>');
-                    $this->outputChunk($liveOutput, $this->option('raw'));
+                    if ($this->option('tail')) {
+                        $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
+                        if ($stdoutPath !== null) {
+                            $this->line('  <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
+                            $this->tailFile($stdoutPath, $task->short_id, $runService);
+                        }
+                    } else {
+                        $this->line('  <fg=gray>Showing live output (tail)...</>');
+                        $this->outputChunk($liveOutput, $this->option('raw'));
+                    }
                 }
 
                 // Reviews
@@ -244,7 +259,7 @@ class ShowCommand extends Command
                             'failed' => 'red',
                             default => 'yellow',
                         };
-                        $timestamp = $this->formatDateTime($review->completed_at ?? $review->started_at ?? '');
+                        $timestamp = $this->formatDateTime($review->completed_at ?? $review->started_at);
                         $agent = $review->agent ?? '';
                         $reviewId = $review->id ?? '';
 
@@ -319,6 +334,23 @@ class ShowCommand extends Command
      */
     private function getLiveOutput(string $taskId, string $status, RunService $runService): ?string
     {
+        $stdoutPath = $this->getStdoutPath($taskId, $status, $runService);
+
+        if ($stdoutPath === null) {
+            return null;
+        }
+
+        // Read the last 50 lines from the file
+        return $this->readLastLines($stdoutPath, 50);
+    }
+
+    /**
+     * Get the stdout.log path for a task if it's in_progress and file exists.
+     *
+     * @return string|null Returns the path to stdout.log or null if not available
+     */
+    private function getStdoutPath(string $taskId, string $status, RunService $runService): ?string
+    {
         // Only check for live output if task is in_progress
         if ($status !== TaskStatus::InProgress->value) {
             return null;
@@ -339,8 +371,7 @@ class ShowCommand extends Command
             return null;
         }
 
-        // Read the last 50 lines from the file
-        return $this->readLastLines($stdoutPath, 50);
+        return $stdoutPath;
     }
 
     /**
@@ -385,22 +416,12 @@ class ShowCommand extends Command
     /**
      * Format a datetime string for display.
      */
-    private function formatDateTime(string|\DateTimeInterface|null $dateTimeString): string
+    private function formatDateTime(?\DateTimeInterface $dateTimeString): string
     {
-        if ($dateTimeString === null || $dateTimeString === '') {
+        if ($dateTimeString === null) {
             return '';
         }
 
-        try {
-            if ($dateTimeString instanceof \DateTimeInterface) {
-                return $dateTimeString->format('M j H:i');
-            }
-
-            $date = new \DateTime($dateTimeString);
-
-            return $date->format('M j H:i');
-        } catch (\Exception) {
-            return is_string($dateTimeString) ? $dateTimeString : '';
-        }
+        return $dateTimeString->format('M j H:i');
     }
 }
