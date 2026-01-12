@@ -23,16 +23,6 @@ class DatabaseService
     }
 
     /**
-     * Set the database path and configure Laravel's DB connection.
-     */
-    public function setDatabasePath(string $path): void
-    {
-        $this->dbPath = $path;
-        $this->connection = null;
-        $this->configureDatabase();
-    }
-
-    /**
      * Configure Laravel's database connection to use this path.
      * Creates the database file if it doesn't exist.
      */
