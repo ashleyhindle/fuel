@@ -174,9 +174,24 @@ Blocked tasks won't appear in `fuel ready` until blockers are closed.
 **Workflow:**
 1. `fuel epic:add "Feature name" --description="What and why"`
 2. Break down into tasks, linking each: `fuel add "Task" --epic=e-xxxx`
-3. Create a final review task: `fuel add "Review: Feature name" --epic=e-xxxx --blocked-by=f-task1,f-task2,...`
+3. Create a final review task (see below)
 4. Work tasks individually; review task auto-unblocks when all dependencies close
 5. Complete review task to close out the epic
+
+**Epic review tasks are MANDATORY.** Always use `--complexity=complex` and list acceptance criteria:
+
+```bash
+fuel add "Review: Feature name" \
+  --epic=e-xxxx \
+  --complexity=complex \
+  --blocked-by=f-task1,f-task2,... \
+  --description="Verify epic complete. Acceptance criteria: 1) [behavior], 2) [API works], 3) [errors handled], 4) All tests pass: vendor/bin/pest path/to/tests"
+```
+
+**Review tasks must verify:**
+1. **Intent** - Does it match the epic description? Would the user be happy?
+2. **Correctness** - Do behaviors work? Tests pass? Edge cases handled?
+3. **Quality** - No debug calls (dd, console.log), no useless comments, follows patterns
 
 ```bash
 fuel epic:add "Add user preferences"    # Create epic (note the ID)
