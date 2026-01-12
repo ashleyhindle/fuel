@@ -117,6 +117,39 @@ fuel add "Add tests for preferences API" \
   --priority=1 \
   --complexity=simple \
   --blocked-by=f-xxxxx
+
+# Task 5: Epic review (depends on all tasks)
+fuel add "Review: Add user preferences API" \
+  --description="Verify epic is complete. Acceptance criteria: 1) Migration runs without error, 2) GET /api/user/preferences returns user prefs, 3) PUT /api/user/preferences updates prefs, 4) Invalid timezone returns 422, 5) Unauthenticated returns 401, 6) All tests pass. Run: php artisan migrate:fresh && vendor/bin/pest tests/Feature/PreferencesApiTest.php" \
+  --type=chore \
+  --priority=1 \
+  --complexity=complex \
+  --blocked-by=f-xxxxx
+```
+
+### Epic Review Tasks
+
+Every epic MUST end with a review task. Review tasks:
+
+- **Always use `--complexity=complex`** - Reviews verify multiple behaviors across multiple files
+- **Block on ALL other epic tasks** - Only runs when everything else is done
+- **List explicit acceptance criteria** - Numbered list of observable outcomes to verify
+- **Include test commands** - Exact commands to run for verification
+- **Type is `chore`** - It's verification work, not feature/test work
+
+**Review tasks must verify THREE things:**
+
+1. **Intent satisfied** - Does the implementation match the epic's description? Would the user be happy with what was delivered?
+2. **Functional correctness** - Do all behaviors work? Do tests pass? Are edge cases handled?
+3. **Code quality** - No debugging calls (dd(), console.log, var_dump), no useless comments, no dead code, follows project patterns
+
+**Acceptance criteria format:**
+```
+1) [Intent] - "Epic goal achieved: user can now do X"
+2) [Behavior] - "GET /endpoint returns expected JSON"
+3) [Error handling] - "Invalid input returns 422"
+4) [Tests] - "All tests pass: vendor/bin/pest path/to/tests"
+5) [Quality] - "No debug calls, no commented code, follows existing patterns"
 ```
 
 ## Tips
