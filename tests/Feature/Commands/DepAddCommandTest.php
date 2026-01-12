@@ -18,8 +18,10 @@ describe('dep:add command', function (): void {
 
         $this->dbPath = $context->getDatabasePath();
 
+        $context->configureDatabase();
         $databaseService = new DatabaseService($context->getDatabasePath());
         $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
 
         $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService($databaseService));
 
@@ -59,48 +61,45 @@ describe('dep:add command', function (): void {
     });
 
     it('adds dependency via CLI', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         $this->artisan('dep:add', [
-            'from' => $blocked['id'],
-            'to' => $blocker['id'],
+            'from' => $blocked->short_id,
+            'to' => $blocker->short_id,
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Added dependency')
             ->assertExitCode(0);
 
         // Verify blocker was added to blocked_by array
-        $updated = $this->taskService->find($blocked['id']);
-        expect($updated['blocked_by'])->toHaveCount(1);
-        expect($updated['blocked_by'])->toContain($blocker['id']);
+        $updated = $this->taskService->find($blocked->short_id);
+        expect($updated->blocked_by)->toHaveCount(1);
+        expect($updated->blocked_by)->toContain($blocker->short_id);
     });
 
     it('dep:add outputs JSON when --json flag is used', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         Artisan::call('dep:add', [
-            'from' => $blocked['id'],
-            'to' => $blocker['id'],
+            'from' => $blocked->short_id,
+            'to' => $blocker->short_id,
             '--cwd' => $this->tempDir,
             '--json' => true,
         ]);
 
         $output = Artisan::output();
-        expect($output)->toContain($blocked['id']);
+        expect($output)->toContain($blocked->short_id);
         expect($output)->toContain('blocked_by');
     });
 
     it('dep:add shows error for non-existent task', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
 
         $this->artisan('dep:add', [
             'from' => 'nonexistent',
-            'to' => $blocker['id'],
+            'to' => $blocker->short_id,
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('not found')
@@ -108,17 +107,16 @@ describe('dep:add command', function (): void {
     });
 
     it('dep:add shows error for cycle detection', function (): void {
-        $this->taskService->initialize();
         $taskA = $this->taskService->create(['title' => 'Task A']);
         $taskB = $this->taskService->create(['title' => 'Task B']);
 
         // A depends on B
-        $this->taskService->addDependency($taskA['id'], $taskB['id']);
+        $this->taskService->addDependency($taskA->short_id, $taskB->short_id);
 
         // Try to make B depend on A (cycle)
         $this->artisan('dep:add', [
-            'from' => $taskB['id'],
-            'to' => $taskA['id'],
+            'from' => $taskB->short_id,
+            'to' => $taskA->short_id,
             '--cwd' => $this->tempDir,
         ])
             ->expectsOutputToContain('Circular dependency')
@@ -126,13 +124,12 @@ describe('dep:add command', function (): void {
     });
 
     it('dep:add supports partial ID matching', function (): void {
-        $this->taskService->initialize();
         $blocker = $this->taskService->create(['title' => 'Blocker task']);
         $blocked = $this->taskService->create(['title' => 'Blocked task']);
 
         // Use partial IDs (just the hash part)
-        $blockerPartial = substr((string) $blocker['id'], 2, 3);
-        $blockedPartial = substr((string) $blocked['id'], 2, 3);
+        $blockerPartial = substr((string) $blocker->short_id, 2, 3);
+        $blockedPartial = substr((string) $blocked->short_id, 2, 3);
 
         $this->artisan('dep:add', [
             'from' => $blockedPartial,
@@ -143,7 +140,7 @@ describe('dep:add command', function (): void {
             ->assertExitCode(0);
 
         // Verify blocker was added to blocked_by array using full ID
-        $updated = $this->taskService->find($blocked['id']);
-        expect($updated['blocked_by'])->toHaveCount(1);
+        $updated = $this->taskService->find($blocked->short_id);
+        expect($updated->blocked_by)->toHaveCount(1);
     });
 });
