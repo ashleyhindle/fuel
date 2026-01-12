@@ -4,34 +4,14 @@ declare(strict_types=1);
 
 namespace App\Commands\Concerns;
 
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
-
 /**
- * Provides common JSON output and --cwd handling for Fuel commands.
+ * Provides common JSON output for Fuel commands.
  *
- * Commands using this trait should have these options in their signature:
- *   {--cwd= : Working directory (defaults to current directory)}
+ * Commands using this trait should have this option in their signature:
  *   {--json : Output as JSON}
  */
 trait HandlesJsonOutput
 {
-    /**
-     * Configure services with --cwd option if provided.
-     */
-    protected function configureCwd(FuelContext $context, ?DatabaseService $databaseService = null): void
-    {
-        if ($cwd = $this->option('cwd')) {
-            $context->basePath = $cwd.'/.fuel';
-
-            if ($databaseService instanceof DatabaseService) {
-                $databaseService->setDatabasePath($context->getDatabasePath());
-            }
-        }
-
-        $context->configureDatabase();
-    }
-
     /**
      * Output an error message (JSON or text based on --json option).
      *
