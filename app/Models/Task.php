@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -95,27 +96,6 @@ class Task extends EloquentModel
     }
 
     /**
-     * Support array access for legacy callers that expect 'id' to be the short ID.
-     */
-    public function offsetGet($offset): mixed
-    {
-        if ($offset === 'id') {
-            return $this->attributes['short_id'] ?? null;
-        }
-
-        return parent::offsetGet($offset);
-    }
-
-    public function offsetExists($offset): bool
-    {
-        if ($offset === 'id') {
-            return isset($this->attributes['short_id']);
-        }
-
-        return parent::offsetExists($offset);
-    }
-
-    /**
      * Include the short_id as id for backward compatibility in array/JSON output.
      */
     public function toArray(): array
@@ -132,7 +112,7 @@ class Task extends EloquentModel
     public function scopeReady(Builder $query): Builder
     {
         return $query
-            ->where('status', 'open')
+            ->where('status', TaskStatus::Open->value)
             ->where(function (Builder $query): void {
                 $query
                     ->whereNull('blocked_by')
@@ -154,7 +134,7 @@ class Task extends EloquentModel
     public function scopeBlocked(Builder $query): Builder
     {
         return $query
-            ->where('status', 'open')
+            ->where('status', TaskStatus::Open->value)
             ->where(function (Builder $query): void {
                 $query
                     ->whereNotNull('blocked_by')
@@ -168,7 +148,7 @@ class Task extends EloquentModel
      */
     public function scopeBacklog(Builder $query): Builder
     {
-        return $query->where('status', 'someday');
+        return $query->where('status', TaskStatus::Someday->value);
     }
 
     public function epic(): BelongsTo
@@ -205,7 +185,7 @@ class Task extends EloquentModel
      */
     public function isCompleted(): bool
     {
-        return $this->status === 'closed';
+        return $this->status === TaskStatus::Closed->value;
     }
 
     /**
@@ -213,7 +193,7 @@ class Task extends EloquentModel
      */
     public function isInProgress(): bool
     {
-        return $this->status === 'in_progress';
+        return $this->status === TaskStatus::InProgress->value;
     }
 
     /**
@@ -278,17 +258,28 @@ class Task extends EloquentModel
 
     /**
      * Find a task by partial ID matching.
+     * Supports integer primary key ID, full short_id (f-xxxxxx), or partial short_id.
      *
-     * @param  string  $id  Full or partial task ID
+     * @param  string  $id  Integer primary key, full short_id, or partial short_id
      *
      * @throws \RuntimeException When multiple tasks match the partial ID
      */
     public static function findByPartialId(string $id): ?self
     {
+        // Check if it's a numeric ID (integer primary key)
+        if (is_numeric($id)) {
+            $task = static::find((int) $id);
+            if ($task !== null) {
+                return $task;
+            }
+        }
+
+        // Exact match for full ID format (f-xxxxxx)
         if (str_starts_with($id, 'f-') && strlen($id) === 8) {
             return static::where('short_id', $id)->first();
         }
 
+        // Partial match - try both with and without prefixes
         $tasks = static::where('short_id', 'like', $id.'%')
             ->orWhere('short_id', 'like', 'f-'.$id.'%')
             ->orWhere('short_id', 'like', 'fuel-'.$id.'%')

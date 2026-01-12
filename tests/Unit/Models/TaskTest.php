@@ -214,3 +214,99 @@ test('getBlockedByArray returns single task ID', function (): void {
     $task = makeTask(['blocked_by' => 'f-abc123']);
     expect($task->getBlockedByArray())->toBe(['f-abc123']);
 });
+
+test('findByPartialId finds task by numeric ID', function (): void {
+    // Create a test task
+    $task = Task::create([
+        'short_id' => 'f-test01',
+        'title' => 'Test Task',
+        'status' => 'open',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // Find by numeric ID (as string, which is how it comes from CLI)
+    $found = Task::findByPartialId((string) $task->id);
+
+    expect($found)->not->toBeNull();
+    expect($found->id)->toBe($task->id);
+    expect($found->short_id)->toBe('f-test01');
+
+    // Cleanup
+    $task->delete();
+});
+
+test('findByPartialId finds task by full short_id', function (): void {
+    // Create a test task
+    $task = Task::create([
+        'short_id' => 'f-test02',
+        'title' => 'Test Task',
+        'status' => 'open',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // Find by full short_id
+    $found = Task::findByPartialId('f-test02');
+
+    expect($found)->not->toBeNull();
+    expect($found->short_id)->toBe('f-test02');
+
+    // Cleanup
+    $task->delete();
+});
+
+test('findByPartialId finds task by partial short_id', function (): void {
+    // Create a test task
+    $task = Task::create([
+        'short_id' => 'f-test03',
+        'title' => 'Test Task',
+        'status' => 'open',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // Find by partial short_id (without f- prefix)
+    $found = Task::findByPartialId('test03');
+
+    expect($found)->not->toBeNull();
+    expect($found->short_id)->toBe('f-test03');
+
+    // Cleanup
+    $task->delete();
+});
+
+test('findByPartialId throws exception on ambiguous match', function (): void {
+    // Create multiple tasks with similar IDs
+    $task1 = Task::create([
+        'short_id' => 'f-aaa111',
+        'title' => 'Test Task 1',
+        'status' => 'open',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    $task2 = Task::create([
+        'short_id' => 'f-aaa222',
+        'title' => 'Test Task 2',
+        'status' => 'open',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // This should throw an exception because 'aaa' matches both
+    expect(fn () => Task::findByPartialId('aaa'))
+        ->toThrow(\RuntimeException::class, "Ambiguous task ID 'aaa'");
+
+    // Cleanup
+    $task1->delete();
+    $task2->delete();
+});
+
+test('findByPartialId returns null for non-existent ID', function (): void {
+    $found = Task::findByPartialId('f-notexist');
+    expect($found)->toBeNull();
+
+    $found = Task::findByPartialId('999999');
+    expect($found)->toBeNull();
+});

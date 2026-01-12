@@ -108,3 +108,94 @@ test('isPlanningOrInProgress returns false for other statuses', function (): voi
     $epic = Epic::fromArray(['status' => EpicStatus::ReviewPending->value]);
     expect($epic->isPlanningOrInProgress())->toBeFalse();
 });
+
+test('findByPartialId finds epic by numeric ID', function (): void {
+    // Create a test epic
+    $epic = Epic::create([
+        'short_id' => 'e-test01',
+        'title' => 'Test Epic',
+        'description' => 'Test Description',
+        'status' => EpicStatus::Planning,
+    ]);
+
+    // Find by numeric ID (as string, which is how it comes from CLI)
+    $found = Epic::findByPartialId((string) $epic->id);
+
+    expect($found)->not->toBeNull();
+    expect($found->id)->toBe($epic->id);
+    expect($found->short_id)->toBe('e-test01');
+
+    // Cleanup
+    $epic->delete();
+});
+
+test('findByPartialId finds epic by full short_id', function (): void {
+    // Create a test epic
+    $epic = Epic::create([
+        'short_id' => 'e-test02',
+        'title' => 'Test Epic',
+        'description' => 'Test Description',
+        'status' => EpicStatus::Planning,
+    ]);
+
+    // Find by full short_id
+    $found = Epic::findByPartialId('e-test02');
+
+    expect($found)->not->toBeNull();
+    expect($found->short_id)->toBe('e-test02');
+
+    // Cleanup
+    $epic->delete();
+});
+
+test('findByPartialId finds epic by partial short_id', function (): void {
+    // Create a test epic
+    $epic = Epic::create([
+        'short_id' => 'e-test03',
+        'title' => 'Test Epic',
+        'description' => 'Test Description',
+        'status' => EpicStatus::Planning,
+    ]);
+
+    // Find by partial short_id (without e- prefix)
+    $found = Epic::findByPartialId('test03');
+
+    expect($found)->not->toBeNull();
+    expect($found->short_id)->toBe('e-test03');
+
+    // Cleanup
+    $epic->delete();
+});
+
+test('findByPartialId throws exception on ambiguous match', function (): void {
+    // Create multiple epics with similar IDs
+    $epic1 = Epic::create([
+        'short_id' => 'e-bbb111',
+        'title' => 'Test Epic 1',
+        'description' => 'Test Description',
+        'status' => EpicStatus::Planning,
+    ]);
+
+    $epic2 = Epic::create([
+        'short_id' => 'e-bbb222',
+        'title' => 'Test Epic 2',
+        'description' => 'Test Description',
+        'status' => EpicStatus::Planning,
+    ]);
+
+    // This should throw an exception because 'bbb' matches both
+    expect(fn () => Epic::findByPartialId('bbb'))
+        ->toThrow(\RuntimeException::class, "Ambiguous epic ID 'bbb'");
+
+    // Cleanup
+    $epic1->delete();
+    $epic2->delete();
+});
+
+test('findByPartialId returns null for non-existent ID', function (): void {
+    $found = Epic::findByPartialId('e-notexist');
+    expect($found)->toBeNull();
+
+    $found = Epic::findByPartialId('999999');
+    expect($found)->toBeNull();
+});

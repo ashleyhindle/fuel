@@ -202,15 +202,23 @@ class Epic extends Model
 
     /**
      * Find an epic by partial ID matching.
-     * Supports full ID (e-xxxxxx) or partial match (xxxx or e-xxxx).
+     * Supports integer primary key ID, full short_id (e-xxxxxx), or partial short_id.
      *
-     * @param  string  $id  Full or partial epic ID
+     * @param  string  $id  Integer primary key, full short_id, or partial short_id
      * @return static|null The epic instance or null if not found
      *
      * @throws \RuntimeException When multiple epics match the partial ID
      */
     public static function findByPartialId(string $id): ?self
     {
+        // Check if it's a numeric ID (integer primary key)
+        if (is_numeric($id)) {
+            $epic = static::find((int) $id);
+            if ($epic !== null) {
+                return $epic;
+            }
+        }
+
         // Exact match for full ID format (e-xxxxxx)
         if (str_starts_with($id, 'e-') && strlen($id) === 8) {
             return static::where('short_id', $id)->first();

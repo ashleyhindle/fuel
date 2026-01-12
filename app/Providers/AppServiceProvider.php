@@ -8,10 +8,6 @@ use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Prompts\ReviewPrompt;
-use App\Repositories\EpicRepository;
-use App\Repositories\ReviewRepository;
-use App\Repositories\RunRepository;
-use App\Repositories\TaskRepository;
 use App\Services\AgentHealthTracker;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
@@ -65,12 +61,6 @@ class AppServiceProvider extends ServiceProvider
             $app->make(FuelContext::class)->getDatabasePath()
         ));
 
-        // Register repositories - all repositories depend on DatabaseService
-        $this->app->singleton(TaskRepository::class);
-        $this->app->singleton(EpicRepository::class);
-        $this->app->singleton(RunRepository::class);
-        $this->app->singleton(ReviewRepository::class);
-
         $this->app->singleton(TaskService::class, fn (Application $app): TaskService => new TaskService(
             $app->make(DatabaseService::class)
         ));
@@ -83,10 +73,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(FuelContext::class)
         ));
 
-        $this->app->singleton(RunService::class, fn (Application $app): RunService => new RunService(
-            $app->make(RunRepository::class),
-            $app->make(TaskRepository::class)
-        ));
+        $this->app->singleton(RunService::class, fn (Application $app): RunService => new RunService);
 
         $this->app->singleton(ProcessManagerInterface::class, fn (Application $app): ProcessManager => new ProcessManager(
             configService: $app->make(ConfigService::class),
