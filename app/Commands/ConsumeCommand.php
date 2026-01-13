@@ -25,6 +25,7 @@ use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
+use App\TUI\ScreenBuffer;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -106,6 +107,12 @@ class ConsumeCommand extends Command
 
     /** Whether mouse reporting is currently enabled */
     private bool $mouseReportingEnabled = true;
+
+    /** Screen buffer for differential rendering and future text selection */
+    private ?ScreenBuffer $screenBuffer = null;
+
+    /** Previous screen buffer for comparison */
+    private ?ScreenBuffer $previousBuffer = null;
 
     public function __construct(
         private TaskService $taskService,
@@ -193,11 +200,18 @@ class ConsumeCommand extends Command
             // Get initial terminal size
             $this->updateTerminalSize();
 
+            // Initialize screen buffers for differential rendering
+            $this->screenBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
+            $this->previousBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
+
             // Register SIGWINCH handler for terminal resize
             if (function_exists('pcntl_signal') && defined('SIGWINCH')) {
                 pcntl_signal(SIGWINCH, function (): void {
                     $this->forceRefresh = true;
                     $this->updateTerminalSize();
+                    // Resize screen buffers to match new terminal dimensions
+                    $this->screenBuffer?->resize($this->terminalWidth, $this->terminalHeight);
+                    $this->previousBuffer?->resize($this->terminalWidth, $this->terminalHeight);
                 });
             }
 
@@ -974,6 +988,332 @@ class ConsumeCommand extends Command
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
+    }
+
+    /**
+     * Capture the kanban board content to a screen buffer without outputting.
+     * Returns an array of lines indexed by row number (1-indexed).
+     *
+     * @param  array<string>  $statusLines
+     * @return array<int, string>
+     */
+    private function captureKanbanBoard(array $statusLines, bool $paused): array
+    {
+        // Initialize or resize buffer if needed
+        if ($this->screenBuffer === null ||
+            $this->screenBuffer->getWidth() !== $this->terminalWidth ||
+            $this->screenBuffer->getHeight() !== $this->terminalHeight) {
+            $this->screenBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
+        }
+
+        $this->screenBuffer->clear();
+
+        $boardData = $this->getBoardData();
+        $readyTasks = $boardData['ready'];
+        $inProgressTasks = $boardData['in_progress'];
+        $reviewTasks = $boardData['review'];
+        $blockedTasks = $boardData['blocked'];
+        $humanTasks = $boardData['human'];
+        $doneTasks = $boardData['done'];
+
+        // Get active process metadata
+        $activeProcesses = [];
+        foreach ($this->processManager->getActiveProcesses() as $process) {
+            $metadata = $process->getMetadata();
+            $activeProcesses[$metadata['task_id']] = $metadata;
+        }
+
+        // Calculate column width (2 columns with 2 space gap)
+        $columnWidth = (int) (($this->terminalWidth - 2) / 2);
+
+        // Build Ready column
+        $readyColumn = $this->buildTaskColumn('Ready', $readyTasks->take(10)->all(), $columnWidth, $readyTasks->count());
+
+        // Build In Progress column with status lines
+        $inProgressColumn = $this->buildInProgressColumn(
+            'In Progress',
+            $inProgressTasks->take(10)->all(),
+            $columnWidth,
+            $inProgressTasks->count(),
+            $activeProcesses
+        );
+
+        // Pad columns to equal height
+        $topMaxHeight = max(count($readyColumn), count($inProgressColumn));
+        $readyColumn = $this->padColumn($readyColumn, $topMaxHeight, $columnWidth);
+        $inProgressColumn = $this->padColumn($inProgressColumn, $topMaxHeight, $columnWidth);
+
+        // Build top row content
+        $currentRow = 1;
+        $topRows = array_map(null, $readyColumn, $inProgressColumn);
+        foreach ($topRows as $row) {
+            $this->screenBuffer->setLine($currentRow, implode('  ', $row));
+            $currentRow++;
+        }
+
+        // Add Review column if there are review tasks
+        if ($reviewTasks->isNotEmpty()) {
+            $currentRow++; // Empty line
+            $reviewColumn = $this->buildTaskColumn('Review', $reviewTasks->take(10)->all(), $this->terminalWidth, $reviewTasks->count(), 'review');
+            foreach ($reviewColumn as $line) {
+                $this->screenBuffer->setLine($currentRow, $line);
+                $currentRow++;
+            }
+        }
+
+        // Add needs-human line
+        if ($humanTasks->isNotEmpty()) {
+            $currentRow++; // Empty line
+            $humanLine = $this->buildHumanLine($humanTasks->all());
+            $this->screenBuffer->setLine($currentRow, $humanLine);
+            $currentRow++;
+        }
+
+        // Add health status lines
+        $healthLines = $this->getHealthStatusLines();
+        if ($healthLines !== []) {
+            $currentRow++; // Empty line
+            foreach ($healthLines as $healthLine) {
+                $this->screenBuffer->setLine($currentRow, $healthLine);
+                $currentRow++;
+            }
+        }
+
+        // Build footer
+        $footerParts = [];
+        $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
+        $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
+        $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
+        $mouseStatus = $this->mouseReportingEnabled ? '<fg=green>m: mouse ON</>' : '<fg=yellow>m: mouse OFF</>';
+        $footerParts[] = $mouseStatus;
+        $footerParts[] = '<fg=gray>q: exit</>';
+        $footerLine = implode(' <fg=#555>|</> ', $footerParts);
+
+        // Render status history above footer (positioned from bottom)
+        $footerHeight = 2; // status line + key instructions
+        $statusLineCount = count($statusLines);
+        if ($statusLineCount > 0) {
+            $startRow = $this->terminalHeight - $statusLineCount - $footerHeight;
+            foreach ($statusLines as $i => $line) {
+                $this->screenBuffer->setLine($startRow + $i, $line);
+            }
+        }
+
+        // Status line (centered, above footer)
+        if ($paused) {
+            $statusLine = '<fg=yellow>PAUSED</>';
+        } else {
+            $spinner = self::SPINNER_CHARS[$this->spinnerFrame % count(self::SPINNER_CHARS)];
+            $this->spinnerFrame++;
+            $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
+        }
+
+        $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
+        $this->screenBuffer->setLine($this->terminalHeight - 1, str_repeat(' ', $statusPadding).$statusLine);
+
+        // Footer line (centered, at bottom)
+        $paddingAmount = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($footerLine)) / 2));
+        $this->screenBuffer->setLine($this->terminalHeight, str_repeat(' ', $paddingAmount).$footerLine.str_repeat(' ', $paddingAmount));
+
+        // Render modals on top if active
+        if ($this->showBlockedModal) {
+            $this->captureModal('Blocked Tasks', $blockedTasks->all(), 'blocked', $this->blockedModalScroll);
+        } elseif ($this->showDoneModal) {
+            $this->captureModal('Done Tasks', $doneTasks->all(), 'done', $this->doneModalScroll);
+        }
+
+        return $this->screenBuffer->getLines();
+    }
+
+    /**
+     * Build the human needs line (without outputting).
+     *
+     * @param  array<int, Task>  $humanTasks
+     */
+    private function buildHumanLine(array $humanTasks): string
+    {
+        $prefix = '<fg=yellow>👤 Needs human:</> ';
+        $prefixLength = $this->visibleLength($prefix);
+        $availableWidth = $this->terminalWidth - $prefixLength;
+
+        $items = [];
+        $currentLength = 0;
+        $separator = '<fg=gray> | </>';
+
+        foreach ($humanTasks as $task) {
+            $shortId = $task->short_id;
+            $title = (string) $task->title;
+            $displayId = substr((string) $shortId, 2, 6);
+
+            $separatorLength = $items !== [] ? $this->visibleLength($separator) : 0;
+            $idPart = sprintf('<fg=yellow>[%s]</> ', $displayId);
+            $idPartLength = $this->visibleLength($idPart);
+            $titleMaxLength = $availableWidth - $currentLength - $separatorLength - $idPartLength;
+
+            if ($titleMaxLength < 5) {
+                break;
+            }
+
+            $truncatedTitle = $this->truncate($title, $titleMaxLength);
+            $item = $idPart.$truncatedTitle;
+            $itemLength = $this->visibleLength($item);
+
+            if ($currentLength + $separatorLength + $itemLength > $availableWidth) {
+                break;
+            }
+
+            $items[] = $item;
+            $currentLength += $separatorLength + $itemLength;
+        }
+
+        if ($items !== []) {
+            return $prefix.implode($separator, $items);
+        }
+
+        return $prefix.'<fg=gray>None</>';
+    }
+
+    /**
+     * Capture a modal to the screen buffer.
+     *
+     * @param  array<int, Task>  $tasks
+     */
+    private function captureModal(string $title, array $tasks, string $style, int $scrollOffset = 0): void
+    {
+        if ($this->screenBuffer === null) {
+            return;
+        }
+
+        // Modal dimensions (centered, 60% width, up to 80% height)
+        $modalWidth = min((int) ($this->terminalWidth * 0.6), $this->terminalWidth - 8);
+        $maxHeight = (int) ($this->terminalHeight * 0.8);
+        $startCol = (int) (($this->terminalWidth - $modalWidth) / 2);
+        $startRow = 3;
+
+        // Calculate visible task slots (header=3 lines, footer=1 line)
+        $visibleSlots = $maxHeight - 4;
+        $totalTasks = count($tasks);
+
+        // Clamp scroll offset to valid range
+        $maxScroll = max(0, $totalTasks - $visibleSlots);
+        $scrollOffset = max(0, min($scrollOffset, $maxScroll));
+
+        // Update the caller's scroll position if it was clamped
+        if ($style === 'done') {
+            $this->doneModalScroll = $scrollOffset;
+        } else {
+            $this->blockedModalScroll = $scrollOffset;
+        }
+
+        // Build modal content
+        $modalLines = [];
+        $modalLines[] = '<fg=cyan>╭'.str_repeat('─', $modalWidth - 2).'╮</>';
+
+        // Title with scroll indicator
+        $scrollIndicator = $totalTasks > $visibleSlots ? sprintf(' (%d-%d of %d)', $scrollOffset + 1, min($scrollOffset + $visibleSlots, $totalTasks), $totalTasks) : '';
+        $titleWithIndicator = $title.$scrollIndicator;
+        $modalLines[] = '<fg=cyan>│</> <fg=white;options=bold>'.$this->truncate($titleWithIndicator, $modalWidth - 6).'</>'.str_repeat(' ', max(0, $modalWidth - $this->visibleLength($titleWithIndicator) - 3)).'<fg=cyan>│</>';
+        $modalLines[] = '<fg=cyan>├'.str_repeat('─', $modalWidth - 2).'┤</>';
+
+        if ($tasks === []) {
+            $emptyMsg = 'No tasks';
+            $modalLines[] = '<fg=cyan>│</> <fg=gray>'.$emptyMsg.'</>'.str_repeat(' ', max(0, $modalWidth - strlen($emptyMsg) - 3)).'<fg=cyan>│</>';
+        } else {
+            // Slice tasks based on scroll offset
+            $visibleTasks = array_slice($tasks, $scrollOffset, $visibleSlots);
+
+            foreach ($visibleTasks as $task) {
+                $displayId = substr((string) $task->short_id, 2, 6);
+                $titleTrunc = $this->truncate((string) $task->title, $modalWidth - 16);
+                $complexityChar = $this->getComplexityChar($task);
+
+                $idColor = $style === 'blocked' ? 'fg=#b36666' : 'fg=#888888';
+                $content = sprintf('<%s>[%s ·%s]</> %s', $idColor, $displayId, $complexityChar, $titleTrunc);
+                $contentLen = $this->visibleLength($content);
+                $padding = max(0, $modalWidth - $contentLen - 3);
+                $modalLines[] = '<fg=cyan>│</> '.$content.str_repeat(' ', $padding).'<fg=cyan>│</>';
+            }
+        }
+
+        $modalLines[] = '<fg=cyan>╰'.str_repeat('─', $modalWidth - 2).'╯</>';
+
+        // Write modal lines to screen buffer, positioning them centered
+        foreach ($modalLines as $i => $line) {
+            $row = $startRow + $i;
+            if ($row <= $this->terminalHeight) {
+                // Position modal centered horizontally
+                $afterModalEnd = $startCol - 1 + $modalWidth;
+
+                // Combine: spaces before + modal + spaces after
+                $compositeLine = str_repeat(' ', $startCol - 1).$line.str_repeat(' ', max(0, $this->terminalWidth - $afterModalEnd));
+                $this->screenBuffer->setLine($row, $compositeLine);
+            }
+        }
+    }
+
+    /**
+     * Strip ANSI codes from a string.
+     */
+    private function stripAnsi(string $text): string
+    {
+        // Remove both Laravel's <fg=...>...</> tags and raw ANSI escape sequences
+        $stripped = preg_replace('/<[^>]+>/', '', $text);
+        $stripped = preg_replace('/\033\[[0-9;]*m/', '', $stripped ?? $text);
+
+        return $stripped ?? $text;
+    }
+
+    /**
+     * Render only the lines that have changed since the last frame.
+     * Uses ANSI cursor positioning to jump to changed lines.
+     *
+     * @param  array<int, string>  $newLines  1-indexed array of screen lines
+     */
+    private function renderDiff(array $newLines): void
+    {
+        // If this is the first frame or terminal was resized, render everything
+        $forceFullRender = $this->previousLines === [] || $this->forceRefresh;
+
+        if ($forceFullRender) {
+            // Clear screen and render all lines
+            $this->getOutput()->write("\033[H\033[2J");
+            foreach ($newLines as $row => $line) {
+                // Position cursor at start of row and write content
+                $this->getOutput()->write(sprintf("\033[%d;1H", $row));
+                $this->outputFormattedLine($line);
+            }
+            $this->forceRefresh = false;
+
+            return;
+        }
+
+        // Differential render: only update changed lines
+        foreach ($newLines as $row => $newLine) {
+            $oldLine = $this->previousLines[$row] ?? '';
+
+            // Compare the visible text (strip ANSI for comparison)
+            $newPlain = $this->stripAnsi($newLine);
+            $oldPlain = $this->stripAnsi($oldLine);
+
+            if ($newPlain !== $oldPlain) {
+                // Line changed - position cursor and render
+                $this->getOutput()->write(sprintf("\033[%d;1H", $row));
+                $this->outputFormattedLine($newLine);
+            }
+        }
+    }
+
+    /**
+     * Output a formatted line (with ANSI-style tags converted to actual ANSI codes).
+     */
+    private function outputFormattedLine(string $line): void
+    {
+        // Use the Symfony formatter to convert <fg=...> tags to ANSI codes
+        $formatter = $this->getOutput()->getFormatter();
+        $formatted = $formatter->format($line);
+
+        // Ensure line is terminated properly (clear to end of line)
+        $this->getOutput()->write($formatted."\033[K");
     }
 
     /**
