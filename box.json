@@ -5,6 +5,7 @@
         "bootstrap",
         "config",
         "database",
+        "resources",
         "vendor"
     ],
     "files": [

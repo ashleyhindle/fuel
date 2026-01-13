@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
+use App\Services\SkillService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -22,7 +23,7 @@ class InitCommand extends Command
 
     protected $description = 'Initialize Fuel in the current project';
 
-    public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService): int
+    public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService, SkillService $skillService): int
     {
         // Use FuelContext as source of truth, --cwd option only overrides if explicitly set
         if ($this->option('cwd')) {
@@ -66,6 +67,13 @@ class InitCommand extends Command
         // Inject guidelines into AGENTS.md
         Artisan::call('guidelines', ['--add' => true, '--cwd' => $cwd]);
         $this->line(Artisan::output());
+
+        // Install Fuel skills to agent skill directories
+        $installed = $skillService->installSkills($cwd);
+        if ($installed !== []) {
+            $skillCount = count($installed);
+            $this->info(sprintf('Installed %d skill%s to .claude/skills/ and .codex/skills/', $skillCount, $skillCount === 1 ? '' : 's'));
+        }
 
         // Add starter task only if no tasks exist
         if ($taskService->all()->isEmpty()) {

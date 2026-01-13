@@ -11,5 +11,6 @@ fuel-orchestrator-v2*.md
 handoff.md
 .fuel
 *.md
+!resources/**/*.md
 /database/database.sqlite
 .fuel/
