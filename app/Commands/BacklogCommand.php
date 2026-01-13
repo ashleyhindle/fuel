@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 
 class BacklogCommand extends Command
@@ -34,13 +35,15 @@ class BacklogCommand extends Command
             $this->info(sprintf('Backlog items (%d):', $items->count()));
             $this->newLine();
 
-            $this->table(
+            $table = new Table;
+            $table->render(
                 ['ID', 'Title', 'Created'],
                 $items->map(fn ($item): array => [
                     $item->short_id,
                     $item->title,
                     $this->formatDate((string) $item->created_at),
-                ])->toArray()
+                ])->toArray(),
+                $this->output
             );
         }
 
