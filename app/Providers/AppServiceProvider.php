@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Agents\AgentDriverRegistry;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
@@ -112,6 +113,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(EpicService::class, fn (Application $app): EpicService => new EpicService(
             $app->make(TaskService::class)
         ));
+
+        $this->app->singleton(AgentDriverRegistry::class, fn (): AgentDriverRegistry => new AgentDriverRegistry);
 
         $this->app->singleton(ConfigService::class, fn (Application $app): ConfigService => new ConfigService(
             $app->make(FuelContext::class)
