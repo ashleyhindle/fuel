@@ -92,6 +92,9 @@ class ConsumeCommand extends Command
     /** Spinner frame counter for activity indicator */
     private int $spinnerFrame = 0;
 
+    /** @var array<int, string> Previous line content for differential rendering */
+    private array $previousLines = [];
+
     /** Spinner characters for activity animation */
     private const SPINNER_CHARS = ['⠇', '⠏', '⠛', '⠹', '⠸', '⠼', '⠴', '⠦'];
 
@@ -100,6 +103,9 @@ class ConsumeCommand extends Command
 
     /** @var array<string, bool> Track epics we've already played completion sound for */
     private array $notifiedEpics = [];
+
+    /** Whether mouse reporting is currently enabled */
+    private bool $mouseReportingEnabled = true;
 
     public function __construct(
         private TaskService $taskService,
@@ -199,6 +205,7 @@ class ConsumeCommand extends Command
             $this->inAlternateScreen = true;
             $this->getOutput()->write("\033[?25l"); // Hide cursor
             $this->getOutput()->write("\033[?1000h"); // Enable mouse reporting
+            $this->mouseReportingEnabled = true;
             $this->getOutput()->write("\033[H\033[2J");
 
             shell_exec('stty -icanon -echo');
@@ -955,11 +962,15 @@ class ConsumeCommand extends Command
 
         // Begin synchronized output (terminal buffers until end marker)
         $this->getOutput()->write("\033[?2026h");
-        // Move cursor home and clear screen
-        $this->getOutput()->write("\033[H\033[2J");
 
-        // Render the kanban board
-        $this->renderKanbanBoard($statusLines, $paused);
+        // Capture the new screen content by rendering to a buffer
+        $newLines = $this->captureKanbanBoard($statusLines, $paused);
+
+        // Differential rendering: only update changed lines
+        $this->renderDiff($newLines);
+
+        // Store new lines for next comparison
+        $this->previousLines = $newLines;
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
@@ -1042,6 +1053,8 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
+        $mouseStatus = $this->mouseReportingEnabled ? '<fg=green>m: mouse ON</>' : '<fg=yellow>m: mouse OFF</>';
+        $footerParts[] = $mouseStatus;
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
@@ -1576,6 +1589,13 @@ class ConsumeCommand extends Command
             // Mouse event: ESC [ M <btn> <x> <y> (6 bytes total)
             if ($buf[1] === '[') {
                 if ($len >= 3 && $buf[2] === 'M') {
+                    // If mouse reporting is disabled, ignore mouse events
+                    if (! $this->mouseReportingEnabled) {
+                        $this->inputBuffer = substr($buf, 6);
+
+                        return 6;
+                    }
+
                     if ($len < 6) {
                         return 0; // Need more data for mouse event
                     }
@@ -1657,6 +1677,21 @@ class ConsumeCommand extends Command
                     $this->doneModalScroll = 0;
                 }
 
+                $this->forceRefresh = true;
+
+                return 1;
+
+            case 'm':
+            case 'M':
+                $this->mouseReportingEnabled = ! $this->mouseReportingEnabled;
+                if ($this->mouseReportingEnabled) {
+                    $this->getOutput()->write("\033[?1000h"); // Enable mouse reporting
+                    $statusLines[] = $this->formatStatus('🖱', 'Mouse reporting enabled', 'green');
+                } else {
+                    $this->getOutput()->write("\033[?1000l"); // Disable mouse reporting
+                    $statusLines[] = $this->formatStatus('🖱', 'Mouse reporting disabled (text selection enabled)', 'yellow');
+                }
+                $statusLines = $this->trimStatusLines($statusLines);
                 $this->forceRefresh = true;
 
                 return 1;
