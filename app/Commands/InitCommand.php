@@ -92,7 +92,7 @@ class InitCommand extends Command
         // Add starter task only if no tasks exist
         if ($taskService->all()->isEmpty()) {
             $task = $taskService->create([
-                'title' => 'Update README to mention this project uses Fuel for task management',
+                'title' => 'Update README to very briefly mention this project uses Fuel for task management from https://github.com/ashleyhindle/fuel',
                 'type' => 'task',
                 'priority' => 2,
             ]);
