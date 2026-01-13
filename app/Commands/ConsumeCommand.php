@@ -44,7 +44,8 @@ class ConsumeCommand extends Command
         {--dryrun : Show what would happen without claiming tasks or spawning agents}
         {--health : Show agent health status and exit}
         {--review : Enable automatic review of completed work}
-        {--once : Show kanban board once and exit (no spawning)}';
+        {--once : Show kanban board once and exit (no spawning)}
+        {--debug : Enable debug logging to .fuel/debug.log}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
@@ -119,6 +120,15 @@ class ConsumeCommand extends Command
 
     /** Selection end position [row, col] or null if not selecting */
     private ?array $selectionEnd = null;
+
+    /** Whether terminal window currently has focus */
+    private bool $hasFocus = true;
+
+    /** Debug mode enabled */
+    private bool $debugMode = false;
+
+    /** Debug log file handle */
+    private mixed $debugFile = null;
 
     public function __construct(
         private TaskService $taskService,
@@ -225,10 +235,19 @@ class ConsumeCommand extends Command
             $this->inAlternateScreen = true;
             $this->getOutput()->write("\033[?25l"); // Hide cursor
             $this->getOutput()->write("\033[?1003h"); // Enable mouse reporting (any-event mode)
+            $this->getOutput()->write("\033[?1004h"); // Enable focus reporting
             $this->getOutput()->write("\033[H\033[2J");
 
             shell_exec('stty -icanon -echo');
             stream_set_blocking(STDIN, false);
+
+            // Initialize debug logging if enabled
+            if ($this->option('debug')) {
+                $this->debugMode = true;
+                $debugPath = $this->fuelContext->basePath.'/debug.log';
+                $this->debugFile = fopen($debugPath, 'w');
+                $this->debug('Debug logging started');
+            }
         }
 
         // In non-interactive mode, start unpaused so we process tasks immediately
@@ -340,9 +359,7 @@ class ConsumeCommand extends Command
                         }
 
                         $this->refreshDisplay($statusLines, $paused);
-                        // Shorter sleep during selection for responsive highlighting
-                        $sleepUs = $this->selectionStart !== null ? 16000 : 100000;
-                        usleep($sleepUs);
+                        usleep($this->calculateSleepMicroseconds());
                     }
 
                     // Invalidate cache after waiting period so we get fresh data
@@ -367,9 +384,8 @@ class ConsumeCommand extends Command
                     break;
                 }
 
-                // Sleep between poll cycles - shorter during selection for responsive highlighting
-                $sleepUs = $this->selectionStart !== null ? 16000 : 100000; // 16ms (~60fps) vs 100ms
-                usleep($sleepUs);
+                // Sleep between poll cycles - dynamic based on focus/selection state
+                usleep($this->calculateSleepMicroseconds());
             }
         } finally {
             $this->restoreTerminal();
@@ -401,12 +417,19 @@ class ConsumeCommand extends Command
         // Exit alternate screen buffer and show cursor
         if ($this->inAlternateScreen) {
             // Use echo to ensure output even if Laravel output is unavailable
+            echo "\033[?1004l";   // Disable focus reporting
             echo "\033[?1003l";   // Disable mouse reporting
             echo "\033]22;default\033\\"; // Reset cursor shape to default
             echo "\033[?25h";     // Show cursor
             echo "\033[?1049l";   // Exit alternate screen
             echo "\033]0;\007";   // Reset terminal title
             $this->inAlternateScreen = false;
+        }
+
+        // Close debug log
+        if ($this->debugFile !== null) {
+            fclose($this->debugFile);
+            $this->debugFile = null;
         }
     }
 
@@ -980,6 +1003,8 @@ class ConsumeCommand extends Command
         array $statusLines,
         bool $paused = false
     ): void {
+        $frameStart = microtime(true);
+
         // Update terminal size
         $this->updateTerminalSize();
 
@@ -987,16 +1012,22 @@ class ConsumeCommand extends Command
         $this->getOutput()->write("\033[?2026h");
 
         // Capture the new screen content by rendering to a buffer
+        $captureStart = microtime(true);
         $newLines = $this->captureKanbanBoard($statusLines, $paused);
+        $this->debug('captureKanbanBoard', $captureStart);
 
         // Differential rendering: only update changed lines
+        $renderStart = microtime(true);
         $this->renderDiff($newLines);
+        $this->debug('renderDiff', $renderStart);
 
         // Store new lines for next comparison
         $this->previousLines = $newLines;
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
+
+        $this->debug('refreshDisplay total', $frameStart);
     }
 
     /**
@@ -2068,12 +2099,36 @@ class ConsumeCommand extends Command
                 return 0; // Need more data
             }
 
-            // Mouse event: ESC [ M <btn> <x> <y> (6 bytes total)
+            // CSI sequences (ESC [)
             if ($buf[1] === '[') {
+                // Focus gained: ESC [ I (3 bytes)
+                if ($len >= 3 && $buf[2] === 'I') {
+                    $this->hasFocus = true;
+                    $this->debug('Focus gained');
+                    $this->inputBuffer = substr($buf, 3);
+
+                    return 3;
+                }
+
+                // Focus lost: ESC [ O (3 bytes)
+                if ($len >= 3 && $buf[2] === 'O') {
+                    $this->hasFocus = false;
+                    $this->debug('Focus lost');
+                    // Cancel any active selection when losing focus
+                    $this->selectionStart = null;
+                    $this->selectionEnd = null;
+                    $this->inputBuffer = substr($buf, 3);
+
+                    return 3;
+                }
+
+                // Mouse event: ESC [ M <btn> <x> <y> (6 bytes total)
                 if ($len >= 3 && $buf[2] === 'M') {
                     if ($len < 6) {
                         return 0; // Need more data for mouse event
                     }
+
+                    $inputStart = microtime(true);
 
                     // Parse mouse event
                     $btn = ord($buf[3]) - 32;
@@ -2101,26 +2156,32 @@ class ConsumeCommand extends Command
                         }
                     }
 
-                    // Handle text selection
+                    // Update cursor shape based on content under mouse (before selection logic)
+                    $this->updateCursorShape($row, $col);
+
+                    // Handle text selection - only allow when cursor is over text (I-beam)
                     if ($isButtonDown && $buttonNum === 0) {
-                        // Left mouse button down - start selection
-                        $this->selectionStart = [$row, $col];
-                        $this->selectionEnd = [$row, $col];
+                        // Left mouse button down - only start selection if over text
+                        if ($this->currentCursorShape === 'text') {
+                            $this->selectionStart = [$row, $col];
+                            $this->selectionEnd = [$row, $col];
+                            $this->debug("Selection started at row=$row, col=$col");
+                        }
                     } elseif ($isDrag && $buttonNum === 0 && $this->selectionStart !== null) {
                         // Dragging with left button - update selection end
                         $this->selectionEnd = [$row, $col];
                         $this->forceRefresh = true; // Redraw to show selection highlight
+                        $this->debug("Selection drag to row=$row, col=$col");
                     } elseif ($isButtonUp && $this->selectionStart !== null && $this->selectionEnd !== null) {
                         // Mouse up - copy selection to clipboard if we have a range
                         $this->copySelectionToClipboard();
+                        $this->debug('Selection copied to clipboard');
                         $this->selectionStart = null;
                         $this->selectionEnd = null;
                         $this->forceRefresh = true;
                     }
 
-                    // Update cursor shape based on content under mouse
-                    $this->updateCursorShape($row, $col);
-
+                    $this->debug("Mouse event processed btn=$btn row=$row col=$col", $inputStart);
                     $this->inputBuffer = substr($buf, 6);
 
                     return 6;
@@ -2613,5 +2674,44 @@ class ConsumeCommand extends Command
         }
 
         return true; // Middle rows are fully selected
+    }
+
+    /**
+     * Write a debug message to the log file with timestamp and optional timing.
+     */
+    private function debug(string $message, ?float $startTime = null): void
+    {
+        if (! $this->debugMode || $this->debugFile === null) {
+            return;
+        }
+
+        $timestamp = date('H:i:s.').sprintf('%03d', (int) ((microtime(true) - floor(microtime(true))) * 1000));
+
+        if ($startTime !== null) {
+            $elapsed = (microtime(true) - $startTime) * 1000;
+            $message .= sprintf(' [%.2fms]', $elapsed);
+        }
+
+        fwrite($this->debugFile, "[{$timestamp}] {$message}\n");
+        fflush($this->debugFile);
+    }
+
+    /**
+     * Calculate the appropriate sleep duration based on current state.
+     */
+    private function calculateSleepMicroseconds(): int
+    {
+        // During active selection: 60fps for smooth highlighting
+        if ($this->selectionStart !== null) {
+            return 16000; // ~60fps
+        }
+
+        // When unfocused: slow down significantly to save CPU
+        if (! $this->hasFocus) {
+            return 500000; // 500ms - 2fps when not focused
+        }
+
+        // Normal operation: 10fps
+        return 100000; // 100ms
     }
 }
