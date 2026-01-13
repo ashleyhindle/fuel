@@ -79,6 +79,20 @@ describe('show command', function (): void {
             ->assertExitCode(0);
     });
 
+    it('shows multiline descriptions with proper indentation', function (): void {
+        $task = $this->taskService->create([
+            'title' => 'Test multiline',
+            'description' => "Line 1\nLine 2\nLine 3",
+        ]);
+
+        Artisan::call('show', ['id' => $task->short_id]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Description: Line 1');
+        expect($output)->toContain('  Line 2');
+        expect($output)->toContain('  Line 3');
+    });
+
     it('shows task with blockers in blocked_by array', function (): void {
         $blocker = $this->taskService->create(['title' => 'Blocker']);
         $task = $this->taskService->create(['title' => 'Blocked task']);

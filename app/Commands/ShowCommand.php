@@ -96,7 +96,17 @@ class ShowCommand extends Command
                 $this->line('  Status: '.($task->status instanceof TaskStatus ? $task->status->value : $task->status));
 
                 if (isset($task->description) && $task->description !== null) {
-                    $this->line('  Description: '.$task->description);
+                    // Handle multiline descriptions by splitting and indenting each line
+                    $descriptionLines = explode("\n", (string) $task->description);
+                    $firstLine = true;
+                    foreach ($descriptionLines as $line) {
+                        if ($firstLine) {
+                            $this->line('  Description: '.$line);
+                            $firstLine = false;
+                        } else {
+                            $this->line('  '.$line);
+                        }
+                    }
                 }
 
                 if (isset($task->type)) {
