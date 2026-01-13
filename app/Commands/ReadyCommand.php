@@ -38,10 +38,12 @@ class ReadyCommand extends Command
 
             $table = new Table;
             $table->render(
-                ['ID', 'Title', 'Created'],
+                ['ID', 'Title', 'Complexity', 'Epic', 'Created'],
                 $tasks->map(fn (Task $t): array => [
                     $t->short_id,
                     $t->title,
+                    $t->complexity ?? '-',
+                    $t->epic?->title ?? '-',
                     $this->formatDate((string) $t->created_at),
                 ])->toArray(),
                 $this->output
