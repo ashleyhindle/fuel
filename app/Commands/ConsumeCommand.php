@@ -2230,6 +2230,10 @@ class ConsumeCommand extends Command
             return 0;
         }
 
+        if ($this->commandPaletteActive) {
+            return $this->handleCommandPaletteInput($paused, $statusLines);
+        }
+
         // Escape sequence
         if ($buf[0] === "\x1b") {
             if ($len < 2) {
@@ -2387,6 +2391,12 @@ class ConsumeCommand extends Command
         // Single character keys
         $char = $buf[0];
         $this->inputBuffer = substr($buf, 1);
+
+        if ($char === '/' && ! $this->showBlockedModal && ! $this->showDoneModal) {
+            $this->activateCommandPalette();
+
+            return 1;
+        }
 
         switch ($char) {
             case 'b':
@@ -2984,7 +2994,7 @@ class ConsumeCommand extends Command
      *
      * @return int Bytes consumed (0=incomplete, -1=exit)
      */
-    private function handleCommandPaletteInput(): int
+    private function handleCommandPaletteInput(bool &$paused, array &$statusLines): int
     {
         $buf = $this->inputBuffer;
         $len = strlen($buf);
