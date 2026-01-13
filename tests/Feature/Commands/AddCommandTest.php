@@ -115,6 +115,22 @@ describe('add command', function (): void {
         expect($task['description'])->toBe('Short description');
     });
 
+    it('creates task with multi-line description via --description flag', function (): void {
+        $multilineDesc = "Line 1\nLine 2\nLine 3\nLine 4";
+
+        Artisan::call('add', [
+            'title' => 'Task with multiline description',
+            '--description' => $multilineDesc,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['description'])->toBe($multilineDesc);
+        expect($task['description'])->toContain("\n");
+        expect(substr_count((string) $task['description'], "\n"))->toBe(3);
+    });
+
     it('creates task with --type flag', function (): void {
         Artisan::call('add', [
             'title' => 'Bug fix',

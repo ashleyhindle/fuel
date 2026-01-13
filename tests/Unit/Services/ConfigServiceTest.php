@@ -1,5 +1,6 @@
 <?php
 
+use App\Agents\Drivers\AgentDriverInterface;
 use App\Agents\AgentDriverRegistry;
 use App\Services\ConfigService;
 use App\Services\FuelContext;
@@ -852,7 +853,7 @@ it('provides driver instance in agent definition', function (): void {
     $def = $this->configService->getAgentDefinition('claude');
 
     expect($def)->toHaveKey('driver');
-    expect($def['driver'])->toBeInstanceOf(\App\Agents\Drivers\AgentDriverInterface::class);
+    expect($def['driver'])->toBeInstanceOf(AgentDriverInterface::class);
 });
 
 it('provides access to driver registry', function (): void {
@@ -886,7 +887,7 @@ it('registry retrieves driver by name', function (): void {
 
     $driver = $registry->get('claude');
 
-    expect($driver)->toBeInstanceOf(\App\Agents\Drivers\AgentDriverInterface::class);
+    expect($driver)->toBeInstanceOf(AgentDriverInterface::class);
     expect($driver->getName())->toBe('claude');
     expect($driver->getCommand())->toBe('claude');
 });
@@ -894,7 +895,7 @@ it('registry retrieves driver by name', function (): void {
 it('registry throws exception for unknown driver', function (): void {
     $registry = new AgentDriverRegistry;
 
-    expect(fn () => $registry->get('unknown-driver'))
+    expect(fn (): AgentDriverInterface => $registry->get('unknown-driver'))
         ->toThrow(RuntimeException::class, "Unknown driver: 'unknown-driver'");
 });
 
@@ -912,7 +913,7 @@ it('registry can register custom driver', function (): void {
     $registry = new AgentDriverRegistry;
 
     // Create a mock driver
-    $customDriver = new class implements \App\Agents\Drivers\AgentDriverInterface
+    $customDriver = new class implements AgentDriverInterface
     {
         public function getName(): string
         {
@@ -934,7 +935,7 @@ it('registry can register custom driver', function (): void {
             return ['-p'];
         }
 
-        public function getModelArg(): ?string
+        public function getModelArg(): string
         {
             return '--model';
         }
@@ -1008,6 +1009,6 @@ it('registry finds driver by command binary', function (): void {
 it('registry throws exception when no driver matches agent name', function (): void {
     $registry = new AgentDriverRegistry;
 
-    expect(fn () => $registry->getForAgentName('unknown-agent-name'))
+    expect(fn (): AgentDriverInterface => $registry->getForAgentName('unknown-agent-name'))
         ->toThrow(RuntimeException::class, "No driver found for agent name: 'unknown-agent-name'");
 });

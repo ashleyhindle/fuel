@@ -743,7 +743,15 @@ class ConsumeCommand extends Command
 
         $this->updateLatestRunIfTaskExists($taskId, $runData, $statusLines);
 
-        // Clear PID from task
+        // Clear PID from task (if task still exists - it may have been deleted)
+        $task = $this->taskService->find($taskId);
+        if (! $task instanceof Task) {
+            $statusLines[] = $this->formatStatus('⚠', sprintf('%s completed but task was deleted', $taskId), 'yellow');
+            $this->invalidateTaskCache();
+
+            return;
+        }
+
         $this->taskService->update($taskId, [
             'consume_pid' => null,
         ]);
@@ -1077,7 +1085,7 @@ class ConsumeCommand extends Command
     private function captureKanbanBoard(array $statusLines, bool $paused): array
     {
         // Initialize or resize buffer if needed
-        if ($this->screenBuffer === null ||
+        if (!$this->screenBuffer instanceof ScreenBuffer ||
             $this->screenBuffer->getWidth() !== $this->terminalWidth ||
             $this->screenBuffer->getHeight() !== $this->terminalHeight) {
             $this->screenBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
@@ -1283,7 +1291,7 @@ class ConsumeCommand extends Command
      */
     private function captureModal(string $title, array $tasks, string $style, int $scrollOffset = 0): void
     {
-        if ($this->screenBuffer === null) {
+        if (!$this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -1417,7 +1425,7 @@ class ConsumeCommand extends Command
      */
     private function renderSelectionHighlight(): void
     {
-        if ($this->selectionStart === null || $this->selectionEnd === null || $this->screenBuffer === null) {
+        if ($this->selectionStart === null || $this->selectionEnd === null || !$this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -1824,6 +1832,7 @@ class ConsumeCommand extends Command
             $footerDashesLen = max(1, $width - 6);
             $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
         }
+
         $lines[] = $this->padLine($footerLine, $width);
 
         return $lines;
@@ -1897,6 +1906,7 @@ class ConsumeCommand extends Command
             $footerDashesLen = max(1, $width - 6);
             $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
         }
+
         $lines[] = $this->padLine($footerLine, $width);
 
         return $lines;
@@ -2237,7 +2247,7 @@ class ConsumeCommand extends Command
                             if ($isDoubleClick) {
                                 // Expand selection to word boundaries
                                 $this->expandSelectionToWord($row, $col);
-                                $this->debug("Double-click word select at row=$row, col=$col");
+                                $this->debug(sprintf('Double-click word select at row=%d, col=%d', $row, $col));
 
                                 // Reset click tracking so triple-click doesn't trigger
                                 $this->lastClickTime = null;
@@ -2246,7 +2256,7 @@ class ConsumeCommand extends Command
                                 // Single click - start normal selection
                                 $this->selectionStart = [$row, $col];
                                 $this->selectionEnd = [$row, $col];
-                                $this->debug("Selection started at row=$row, col=$col");
+                                $this->debug(sprintf('Selection started at row=%d, col=%d', $row, $col));
 
                                 // Track this click for double-click detection
                                 $this->lastClickTime = $now;
@@ -2256,7 +2266,7 @@ class ConsumeCommand extends Command
                     } elseif ($isDrag && $buttonNum === 0 && $this->selectionStart !== null) {
                         // Dragging with left button - update selection end
                         $this->selectionEnd = [$row, $col];
-                        $this->debug("Selection drag to row=$row, col=$col");
+                        $this->debug(sprintf('Selection drag to row=%d, col=%d', $row, $col));
 
                         // Render highlight immediately for responsive feedback
                         $this->getOutput()->write("\033[?2026h"); // Begin sync
@@ -2271,7 +2281,7 @@ class ConsumeCommand extends Command
                         $this->forceRefresh = true;
                     }
 
-                    $this->debug("Mouse event processed btn=$btn row=$row col=$col", $inputStart);
+                    $this->debug(sprintf('Mouse event processed btn=%d row=%d col=%d', $btn, $row, $col), $inputStart);
                     $this->inputBuffer = substr($buf, 6);
 
                     return 6;
@@ -2642,7 +2652,7 @@ class ConsumeCommand extends Command
     private function checkEpicCompletionSound(string $taskId): void
     {
         $task = $this->taskService->find($taskId);
-        if ($task === null || empty($task->epic_id)) {
+        if (!$task instanceof Task || empty($task->epic_id)) {
             return;
         }
 
@@ -2664,7 +2674,7 @@ class ConsumeCommand extends Command
                 // Send notification with sound and desktop alert
                 $epicTitle = $epic?->title ?? $epicId;
                 $this->notificationService->alert(
-                    "Epic ready for review: {$epicTitle}",
+                    'Epic ready for review: ' . $epicTitle,
                     'Fuel: Epic Complete'
                 );
             }
@@ -2679,7 +2689,7 @@ class ConsumeCommand extends Command
      */
     private function updateCursorShape(int $row, int $col): void
     {
-        if ($this->screenBuffer === null) {
+        if (!$this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -2704,7 +2714,7 @@ class ConsumeCommand extends Command
      */
     private function copySelectionToClipboard(): void
     {
-        if ($this->screenBuffer === null || $this->selectionStart === null || $this->selectionEnd === null) {
+        if (!$this->screenBuffer instanceof ScreenBuffer || $this->selectionStart === null || $this->selectionEnd === null) {
             return;
         }
 
@@ -2740,7 +2750,7 @@ class ConsumeCommand extends Command
      */
     private function expandSelectionToWord(int $row, int $col): void
     {
-        if ($this->screenBuffer === null) {
+        if (!$this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -2768,6 +2778,7 @@ class ConsumeCommand extends Command
             if (! $this->isWordChar($prevChar)) {
                 break;
             }
+
             $left--;
         }
 
@@ -2778,6 +2789,7 @@ class ConsumeCommand extends Command
             if (! $this->isWordChar($nextChar)) {
                 break;
             }
+
             $right++;
         }
 
@@ -2863,7 +2875,7 @@ class ConsumeCommand extends Command
             $message .= sprintf(' [%.2fms]', $elapsed);
         }
 
-        fwrite($this->debugFile, "[{$timestamp}] {$message}\n");
+        fwrite($this->debugFile, sprintf('[%s] %s%s', $timestamp, $message, PHP_EOL));
         fflush($this->debugFile);
     }
 

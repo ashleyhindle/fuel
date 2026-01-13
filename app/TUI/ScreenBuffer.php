@@ -19,12 +19,6 @@ class ScreenBuffer
     /** @var array<int, string> Plain text lines without ANSI codes (1-indexed by row) */
     private array $plainLines = [];
 
-    /** Terminal width */
-    private int $width;
-
-    /** Terminal height */
-    private int $height;
-
     /**
      * Clickable regions mapped by identifier.
      *
@@ -32,10 +26,10 @@ class ScreenBuffer
      */
     private array $regions = [];
 
-    public function __construct(int $width, int $height)
+    public function __construct(/** Terminal width */
+    private int $width, /** Terminal height */
+    private int $height)
     {
-        $this->width = $width;
-        $this->height = $height;
         $this->clear();
     }
 

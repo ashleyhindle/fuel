@@ -173,7 +173,7 @@ class RunsCommand extends Command
                     $driver = $registry->getForAgentName($run->agent);
                     $this->newLine();
                     $this->line('  <fg=green>Resume:</> '.$driver->getResumeCommand($run->session_id));
-                } catch (\RuntimeException $e) {
+                } catch (\RuntimeException) {
                     // Driver not found, skip resume command
                 }
             }

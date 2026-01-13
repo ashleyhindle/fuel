@@ -27,15 +27,15 @@ class InitCommand extends Command
     public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService, SkillService $skillService): int
     {
         try {
-            return $this->doInit($context, $taskService, $configService, $databaseService, $skillService);
-        } catch (Throwable $e) {
-            $this->error('Init failed: '.$e->getMessage());
+            return $this->doInit($context, $taskService, $configService, $skillService);
+        } catch (Throwable $throwable) {
+            $this->error('Init failed: '.$throwable->getMessage());
 
             return self::FAILURE;
         }
     }
 
-    private function doInit(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService, SkillService $skillService): int
+    private function doInit(FuelContext $context, TaskService $taskService, ConfigService $configService, SkillService $skillService): int
     {
         // Use FuelContext as source of truth, --cwd option only overrides if explicitly set
         if ($this->option('cwd')) {

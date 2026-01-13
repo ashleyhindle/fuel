@@ -130,10 +130,8 @@ class AgentDriverRegistry
         ];
 
         foreach ($patterns as $pattern => $driverName) {
-            if (str_contains(strtolower($agentName), $pattern)) {
-                if ($this->has($driverName)) {
-                    return $this->get($driverName);
-                }
+            if (str_contains(strtolower($agentName), $pattern) && $this->has($driverName)) {
+                return $this->get($driverName);
             }
         }
 

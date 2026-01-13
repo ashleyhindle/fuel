@@ -98,7 +98,7 @@ class ResumeSessionCommand extends Command
             $registry = new AgentDriverRegistry;
             try {
                 $driver = $registry->getForAgentName($agentName, $command);
-            } catch (RuntimeException $e) {
+            } catch (RuntimeException) {
                 return $this->outputError(
                     sprintf("Unknown agent '%s' for run '%s'. ", $agentName, $run->run_id).
                     'Cannot determine resume command format.'

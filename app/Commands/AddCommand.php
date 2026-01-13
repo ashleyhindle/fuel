@@ -97,6 +97,7 @@ class AddCommand extends Command
         if (isset($description) && $description !== null && $description !== '') {
             $data['description'] = $description;
         }
+
         if (isset($complexity)) {
             $data['complexity'] = $complexity;
         }
@@ -190,7 +191,7 @@ class AddCommand extends Command
         foreach ($options as $index => $option) {
             $number = $index + 1;
             $marker = $index === $default ? ' <fg=green>(default)</>' : '';
-            $this->line("  [{$number}] {$option}{$marker}");
+            $this->line(sprintf('  [%s] %s%s', $number, $option, $marker));
         }
 
         // Check if stdin is a terminal - if not, use simple input mode
@@ -230,14 +231,14 @@ class AddCommand extends Command
                 // Check for number keys 1-4
                 if ($char >= '1' && $char <= '4') {
                     $selected = (int) $char - 1;
-                    $this->line("<info>Selected: {$options[$selected]}</info>");
+                    $this->line(sprintf('<info>Selected: %s</info>', $options[$selected]));
 
                     return $options[$selected];
                 }
 
                 // Check for Enter key (newline)
                 if ($char === "\n" || $char === "\r") {
-                    $this->line("<info>Selected: {$options[$default]} (default)</info>");
+                    $this->line(sprintf('<info>Selected: %s (default)</info>', $options[$default]));
 
                     return $options[$default];
                 }
@@ -250,7 +251,7 @@ class AddCommand extends Command
         } finally {
             // Restore terminal settings
             if ($sttySettings !== null) {
-                shell_exec("stty {$sttySettings}");
+                shell_exec('stty ' . $sttySettings);
             }
         }
     }

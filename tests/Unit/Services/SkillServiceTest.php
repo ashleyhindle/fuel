@@ -100,7 +100,7 @@ it('returns installed paths map from installSkills', function (): void {
 
     expect($installed)->toBeArray();
 
-    foreach ($installed as $skillName => $paths) {
+    foreach ($installed as $paths) {
         expect($paths)->toBeArray();
         expect($paths)->toHaveCount(2);
 

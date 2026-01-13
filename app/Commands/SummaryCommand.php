@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Agents\Drivers\AgentDriverInterface;
 use App\Agents\AgentDriverRegistry;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
@@ -117,7 +118,7 @@ class SummaryCommand extends Command
                 $model = $run->model ?? null;
                 $agentDisplay = $model ? sprintf('%s (%s)', $agentLabel, $model) : $agentLabel;
                 $this->line('  <fg=cyan>Agent:</> '.$agentDisplay);
-            } catch (\RuntimeException $e) {
+            } catch (\RuntimeException) {
                 // Driver not found, fall back to raw agent name
                 $this->line('  <fg=cyan>Agent:</> '.$run->agent);
             }
@@ -143,7 +144,7 @@ class SummaryCommand extends Command
         }
 
         // Session ID and resume command
-        if (isset($run->session_id) && $run->session_id !== null && $driver !== null) {
+        if (isset($run->session_id) && $run->session_id !== null && $driver instanceof AgentDriverInterface) {
             $this->newLine();
             $this->line('  <fg=cyan>Session:</> '.$run->session_id);
             $this->line('  <fg=cyan>Resume:</> '.$driver->getResumeCommand($run->session_id));

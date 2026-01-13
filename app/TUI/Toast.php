@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\TUI;
 
+use Symfony\Component\Console\Output\OutputInterface;
+
 /**
  * Non-blocking toast notifications for TUI.
  * Integrates with render loop - call render() each frame to animate.
@@ -11,12 +13,16 @@ namespace App\TUI;
 class Toast
 {
     private const STATE_HIDDEN = 'hidden';
+
     private const STATE_EXPANDING = 'expanding';
+
     private const STATE_VISIBLE = 'visible';
+
     private const STATE_COLLAPSING = 'collapsing';
 
     /** Border characters for toast */
     private const BORDER_LEFT = '▌';
+
     private const BORDER_RIGHT = '▐';
 
     /** Color themes by toast type */
@@ -44,13 +50,21 @@ class Toast
     ];
 
     private string $state = self::STATE_HIDDEN;
+
     private string $message = '';
+
     private string $type = 'success';
+
     private int $animationFrame = 0;
+
     private int $maxWidth = 0;
+
     private float $visibleUntil = 0;
+
     private int $durationMs = 1500;
+
     private int $terminalWidth = 120;
+
     private int $previousWidth = 0; // Track previous frame width for clearing
 
     /**
@@ -58,7 +72,7 @@ class Toast
      */
     public function show(string $message, string $type = 'success', string $title = '', int $durationMs = 1500): void
     {
-        $this->message = $title !== '' ? "{$title}: {$message}" : $message;
+        $this->message = $title !== '' ? sprintf('%s: %s', $title, $message) : $message;
         $this->type = $type;
         $this->durationMs = $durationMs;
         $this->maxWidth = mb_strlen($this->message);
@@ -80,7 +94,7 @@ class Toast
      * Render the toast to output. Call this each frame.
      * Returns true if toast was rendered, false if hidden.
      *
-     * @param \Symfony\Component\Console\Output\OutputInterface $output
+     * @param OutputInterface $output
      */
     public function render($output, int $terminalWidth, int $terminalHeight): bool
     {
@@ -135,6 +149,7 @@ class Toast
             $this->clearToastArea($output);
             $this->state = self::STATE_HIDDEN;
             $this->previousWidth = 0;
+
             return;
         }
 
@@ -151,6 +166,7 @@ class Toast
         if ($this->previousWidth > $currentWidth) {
             $this->clearToastArea($output);
         }
+
         $this->previousWidth = $currentWidth;
 
         $bgColor = $this->hexToAnsi($colors['background'], true);
@@ -175,13 +191,13 @@ class Toast
         // Render line with borders
         if ($isFullWidth) {
             // Full toast with both borders
-            $output->write("{$borderColor}{$bold}" . self::BORDER_LEFT . "{$reset}");
-            $output->write("{$bgColor}{$bodyColor} {$padded} {$reset}");
-            $output->write("{$borderColor}{$bold}" . self::BORDER_RIGHT . "{$reset}");
+            $output->write($borderColor . $bold.self::BORDER_LEFT.$reset);
+            $output->write(sprintf('%s%s %s %s', $bgColor, $bodyColor, $padded, $reset));
+            $output->write($borderColor . $bold.self::BORDER_RIGHT.$reset);
         } else {
             // Partial toast (expanding/collapsing) - only left border
-            $output->write("{$borderColor}{$bold}" . self::BORDER_LEFT . "{$reset}");
-            $output->write("{$bgColor}{$bodyColor} {$padded} {$reset}");
+            $output->write($borderColor . $bold.self::BORDER_LEFT.$reset);
+            $output->write(sprintf('%s%s %s %s', $bgColor, $bodyColor, $padded, $reset));
         }
     }
 
@@ -213,6 +229,7 @@ class Toast
         $b = hexdec(substr($hex, 4, 2));
 
         $code = $isBackground ? 48 : 38;
+
         return "\033[{$code};2;{$r};{$g};{$b}m";
     }
 }

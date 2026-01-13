@@ -33,6 +33,7 @@ class NotificationService
         } elseif ($this->isLinux()) {
             $this->playLinuxSound($sound, $volume);
         }
+
         // Windows/other: silently skip for now
     }
 

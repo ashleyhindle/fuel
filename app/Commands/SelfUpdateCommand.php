@@ -25,8 +25,8 @@ class SelfUpdateCommand extends Command
     {
         try {
             return $this->doUpdate();
-        } catch (Throwable $e) {
-            $this->error('Self-update failed: '.$e->getMessage());
+        } catch (Throwable $throwable) {
+            $this->error('Self-update failed: '.$throwable->getMessage());
 
             return self::FAILURE;
         }
@@ -127,13 +127,12 @@ class SelfUpdateCommand extends Command
                 $initResult = 0;
                 passthru($targetPath.' init --cwd='.escapeshellarg($projectPath), $initResult);
                 exit($initResult);
-            } else {
-                $initResult = $this->call('init');
-                if ($initResult !== self::SUCCESS) {
-                    $this->error('Init failed with exit code: '.$initResult);
+            }
+            $initResult = $this->call('init');
+            if ($initResult !== self::SUCCESS) {
+                $this->error('Init failed with exit code: '.$initResult);
 
-                    return self::FAILURE;
-                }
+                return self::FAILURE;
             }
         } else {
             $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');

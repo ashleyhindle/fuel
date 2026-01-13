@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 use App\TUI\ScreenBuffer;
 
-describe('ScreenBuffer', function () {
-    test('initializes with correct dimensions', function () {
+describe('ScreenBuffer', function (): void {
+    test('initializes with correct dimensions', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         expect($buffer->getWidth())->toBe(80);
         expect($buffer->getHeight())->toBe(24);
     });
 
-    test('sets and gets lines correctly', function () {
+    test('sets and gets lines correctly', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(1, 'Hello World');
@@ -22,7 +22,7 @@ describe('ScreenBuffer', function () {
         expect($buffer->getLine(5))->toStartWith('Line 5 content');
     });
 
-    test('pads lines to full width', function () {
+    test('pads lines to full width', function (): void {
         $buffer = new ScreenBuffer(20, 10);
 
         $buffer->setLine(1, 'Short');
@@ -30,7 +30,7 @@ describe('ScreenBuffer', function () {
         expect(strlen($buffer->getPlainLine(1)))->toBe(20);
     });
 
-    test('ignores out of range rows', function () {
+    test('ignores out of range rows', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(0, 'Should not set');
@@ -40,7 +40,7 @@ describe('ScreenBuffer', function () {
         expect($buffer->getLine(25))->toBe(str_repeat(' ', 80));
     });
 
-    test('strips ANSI codes for plain text', function () {
+    test('strips ANSI codes for plain text', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(1, '<fg=cyan>Colored</> text');
@@ -50,7 +50,7 @@ describe('ScreenBuffer', function () {
         expect($plainLine)->not->toContain('<fg=');
     });
 
-    test('extracts single line selection', function () {
+    test('extracts single line selection', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(1, 'Hello World from ScreenBuffer');
@@ -59,7 +59,7 @@ describe('ScreenBuffer', function () {
         expect($selection)->toBe('World');
     });
 
-    test('extracts multi-line selection', function () {
+    test('extracts multi-line selection', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(1, 'First line');
@@ -71,7 +71,7 @@ describe('ScreenBuffer', function () {
         expect($selection)->toContain('Second line');
     });
 
-    test('gets character at position', function () {
+    test('gets character at position', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(1, 'Hello');
@@ -80,7 +80,7 @@ describe('ScreenBuffer', function () {
         expect($buffer->charAt(1, 5))->toBe('o');
     });
 
-    test('resizes and clears content', function () {
+    test('resizes and clears content', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(1, 'Content');
@@ -91,7 +91,7 @@ describe('ScreenBuffer', function () {
         expect($buffer->getPlainLine(1))->toBe(str_repeat(' ', 100));
     });
 
-    test('clears buffer', function () {
+    test('clears buffer', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->setLine(1, 'Content');
@@ -100,7 +100,7 @@ describe('ScreenBuffer', function () {
         expect($buffer->getPlainLine(1))->toBe(str_repeat(' ', 80));
     });
 
-    test('diffs rows between buffers', function () {
+    test('diffs rows between buffers', function (): void {
         $buffer1 = new ScreenBuffer(80, 24);
         $buffer2 = new ScreenBuffer(80, 24);
 
@@ -119,7 +119,7 @@ describe('ScreenBuffer', function () {
         expect($changed)->not->toContain(3);
     });
 
-    test('registers and retrieves regions', function () {
+    test('registers and retrieves regions', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
@@ -134,7 +134,7 @@ describe('ScreenBuffer', function () {
         expect($region['type'])->toBe('task');
     });
 
-    test('finds region at position', function () {
+    test('finds region at position', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
@@ -155,7 +155,7 @@ describe('ScreenBuffer', function () {
         expect($region)->toBeNull();
     });
 
-    test('clears regions on clear', function () {
+    test('clears regions on clear', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
@@ -165,7 +165,7 @@ describe('ScreenBuffer', function () {
         expect($buffer->getRegions())->toBeEmpty();
     });
 
-    test('gets all regions', function () {
+    test('gets all regions', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
@@ -177,7 +177,7 @@ describe('ScreenBuffer', function () {
         expect($regions)->toHaveKey('f-def456');
     });
 
-    test('region can store associated data', function () {
+    test('region can store associated data', function (): void {
         $buffer = new ScreenBuffer(80, 24);
 
         $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task', ['status' => 'in_progress']);

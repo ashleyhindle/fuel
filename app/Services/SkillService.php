@@ -55,7 +55,7 @@ class SkillService
 
         $skills = [];
         foreach (File::directories($skillsPath) as $dir) {
-            $skillName = basename($dir);
+            $skillName = basename((string) $dir);
             // Only include directories that have a SKILL.md file
             if (File::exists($dir.'/SKILL.md')) {
                 $skills[] = $skillName;
