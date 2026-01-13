@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use Symfony\Component\Console\Output\NullOutput;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
@@ -26,6 +25,7 @@ use App\Services\TaskService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
+use Symfony\Component\Console\Output\NullOutput;
 
 class ConsumeCommand extends Command
 {

@@ -1,12 +1,12 @@
 <?php
 
-use Symfony\Component\Console\Output\BufferedOutput;
-use Illuminate\Support\Facades\Artisan;
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\RunService;
 use App\Services\TaskService;
+use Illuminate\Support\Facades\Artisan;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Tests\TestCase;
 
 /*

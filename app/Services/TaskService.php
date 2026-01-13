@@ -25,7 +25,7 @@ class TaskService
      */
     public function all(): Collection
     {
-        return Task::orderBy('short_id')->get();
+        return Task::with('epic')->orderBy('short_id')->get();
     }
 
     /**
