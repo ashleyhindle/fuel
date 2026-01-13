@@ -96,10 +96,10 @@ class InitCommand extends Command
             ]);
 
             $this->info('Created starter task: '.$task->short_id);
-        }
 
-        $this->newLine();
-        $this->line('Run your favourite agent and ask it to "Consume the fuel"');
+            $this->newLine();
+            $this->line('Run your favourite agent and ask it to "Consume the fuel"');
+        }
 
         return self::SUCCESS;
     }

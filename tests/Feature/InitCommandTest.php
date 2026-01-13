@@ -206,4 +206,29 @@ describe('init command', function (): void {
             expect(Schema::hasTable($table))->toBeTrue(sprintf('Table %s should exist', $table));
         }
     });
+
+    it('shows "run your favourite agent" message only on fresh install', function (): void {
+        $this->artisan('init', [])
+            ->expectsOutput('Run your favourite agent and ask it to "Consume the fuel"')
+            ->assertExitCode(0);
+    });
+
+    it('does not show "run your favourite agent" message when tasks already exist', function (): void {
+        Artisan::call('init', []);
+
+        // Use TaskService directly to add a task (path resolution now happens at boot).
+        $context = new FuelContext($this->tempDir.'/.fuel');
+        $context->configureDatabase();
+
+        $dbService = new DatabaseService($context->getDatabasePath());
+        $taskService = new TaskService($dbService);
+
+        // Add an existing task
+        $taskService->create(['title' => 'Existing task']);
+
+        // Run init again - should not show the message
+        $this->artisan('init', [])
+            ->doesntExpectOutput('Run your favourite agent and ask it to "Consume the fuel"')
+            ->assertExitCode(0);
+    });
 });
