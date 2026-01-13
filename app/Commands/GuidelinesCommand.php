@@ -153,7 +153,7 @@ Descriptions should be explicit enough for a less capable agent to complete with
 
 ### Complexity
 
-**Always set `--complexity`:** `trivial` (typos) | `simple` (single focus) | `moderate` (multiple files) | `complex` (break into subtasks)
+**Always set `--complexity`:** `trivial` (typos) | `simple` (single focus) | `moderate` (multiple files) | `complex` (multiple files, requires judgement or careful coordination)
 
 ### Dependencies
 
