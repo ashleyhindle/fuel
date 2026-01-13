@@ -115,7 +115,25 @@ class SelfUpdateCommand extends Command
         $projectPath = app(FuelContext::class)->getProjectPath();
         if ($this->shouldRunInit($projectPath)) {
             $this->info('Updating project with latest guidelines and skills...');
-            $this->call('init');
+
+            // If we just replaced the binary, execute the new binary for init
+            // to avoid issues with the old process running after binary replacement
+            if (! $alreadyLatest) {
+                $initResult = 0;
+                passthru($targetPath.' init --cwd='.escapeshellarg($projectPath), $initResult);
+                if ($initResult !== 0) {
+                    $this->error('Init failed with exit code: '.$initResult);
+
+                    return self::FAILURE;
+                }
+            } else {
+                $initResult = $this->call('init');
+                if ($initResult !== self::SUCCESS) {
+                    $this->error('Init failed with exit code: '.$initResult);
+
+                    return self::FAILURE;
+                }
+            }
         } else {
             $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');
         }
