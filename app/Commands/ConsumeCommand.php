@@ -1677,8 +1677,9 @@ class ConsumeCommand extends Command
 
     private function setTerminalTitle(string $title): void
     {
+        $projectName = basename($this->fuelContext->getProjectPath());
         // OSC 0 sets both window title and icon name
-        $this->getOutput()->write("\033]0;{$title}\007");
+        $this->getOutput()->write("\033]0;{$projectName} {$title}\007");
     }
 
     /**
