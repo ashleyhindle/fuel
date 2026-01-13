@@ -3021,6 +3021,61 @@ class ConsumeCommand extends Command
     }
 
     /**
+     * Execute the command palette command.
+     */
+    private function executeCommandPalette(): void
+    {
+        // Trim input
+        $input = trim($this->commandPaletteInput);
+
+        // Parse /close command
+        if (preg_match('/^close\s+(\S+)/', $input, $matches)) {
+            $taskIdInput = $matches[1];
+
+            // If suggestionIndex >= 0 and valid, use that task's short_id instead
+            if ($this->commandPaletteSuggestionIndex >= 0 && $this->commandPaletteSuggestionIndex < count($this->commandPaletteSuggestions)) {
+                $selected = $this->commandPaletteSuggestions[$this->commandPaletteSuggestionIndex];
+                if (isset($selected['short_id'])) {
+                    $taskIdInput = $selected['short_id'];
+                }
+            }
+
+            // Find task
+            $task = $this->taskService->find($taskIdInput);
+
+            // Validate
+            if (! $task instanceof Task) {
+                $this->toast?->show('Task not found: '.$taskIdInput, 'error');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            if ($task->status === TaskStatus::Done) {
+                $this->toast?->show('Task already done', 'warning');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            // Execute
+            $this->taskService->done($taskIdInput);
+            $this->invalidateTaskCache();
+            $this->checkEpicCompletionSound($taskIdInput);
+            $this->toast?->show('Closed: '.$task->short_id, 'success');
+        } elseif ($input !== '' && ! str_starts_with($input, 'close')) {
+            // Handle unknown command
+            $this->toast?->show('Unknown command', 'error');
+        }
+
+        // Always call deactivateCommandPalette() and set forceRefresh=true at end
+        $this->deactivateCommandPalette();
+        $this->forceRefresh = true;
+    }
+
+    /**
      * Calculate the appropriate sleep duration based on current state.
      */
     private function calculateSleepMicroseconds(): int
