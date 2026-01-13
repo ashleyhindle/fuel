@@ -20,6 +20,7 @@ use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
+use App\Services\ConsumeIpcClient;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\NotificationService;
@@ -27,6 +28,7 @@ use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
+use App\TUI\GradientText;
 use App\TUI\ScreenBuffer;
 use App\TUI\Toast;
 use Illuminate\Support\Collection;
@@ -44,11 +46,17 @@ class ConsumeCommand extends Command
         {--interval=5 : Check interval in seconds when idle}
         {--agent= : Agent name to use (overrides config-based routing)}
         {--prompt=Consume one task from fuel, then land the plane : Prompt to send to agent}
-        {--dryrun : Show what would happen without claiming tasks or spawning agents}
         {--health : Show agent health status and exit}
         {--review : Enable automatic review of completed work}
         {--once : Show kanban board once and exit (no spawning)}
-        {--debug : Enable debug logging to .fuel/debug.log}';
+        {--debug : Enable debug logging to .fuel/debug.log}
+        {--status : Connect to runner, request snapshot, print summary, exit}
+        {--pause : Send pause command to runner and exit}
+        {--resume : Send resume command to runner and exit}
+        {--stop : Send graceful stop command to runner and exit}
+        {--force : Send force stop command to runner and exit}
+        {--fresh : Kill existing runner and start fresh}
+        {--ip=127.0.0.1 : IP address of the runner to connect to}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
@@ -57,6 +65,9 @@ class ConsumeCommand extends Command
 
     /** @var array{tasks: Collection|null, ready: Collection|null, failed: Collection|null, timestamp: int} */
     private array $taskCache = ['tasks' => null, 'ready' => null, 'failed' => null, 'timestamp' => 0];
+
+    /** IPC client for runner communication (null in standalone mode) */
+    private ?ConsumeIpcClient $ipcClient = null;
 
     /** Original terminal state for restoration */
     private ?string $originalTty = null;
@@ -157,6 +168,15 @@ class ConsumeCommand extends Command
     /** Double-click threshold in milliseconds */
     private const DOUBLE_CLICK_THRESHOLD_MS = 500;
 
+    /** Connecting animation spinner frames */
+    private const CONNECTING_SPINNER = ['▪', '▪', '▫', '▫', '■', '■', '□', '□'];
+
+    /** Gradient text animator for connecting screen */
+    private ?GradientText $connectingGradient = null;
+
+    /** Current status text for connecting animation */
+    private string $connectingStatus = '';
+
     public function __construct(
         private TaskService $taskService,
         private ConfigService $configService,
@@ -191,6 +211,11 @@ class ConsumeCommand extends Command
             return $this->displayHealthStatus();
         }
 
+        // Handle IPC control flags (--status, --pause, --resume, --stop, --force)
+        if ($this->hasIpcControlFlag()) {
+            return $this->handleIpcControl();
+        }
+
         // Handle --once flag: show board once and exit (no spawning)
         if ($this->option('once')) {
             $this->updateTerminalSize();
@@ -199,49 +224,167 @@ class ConsumeCommand extends Command
             return self::SUCCESS;
         }
 
+        // Detect non-interactive mode (tests, CI, etc.) - run only one iteration
+        $singleIteration = (function_exists('posix_isatty') && ! posix_isatty(STDOUT)) ||
+                          (method_exists(app(), 'runningUnitTests') && app()->runningUnitTests()) ||
+                          app()->environment('testing');
+
+        // Enter alternate screen immediately for the connecting animation (interactive mode only)
+        if (! $singleIteration) {
+            $this->enterAlternateScreen();
+
+            // Initialize debug logging early so we can trace the startup sequence
+            if ($this->option('debug')) {
+                $this->debugMode = true;
+                $debugPath = $this->fuelContext->basePath.'/debug.log';
+                $this->debugFile = fopen($debugPath, 'w');
+                $this->debug('Debug logging started - entering alternate screen');
+            }
+        }
+
         // Ensure processes directory exists for output capture
         $processesDir = $this->fuelContext->getProcessesPath();
         if (! is_dir($processesDir)) {
             mkdir($processesDir, 0755, true);
         }
 
-        // Clean up orphaned runs from previous consume crashes
+        // Clean up orphaned runs from previous consume crashes (with animation)
+        if (! $singleIteration) {
+            $this->renderConnectingFrame(0, 'Cleaning up');
+        }
         $this->runService->cleanupOrphanedRuns(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid));
 
         // Recover stuck reviews (tasks in 'review' status with no active review process)
         if ($this->reviewService instanceof ReviewServiceInterface) {
             $recoveredReviews = $this->reviewService->recoverStuckReviews();
             foreach ($recoveredReviews as $taskId) {
-                $this->info(sprintf('Recovered stuck review for task %s', $taskId));
+                // In interactive mode, we don't show individual recovery messages during animation
+                if ($singleIteration) {
+                    $this->info(sprintf('Recovered stuck review for task %s', $taskId));
+                }
             }
         }
 
         $interval = max(1, (int) $this->option('interval'));
         $agentOverride = $this->option('agent');
-        $dryrun = $this->option('dryrun');
 
         // Register ProcessManager signal handlers first
         try {
             $this->processManager->registerSignalHandlers();
         } catch (\RuntimeException $runtimeException) {
+            $this->restoreTerminal();
             $this->error('Error: '.$runtimeException->getMessage());
 
             return self::FAILURE;
         }
 
-        // Detect non-interactive mode (tests, CI, etc.) - run only one iteration
-        $singleIteration = (function_exists('posix_isatty') && ! posix_isatty(STDOUT)) ||
-                          (method_exists(app(), 'runningUnitTests') && app()->runningUnitTests()) ||
-                          app()->environment('testing');
+        // Handle --fresh: kill existing runner before starting (with animation)
+        if ($this->option('fresh')) {
+            if (! $singleIteration) {
+                $this->renderConnectingFrame(1, 'Stopping runner');
+            }
 
-        // Skip terminal manipulation in non-interactive mode (tests, CI)
+            $pidFilePath = $this->fuelContext->getPidFilePath();
+
+            if (file_exists($pidFilePath)) {
+                $pidData = json_decode(file_get_contents($pidFilePath), true);
+                $pid = $pidData['pid'] ?? null;
+
+                if ($pid && ProcessManager::isProcessAlive($pid)) {
+                    posix_kill($pid, SIGTERM);
+                    // Wait briefly for graceful shutdown
+                    usleep(500000); // 500ms
+                }
+
+                @unlink($pidFilePath);
+            }
+
+            if ($singleIteration) {
+                $this->info('Killed existing runner, starting fresh...');
+            }
+        }
+
+        // Initialize IPC client and connect to runner (with animation)
+        try {
+            $this->ipcClient = new ConsumeIpcClient;
+            $pidFilePath = $this->fuelContext->getPidFilePath();
+            $port = $this->configService->getConsumePort();
+            $ip = $this->option('ip');
+            $isRemote = $ip !== '127.0.0.1';
+
+            // Only start local runner if not connecting to a remote runner
+            if (! $isRemote && ! $this->ipcClient->isRunnerAlive($pidFilePath)) {
+                // Start runner with animation
+                if (! $singleIteration) {
+                    $frame = 0;
+                    $this->renderConnectingFrame($frame++, 'Starting runner');
+                }
+                $this->ipcClient->startRunner($this->fuelContext->getProjectPath().'/fuel');
+
+                // Wait for server with animation
+                if (! $singleIteration) {
+                    $connected = $this->showConnectingAnimation(
+                        fn (): bool => $this->ipcClient->isServerReady($port, $ip),
+                        'Starting runner',
+                        10000
+                    );
+                    if (! $connected) {
+                        throw new \RuntimeException('Timed out waiting for runner to start');
+                    }
+                } else {
+                    $this->ipcClient->waitForServer($port, 5, $ip);
+                }
+            }
+
+            // Connect to runner
+            if (! $singleIteration) {
+                $this->debug('Connecting to runner on '.$ip.':'.$port);
+                $connectStart = microtime(true);
+            }
+            $this->ipcClient->connect($port, $ip);
+            if (! $singleIteration) {
+                $this->debug('Socket connected', $connectStart);
+            }
+
+            // Attach to runner with animation (waits for Hello + Snapshot events)
+            if (! $singleIteration) {
+                $this->debug('Beginning attach to runner...');
+                $attachStart = microtime(true);
+
+                $this->ipcClient->beginAttach();
+
+                // Animate while waiting for attach to complete
+                $attached = $this->showConnectingAnimation(
+                    function (): bool {
+                        $this->ipcClient->pollAttachEvents();
+
+                        return $this->ipcClient->isAttachComplete();
+                    },
+                    'Syncing',
+                    10000
+                );
+
+                if (! $attached) {
+                    throw new \RuntimeException('Timed out waiting for runner to respond');
+                }
+
+                $this->ipcClient->finalizeAttach();
+                $this->debug('Attached to runner', $attachStart);
+            } else {
+                // Non-interactive: use blocking attach
+                $this->ipcClient->attach();
+            }
+        } catch (\RuntimeException $e) {
+            $this->restoreTerminal();
+            $this->error('Failed to connect to runner: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        // Complete terminal setup for interactive mode
         if (! $singleIteration) {
-            // Save terminal state and register shutdown handler BEFORE modifying terminal
-            $this->originalTty = shell_exec('stty -g');
-            register_shutdown_function([$this, 'restoreTerminal']);
-
-            // Get initial terminal size
-            $this->updateTerminalSize();
+            $setupStart = microtime(true);
+            $this->debug('Starting terminal setup...');
 
             // Initialize screen buffers for differential rendering
             $this->screenBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
@@ -261,23 +404,13 @@ class ConsumeCommand extends Command
                 });
             }
 
-            $this->getOutput()->write("\033[?1049h");
-            $this->inAlternateScreen = true;
-            $this->getOutput()->write("\033[?25l"); // Hide cursor
+            // Enable mouse and focus reporting (stty already set in enterAlternateScreen)
             $this->getOutput()->write("\033[?1003h"); // Enable mouse reporting (any-event mode)
             $this->getOutput()->write("\033[?1004h"); // Enable focus reporting
-            $this->getOutput()->write("\033[H\033[2J");
+            $this->getOutput()->write("\033[H\033[2J"); // Clear screen for board
 
-            shell_exec('stty -icanon -echo');
-            stream_set_blocking(STDIN, false);
-
-            // Initialize debug logging if enabled
-            if ($this->option('debug')) {
-                $this->debugMode = true;
-                $debugPath = $this->fuelContext->basePath.'/debug.log';
-                $this->debugFile = fopen($debugPath, 'w');
-                $this->debug('Debug logging started');
-            }
+            $this->debug('Terminal setup complete', $setupStart);
+            $this->debug('Entering main loop - first render coming...');
         }
 
         // In non-interactive mode, start unpaused so we process tasks immediately
@@ -286,7 +419,7 @@ class ConsumeCommand extends Command
         $statusLines = [];
 
         try {
-            while (! $this->processManager->isShuttingDown()) {
+            while (true) {
                 \pcntl_signal_dispatch();
 
                 // Update terminal size on resize
@@ -295,113 +428,25 @@ class ConsumeCommand extends Command
                     $this->forceRefresh = false;
                 }
 
-                // Reload config on each iteration to pick up changes
-                $this->configService->reload();
+                // Poll IPC events from runner and update state
+                foreach ($this->ipcClient->pollEvents() as $event) {
+                    $this->handleIpcEvent($event, $statusLines);
+                }
+
+                // Sync pause state from runner
+                $paused = $this->ipcClient->isPaused();
 
                 // Check for keyboard input (pause toggle, modal toggles, quit)
                 if ($this->handleKeyboardInput($paused, $statusLines)) {
-                    break; // User pressed 'q' to exit
+                    // User pressed 'q' - detach and exit
+                    $this->ipcClient->detach();
+                    break;
                 }
 
-                // Fast path during active selection or toast animation - skip heavy task management
+                // Fast path during active selection or toast animation
                 if ($this->selectionStart !== null || $this->toast?->isVisible()) {
                     $this->refreshDisplay($statusLines, $paused);
                     usleep(16000); // 60fps
-
-                    continue;
-                }
-
-                // When paused, just refresh display and wait
-                if ($paused) {
-                    $this->setTerminalTitle('fuel: PAUSED');
-                    $this->refreshDisplay($statusLines, $paused);
-                    usleep(200000); // 200ms
-
-                    continue;
-                }
-
-                // Step 1: Fill available slots across all agents (but not if shutting down)
-                $readyTasks = $this->getCachedReadyTasks();
-
-                if ($readyTasks->isNotEmpty() && ! $this->processManager->isShuttingDown()) {
-                    // Sort tasks by priority then creation date (FIFO within priority)
-                    $sortedTasks = $readyTasks->sortBy([
-                        ['priority', 'asc'],
-                        ['created_at', 'asc'],
-                    ])->values();
-
-                    // Try to spawn tasks until we can't spawn any more
-                    foreach ($sortedTasks as $task) {
-
-                        // Try to spawn this task
-                        $spawned = $this->trySpawnTask(
-                            $task,
-                            $agentOverride,
-                            $dryrun,
-                            $statusLines
-                        );
-
-                        if ($dryrun && $spawned) {
-                            // In dryrun mode, show what would happen
-                            if ($singleIteration) {
-                                // In non-interactive mode (tests), ensure output is flushed before exiting
-                                // The prompt was already output in trySpawnTask, so we can exit immediately
-                                if (ob_get_level() > 0) {
-                                    ob_flush();
-                                }
-
-                                flush();
-                                break 2; // Break out of foreach and while loop
-                            }
-
-                            // In interactive mode, show message and wait
-                            $this->newLine();
-                            $this->line('<fg=gray>Press Ctrl+C to exit, or wait to see next task...</>');
-                            sleep(3);
-                        }
-                    }
-                }
-
-                // Step 2: Check agent health status changes
-                $this->checkAgentHealthChanges($statusLines);
-
-                // Step 3: Poll all running processes
-                $this->pollAndHandleCompletions($statusLines);
-
-                // Step 4: Check for completed reviews
-                $this->checkCompletedReviews($statusLines);
-
-                // Step 5: Check if we have any work or should wait
-                if (! $this->processManager->hasActiveProcesses() && $readyTasks->isEmpty()) {
-                    // In single iteration mode, exit immediately if no tasks
-                    if ($singleIteration) {
-                        break;
-                    }
-
-                    // Only add waiting message if not already the last status
-                    $waitingMsg = $this->formatStatus('⏳', 'Waiting for tasks...', 'gray');
-                    if ($statusLines === [] || end($statusLines) !== $waitingMsg) {
-                        $statusLines[] = $waitingMsg;
-                        $statusLines = $this->trimStatusLines($statusLines);
-                    }
-
-                    $this->setTerminalTitle('fuel: Waiting for tasks...');
-                    $this->refreshDisplay($statusLines, $paused);
-
-                    // Poll while waiting
-                    for ($i = 0; $i < $interval * 10 && ! $this->processManager->isShuttingDown(); $i++) {
-                        \pcntl_signal_dispatch();
-                        // Check for keyboard input while waiting
-                        if ($this->handleKeyboardInput($paused, $statusLines)) {
-                            break 2; // User pressed 'q' to exit
-                        }
-
-                        $this->refreshDisplay($statusLines, $paused);
-                        usleep($this->calculateSleepMicroseconds());
-                    }
-
-                    // Invalidate cache after waiting period so we get fresh data
-                    $this->invalidateTaskCache();
 
                     continue;
                 }
@@ -410,8 +455,10 @@ class ConsumeCommand extends Command
                 $this->refreshDisplay($statusLines, $paused);
 
                 // Update terminal title with active process count
-                $activeCount = $this->processManager->getActiveCount();
-                if ($activeCount > 0) {
+                $activeCount = count($this->ipcClient->getActiveProcesses());
+                if ($paused) {
+                    $this->setTerminalTitle('fuel: PAUSED');
+                } elseif ($activeCount > 0) {
                     $this->setTerminalTitle(sprintf('fuel: %d active', $activeCount));
                 } else {
                     $this->setTerminalTitle('fuel: Idle');
@@ -426,6 +473,7 @@ class ConsumeCommand extends Command
                 usleep($this->calculateSleepMicroseconds());
             }
         } finally {
+            $this->ipcClient?->disconnect();
             $this->restoreTerminal();
         }
 
@@ -472,8 +520,115 @@ class ConsumeCommand extends Command
     }
 
     /**
+     * Enter alternate screen mode early for the connecting animation.
+     */
+    private function enterAlternateScreen(): void
+    {
+        $this->originalTty = shell_exec('stty -g');
+        register_shutdown_function([$this, 'restoreTerminal']);
+
+        // Disable echo BEFORE entering alt screen to prevent escape sequences from showing
+        shell_exec('stty -icanon -echo');
+        stream_set_blocking(STDIN, false);
+
+        $this->updateTerminalSize();
+
+        $this->getOutput()->write("\033[?1049h"); // Enter alternate screen
+        $this->inAlternateScreen = true;
+        $this->getOutput()->write("\033[?25l"); // Hide cursor
+        $this->getOutput()->write("\033[H\033[2J"); // Clear screen
+    }
+
+    /**
+     * Render a single frame of the connecting animation.
+     */
+    private function renderConnectingFrame(int $frame, string $status = 'Connecting'): void
+    {
+        $this->updateTerminalSize();
+
+        // Create or reset gradient if status changed
+        if ($this->connectingGradient === null || $this->connectingStatus !== $status) {
+            $this->connectingGradient = GradientText::cyan($status);
+            $this->connectingStatus = $status;
+        }
+
+        $spinner = self::CONNECTING_SPINNER[$frame % count(self::CONNECTING_SPINNER)];
+
+        // Get gradient-rendered status text
+        $gradientStatus = $this->connectingGradient->render();
+        $statusLength = $this->connectingGradient->length();
+
+        // Calculate center position
+        $centerRow = (int) ($this->terminalHeight / 2);
+        $centerCol = (int) ($this->terminalWidth / 2);
+
+        // Render the logo (FUEL in gradient yellow/orange)
+        $fuelGradient = GradientText::fuel('FUEL');
+        $fuelText = $fuelGradient->render();
+        $fuelLength = 4; // "FUEL"
+
+        // Position logo centered, with fuel pump emoji
+        $logoRow = $centerRow - 1;
+        $logoCol = $centerCol - (int) (($fuelLength + 3) / 2); // +3 for emoji and space
+        echo sprintf("\033[%d;%dH\e[2K⛽ %s", $logoRow, $logoCol, $fuelText);
+
+        // Position status line below logo, centered
+        $statusRow = $centerRow + 1;
+        $totalWidth = $statusLength + 2; // spinner + space + status
+        $statusCol = $centerCol - (int) ($totalWidth / 2);
+        echo sprintf("\033[%d;%dH\e[2K\e[38;2;100;120;140m%s\e[0m %s", $statusRow, $statusCol, $spinner, $gradientStatus);
+
+        // Subtle hint at bottom
+        $hintRow = $this->terminalHeight - 2;
+        $hint = 'Starting background runner...';
+        $hintCol = $centerCol - (int) (strlen($hint) / 2);
+        echo sprintf("\033[%d;%dH\e[38;2;60;60;70m%s\e[0m", $hintRow, $hintCol, $hint);
+    }
+
+    /**
+     * Show connecting animation while waiting for a condition.
+     *
+     * @param  callable(): bool  $condition  Returns true when done waiting
+     * @param  string  $status  Status message to display
+     * @param  int  $timeoutMs  Maximum time to wait in milliseconds
+     * @return bool True if condition was met, false if timed out
+     */
+    private function showConnectingAnimation(callable $condition, string $status = 'Connecting', int $timeoutMs = 30000): bool
+    {
+        $frame = 0;
+        $startTime = microtime(true) * 1000;
+        $frameDelay = 33333; // ~30fps for smooth gradient animation
+
+        while (true) {
+            // Check if condition is met
+            if ($condition()) {
+                // Reset gradient state for next animation
+                $this->connectingGradient = null;
+                $this->connectingStatus = '';
+
+                return true;
+            }
+
+            // Check timeout
+            $elapsed = (microtime(true) * 1000) - $startTime;
+            if ($elapsed > $timeoutMs) {
+                $this->connectingGradient = null;
+                $this->connectingStatus = '';
+
+                return false;
+            }
+
+            // Render frame
+            $this->renderConnectingFrame($frame, $status);
+            $frame++;
+
+            usleep($frameDelay);
+        }
+    }
+
+    /**
      * Try to spawn a task if agent capacity allows.
-     * Returns true if spawned (or would spawn in dryrun), false if at capacity.
+     * Returns true if spawned, false if at capacity.
      *
      * @param  array<string, mixed>  $task
      * @param  array<string>  $statusLines
@@ -481,7 +636,6 @@ class ConsumeCommand extends Command
     private function trySpawnTask(
         Task $task,
         ?string $agentOverride,
-        bool $dryrun,
         array &$statusLines
     ): bool {
         // Don't spawn new tasks if shutting down
@@ -509,7 +663,7 @@ class ConsumeCommand extends Command
         // Wire up epic completion callback
         $agentTask->setEpicCompletionCallback($this->checkEpicCompletionSound(...));
 
-        // Determine agent name for capacity check and dryrun display
+        // Determine agent name for capacity check
         $agentName = $agentOverride;
         if ($agentName === null) {
             try {
@@ -522,13 +676,13 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Check capacity before dryrun display (so we skip at-capacity agents in dryrun too)
-        if (! $dryrun && ! $this->processManager->canSpawn($agentName)) {
+        // Check capacity
+        if (! $this->processManager->canSpawn($agentName)) {
             return false; // At capacity, can't spawn
         }
 
         // Check agent health / backoff before attempting to spawn
-        if (! $dryrun && $this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
             $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
             $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
 
@@ -539,27 +693,13 @@ class ConsumeCommand extends Command
         }
 
         // Check if agent is dead (exceeded max_retries consecutive failures)
-        if (! $dryrun && $this->healthTracker instanceof AgentHealthTrackerInterface) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
             $maxRetries = $this->configService->getAgentMaxRetries($agentName);
             if ($this->healthTracker->isDead($agentName, $maxRetries)) {
                 $statusLines[] = $this->formatStatus('💀', sprintf('%s skipped - %s is dead (>= %d consecutive failures)', $taskId, $agentName, $maxRetries), 'red');
 
                 return false; // Agent is dead, don't assign work
             }
-        }
-
-        if ($dryrun) {
-            // Dryrun: show what would happen without claiming or spawning
-            $fullPrompt = $agentTask->buildPrompt($cwd);
-            $statusLines[] = $this->formatStatus('👁', sprintf('[DRYRUN] Would spawn %s for %s: %s', $agentName, $taskId, $shortTitle), 'cyan');
-            $this->setTerminalTitle('fuel: [DRYRUN] '.$taskId);
-            $this->newLine();
-            $this->line('<fg=cyan>== PROMPT THAT WOULD BE SENT ==</>');
-            // In single iteration mode (tests), output directly to ensure it's captured
-            // Use Laravel's line() method which handles output buffering correctly
-            $this->line($fullPrompt);
-
-            return true;
         }
 
         // Mark task as in_progress and flag as consumed before spawning agent
@@ -1266,7 +1406,7 @@ class ConsumeCommand extends Command
     }
 
     /**
-     * Capture a modal to the screen buffer.
+     * Capture a modal as an overlay layer (does not modify main buffer).
      *
      * @param  array<int, Task>  $tasks
      */
@@ -1279,7 +1419,7 @@ class ConsumeCommand extends Command
         // Modal dimensions (centered, 60% width, up to 80% height)
         $modalWidth = min((int) ($this->terminalWidth * 0.6), $this->terminalWidth - 8);
         $maxHeight = (int) ($this->terminalHeight * 0.8);
-        $startCol = (int) (($this->terminalWidth - $modalWidth) / 2);
+        $startCol = (int) (($this->terminalWidth - $modalWidth) / 2) + 1; // +1 for 1-indexed
         $startRow = 3;
 
         // Calculate visible task slots (header=3 lines, footer=1 line)
@@ -1297,7 +1437,7 @@ class ConsumeCommand extends Command
             $this->blockedModalScroll = $scrollOffset;
         }
 
-        // Build modal content
+        // Build modal content (just the lines, no padding)
         $modalLines = [];
         $modalLines[] = '<fg=cyan>╭'.str_repeat('─', $modalWidth - 2).'╮</>';
 
@@ -1329,22 +1469,12 @@ class ConsumeCommand extends Command
 
         $modalLines[] = '<fg=cyan>╰'.str_repeat('─', $modalWidth - 2).'╯</>';
 
-        // Write modal lines to screen buffer, positioning them centered
-        foreach ($modalLines as $i => $line) {
-            $row = $startRow + $i;
-            if ($row <= $this->terminalHeight) {
-                // Position modal centered horizontally
-                $afterModalEnd = $startCol - 1 + $modalWidth;
-
-                // Combine: spaces before + modal + spaces after
-                $compositeLine = str_repeat(' ', $startCol - 1).$line.str_repeat(' ', max(0, $this->terminalWidth - $afterModalEnd));
-                $this->screenBuffer->setLine($row, $compositeLine);
-            }
-        }
+        // Store modal as an overlay layer (layer 1) positioned at startRow, startCol
+        $this->screenBuffer->setOverlay(1, $startRow, $startCol, $modalLines);
     }
 
     /**
-     * Render the command palette to the screen buffer.
+     * Render the command palette as an overlay layer.
      *
      * Displays a suggestions box above the input line with autocomplete suggestions,
      * and an input line at the bottom of the terminal with a block cursor.
@@ -1362,7 +1492,10 @@ class ConsumeCommand extends Command
         // Input line is at terminalHeight - 1
         $inputRow = $this->terminalHeight - 1;
 
-        // Render suggestions box if there are suggestions
+        $overlayLines = [];
+        $overlayStartRow = $inputRow;
+
+        // Build suggestions box if there are suggestions
         if ($this->commandPaletteSuggestions !== []) {
             $suggestionCount = count($this->commandPaletteSuggestions);
             $maxVisible = min(5, $suggestionCount);
@@ -1370,13 +1503,12 @@ class ConsumeCommand extends Command
 
             // Calculate starting row for suggestions box (above input line)
             $boxStartRow = $inputRow - 1 - $maxVisible - 2; // -2 for top and bottom borders
+            $overlayStartRow = $boxStartRow;
 
             // Top border
-            $topBorder = '╭'.str_repeat('─', $boxWidth - 2).'╮';
-            $this->screenBuffer->setLine($boxStartRow, str_repeat(' ', $startCol - 1).$topBorder);
+            $overlayLines[] = '╭'.str_repeat('─', $boxWidth - 2).'╮';
 
             // Suggestion lines
-            $lineIndex = 1;
             foreach ($visibleSuggestions as $index => $suggestion) {
                 $displayId = substr((string) $suggestion['short_id'], 2, 6);
                 $titleTrunc = $this->truncate((string) $suggestion['title'], $boxWidth - 14);
@@ -1389,36 +1521,30 @@ class ConsumeCommand extends Command
 
                 $contentLen = $this->visibleLength($content);
                 $padding = max(0, $boxWidth - $contentLen - 2);
-                $line = '│'.$content.str_repeat(' ', $padding).'│';
-
-                $this->screenBuffer->setLine($boxStartRow + $lineIndex, str_repeat(' ', $startCol - 1).$line);
-                $lineIndex++;
+                $overlayLines[] = '│'.$content.str_repeat(' ', $padding).'│';
             }
 
             // Bottom border
-            $bottomBorder = '╰'.str_repeat('─', $boxWidth - 2).'╯';
-            $this->screenBuffer->setLine($boxStartRow + $lineIndex, str_repeat(' ', $startCol - 1).$bottomBorder);
+            $overlayLines[] = '╰'.str_repeat('─', $boxWidth - 2).'╯';
         } elseif (str_starts_with($this->commandPaletteInput, 'close ')) {
             // Show "No matching tasks" message
             $boxStartRow = $inputRow - 1 - 3; // 3 lines: top border, message, bottom border
+            $overlayStartRow = $boxStartRow;
 
             // Top border
-            $topBorder = '╭'.str_repeat('─', $boxWidth - 2).'╮';
-            $this->screenBuffer->setLine($boxStartRow, str_repeat(' ', $startCol - 1).$topBorder);
+            $overlayLines[] = '╭'.str_repeat('─', $boxWidth - 2).'╮';
 
             // Message line
             $message = 'No matching tasks';
             $messageLen = mb_strlen($message);
             $padding = max(0, $boxWidth - $messageLen - 2);
-            $messageLine = '│'.$message.str_repeat(' ', $padding).'│';
-            $this->screenBuffer->setLine($boxStartRow + 1, str_repeat(' ', $startCol - 1).$messageLine);
+            $overlayLines[] = '│'.$message.str_repeat(' ', $padding).'│';
 
             // Bottom border
-            $bottomBorder = '╰'.str_repeat('─', $boxWidth - 2).'╯';
-            $this->screenBuffer->setLine($boxStartRow + 2, str_repeat(' ', $startCol - 1).$bottomBorder);
+            $overlayLines[] = '╰'.str_repeat('─', $boxWidth - 2).'╯';
         }
 
-        // Render input line with block cursor
+        // Build input line with block cursor
         $input = $this->commandPaletteInput;
         $cursor = $this->commandPaletteCursor;
 
@@ -1436,7 +1562,21 @@ class ConsumeCommand extends Command
             $inputLine = '> /'.$before.'<bg=white;fg=black> </>';
         }
 
-        $this->screenBuffer->setLine($inputRow, $inputLine);
+        // If we have suggestions, add empty lines to bridge to input line, then add input
+        if ($overlayLines !== []) {
+            // Calculate gap between end of suggestions box and input line
+            $suggestionsEndRow = $overlayStartRow + count($overlayLines);
+            $gap = $inputRow - $suggestionsEndRow;
+            for ($i = 0; $i < $gap; $i++) {
+                $overlayLines[] = ''; // Empty lines (won't render anything visible)
+            }
+        } else {
+            $overlayStartRow = $inputRow;
+        }
+        $overlayLines[] = $inputLine;
+
+        // Store as overlay layer 2 (command palette renders on top of modals)
+        $this->screenBuffer->setOverlay(2, $overlayStartRow, $startCol, $overlayLines);
     }
 
     /**
@@ -1471,6 +1611,9 @@ class ConsumeCommand extends Command
                 $this->outputFormattedLine($line);
             }
 
+            // Render overlay layers on top using cursor positioning
+            $this->renderOverlays();
+
             // Render selection highlight overlay if active
             $this->renderSelectionHighlight();
             $this->forceRefresh = false;
@@ -1493,8 +1636,41 @@ class ConsumeCommand extends Command
             }
         }
 
+        // Render overlay layers on top using cursor positioning
+        $this->renderOverlays();
+
         // Render selection highlight overlay if active
         $this->renderSelectionHighlight();
+    }
+
+    /**
+     * Render all overlay layers using cursor positioning.
+     * Overlays are rendered on top of the main buffer content.
+     */
+    private function renderOverlays(): void
+    {
+        if (! $this->screenBuffer instanceof ScreenBuffer || ! $this->screenBuffer->hasOverlays()) {
+            return;
+        }
+
+        $formatter = $this->getOutput()->getFormatter();
+
+        foreach ($this->screenBuffer->getOverlays() as $overlay) {
+            $startRow = $overlay['startRow'];
+            $startCol = $overlay['startCol'];
+
+            foreach ($overlay['lines'] as $i => $line) {
+                $row = $startRow + $i;
+                if ($row > $this->terminalHeight) {
+                    break;
+                }
+
+                // Position cursor at the overlay's column position and render the line
+                $this->getOutput()->write(sprintf("\033[%d;%dH", $row, $startCol));
+                $formatted = $formatter->format($line);
+                $this->getOutput()->write($formatted);
+            }
+        }
     }
 
     /**
@@ -1692,6 +1868,22 @@ class ConsumeCommand extends Command
      */
     private function getBoardData(): array
     {
+        // Use IPC client state if connected (normal TUI mode)
+        if ($this->ipcClient?->isConnected()) {
+            $boardState = $this->ipcClient->getBoardState();
+
+            // Convert arrays to Collections for compatibility with existing rendering code
+            return [
+                'ready' => collect($boardState['ready'] ?? []),
+                'in_progress' => collect($boardState['in_progress'] ?? []),
+                'review' => collect($boardState['review'] ?? []),
+                'blocked' => collect($boardState['blocked'] ?? []),
+                'human' => collect($boardState['human'] ?? []),
+                'done' => collect($boardState['done'] ?? []),
+            ];
+        }
+
+        // Fallback for --once mode (standalone, no runner needed)
         $allTasks = $this->taskService->all();
         $readyTasks = $this->taskService->readyFrom($allTasks);
         $readyIds = $readyTasks->pluck('short_id')->toArray();
@@ -1899,7 +2091,8 @@ class ConsumeCommand extends Command
         // Footer: ╰───────────── t ─╯ or ╰───────────── t · e-xxxxxx ─╯
         // Fixed chars without epic: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
         // Fixed chars with epic: ╰ (1) + space (1) + complexity (1) + space (1) + · (1) + space (1) + epic (8) + space (1) + ─╯ (2) = 17
-        $epicId = $task->epic?->short_id;
+        // Use epic_short_id from IPC serialization, fall back to relationship for standalone mode
+        $epicId = $task->epic_short_id ?? $task->epic?->short_id;
         $hasEpic = $epicId !== null && $width >= 18; // Minimum width to show epic ID
 
         if ($hasEpic) {
@@ -1973,7 +2166,8 @@ class ConsumeCommand extends Command
         // Footer: ╰───────────── t ─╯ or ╰───────────── t · e-xxxxxx ─╯
         // Fixed chars without epic: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
         // Fixed chars with epic: ╰ (1) + space (1) + complexity (1) + space (1) + · (1) + space (1) + epic (8) + space (1) + ─╯ (2) = 17
-        $epicId = $task->epic?->short_id;
+        // Use epic_short_id from IPC serialization, fall back to relationship for standalone mode
+        $epicId = $task->epic_short_id ?? $task->epic?->short_id;
         $hasEpic = $epicId !== null && $width >= 18; // Minimum width to show epic ID
 
         if ($hasEpic) {
@@ -2368,12 +2562,23 @@ class ConsumeCommand extends Command
                     return 6;
                 }
 
-                // Shift+Tab: ESC [ Z (3 bytes)
+                // Shift+Tab: ESC [ Z (3 bytes) - toggle pause via IPC
                 if ($len >= 3 && $buf[2] === 'Z') {
-                    $paused = ! $paused;
-                    $statusLines[] = $paused
-                        ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
-                        : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                    if ($this->ipcClient?->isConnected()) {
+                        if ($paused) {
+                            $this->ipcClient->sendResume();
+                            $statusLines[] = $this->formatStatus('▶', 'Resume command sent...', 'green');
+                        } else {
+                            $this->ipcClient->sendPause();
+                            $statusLines[] = $this->formatStatus('⏸', 'Pause command sent...', 'yellow');
+                        }
+                    } else {
+                        // Fallback for standalone mode (--once)
+                        $paused = ! $paused;
+                        $statusLines[] = $paused
+                            ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
+                            : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                    }
                     $statusLines = $this->trimStatusLines($statusLines);
                     $this->inputBuffer = substr($buf, 3);
 
@@ -3313,5 +3518,198 @@ class ConsumeCommand extends Command
 
         // Normal operation: 10fps
         return 100000; // 100ms
+    }
+
+    /**
+     * Check if any IPC control flag is set.
+     */
+    private function hasIpcControlFlag(): bool
+    {
+        return $this->option('status')
+            || $this->option('pause')
+            || $this->option('resume')
+            || $this->option('stop')
+            || $this->option('force');
+    }
+
+    /**
+     * Handle IPC control flags (--status, --pause, --resume, --stop, --force).
+     */
+    private function handleIpcControl(): int
+    {
+        $this->ipcClient = new ConsumeIpcClient;
+        $pidFilePath = $this->fuelContext->getPidFilePath();
+        $port = $this->configService->getConsumePort();
+        $ip = $this->option('ip');
+        $isRemote = $ip !== '127.0.0.1';
+
+        // Check if runner is alive (skip for remote runners - PID file is local only)
+        if (! $isRemote && ! $this->ipcClient->isRunnerAlive($pidFilePath)) {
+            $this->error('Runner is not running');
+
+            return self::FAILURE;
+        }
+
+        try {
+            $this->ipcClient->connect($port, $ip);
+            $this->ipcClient->attach();
+        } catch (\RuntimeException $e) {
+            $this->error('Failed to connect to runner: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        try {
+            if ($this->option('status')) {
+                return $this->handleStatusCommand();
+            }
+
+            if ($this->option('pause')) {
+                $this->ipcClient->sendPause();
+                $this->info('Pause command sent to runner');
+
+                return self::SUCCESS;
+            }
+
+            if ($this->option('resume')) {
+                $this->ipcClient->sendResume();
+                $this->info('Resume command sent to runner');
+
+                return self::SUCCESS;
+            }
+
+            if ($this->option('stop')) {
+                $this->ipcClient->sendStop();
+                $this->info('Stop command sent to runner');
+
+                return self::SUCCESS;
+            }
+
+            if ($this->option('force')) {
+                $this->ipcClient->sendStop();
+                $this->info('Force stop command sent to runner');
+
+                return self::SUCCESS;
+            }
+        } finally {
+            $this->ipcClient->disconnect();
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Handle --status command: print runner state summary.
+     */
+    private function handleStatusCommand(): int
+    {
+        $this->ipcClient->requestSnapshot();
+
+        // Wait briefly for snapshot response
+        $deadline = time() + 2;
+        while (time() < $deadline) {
+            $events = $this->ipcClient->pollEvents();
+            foreach ($events as $event) {
+                $this->ipcClient->applyEvent($event);
+            }
+            usleep(50000);
+        }
+
+        $boardState = $this->ipcClient->getBoardState();
+        $activeProcesses = $this->ipcClient->getActiveProcesses();
+        $paused = $this->ipcClient->isPaused();
+
+        $this->line('<fg=white;options=bold>Runner Status</>');
+        $this->line('');
+        $this->line(sprintf('  State: %s', $paused ? '<fg=yellow>PAUSED</>' : '<fg=green>RUNNING</>'));
+        $this->line(sprintf('  Active processes: <fg=cyan>%d</>', count($activeProcesses)));
+        $this->line('');
+        $this->line('<fg=white;options=bold>Board Summary</>');
+
+        foreach ($boardState as $status => $tasks) {
+            $count = is_array($tasks) ? count($tasks) : $tasks->count();
+            $this->line(sprintf('  %s: <fg=cyan>%d</>', ucfirst($status), $count));
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Handle an IPC event and update status lines.
+     */
+    private function handleIpcEvent(\App\Ipc\IpcMessage $event, array &$statusLines): void
+    {
+        // Apply event to IPC client state
+        $this->ipcClient?->applyEvent($event);
+
+        // Add status lines based on event type
+        match ($event->type()) {
+            'task_spawned' => $statusLines[] = $this->handleTaskSpawnedIpcEvent($event),
+            'task_completed' => $statusLines[] = $this->handleTaskCompletedIpcEvent($event),
+            'status_line' => $statusLines[] = $this->handleStatusLineIpcEvent($event),
+            'health_change' => $statusLines[] = $this->handleHealthChangeIpcEvent($event),
+            'output_chunk' => $this->spinnerFrame++, // Just spin the activity indicator
+            default => null,
+        };
+
+        // Filter null entries
+        $statusLines = array_filter($statusLines);
+    }
+
+    /**
+     * Format task spawned event for status line.
+     */
+    private function handleTaskSpawnedIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    {
+        if (! $event instanceof \App\Ipc\Events\TaskSpawnedEvent) {
+            return null;
+        }
+
+        return $this->formatStatus('🚀', "Spawned {$event->taskId} with {$event->agent}", 'cyan');
+    }
+
+    /**
+     * Format task completed event for status line.
+     */
+    private function handleTaskCompletedIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    {
+        if (! $event instanceof \App\Ipc\Events\TaskCompletedEvent) {
+            return null;
+        }
+
+        $icon = $event->exitCode === 0 ? '✓' : '✗';
+        $color = $event->exitCode === 0 ? 'green' : 'red';
+
+        return $this->formatStatus($icon, "Completed {$event->taskId} (exit {$event->exitCode})", $color);
+    }
+
+    /**
+     * Format status line event for display.
+     */
+    private function handleStatusLineIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    {
+        if (! $event instanceof \App\Ipc\Events\StatusLineEvent) {
+            return null;
+        }
+
+        $color = match ($event->level) {
+            'error' => 'red',
+            'warn' => 'yellow',
+            default => 'gray',
+        };
+
+        return $this->formatStatus('•', $event->text, $color);
+    }
+
+    /**
+     * Format health change event for status line.
+     */
+    private function handleHealthChangeIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    {
+        if (! $event instanceof \App\Ipc\Events\HealthChangeEvent) {
+            return null;
+        }
+
+        return $this->formatStatus('⚕', "Agent {$event->agent}: {$event->status}", 'yellow');
     }
 }
