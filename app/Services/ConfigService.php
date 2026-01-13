@@ -112,12 +112,23 @@ class ConfigService
 
             // Driver is required
             if (! isset($agentConfig['driver']) || ! is_string($agentConfig['driver'])) {
-                throw new RuntimeException(sprintf("Agent '%s' must have 'driver' string", $agentName));
+                $availableDrivers = implode(', ', array_keys($this->driverRegistry->all()));
+                throw new RuntimeException(sprintf(
+                    "Agent '%s' must have 'driver' string. Available drivers: %s. To regenerate config: rm .fuel/config.yaml && fuel init",
+                    $agentName,
+                    $availableDrivers
+                ));
             }
 
             // Validate driver exists
             if (! $this->driverRegistry->has($agentConfig['driver'])) {
-                throw new RuntimeException(sprintf("Agent '%s' references unknown driver '%s'", $agentName, $agentConfig['driver']));
+                $availableDrivers = implode(', ', array_keys($this->driverRegistry->all()));
+                throw new RuntimeException(sprintf(
+                    "Agent '%s' references unknown driver '%s'. Available drivers: %s",
+                    $agentName,
+                    $agentConfig['driver'],
+                    $availableDrivers
+                ));
             }
 
             // Validate optional fields have correct types
