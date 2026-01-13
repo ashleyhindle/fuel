@@ -79,21 +79,30 @@ describe('guidelines command', function (): void {
         expect($output)->toContain('Quick Reference');
     });
 
-    it('creates AGENTS.md when it does not exist with --add flag', function (): void {
+    it('creates AGENTS.md and CLAUDE.md when they do not exist with --add flag', function (): void {
         $agentsMdPath = $this->tempDir.'/AGENTS.md';
+        $claudeMdPath = $this->tempDir.'/CLAUDE.md';
 
         expect(file_exists($agentsMdPath))->toBeFalse();
+        expect(file_exists($claudeMdPath))->toBeFalse();
 
         Artisan::call('guidelines', ['--add' => true]);
         $output = Artisan::output();
 
         expect(file_exists($agentsMdPath))->toBeTrue();
+        expect(file_exists($claudeMdPath))->toBeTrue();
         expect($output)->toContain('Created AGENTS.md with Fuel guidelines');
+        expect($output)->toContain('Created CLAUDE.md with Fuel guidelines');
 
-        $content = file_get_contents($agentsMdPath);
-        expect($content)->toContain('# Agent Instructions');
-        expect($content)->toContain('<fuel>');
-        expect($content)->toContain('</fuel>');
+        $agentsContent = file_get_contents($agentsMdPath);
+        expect($agentsContent)->toContain('# Agent Instructions');
+        expect($agentsContent)->toContain('<fuel>');
+        expect($agentsContent)->toContain('</fuel>');
+
+        $claudeContent = file_get_contents($claudeMdPath);
+        expect($claudeContent)->toContain('# Agent Instructions');
+        expect($claudeContent)->toContain('<fuel>');
+        expect($claudeContent)->toContain('</fuel>');
     });
 
     it('replaces existing <fuel> section in AGENTS.md with --add flag', function (): void {
@@ -137,11 +146,13 @@ describe('guidelines command', function (): void {
         $customDir = sys_get_temp_dir().'/fuel-test-custom-'.uniqid();
         mkdir($customDir, 0755, true);
         $agentsMdPath = $customDir.'/AGENTS.md';
+        $claudeMdPath = $customDir.'/CLAUDE.md';
 
         try {
             Artisan::call('guidelines', ['--add' => true, '--cwd' => $customDir]);
 
             expect(file_exists($agentsMdPath))->toBeTrue();
+            expect(file_exists($claudeMdPath))->toBeTrue();
             $content = file_get_contents($agentsMdPath);
             expect($content)->toContain('<fuel>');
             expect($content)->toContain('</fuel>');
@@ -149,6 +160,10 @@ describe('guidelines command', function (): void {
             // Cleanup
             if (file_exists($agentsMdPath)) {
                 unlink($agentsMdPath);
+            }
+
+            if (file_exists($claudeMdPath)) {
+                unlink($claudeMdPath);
             }
 
             if (is_dir($customDir)) {

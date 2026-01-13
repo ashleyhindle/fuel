@@ -10,17 +10,19 @@ use LaravelZero\Framework\Commands\Command;
 class GuidelinesCommand extends Command
 {
     protected $signature = 'guidelines
-        {--add : Inject guidelines into AGENTS.md}
+        {--add : Inject guidelines into AGENTS.md and CLAUDE.md}
         {--cwd= : Working directory (defaults to current directory)}';
 
-    protected $description = 'Output task management guidelines for CLAUDE.md';
+    protected $description = 'Output task management guidelines for agent instruction files';
+
+    private const TARGET_FILES = ['AGENTS.md', 'CLAUDE.md'];
 
     public function handle(FuelContext $context): int
     {
         $content = $this->getGuidelinesContent();
 
         if ($this->option('add')) {
-            return $this->injectIntoAgentsMd($content, $context);
+            return $this->injectIntoFiles($content, $context);
         }
 
         $this->line($content);
@@ -28,15 +30,22 @@ class GuidelinesCommand extends Command
         return self::SUCCESS;
     }
 
-    protected function injectIntoAgentsMd(string $content, FuelContext $context): int
+    protected function injectIntoFiles(string $content, FuelContext $context): int
     {
         $cwd = $this->option('cwd') ?: $context->getProjectPath();
-        $agentsMdPath = $cwd.'/AGENTS.md';
-
         $fuelSection = "<fuel>\n{$content}</fuel>\n";
 
-        if (file_exists($agentsMdPath)) {
-            $existing = file_get_contents($agentsMdPath);
+        foreach (self::TARGET_FILES as $filename) {
+            $this->injectIntoFile($cwd.'/'.$filename, $fuelSection, $filename);
+        }
+
+        return self::SUCCESS;
+    }
+
+    protected function injectIntoFile(string $path, string $fuelSection, string $filename): void
+    {
+        if (file_exists($path)) {
+            $existing = file_get_contents($path);
 
             // Replace existing <fuel>...</fuel> section or append
             if (preg_match('/<fuel>.*?<\/fuel>/s', $existing)) {
@@ -45,14 +54,12 @@ class GuidelinesCommand extends Command
                 $updated = rtrim($existing)."\n\n".$fuelSection;
             }
 
-            file_put_contents($agentsMdPath, $updated);
-            $this->info('Updated AGENTS.md with Fuel guidelines');
+            file_put_contents($path, $updated);
+            $this->info('Updated '.$filename.' with Fuel guidelines');
         } else {
-            file_put_contents($agentsMdPath, "# Agent Instructions\n\n".$fuelSection);
-            $this->info('Created AGENTS.md with Fuel guidelines');
+            file_put_contents($path, "# Agent Instructions\n\n".$fuelSection);
+            $this->info('Created '.$filename.' with Fuel guidelines');
         }
-
-        return self::SUCCESS;
     }
 
     protected function getGuidelinesContent(): string
