@@ -1811,10 +1811,19 @@ class ConsumeCommand extends Command
         $contentLine = sprintf('<%s>│</> %s%s%s', $borderColor, $titleColor, $truncatedTitle, $titleEnd).$iconString;
         $lines[] = $this->padLineWithBorderColor($contentLine, $width, $borderColor);
 
-        // Footer: ╰───────────── t ─╯
-        // Fixed chars: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
-        $footerDashesLen = max(1, $width - 6);
-        $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
+        // Footer: ╰───────────── t ─╯ or ╰───────────── t · e-xxxxxx ─╯
+        // Fixed chars without epic: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
+        // Fixed chars with epic: ╰ (1) + space (1) + complexity (1) + space (1) + · (1) + space (1) + epic (8) + space (1) + ─╯ (2) = 17
+        $epicId = $task->epic?->short_id;
+        $hasEpic = $epicId !== null && $width >= 18; // Minimum width to show epic ID
+
+        if ($hasEpic) {
+            $footerDashesLen = max(1, $width - 17);
+            $footerLine = sprintf('<%s>╰%s %s · %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar, $epicId);
+        } else {
+            $footerDashesLen = max(1, $width - 6);
+            $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
+        }
         $lines[] = $this->padLine($footerLine, $width);
 
         return $lines;
@@ -1875,10 +1884,19 @@ class ConsumeCommand extends Command
             $lines[] = $this->padLineWithBorderColor($statusLine, $width, $borderColor);
         }
 
-        // Footer: ╰───────────── t ─╯
-        // Fixed chars: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
-        $footerDashesLen = max(1, $width - 6);
-        $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
+        // Footer: ╰───────────── t ─╯ or ╰───────────── t · e-xxxxxx ─╯
+        // Fixed chars without epic: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
+        // Fixed chars with epic: ╰ (1) + space (1) + complexity (1) + space (1) + · (1) + space (1) + epic (8) + space (1) + ─╯ (2) = 17
+        $epicId = $task->epic?->short_id;
+        $hasEpic = $epicId !== null && $width >= 18; // Minimum width to show epic ID
+
+        if ($hasEpic) {
+            $footerDashesLen = max(1, $width - 17);
+            $footerLine = sprintf('<%s>╰%s %s · %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar, $epicId);
+        } else {
+            $footerDashesLen = max(1, $width - 6);
+            $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
+        }
         $lines[] = $this->padLine($footerLine, $width);
 
         return $lines;
