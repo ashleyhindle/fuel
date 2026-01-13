@@ -37,14 +37,6 @@ Can you describe the task in one sentence without conjoining unrelated work?
 
 If you need "and" to describe it, split it into separate tasks.
 
-### Frame Tasks as Activities, Not Capabilities
-
-Use verbs (actions in a journey) rather than nouns (system capabilities):
-- ✓ Activity-oriented: "Upload photo", "Extract colors", "Export palette"
-- ✗ Capability-oriented: "Color extraction system", "Export functionality"
-
-Activities are naturally scoped by user intent and complete a discrete step.
-
 ### Parallelization Checklist
 
 Before finalizing tasks, consider which can run in parallel:
@@ -156,7 +148,7 @@ Every epic MUST end with a review task. Review tasks:
 
 - **Err toward smaller tasks** - Easier to parallelize, easier to review
 - **Tests can often run parallel** to implementation if interface is defined first
-- **Don't over-specify** - Trust the agent to make reasonable choices within scope
+- **Be clear what you want the agent to do** - You are passing tasks to a less-capable agent when using trivial, simple, or moderate complexities
 - **Do specify file paths** - Reduces ambiguity significantly
 - **Consider the review** - Will the diff be reviewable? If touching 20 files, probably too big
 - **Don't assume not implemented** - Before creating a task, search the codebase. The functionality may already exist
