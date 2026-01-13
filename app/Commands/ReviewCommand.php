@@ -4,94 +4,290 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Contracts\ReviewServiceInterface;
-use App\Enums\TaskStatus;
-use App\Models\Run;
+use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
-use App\Services\ConfigService;
-use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
+use RuntimeException;
+use Symfony\Component\Process\Process;
 
 class ReviewCommand extends Command
 {
-    protected $signature = 'review 
-        {taskId : The task ID to review}
-        {--cwd= : Working directory (defaults to current directory)}';
+    use HandlesJsonOutput;
 
-    protected $description = 'Trigger a review of a completed task';
+    protected $signature = 'review
+        {id : The task/epic/review ID (supports partial matching)}
+        {--diff : Show full diff instead of just stats}
+        {--cwd= : Working directory (defaults to current directory)}
+        {--json : Output as JSON}
+        {--raw : Show raw stdout output instead of truncated (for review IDs)}
+        {--no-prompt : Skip the reviewed prompt (for epic IDs)}';
 
-    public function handle(
-        ReviewServiceInterface $reviewService,
-        TaskService $taskService,
-        RunService $runService,
-        ConfigService $configService
-    ): int {
-        $taskId = $this->argument('taskId');
+    protected $description = 'Show review information for a task, epic, or review (routes based on ID)';
 
-        // Resolve partial ID
-        $task = $taskService->find($taskId);
-        if (! $task instanceof Task) {
-            $this->error('Task not found: '.$taskId);
+    public function handle(TaskService $taskService): int
+    {
+        $id = $this->argument('id');
 
-            return self::FAILURE;
+        // Route to appropriate command based on ID prefix
+        if (str_starts_with($id, 'e-')) {
+            // Epic review - shows all tasks with diffs
+            return $this->call('epic:review', [
+                'epicId' => $id,
+                '--diff' => $this->option('diff'),
+                '--no-prompt' => $this->option('no-prompt'),
+                '--cwd' => $this->option('cwd'),
+                '--json' => $this->option('json'),
+            ]);
         }
 
-        // Check task is in reviewable state (in_progress, review, or done)
-        if ($task->status === TaskStatus::Open) {
-            $this->error('Cannot review a task that has not been started');
-
-            return self::FAILURE;
+        if (str_starts_with($id, 'r-') || str_starts_with($id, 'review-')) {
+            // Review details
+            return $this->call('review:show', [
+                'id' => $id,
+                '--cwd' => $this->option('cwd'),
+                '--json' => $this->option('json'),
+                '--raw' => $this->option('raw'),
+            ]);
         }
 
-        $this->info(sprintf('Triggering review for %s...', $task->short_id));
+        // Default to task review
+        try {
+            $task = $taskService->find($id);
 
-        // Get the agent that worked on it (from runs table or default)
-        $agent = $this->determineReviewAgent($task->short_id, $runService, $configService);
+            if (! $task instanceof Task) {
+                return $this->outputError(sprintf("Task '%s' not found", $id));
+            }
 
-        $reviewTriggered = $reviewService->triggerReview($task->short_id, $agent);
+            // Get git information if task has a commit
+            $gitStats = null;
+            $gitDiff = null;
+            $commitMessage = null;
+            $commitSubject = null;
 
-        if (! $reviewTriggered) {
-            $this->warn('No review agent configured. Set "review" or "primary" in .fuel/config.yaml');
+            if (isset($task->commit_hash) && is_string($task->commit_hash) && $task->commit_hash !== '') {
+                // Get commit subject (first line)
+                $commitSubject = $this->getCommitSubject($task->commit_hash);
 
-            return self::FAILURE;
+                // Get full commit message
+                $commitMessage = $this->getCommitMessage($task->commit_hash);
+
+                // Get diff stats
+                $gitStats = $this->getGitStats($task->commit_hash);
+
+                // Get full diff if requested
+                if ($this->option('diff')) {
+                    $gitDiff = $this->getGitDiff($task->commit_hash);
+                }
+            }
+
+            // JSON output
+            if ($this->option('json')) {
+                $output = [
+                    'task' => $task->toArray(),
+                    'commit_hash' => $task->commit_hash ?? null,
+                    'commit_subject' => $commitSubject,
+                    'commit_message' => $commitMessage,
+                    'git_stats' => $gitStats,
+                ];
+
+                if ($this->option('diff')) {
+                    $output['git_diff'] = $gitDiff;
+                }
+
+                $this->outputJson($output);
+
+                return self::SUCCESS;
+            }
+
+            // Text output
+            $this->displayTaskReview($task, $commitSubject, $commitMessage, $gitStats, $gitDiff);
+
+            return self::SUCCESS;
+        } catch (RuntimeException $e) {
+            return $this->outputError($e->getMessage());
+        } catch (\Exception $e) {
+            return $this->outputError('Failed to review task: '.$e->getMessage());
         }
-
-        $this->info('Review spawned. Check `fuel consume --once` for status.');
-
-        return self::SUCCESS;
     }
 
     /**
-     * Determine the review agent for a task.
-     *
-     * Priority:
-     * 1. Agent from latest run (if exists)
-     * 2. Config review agent (if configured)
-     * 3. Primary agent (fallback)
-     *
-     * @param  string  $taskId  The task ID
-     * @param  RunService  $runService  The run service
-     * @param  ConfigService  $configService  The config service
-     * @return string The agent name to use for review
+     * Display the task review in text format.
      */
-    private function determineReviewAgent(
-        string $taskId,
-        RunService $runService,
-        ConfigService $configService
-    ): string {
-        // Try to get agent from latest run
-        $latestRun = $runService->getLatestRun($taskId);
-        if ($latestRun instanceof Run && isset($latestRun->agent) && $latestRun->agent !== null) {
-            return $latestRun->agent;
+    private function displayTaskReview(
+        Task $task,
+        ?string $commitSubject,
+        ?string $commitMessage,
+        ?string $gitStats,
+        ?string $gitDiff
+    ): void {
+        // Task header
+        $this->newLine();
+        $this->info('═══════════════════════════════════════════════════════════════');
+        $this->info(sprintf('Task Review: %s', $task->short_id));
+        $this->info('═══════════════════════════════════════════════════════════════');
+        $this->newLine();
+
+        // Task details
+        $this->line(sprintf('<fg=cyan>Title:</> %s', $task->title ?? 'Untitled'));
+        $this->line(sprintf('<fg=cyan>Status:</> %s', $task->status->value));
+
+        if (isset($task->description) && $task->description !== null) {
+            $this->newLine();
+            $this->line('<fg=cyan>Description:</>');
+            // Handle multiline descriptions
+            $descriptionLines = explode("\n", $task->description);
+            foreach ($descriptionLines as $line) {
+                $this->line('  '.$line);
+            }
         }
 
-        // Fallback to config review agent or primary agent
-        $reviewAgent = $configService->getReviewAgent();
-        if ($reviewAgent !== null) {
-            return $reviewAgent;
+        if (isset($task->type)) {
+            $this->line(sprintf('<fg=cyan>Type:</> %s', $task->type));
         }
 
-        return $configService->getPrimaryAgent();
+        if (isset($task->priority)) {
+            $this->line(sprintf('<fg=cyan>Priority:</> %s', $task->priority));
+        }
+
+        // Git information
+        if ($task->commit_hash !== null) {
+            $this->newLine();
+            $this->line('<fg=cyan>Commit Information</>');
+            $this->newLine();
+
+            if ($commitSubject !== null) {
+                $this->line(sprintf('  <fg=green>%s</>', $commitSubject));
+            } else {
+                $this->line(sprintf('  <fg=green>%s</>', $task->commit_hash));
+            }
+
+            if ($commitMessage !== null && $commitMessage !== $commitSubject) {
+                $this->newLine();
+                $this->line('<fg=cyan>Commit Message:</>');
+                $this->newLine();
+                // Indent all lines of commit message
+                $messageLines = explode("\n", $commitMessage);
+                foreach ($messageLines as $line) {
+                    $this->line('  '.$line);
+                }
+            }
+
+            // Git stats
+            if ($gitStats !== null) {
+                $this->newLine();
+                $this->line('<fg=cyan>Diff Stats:</>');
+                $this->newLine();
+                // Indent all lines of git stats output
+                $statsLines = explode("\n", $gitStats);
+                foreach ($statsLines as $line) {
+                    $this->line('  '.trim($line));
+                }
+            }
+
+            // Full diff if requested
+            if ($gitDiff !== null) {
+                $this->newLine();
+                $this->line('<fg=cyan>Full Diff:</>');
+                $this->newLine();
+                $this->getOutput()->writeln($gitDiff, \Symfony\Component\Console\Output\OutputInterface::OUTPUT_RAW);
+            }
+        } else {
+            $this->newLine();
+            $this->line('<fg=yellow>No commit associated with this task.</>');
+        }
+
+        $this->newLine();
+    }
+
+    /**
+     * Get git diff stats for a single commit.
+     */
+    private function getGitStats(string $commit): ?string
+    {
+        try {
+            $process = new Process(['git', 'show', '--stat', $commit]);
+            $process->run();
+
+            if ($process->isSuccessful()) {
+                $output = trim($process->getOutput());
+                // Remove the commit message part, just keep the stats
+                $lines = explode("\n", $output);
+                $statsStarted = false;
+                $statsLines = [];
+
+                foreach ($lines as $line) {
+                    // Stats typically start after an empty line following the commit message
+                    if ($statsStarted && (str_contains($line, '|') || str_contains($line, 'changed'))) {
+                        $statsLines[] = $line;
+                    } elseif (trim($line) === '' && ! $statsStarted && count($lines) > 5) {
+                        $statsStarted = true;
+                    }
+                }
+
+                return implode("\n", $statsLines) ?: $output;
+            }
+
+            return null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Get full git diff for a single commit.
+     */
+    private function getGitDiff(string $commit): ?string
+    {
+        try {
+            $process = new Process(['git', 'show', '--color=always', $commit]);
+            $process->run();
+
+            if ($process->isSuccessful()) {
+                return trim($process->getOutput());
+            }
+
+            return null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Get commit message for a single commit.
+     */
+    private function getCommitMessage(string $commit): ?string
+    {
+        try {
+            $process = new Process(['git', 'log', '-1', '--pretty=format:%B', $commit]);
+            $process->run();
+
+            if ($process->isSuccessful()) {
+                return trim($process->getOutput());
+            }
+
+            return null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Get commit subject line (first line) for a single commit.
+     */
+    private function getCommitSubject(string $commit): ?string
+    {
+        try {
+            $process = new Process(['git', 'log', '-1', '--pretty=format:%h %s', $commit]);
+            $process->run();
+
+            if ($process->isSuccessful()) {
+                return trim($process->getOutput());
+            }
+
+            return null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

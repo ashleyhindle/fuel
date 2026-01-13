@@ -2,14 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Contracts\ReviewServiceInterface;
-use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
-use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
-use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
@@ -19,12 +15,6 @@ beforeEach(function (): void {
     $context = new FuelContext($this->tempDir.'/.fuel');
     $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
 
-    $this->configPath = $context->getConfigPath();
-    $this->runsPath = $context->getRunsPath();
-
-    // Create runs directory
-    mkdir($this->runsPath, 0755, true);
-
     // Bind test services
     $context->configureDatabase();
     $databaseService = new DatabaseService($context->getDatabasePath());
@@ -33,262 +23,184 @@ beforeEach(function (): void {
 
     $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
 
-    $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
-    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
-
-    // Create a mock ReviewServiceInterface
-    $this->mockReviewService = \Mockery::mock(ReviewServiceInterface::class);
-    $this->app->instance(ReviewServiceInterface::class, $this->mockReviewService);
-
     $this->taskService = $this->app->make(TaskService::class);
-    $this->runService = $this->app->make(RunService::class);
-    $this->configService = $this->app->make(ConfigService::class);
-
-    // Initialize storage
-
-    // Create minimal config (driver-based format)
-    $config = [
-        'agents' => [
-            'test-agent' => ['driver' => 'claude'],
-        ],
-        'complexity' => [
-            'trivial' => 'test-agent',
-        ],
-        'primary' => 'test-agent',
-    ];
-    file_put_contents($this->configPath, Yaml::dump($config));
 });
 
 afterEach(function (): void {
     // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir): void {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $items = scandir($dir);
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-
-            if ($item === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $deleteDir($path);
-            } else {
-                unlink($path);
-            }
-        }
-
-        rmdir($dir);
-    };
-
-    $deleteDir($this->tempDir);
-    \Mockery::close();
+    if (is_dir($this->tempDir)) {
+        exec('rm -rf '.escapeshellarg($this->tempDir));
+    }
 });
 
-it('triggers review for valid task', function (): void {
-    // Create a task and set it to in_progress
+test('routes to epic:review for epic IDs', function (): void {
+    // The epic:review command will fail since epic doesn't exist,
+    // but we're testing that routing works correctly
+    $exitCode = Artisan::call('review', ['id' => 'e-12345']);
+    $output = Artisan::output();
+
+    expect($exitCode)->toBe(1);
+    expect($output)->toContain("Epic 'e-12345' not found");
+});
+
+test('routes to review:show for review IDs', function (): void {
+    // The review:show command will fail since review doesn't exist,
+    // but we're testing that routing works correctly
+    $exitCode = Artisan::call('review', ['id' => 'r-12345']);
+    $output = Artisan::output();
+
+    expect($exitCode)->toBe(1);
+    expect($output)->toContain("Review 'r-12345' not found");
+});
+
+test('shows task review for task IDs', function (): void {
+    // Create a test task
     $task = $this->taskService->create([
-        'title' => 'Test task',
-    ]);
-    $this->taskService->update($task->short_id, ['status' => 'in_progress']);
-
-    // Log a run with an agent
-    $this->runService->logRun($task->short_id, [
-        'agent' => 'test-agent',
-        'started_at' => now()->toIso8601String(),
+        'title' => 'Test task for review',
+        'description' => 'Test description',
+        'type' => 'task',
+        'priority' => 1,
     ]);
 
-    // Expect triggerReview to be called
-    $this->mockReviewService
-        ->shouldReceive('triggerReview')
-        ->once()
-        ->with($task->short_id, 'test-agent')
-        ->andReturn(true);
-
-    $exitCode = Artisan::call('review', ['taskId' => $task->short_id]);
+    // Review the task
+    $exitCode = Artisan::call('review', ['id' => $task->short_id]);
     $output = Artisan::output();
 
     expect($exitCode)->toBe(0);
-    expect($output)->toContain(sprintf('Triggering review for %s...', $task->short_id));
-    expect($output)->toContain('Review spawned. Check `fuel consume --once` for status.');
+    expect($output)->toContain('Task Review: '.$task->short_id);
+    expect($output)->toContain('Test task for review');
+    expect($output)->toContain('No commit associated with this task');
 });
 
-it('shows error for non-existent task', function (): void {
-    $exitCode = Artisan::call('review', ['taskId' => 'f-nonexistent']);
+test('shows git diff when task has commit', function (): void {
+    // Create a test task with a commit hash
+    $task = $this->taskService->create([
+        'title' => 'Test task with commit',
+        'description' => 'Has a commit',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // Check if we're in a git repo
+    $gitProcess = new \Symfony\Component\Process\Process(['git', 'rev-parse', 'HEAD']);
+    $gitProcess->run();
+
+    if ($gitProcess->isSuccessful()) {
+        $commitHash = trim($gitProcess->getOutput());
+        $this->taskService->update($task->short_id, ['commit_hash' => $commitHash]);
+
+        // Review the task
+        $exitCode = Artisan::call('review', ['id' => $task->short_id]);
+        $output = Artisan::output();
+
+        expect($exitCode)->toBe(0);
+        expect($output)->toContain('Task Review: '.$task->short_id);
+        expect($output)->toContain('Test task with commit');
+        expect($output)->toContain('Commit Information');
+        expect($output)->toContain('Diff Stats:');
+    } else {
+        // Skip test if not in a git repo
+        $this->markTestSkipped('Not in a git repository');
+    }
+});
+
+test('shows full diff with --diff option', function (): void {
+    // Create a test task with a commit hash
+    $task = $this->taskService->create([
+        'title' => 'Test task for diff',
+        'description' => 'Testing diff output',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // Check if we're in a git repo
+    $gitProcess = new \Symfony\Component\Process\Process(['git', 'rev-parse', 'HEAD']);
+    $gitProcess->run();
+
+    if ($gitProcess->isSuccessful()) {
+        $commitHash = trim($gitProcess->getOutput());
+        $this->taskService->update($task->short_id, ['commit_hash' => $commitHash]);
+
+        // Review the task with --diff option
+        $exitCode = Artisan::call('review', ['id' => $task->short_id, '--diff' => true]);
+        $output = Artisan::output();
+
+        expect($exitCode)->toBe(0);
+        expect($output)->toContain('Task Review: '.$task->short_id);
+        expect($output)->toContain('Full Diff:');
+        expect($output)->toContain('commit'); // Should show commit hash in diff
+    } else {
+        // Skip test if not in a git repo
+        $this->markTestSkipped('Not in a git repository');
+    }
+});
+
+test('outputs JSON with --json option', function (): void {
+    // Create a test task
+    $task = $this->taskService->create([
+        'title' => 'JSON test task',
+        'description' => 'Testing JSON output',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // Review the task with --json option
+    Artisan::call('review', ['id' => $task->short_id, '--json' => true]);
+    $output = Artisan::output();
+
+    $json = json_decode($output, true);
+    expect($json)->toBeArray()
+        ->toHaveKey('task')
+        ->toHaveKey('commit_hash')
+        ->toHaveKey('git_stats');
+
+    expect($json['task']['short_id'])->toBe($task->short_id);
+    expect($json['task']['title'])->toBe('JSON test task');
+});
+
+test('handles partial ID matching', function (): void {
+    // Create a test task
+    $task = $this->taskService->create([
+        'title' => 'Partial ID test',
+        'description' => 'Testing partial matching',
+        'type' => 'task',
+        'priority' => 1,
+    ]);
+
+    // Get partial ID (first 5 chars)
+    $partialId = substr($task->short_id, 0, 5); // f-xxx
+
+    // Review with partial ID
+    $exitCode = Artisan::call('review', ['id' => $partialId]);
+    $output = Artisan::output();
+
+    expect($exitCode)->toBe(0);
+    expect($output)->toContain('Task Review: '.$task->short_id);
+    expect($output)->toContain('Partial ID test');
+});
+
+test('shows error for non-existent task', function (): void {
+    $exitCode = Artisan::call('review', ['id' => 'f-nonexistent']);
     $output = Artisan::output();
 
     expect($exitCode)->toBe(1);
-    expect($output)->toContain('Task not found: f-nonexistent');
+    expect($output)->toContain("Task 'f-nonexistent' not found");
 });
 
-it('shows error for open task', function (): void {
-    // Create a task that hasn't been started (default status is 'open')
+test('handles multiline descriptions properly', function (): void {
+    // Create a task with multiline description
     $task = $this->taskService->create([
-        'title' => 'Test task',
+        'title' => 'Task with multiline',
+        'description' => "First line\nSecond line\nThird line",
+        'type' => 'task',
+        'priority' => 1,
     ]);
 
-    $exitCode = Artisan::call('review', ['taskId' => $task->short_id]);
+    $exitCode = Artisan::call('review', ['id' => $task->short_id]);
     $output = Artisan::output();
 
-    expect($exitCode)->toBe(1);
-    expect($output)->toContain('Cannot review a task that has not been started');
-});
-
-it('uses agent from latest run when available', function (): void {
-    // Create a task and set it to in_progress
-    $task = $this->taskService->create([
-        'title' => 'Test task',
-    ]);
-    $this->taskService->update($task->short_id, ['status' => 'in_progress']);
-
-    // Log multiple runs with different agents
-    $this->runService->logRun($task->short_id, [
-        'agent' => 'first-agent',
-        'started_at' => now()->toIso8601String(),
-    ]);
-
-    $this->runService->logRun($task->short_id, [
-        'agent' => 'latest-agent',
-        'started_at' => now()->toIso8601String(),
-    ]);
-
-    // Expect triggerReview to be called with latest agent
-    $this->mockReviewService
-        ->shouldReceive('triggerReview')
-        ->once()
-        ->with($task->short_id, 'latest-agent')
-        ->andReturn(true);
-
-    Artisan::call('review', ['taskId' => $task->short_id]);
-});
-
-it('uses config review agent when no run exists', function (): void {
-    // Update config with review agent (driver-based format)
-    $config = [
-        'agents' => [
-            'test-agent' => ['driver' => 'claude'],
-            'review-agent' => ['driver' => 'claude'],
-        ],
-        'complexity' => [
-            'trivial' => 'test-agent',
-        ],
-        'primary' => 'test-agent',
-        'review' => 'review-agent',
-    ];
-    file_put_contents($this->configPath, Yaml::dump($config));
-
-    // Reload config service (create new instance to clear cache)
-    $context = $this->app->make(FuelContext::class);
-    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
-    $this->configService = $this->app->make(ConfigService::class);
-
-    // Create a task without runs and set status to done
-    $task = $this->taskService->create([
-        'title' => 'Test task',
-    ]);
-    $this->taskService->update($task->short_id, ['status' => 'done']);
-
-    // Expect triggerReview to be called with review agent from config
-    $this->mockReviewService
-        ->shouldReceive('triggerReview')
-        ->once()
-        ->with($task->short_id, 'review-agent')
-        ->andReturn(true);
-
-    Artisan::call('review', ['taskId' => $task->short_id]);
-});
-
-it('uses primary agent as fallback when no run and no review agent configured', function (): void {
-    // Create a task without runs and set status to done
-    $task = $this->taskService->create([
-        'title' => 'Test task',
-    ]);
-    $this->taskService->update($task->short_id, ['status' => 'done']);
-
-    // Expect triggerReview to be called with primary agent
-    $this->mockReviewService
-        ->shouldReceive('triggerReview')
-        ->once()
-        ->with($task->short_id, 'test-agent')
-        ->andReturn(true);
-
-    Artisan::call('review', ['taskId' => $task->short_id]);
-});
-
-it('supports partial task ID matching', function (): void {
-    // Create a task and set it to in_progress
-    $task = $this->taskService->create([
-        'title' => 'Test task',
-    ]);
-    $this->taskService->update($task->short_id, ['status' => 'in_progress']);
-
-    // Extract partial ID (last 6 characters)
-    $partialId = substr((string) $task->short_id, -6);
-
-    $this->runService->logRun($task->short_id, [
-        'agent' => 'test-agent',
-        'started_at' => now()->toIso8601String(),
-    ]);
-
-    // Expect triggerReview to be called with full task ID
-    $this->mockReviewService
-        ->shouldReceive('triggerReview')
-        ->once()
-        ->with($task->short_id, 'test-agent');
-
-    Artisan::call('review', ['taskId' => $partialId]);
-    $output = Artisan::output();
-
-    expect($output)->toContain(sprintf('Triggering review for %s...', $task->short_id));
-});
-
-it('allows reviewing done tasks', function (): void {
-    // Create a task and set status to done
-    $task = $this->taskService->create([
-        'title' => 'Test task',
-    ]);
-    $this->taskService->update($task->short_id, ['status' => 'done']);
-
-    $this->runService->logRun($task->short_id, [
-        'agent' => 'test-agent',
-        'started_at' => now()->toIso8601String(),
-    ]);
-
-    // Expect triggerReview to be called
-    $this->mockReviewService
-        ->shouldReceive('triggerReview')
-        ->once()
-        ->with($task->short_id, 'test-agent')
-        ->andReturn(true);
-
-    Artisan::call('review', ['taskId' => $task->short_id]);
-});
-
-it('allows reviewing tasks in review status', function (): void {
-    // Create a task and set status to review
-    $task = $this->taskService->create([
-        'title' => 'Test task',
-    ]);
-    $this->taskService->update($task->short_id, ['status' => 'review']);
-
-    $this->runService->logRun($task->short_id, [
-        'agent' => 'test-agent',
-        'started_at' => now()->toIso8601String(),
-    ]);
-
-    // Expect triggerReview to be called
-    $this->mockReviewService
-        ->shouldReceive('triggerReview')
-        ->once()
-        ->with($task->short_id, 'test-agent')
-        ->andReturn(true);
-
-    Artisan::call('review', ['taskId' => $task->short_id]);
+    expect($exitCode)->toBe(0);
+    expect($output)->toContain('First line');
+    expect($output)->toContain('Second line');
+    expect($output)->toContain('Third line');
 });
