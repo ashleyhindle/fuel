@@ -1186,21 +1186,26 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Status line (centered, above footer)
-        if ($paused) {
-            $statusLine = '<fg=yellow>PAUSED</>';
+        // Render command palette if active (overlays status line area)
+        if ($this->commandPaletteActive && ! $this->showBlockedModal && ! $this->showDoneModal) {
+            $this->captureCommandPalette();
         } else {
-            $spinner = self::SPINNER_CHARS[$this->spinnerFrame % count(self::SPINNER_CHARS)];
-            $this->spinnerFrame++;
-            $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
+            // Status line (centered, above footer)
+            if ($paused) {
+                $statusLine = '<fg=yellow>PAUSED</>';
+            } else {
+                $spinner = self::SPINNER_CHARS[$this->spinnerFrame % count(self::SPINNER_CHARS)];
+                $this->spinnerFrame++;
+                $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
+            }
+
+            $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
+            $this->screenBuffer->setLine($this->terminalHeight - 1, str_repeat(' ', $statusPadding).$statusLine);
+
+            // Footer line (centered, at bottom)
+            $paddingAmount = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($footerLine)) / 2));
+            $this->screenBuffer->setLine($this->terminalHeight, str_repeat(' ', $paddingAmount).$footerLine.str_repeat(' ', $paddingAmount));
         }
-
-        $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
-        $this->screenBuffer->setLine($this->terminalHeight - 1, str_repeat(' ', $statusPadding).$statusLine);
-
-        // Footer line (centered, at bottom)
-        $paddingAmount = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($footerLine)) / 2));
-        $this->screenBuffer->setLine($this->terminalHeight, str_repeat(' ', $paddingAmount).$footerLine.str_repeat(' ', $paddingAmount));
 
         // Render modals on top if active
         if ($this->showBlockedModal) {
