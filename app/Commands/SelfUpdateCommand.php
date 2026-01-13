@@ -45,61 +45,65 @@ class SelfUpdateCommand extends Command
             return self::FAILURE;
         }
 
-        // Skip download if already on latest version
-        $currentVersion = config('app.version');
-        if ($currentVersion === $version) {
-            $this->info(sprintf('Already on latest version (%s)', $version));
-
-            return self::SUCCESS;
-        }
-
         // Determine target path
         $homeDir = $this->getHomeDirectory();
         $targetDir = $homeDir.'/.fuel';
         $targetPath = $targetDir.'/fuel';
 
-        // Create target directory if it doesn't exist
-        if (! is_dir($targetDir) && ! mkdir($targetDir, 0755, true)) {
-            $this->error('Failed to create directory: '.$targetDir);
+        // Check if already on latest version
+        $currentVersion = config('app.version');
+        $alreadyLatest = $currentVersion === $version;
 
-            return self::FAILURE;
+        if ($alreadyLatest) {
+            $this->info(sprintf('Already on latest version (%s)', $version));
         }
 
-        // Download binary
-        $binaryUrl = $this->getBinaryUrl($os, $arch, $version);
-        $this->info('Downloading from: '.$binaryUrl);
+        // Download and install new binary if not already on latest
+        if (! $alreadyLatest) {
+            // Create target directory if it doesn't exist
+            if (! is_dir($targetDir) && ! mkdir($targetDir, 0755, true)) {
+                $this->error('Failed to create directory: '.$targetDir);
 
-        $tempPath = $targetPath.'.tmp';
-        try {
-            $this->downloadBinary($binaryUrl, $tempPath);
-        } catch (RuntimeException $runtimeException) {
-            $this->error('Download failed: '.$runtimeException->getMessage());
+                return self::FAILURE;
+            }
 
-            return self::FAILURE;
+            // Download binary
+            $binaryUrl = $this->getBinaryUrl($os, $arch, $version);
+            $this->info('Downloading from: '.$binaryUrl);
+
+            $tempPath = $targetPath.'.tmp';
+            try {
+                $this->downloadBinary($binaryUrl, $tempPath);
+            } catch (RuntimeException $runtimeException) {
+                $this->error('Download failed: '.$runtimeException->getMessage());
+
+                return self::FAILURE;
+            }
+
+            // Make executable
+            if (! chmod($tempPath, 0755)) {
+                @unlink($tempPath);
+                $this->error('Failed to set executable permissions on downloaded binary');
+
+                return self::FAILURE;
+            }
+
+            // Atomic replace
+            if (! rename($tempPath, $targetPath)) {
+                @unlink($tempPath);
+                $this->error('Failed to replace binary at: '.$targetPath);
+
+                return self::FAILURE;
+            }
+
+            $this->info('Updated to '.$version);
         }
 
-        // Make executable
-        if (! chmod($tempPath, 0755)) {
-            @unlink($tempPath);
-            $this->error('Failed to set executable permissions on downloaded binary');
-
-            return self::FAILURE;
-        }
-
-        // Atomic replace
-        if (! rename($tempPath, $targetPath)) {
-            @unlink($tempPath);
-            $this->error('Failed to replace binary at: '.$targetPath);
-
-            return self::FAILURE;
-        }
-
-        $this->info('Updated to '.$version);
-
+        // Always run init to update guidelines and skills in current project
         $projectPath = app(FuelContext::class)->getProjectPath();
         if ($this->shouldRunInit($projectPath)) {
             $this->info('Updating project with latest guidelines and skills...');
-            $this->runInit($targetPath);
+            $this->runInit($alreadyLatest ? 'fuel' : $targetPath);
         } else {
             $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');
         }
