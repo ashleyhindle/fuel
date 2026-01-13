@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 
 class ReadyCommand extends Command
@@ -35,16 +36,51 @@ class ReadyCommand extends Command
             $this->info(sprintf('Open tasks (%d):', $tasks->count()));
             $this->newLine();
 
-            $this->table(
+            $table = new Table;
+            $table->render(
                 ['ID', 'Title', 'Created'],
                 $tasks->map(fn (Task $t): array => [
                     $t->short_id,
                     $t->title,
-                    (string) $t->created_at,
-                ])->toArray()
+                    $this->formatDate((string) $t->created_at),
+                ])->toArray(),
+                $this->output
             );
         }
 
         return self::SUCCESS;
+    }
+
+    private function formatDate(string $dateString): string
+    {
+        try {
+            $date = new \DateTime($dateString);
+            $now = new \DateTime;
+            $diff = $now->diff($date);
+
+            if ($diff->days === 0 && $diff->h === 0 && $diff->i === 0) {
+                return 'just now';
+            }
+
+            if ($diff->days === 0 && $diff->h === 0) {
+                return $diff->i.'m ago';
+            }
+
+            if ($diff->days === 0) {
+                return $diff->h.'h ago';
+            }
+
+            if ($diff->days < 7) {
+                return $diff->days.'d ago';
+            }
+
+            if ($date->format('Y') === $now->format('Y')) {
+                return $date->format('M j');
+            }
+
+            return $date->format('M j, Y');
+        } catch (\Exception) {
+            return $dateString;
+        }
     }
 }
