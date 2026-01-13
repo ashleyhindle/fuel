@@ -139,6 +139,21 @@ class ConsumeCommand extends Command
     /** Last click position [row, col] for double-click detection */
     private ?array $lastClickPos = null;
 
+    /** Whether command palette is active */
+    private bool $commandPaletteActive = false;
+
+    /** Current command palette input text (without leading /) */
+    private string $commandPaletteInput = '';
+
+    /** Cursor position within command palette input (0-indexed) */
+    private int $commandPaletteCursor = 0;
+
+    /** Currently selected suggestion index (-1 = none) */
+    private int $commandPaletteSuggestionIndex = -1;
+
+    /** Cached suggestion list */
+    private array $commandPaletteSuggestions = [];
+
     /** Double-click threshold in milliseconds */
     private const DOUBLE_CLICK_THRESHOLD_MS = 500;
 
