@@ -185,12 +185,10 @@ it('runs a basic command flow', function (): void {
     expect($shown['short_id'] ?? null)->toBe($taskId);
 
     // Test consume --once for kanban board view
-    $exitCode = Artisan::call('consume', [
+    $consumeOutput = runCommand('consume', [
         '--once' => true,
     ]);
-    $consumeOutput = Artisan::output();
 
-    expect($exitCode)->toBe(0);
     expect($consumeOutput)->toContain('Ready');
     expect($consumeOutput)->toContain('In Progress');
 
