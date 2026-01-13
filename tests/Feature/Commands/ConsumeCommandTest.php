@@ -1064,3 +1064,72 @@ describe('consume command review integration', function (): void {
     });
 
 });
+
+describe('consume command task card display', function (): void {
+    it('shows epic id on task card footer when task has epic', function (): void {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['driver' => 'claude', 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create epic and link task to it
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic('Test Epic', 'Epic description');
+        $task = $this->taskService->create([
+            'title' => 'Task with epic',
+            'complexity' => 'trivial',
+            'epic_id' => $epic->short_id,
+        ]);
+
+        // Run consume --once and capture output
+        $output = runCommand('consume', [
+            '--once' => true,
+        ]);
+
+        // Verify epic ID appears in the task card footer
+        // Footer format: ╰───────────── t · e-xxxxxx ─╯
+        expect($output)->toContain($epic->short_id);
+        expect($output)->toContain('Task with epic');
+    });
+
+    it('shows epic id on in-progress task card footer when task has epic', function (): void {
+        // Create config
+        $config = [
+            'agents' => [
+                'echo' => ['driver' => 'claude', 'max_concurrent' => 1],
+            ],
+            'complexity' => [
+                'trivial' => 'echo',
+            ],
+            'primary' => 'echo',
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        // Create epic and link task to it, then start the task
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic('In Progress Epic', 'Epic description');
+        $task = $this->taskService->create([
+            'title' => 'In progress task with epic',
+            'complexity' => 'trivial',
+            'epic_id' => $epic->short_id,
+        ]);
+        $this->taskService->start($task->short_id);
+
+        // Run consume --once and capture output
+        $output = runCommand('consume', [
+            '--once' => true,
+        ]);
+
+        // Verify epic ID appears in the in-progress task card footer
+        expect($output)->toContain($epic->short_id);
+        expect($output)->toContain('In progress task with epic');
+    });
+
+});
