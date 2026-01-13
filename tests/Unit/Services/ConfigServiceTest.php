@@ -1,5 +1,6 @@
 <?php
 
+use App\Agents\AgentDriverRegistry;
 use App\Services\ConfigService;
 use App\Services\FuelContext;
 use Symfony\Component\Yaml\Yaml;
@@ -30,13 +31,13 @@ afterEach(function (): void {
 });
 
 /**
- * Helper to create a minimal valid config with defaults.
+ * Helper to create a minimal valid config with driver-based format.
  */
 function makeConfig(array $agents = [], array $complexity = [], ?string $primary = null): array
 {
     return [
         'agents' => array_merge([
-            'claude' => ['command' => 'claude'],
+            'claude' => ['driver' => 'claude'],
         ], $agents),
         'complexity' => array_merge([
             'simple' => 'claude',
@@ -73,12 +74,15 @@ it('builds command array with prompt', function (): void {
 
     $command = $this->configService->getAgentCommand('simple', 'test prompt');
 
-    expect($command)->toBe(['claude', '-p', 'test prompt']);
+    // Claude driver: command=claude, prompt_args=[-p], default_args=[--dangerously-skip-permissions, --output-format, stream-json, --verbose]
+    expect($command[0])->toBe('claude');
+    expect($command[1])->toBe('-p');
+    expect($command[2])->toBe('test prompt');
 });
 
 it('builds command array with prompt and model', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude', 'model' => 'sonnet-4.5']],
+        agents: ['claude' => ['driver' => 'claude', 'model' => 'sonnet-4.5']],
         complexity: ['moderate' => 'claude']
     );
 
@@ -86,12 +90,16 @@ it('builds command array with prompt and model', function (): void {
 
     $command = $this->configService->getAgentCommand('moderate', 'test prompt');
 
-    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet-4.5']);
+    expect($command[0])->toBe('claude');
+    expect($command[1])->toBe('-p');
+    expect($command[2])->toBe('test prompt');
+    expect($command[3])->toBe('--model');
+    expect($command[4])->toBe('sonnet-4.5');
 });
 
 it('builds command array with complexity model override', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude', 'model' => 'default-model']],
+        agents: ['claude' => ['driver' => 'claude', 'model' => 'default-model']],
         complexity: ['moderate' => ['agent' => 'claude', 'model' => 'sonnet-4.5']]
     );
 
@@ -100,16 +108,18 @@ it('builds command array with complexity model override', function (): void {
     $command = $this->configService->getAgentCommand('moderate', 'test prompt');
 
     // Complexity override should take precedence over agent default
-    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet-4.5']);
+    expect($command[0])->toBe('claude');
+    expect($command[3])->toBe('--model');
+    expect($command[4])->toBe('sonnet-4.5');
 });
 
-it('builds command array with args from agent definition', function (): void {
+it('builds command array with extra_args from agent definition', function (): void {
     $config = makeConfig(
         agents: [
             'claude' => [
-                'command' => 'claude',
+                'driver' => 'claude',
                 'model' => 'opus-4.5',
-                'args' => ['--dangerously-skip-permissions', '--mcp-server', 'github'],
+                'extra_args' => ['--mcp-server', 'github'],
             ],
         ],
         complexity: ['complex' => 'claude']
@@ -119,25 +129,19 @@ it('builds command array with args from agent definition', function (): void {
 
     $command = $this->configService->getAgentCommand('complex', 'test prompt');
 
-    expect($command)->toBe([
-        'claude',
-        '-p',
-        'test prompt',
-        '--model',
-        'opus-4.5',
-        '--dangerously-skip-permissions',
-        '--mcp-server',
-        'github',
-    ]);
+    expect($command[0])->toBe('claude');
+    expect($command)->toContain('--mcp-server');
+    expect($command)->toContain('github');
+    // Driver defaults should also be included
+    expect($command)->toContain('--dangerously-skip-permissions');
 });
 
 it('builds command array with complexity args override', function (): void {
     $config = makeConfig(
         agents: [
             'claude' => [
-                'command' => 'claude',
+                'driver' => 'claude',
                 'model' => 'opus-4.5',
-                'args' => ['--default-arg'],
             ],
         ],
         complexity: ['complex' => ['agent' => 'claude', 'args' => ['--override-arg', '--another']]]
@@ -147,7 +151,7 @@ it('builds command array with complexity args override', function (): void {
 
     $command = $this->configService->getAgentCommand('complex', 'test prompt');
 
-    // Complexity args override should replace agent default args
+    // Complexity args override should replace merged args
     expect($command)->toBe([
         'claude',
         '-p',
@@ -159,14 +163,13 @@ it('builds command array with complexity args override', function (): void {
     ]);
 });
 
-it('returns agent definition', function (): void {
+it('returns agent definition with driver defaults merged', function (): void {
     $config = makeConfig(
         agents: [
             'claude' => [
-                'command' => 'claude',
+                'driver' => 'claude',
                 'model' => 'sonnet-4.5',
-                'args' => ['--verbose'],
-                'prompt_args' => ['-p'],
+                'extra_args' => ['--custom'],
                 'max_concurrent' => 3,
             ],
         ],
@@ -177,24 +180,23 @@ it('returns agent definition', function (): void {
 
     $agentDef = $this->configService->getAgentDefinition('claude');
 
-    expect($agentDef)->toBe([
-        'command' => 'claude',
-        'prompt_args' => ['-p'],
-        'model' => 'sonnet-4.5',
-        'args' => ['--verbose'],
-        'env' => [],
-        'resume_args' => [],
-        'max_concurrent' => 3,
-        'max_attempts' => 3,
-        'max_retries' => 5,
-    ]);
+    expect($agentDef['command'])->toBe('claude');
+    expect($agentDef['prompt_args'])->toBe(['-p']);
+    expect($agentDef['model'])->toBe('sonnet-4.5');
+    // Args include driver defaults + extra_args
+    expect($agentDef['args'])->toContain('--dangerously-skip-permissions');
+    expect($agentDef['args'])->toContain('--custom');
+    expect($agentDef['env'])->toBe([]);
+    expect($agentDef['max_concurrent'])->toBe(3);
+    expect($agentDef['max_attempts'])->toBe(3);
+    expect($agentDef['max_retries'])->toBe(5);
 });
 
 it('returns agent config for complexity with overrides', function (): void {
     $config = makeConfig(
         agents: [
             'claude' => [
-                'command' => 'claude',
+                'driver' => 'claude',
                 'model' => 'default-model',
             ],
         ],
@@ -211,7 +213,7 @@ it('returns agent config for complexity with overrides', function (): void {
 
 it('returns agent config without model when not specified', function (): void {
     $config = makeConfig(
-        agents: ['cursor-agent' => ['command' => 'cursor-agent']],
+        agents: ['cursor-agent' => ['driver' => 'cursor-agent']],
         complexity: ['simple' => 'cursor-agent']
     );
 
@@ -239,7 +241,7 @@ it('validates config structure requires agents key', function (): void {
 it('validates config structure requires complexity key', function (): void {
     $invalidConfig = [
         'agents' => [
-            'claude' => ['command' => 'claude'],
+            'claude' => ['driver' => 'claude'],
         ],
     ];
 
@@ -269,10 +271,10 @@ it('creates default config file', function (): void {
         'amp-smart',
     ]);
 
-    // Verify agents have command field
-    expect($config['agents']['cursor-composer']['command'])->toBe('cursor-agent');
-    expect($config['agents']['claude-sonnet']['command'])->toBe('claude');
-    expect($config['agents']['claude-opus']['command'])->toBe('claude');
+    // Verify agents have driver field
+    expect($config['agents']['cursor-composer']['driver'])->toBe('cursor-agent');
+    expect($config['agents']['claude-sonnet']['driver'])->toBe('claude');
+    expect($config['agents']['claude-opus']['driver'])->toBe('claude');
 
     // Verify complexity references valid agents
     expect($config['complexity']['trivial'])->toBe('opencode-minimax');
@@ -287,23 +289,22 @@ it('creates default config with proper structure', function (): void {
     // Verify it's valid YAML
     $parsed = Yaml::parseFile($this->configPath);
 
-    // Verify agents have required fields
-    expect($parsed['agents']['cursor-composer'])->toHaveKey('command');
-    expect($parsed['agents']['cursor-composer'])->toHaveKey('prompt_args');
-    expect($parsed['agents']['cursor-composer'])->toHaveKey('args');
+    // Verify agents have required fields (driver-based)
+    expect($parsed['agents']['cursor-composer'])->toHaveKey('driver');
+    expect($parsed['agents']['cursor-composer'])->toHaveKey('model');
     expect($parsed['agents']['cursor-composer'])->toHaveKey('max_concurrent');
 
-    expect($parsed['agents']['claude-sonnet'])->toHaveKey('command');
-    expect($parsed['agents']['claude-sonnet'])->toHaveKey('args');
+    expect($parsed['agents']['claude-sonnet'])->toHaveKey('driver');
+    expect($parsed['agents']['claude-sonnet'])->toHaveKey('model');
 
-    // Verify args contain expected values
-    expect($parsed['agents']['cursor-composer']['args'])->toContain('--force');
-    expect($parsed['agents']['claude-sonnet']['args'])->toContain('--dangerously-skip-permissions');
+    // No explicit command/args in new format
+    expect($parsed['agents']['cursor-composer'])->not->toHaveKey('command');
+    expect($parsed['agents']['cursor-composer'])->not->toHaveKey('args');
 });
 
 it('does not overwrite existing config file', function (): void {
     $customConfig = makeConfig(
-        agents: ['custom-agent' => ['command' => 'custom-cmd']],
+        agents: ['custom-agent' => ['driver' => 'claude']],
         complexity: ['simple' => 'custom-agent']
     );
 
@@ -320,9 +321,9 @@ it('returns config path from context', function (): void {
     expect($this->configService->getConfigPath())->toBe($this->configPath);
 });
 
-it('supports custom agent names', function (): void {
+it('supports custom agent names with drivers', function (): void {
     $config = makeConfig(
-        agents: ['my-custom-agent' => ['command' => 'my-custom-agent']],
+        agents: ['my-custom-agent' => ['driver' => 'claude']],
         complexity: ['simple' => 'my-custom-agent']
     );
 
@@ -330,16 +331,18 @@ it('supports custom agent names', function (): void {
 
     $command = $this->configService->getAgentCommand('simple', 'test prompt');
 
-    expect($command)->toBe(['my-custom-agent', '-p', 'test prompt']);
+    expect($command[0])->toBe('claude');
+    expect($command[1])->toBe('-p');
+    expect($command[2])->toBe('test prompt');
 });
 
-it('supports all valid complexities', function (): void {
+it('supports all valid complexities with driver-based config', function (): void {
     $config = makeConfig(
         agents: [
-            'cursor-agent' => ['command' => 'cursor-agent'],
-            'opencode' => ['command' => 'opencode', 'prompt_args' => ['run']],
-            'claude' => ['command' => 'claude', 'model' => 'sonnet-4.5'],
-            'claude-opus' => ['command' => 'claude', 'model' => 'opus-4.5'],
+            'cursor-agent' => ['driver' => 'cursor-agent'],
+            'opencode' => ['driver' => 'opencode'],
+            'claude' => ['driver' => 'claude', 'model' => 'sonnet-4.5'],
+            'claude-opus' => ['driver' => 'claude', 'model' => 'opus-4.5'],
         ],
         complexity: [
             'trivial' => 'cursor-agent',
@@ -351,10 +354,21 @@ it('supports all valid complexities', function (): void {
 
     file_put_contents($this->configPath, Yaml::dump($config));
 
-    expect($this->configService->getAgentCommand('trivial', 'prompt'))->toBe(['cursor-agent', '-p', 'prompt']);
-    expect($this->configService->getAgentCommand('simple', 'prompt'))->toBe(['opencode', 'run', 'prompt']);
-    expect($this->configService->getAgentCommand('moderate', 'prompt'))->toBe(['claude', '-p', 'prompt', '--model', 'sonnet-4.5']);
-    expect($this->configService->getAgentCommand('complex', 'prompt'))->toBe(['claude', '-p', 'prompt', '--model', 'opus-4.5']);
+    // Verify commands are built correctly from drivers
+    $trivial = $this->configService->getAgentCommand('trivial', 'prompt');
+    expect($trivial[0])->toBe('cursor-agent');
+
+    $simple = $this->configService->getAgentCommand('simple', 'prompt');
+    expect($simple[0])->toBe('opencode');
+    expect($simple)->toContain('run'); // opencode uses 'run' as prompt_arg
+
+    $moderate = $this->configService->getAgentCommand('moderate', 'prompt');
+    expect($moderate[0])->toBe('claude');
+    expect($moderate)->toContain('sonnet-4.5');
+
+    $complex = $this->configService->getAgentCommand('complex', 'prompt');
+    expect($complex[0])->toBe('claude');
+    expect($complex)->toContain('opus-4.5');
 });
 
 it('throws exception when complexity not found in config', function (): void {
@@ -367,14 +381,14 @@ it('throws exception when complexity not found in config', function (): void {
 });
 
 it('throws exception when agent is not defined', function (): void {
-    // Create config without required agents section validation
     $invalidConfig = [
         'agents' => [
-            'claude' => ['command' => 'claude'],
+            'claude' => ['driver' => 'claude'],
         ],
         'complexity' => [
-            'simple' => 'undefined-agent', // references non-existent agent
+            'simple' => 'undefined-agent',
         ],
+        'primary' => 'claude',
     ];
 
     file_put_contents($this->configPath, Yaml::dump($invalidConfig));
@@ -383,25 +397,43 @@ it('throws exception when agent is not defined', function (): void {
         ->toThrow(RuntimeException::class, "references undefined agent 'undefined-agent'");
 });
 
-it('throws exception when agent config is missing command', function (): void {
+it('throws exception when agent config is missing driver', function (): void {
     $invalidConfig = [
         'agents' => [
-            'claude' => [], // Missing 'command' key
+            'claude' => [],
         ],
         'complexity' => [
             'simple' => 'claude',
         ],
+        'primary' => 'claude',
     ];
 
     file_put_contents($this->configPath, Yaml::dump($invalidConfig));
 
     expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
-        ->toThrow(RuntimeException::class, "must have 'command' string");
+        ->toThrow(RuntimeException::class, "must have 'driver' string");
+});
+
+it('throws exception when driver is unknown', function (): void {
+    $invalidConfig = [
+        'agents' => [
+            'claude' => ['driver' => 'unknown-driver'],
+        ],
+        'complexity' => [
+            'simple' => 'claude',
+        ],
+        'primary' => 'claude',
+    ];
+
+    file_put_contents($this->configPath, Yaml::dump($invalidConfig));
+
+    expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
+        ->toThrow(RuntimeException::class, "references unknown driver 'unknown-driver'");
 });
 
 it('caches config after first load', function (): void {
     $config = makeConfig(
-        agents: ['cursor-agent' => ['command' => 'cursor-agent']],
+        agents: ['cursor-agent' => ['driver' => 'cursor-agent']],
         complexity: ['simple' => 'cursor-agent']
     );
 
@@ -409,81 +441,40 @@ it('caches config after first load', function (): void {
 
     // First call loads config
     $command1 = $this->configService->getAgentCommand('simple', 'test prompt');
-    expect($command1)->toBe(['cursor-agent', '-p', 'test prompt']);
+    expect($command1[0])->toBe('cursor-agent');
 
     // Modify file (should not affect cached config)
     $newConfig = makeConfig(
-        agents: ['claude' => ['command' => 'claude']],
+        agents: ['claude' => ['driver' => 'claude']],
         complexity: ['simple' => 'claude']
     );
     file_put_contents($this->configPath, Yaml::dump($newConfig));
 
     // Second call should use cached config (still returns cursor-agent)
     $command2 = $this->configService->getAgentCommand('simple', 'test prompt');
-    expect($command2)->toBe(['cursor-agent', '-p', 'test prompt']);
+    expect($command2[0])->toBe('cursor-agent');
 
     // Create new ConfigService instance to reload config
     $newConfigService = new ConfigService($this->context);
 
     // Now should load new config
     $command3 = $newConfigService->getAgentCommand('simple', 'test prompt');
-    expect($command3)->toBe(['claude', '-p', 'test prompt']);
+    expect($command3[0])->toBe('claude');
 });
 
 it('throws exception when YAML parses to non-array', function (): void {
-    // YAML that parses to a string instead of array
     file_put_contents($this->configPath, 'just a string');
 
     expect(fn () => $this->configService->getAgentCommand('simple', 'test prompt'))
         ->toThrow(RuntimeException::class, 'Invalid config format');
 });
 
-it('tests getAgentCommand output format for all complexities', function (): void {
-    $config = makeConfig(
-        agents: [
-            'cursor-agent' => ['command' => 'cursor-agent'],
-            'claude' => ['command' => 'claude'],
-            'claude-sonnet' => ['command' => 'claude', 'model' => 'sonnet-4.5'],
-            'claude-opus' => ['command' => 'claude', 'model' => 'opus-4.5'],
-        ],
-        complexity: [
-            'trivial' => 'cursor-agent',
-            'simple' => 'cursor-agent',
-            'moderate' => 'claude-sonnet',
-            'complex' => 'claude-opus',
-        ]
-    );
-
-    file_put_contents($this->configPath, Yaml::dump($config));
-
-    // Test output format: array of strings [command, ...prompt_args, prompt, --model?, model?]
-    $trivial = $this->configService->getAgentCommand('trivial', 'do something');
-    expect($trivial)->toBeArray();
-    expect($trivial)->toBe(['cursor-agent', '-p', 'do something']);
-    expect($trivial)->toHaveCount(3);
-
-    $simple = $this->configService->getAgentCommand('simple', 'do something');
-    expect($simple)->toBeArray();
-    expect($simple)->toBe(['cursor-agent', '-p', 'do something']);
-    expect($simple)->toHaveCount(3);
-
-    $moderate = $this->configService->getAgentCommand('moderate', 'do something');
-    expect($moderate)->toBeArray();
-    expect($moderate)->toBe(['claude', '-p', 'do something', '--model', 'sonnet-4.5']);
-    expect($moderate)->toHaveCount(5);
-
-    $complex = $this->configService->getAgentCommand('complex', 'do something');
-    expect($complex)->toBeArray();
-    expect($complex)->toBe(['claude', '-p', 'do something', '--model', 'opus-4.5']);
-    expect($complex)->toHaveCount(5);
-});
-
-it('filters out non-string args', function (): void {
+it('filters out non-string args from extra_args', function (): void {
     $config = makeConfig(
         agents: [
             'claude' => [
-                'command' => 'claude',
-                'args' => ['--valid', 123, '--also-valid', null],
+                'driver' => 'claude',
+                'extra_args' => ['--valid', 123, '--also-valid', null],
             ],
         ],
         complexity: ['complex' => 'claude']
@@ -494,12 +485,14 @@ it('filters out non-string args', function (): void {
     $command = $this->configService->getAgentCommand('complex', 'test');
 
     // Only string args should be included
-    expect($command)->toBe(['claude', '-p', 'test', '--valid', '--also-valid']);
+    expect($command)->toContain('--valid');
+    expect($command)->toContain('--also-valid');
+    expect($command)->not->toContain(123);
 });
 
 it('returns default limit of 2 when agent does not have max_concurrent', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude']],
+        agents: ['claude' => ['driver' => 'claude']],
         complexity: ['simple' => 'claude']
     );
 
@@ -513,8 +506,8 @@ it('returns default limit of 2 when agent does not have max_concurrent', functio
 it('returns configured limit for agent', function (): void {
     $config = makeConfig(
         agents: [
-            'claude' => ['command' => 'claude', 'max_concurrent' => 5],
-            'cursor-agent' => ['command' => 'cursor-agent', 'max_concurrent' => 3],
+            'claude' => ['driver' => 'claude', 'max_concurrent' => 5],
+            'cursor-agent' => ['driver' => 'cursor-agent', 'max_concurrent' => 3],
         ],
         complexity: ['simple' => 'claude']
     );
@@ -528,9 +521,9 @@ it('returns configured limit for agent', function (): void {
 it('returns all agent limits as array', function (): void {
     $config = makeConfig(
         agents: [
-            'claude' => ['command' => 'claude', 'max_concurrent' => 5],
-            'cursor-agent' => ['command' => 'cursor-agent', 'max_concurrent' => 3],
-            'custom-agent' => ['command' => 'custom', 'max_concurrent' => 1],
+            'claude' => ['driver' => 'claude', 'max_concurrent' => 5],
+            'cursor-agent' => ['driver' => 'cursor-agent', 'max_concurrent' => 3],
+            'custom-agent' => ['driver' => 'amp', 'max_concurrent' => 1],
         ],
         complexity: ['simple' => 'claude']
     );
@@ -549,9 +542,9 @@ it('returns all agent limits as array', function (): void {
 it('returns all agent names', function (): void {
     $config = makeConfig(
         agents: [
-            'claude' => ['command' => 'claude'],
-            'cursor-agent' => ['command' => 'cursor-agent'],
-            'opencode' => ['command' => 'opencode'],
+            'claude' => ['driver' => 'claude'],
+            'cursor-agent' => ['driver' => 'cursor-agent'],
+            'opencode' => ['driver' => 'opencode'],
         ],
         complexity: ['simple' => 'claude']
     );
@@ -565,7 +558,7 @@ it('returns all agent names', function (): void {
 
 it('checks if agent is defined', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude']],
+        agents: ['claude' => ['driver' => 'claude']],
         complexity: ['simple' => 'claude']
     );
 
@@ -578,8 +571,8 @@ it('checks if agent is defined', function (): void {
 it('returns agent for complexity', function (): void {
     $config = makeConfig(
         agents: [
-            'cursor-agent' => ['command' => 'cursor-agent'],
-            'claude-sonnet' => ['command' => 'claude', 'model' => 'sonnet'],
+            'cursor-agent' => ['driver' => 'cursor-agent'],
+            'claude-sonnet' => ['driver' => 'claude', 'model' => 'sonnet'],
         ],
         complexity: [
             'simple' => 'cursor-agent',
@@ -595,7 +588,7 @@ it('returns agent for complexity', function (): void {
 
 it('returns agent for complexity with array format', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude']],
+        agents: ['claude' => ['driver' => 'claude']],
         complexity: [
             'moderate' => ['agent' => 'claude', 'model' => 'sonnet'],
         ]
@@ -606,31 +599,12 @@ it('returns agent for complexity with array format', function (): void {
     expect($this->configService->getAgentForComplexity('moderate'))->toBe('claude');
 });
 
-it('supports custom prompt_args', function (): void {
+it('returns agent env with driver defaults merged', function (): void {
     $config = makeConfig(
         agents: [
             'opencode' => [
-                'command' => 'opencode',
-                'prompt_args' => ['run'], // opencode uses positional args
-            ],
-        ],
-        complexity: ['simple' => 'opencode']
-    );
-
-    file_put_contents($this->configPath, Yaml::dump($config));
-
-    $command = $this->configService->getAgentCommand('simple', 'test prompt');
-
-    expect($command)->toBe(['opencode', 'run', 'test prompt']);
-});
-
-it('returns agent env', function (): void {
-    $config = makeConfig(
-        agents: [
-            'opencode' => [
-                'command' => 'opencode',
-                'env' => [
-                    'OPENCODE_PERMISSION' => '{"permission":"allow"}',
+                'driver' => 'opencode',
+                'extra_env' => [
                     'FOO' => 'bar',
                 ],
             ],
@@ -642,13 +616,29 @@ it('returns agent env', function (): void {
 
     $env = $this->configService->getAgentEnv('opencode');
 
+    // Should have driver default + extra_env
     expect($env)->toBe([
         'OPENCODE_PERMISSION' => '{"permission":"allow"}',
         'FOO' => 'bar',
     ]);
 });
 
-it('returns empty env when not configured', function (): void {
+it('returns driver default env when no extra_env configured', function (): void {
+    $config = makeConfig(
+        agents: ['opencode' => ['driver' => 'opencode']],
+        complexity: ['simple' => 'opencode']
+    );
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $env = $this->configService->getAgentEnv('opencode');
+
+    expect($env)->toBe([
+        'OPENCODE_PERMISSION' => '{"permission":"allow"}',
+    ]);
+});
+
+it('returns empty env for drivers with no default env', function (): void {
     $config = makeConfig();
 
     file_put_contents($this->configPath, Yaml::dump($config));
@@ -661,7 +651,7 @@ it('returns empty env when not configured', function (): void {
 it('validates primary agent must be defined', function (): void {
     $config = [
         'agents' => [
-            'claude' => ['command' => 'claude'],
+            'claude' => ['driver' => 'claude'],
         ],
         'complexity' => [
             'simple' => 'claude',
@@ -678,12 +668,11 @@ it('validates primary agent must be defined', function (): void {
 it('validates primary agent is required', function (): void {
     $config = [
         'agents' => [
-            'claude' => ['command' => 'claude'],
+            'claude' => ['driver' => 'claude'],
         ],
         'complexity' => [
             'simple' => 'claude',
         ],
-        // No 'primary' key
     ];
 
     file_put_contents($this->configPath, Yaml::dump($config));
@@ -695,8 +684,8 @@ it('validates primary agent is required', function (): void {
 it('returns primary agent', function (): void {
     $config = makeConfig(
         agents: [
-            'claude' => ['command' => 'claude'],
-            'claude-opus' => ['command' => 'claude', 'model' => 'opus'],
+            'claude' => ['driver' => 'claude'],
+            'claude-opus' => ['driver' => 'claude', 'model' => 'opus'],
         ],
         complexity: ['simple' => 'claude'],
         primary: 'claude-opus'
@@ -710,8 +699,8 @@ it('returns primary agent', function (): void {
 it('returns primary agent definition', function (): void {
     $config = makeConfig(
         agents: [
-            'claude' => ['command' => 'claude'],
-            'claude-opus' => ['command' => 'claude', 'model' => 'opus', 'max_concurrent' => 1],
+            'claude' => ['driver' => 'claude'],
+            'claude-opus' => ['driver' => 'claude', 'model' => 'opus', 'max_concurrent' => 1],
         ],
         complexity: ['simple' => 'claude'],
         primary: 'claude-opus'
@@ -730,9 +719,9 @@ it('builds agent command directly', function (): void {
     $config = makeConfig(
         agents: [
             'claude-sonnet' => [
-                'command' => 'claude',
+                'driver' => 'claude',
                 'model' => 'sonnet',
-                'args' => ['--verbose'],
+                'extra_args' => ['--verbose'],
             ],
         ],
         complexity: ['simple' => 'claude']
@@ -743,7 +732,10 @@ it('builds agent command directly', function (): void {
     // Build command directly for agent without complexity lookup
     $command = $this->configService->buildAgentCommand('claude-sonnet', 'test prompt');
 
-    expect($command)->toBe(['claude', '-p', 'test prompt', '--model', 'sonnet', '--verbose']);
+    expect($command[0])->toBe('claude');
+    expect($command)->toContain('--model');
+    expect($command)->toContain('sonnet');
+    expect($command)->toContain('--verbose');
 });
 
 it('returns primary agent when review is not set', function (): void {
@@ -778,7 +770,7 @@ it('returns default max_retries when agent not configured', function (): void {
 
 it('returns default max_retries when agent has no max_retries set', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude']]
+        agents: ['claude' => ['driver' => 'claude']]
     );
 
     file_put_contents($this->configPath, Yaml::dump($config));
@@ -788,7 +780,7 @@ it('returns default max_retries when agent has no max_retries set', function ():
 
 it('returns configured max_retries for agent', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude', 'max_retries' => 10]]
+        agents: ['claude' => ['driver' => 'claude', 'max_retries' => 10]]
     );
 
     file_put_contents($this->configPath, Yaml::dump($config));
@@ -798,7 +790,7 @@ it('returns configured max_retries for agent', function (): void {
 
 it('validates max_retries must be an integer', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude', 'max_retries' => 'invalid']]
+        agents: ['claude' => ['driver' => 'claude', 'max_retries' => 'invalid']]
     );
 
     file_put_contents($this->configPath, Yaml::dump($config));
@@ -809,7 +801,7 @@ it('validates max_retries must be an integer', function (): void {
 
 it('includes max_retries in agent definition', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude', 'max_retries' => 7]]
+        agents: ['claude' => ['driver' => 'claude', 'max_retries' => 7]]
     );
 
     file_put_contents($this->configPath, Yaml::dump($config));
@@ -821,7 +813,7 @@ it('includes max_retries in agent definition', function (): void {
 
 it('defaults max_retries to 5 in agent definition', function (): void {
     $config = makeConfig(
-        agents: ['claude' => ['command' => 'claude']]
+        agents: ['claude' => ['driver' => 'claude']]
     );
 
     file_put_contents($this->configPath, Yaml::dump($config));
@@ -829,4 +821,47 @@ it('defaults max_retries to 5 in agent definition', function (): void {
     $def = $this->configService->getAgentDefinition('claude');
 
     expect($def['max_retries'])->toBe(5);
+});
+
+// =============================================================================
+// Driver-specific Tests
+// =============================================================================
+
+it('uses correct model_arg from driver', function (): void {
+    $config = makeConfig(
+        agents: [
+            'amp-agent' => ['driver' => 'amp', 'model' => 'smart'],
+        ],
+        complexity: ['simple' => 'amp-agent']
+    );
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $command = $this->configService->getAgentCommand('simple', 'test prompt');
+
+    // Amp uses -m for model arg
+    expect($command)->toContain('-m');
+    expect($command)->toContain('smart');
+});
+
+it('provides driver instance in agent definition', function (): void {
+    $config = makeConfig();
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    $def = $this->configService->getAgentDefinition('claude');
+
+    expect($def)->toHaveKey('driver');
+    expect($def['driver'])->toBeInstanceOf(\App\Agents\Drivers\AgentDriverInterface::class);
+});
+
+it('provides access to driver registry', function (): void {
+    $registry = $this->configService->getDriverRegistry();
+
+    expect($registry)->toBeInstanceOf(AgentDriverRegistry::class);
+    expect($registry->has('claude'))->toBeTrue();
+    expect($registry->has('cursor-agent'))->toBeTrue();
+    expect($registry->has('opencode'))->toBeTrue();
+    expect($registry->has('amp'))->toBeTrue();
+    expect($registry->has('codex'))->toBeTrue();
 });

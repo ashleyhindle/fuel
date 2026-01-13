@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Agents\AgentDriverRegistry;
 use RuntimeException;
 use Symfony\Component\Yaml\Yaml;
 
 class ConfigService
 {
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
-
-    private const DEFAULT_PROMPT_ARGS = ['-p'];
 
     private const DEFAULT_MAX_CONCURRENT = 2;
 
@@ -22,7 +21,10 @@ class ConfigService
     /** @var array<string, mixed>|null */
     private ?array $config = null;
 
-    public function __construct(private readonly FuelContext $context) {}
+    public function __construct(
+        private readonly FuelContext $context,
+        private readonly AgentDriverRegistry $driverRegistry = new AgentDriverRegistry
+    ) {}
 
     /**
      * Reload configuration from disk.
@@ -108,25 +110,27 @@ class ConfigService
                 throw new RuntimeException(sprintf("Agent '%s' config must be an array", $agentName));
             }
 
-            if (! isset($agentConfig['command']) || ! is_string($agentConfig['command'])) {
-                throw new RuntimeException(sprintf("Agent '%s' must have 'command' string", $agentName));
+            // Driver is required
+            if (! isset($agentConfig['driver']) || ! is_string($agentConfig['driver'])) {
+                throw new RuntimeException(sprintf("Agent '%s' must have 'driver' string", $agentName));
+            }
+
+            // Validate driver exists
+            if (! $this->driverRegistry->has($agentConfig['driver'])) {
+                throw new RuntimeException(sprintf("Agent '%s' references unknown driver '%s'", $agentName, $agentConfig['driver']));
             }
 
             // Validate optional fields have correct types
-            if (isset($agentConfig['prompt_args']) && ! is_array($agentConfig['prompt_args'])) {
-                throw new RuntimeException(sprintf("Agent '%s' prompt_args must be an array", $agentName));
+            if (isset($agentConfig['model']) && ! is_string($agentConfig['model'])) {
+                throw new RuntimeException(sprintf("Agent '%s' model must be a string", $agentName));
             }
 
-            if (isset($agentConfig['args']) && ! is_array($agentConfig['args'])) {
-                throw new RuntimeException(sprintf("Agent '%s' args must be an array", $agentName));
+            if (isset($agentConfig['extra_args']) && ! is_array($agentConfig['extra_args'])) {
+                throw new RuntimeException(sprintf("Agent '%s' extra_args must be an array", $agentName));
             }
 
-            if (isset($agentConfig['env']) && ! is_array($agentConfig['env'])) {
-                throw new RuntimeException(sprintf("Agent '%s' env must be an array", $agentName));
-            }
-
-            if (isset($agentConfig['resume_args']) && ! is_array($agentConfig['resume_args'])) {
-                throw new RuntimeException(sprintf("Agent '%s' resume_args must be an array", $agentName));
+            if (isset($agentConfig['extra_env']) && ! is_array($agentConfig['extra_env'])) {
+                throw new RuntimeException(sprintf("Agent '%s' extra_env must be an array", $agentName));
             }
 
             if (isset($agentConfig['max_concurrent']) && ! is_int($agentConfig['max_concurrent'])) {
@@ -228,6 +232,7 @@ class ConfigService
 
     /**
      * Get full agent definition by name.
+     * Merges driver defaults with user overrides (extra_args, extra_env).
      *
      * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int, max_attempts: int, max_retries: int}
      */
@@ -240,24 +245,38 @@ class ConfigService
         }
 
         $agentConfig = $config['agents'][$agentName];
+        $driver = $this->driverRegistry->get($agentConfig['driver']);
+
+        // Merge driver defaults with user overrides
+        $args = $driver->getDefaultArgs();
+        if (isset($agentConfig['extra_args']) && is_array($agentConfig['extra_args'])) {
+            $args = array_merge($args, $agentConfig['extra_args']);
+        }
+
+        $env = $driver->getDefaultEnv();
+        if (isset($agentConfig['extra_env']) && is_array($agentConfig['extra_env'])) {
+            $env = array_merge($env, $agentConfig['extra_env']);
+        }
 
         return [
-            'command' => $agentConfig['command'],
-            'prompt_args' => $agentConfig['prompt_args'] ?? self::DEFAULT_PROMPT_ARGS,
+            'command' => $driver->getCommand(),
+            'prompt_args' => $driver->getPromptArgs(),
             'model' => $agentConfig['model'] ?? null,
-            'args' => $agentConfig['args'] ?? [],
-            'env' => $agentConfig['env'] ?? [],
-            'resume_args' => $agentConfig['resume_args'] ?? [],
+            'model_arg' => $driver->getModelArg(),
+            'args' => $args,
+            'env' => $env,
+            'resume_args' => [],
             'max_concurrent' => $agentConfig['max_concurrent'] ?? self::DEFAULT_MAX_CONCURRENT,
             'max_attempts' => $agentConfig['max_attempts'] ?? self::DEFAULT_MAX_ATTEMPTS,
             'max_retries' => $agentConfig['max_retries'] ?? self::DEFAULT_MAX_RETRIES,
+            'driver' => $driver,
         ];
     }
 
     /**
      * Get agent command array for given complexity and prompt.
      *
-     * Builds: [command, ...prompt_args, prompt, --model, model, ...args]
+     * Builds: [command, ...prompt_args, prompt, model_arg, model, ...args]
      *
      * @return array<int, string>
      */
@@ -294,8 +313,9 @@ class ConfigService
         // Use override or default from agent definition
         $model = $modelOverride ?? $agentDef['model'];
         $args = $argsOverride ?? $agentDef['args'];
+        $modelArg = $agentDef['model_arg'] ?? '--model';
 
-        // Build command: [command, ...prompt_args, prompt, --model?, model?, ...args]
+        // Build command: [command, ...prompt_args, prompt, model_arg?, model?, ...args]
         $cmd = [$agentDef['command']];
 
         // Add prompt args and prompt
@@ -305,9 +325,9 @@ class ConfigService
 
         $cmd[] = $prompt;
 
-        // Add model if specified
+        // Add model if specified (using driver's model arg)
         if ($model !== null && is_string($model)) {
-            $cmd[] = '--model';
+            $cmd[] = $modelArg;
             $cmd[] = $model;
         }
 
@@ -533,6 +553,8 @@ class ConfigService
         $yaml = <<<'YAML'
 # Fuel Agent Configuration
 # Define agents once, reference by name in complexity mappings
+# Each agent uses a driver (claude, cursor-agent, opencode, amp, codex)
+# Drivers provide default args/env; use extra_args/extra_env to extend
 
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
@@ -547,82 +569,62 @@ complexity:
 
 agents:
   cursor-composer:
+    driver: cursor-agent
     model: composer-1
-    command: cursor-agent
-    args: ["--force", "--output-format", "stream-json"]
-    prompt_args: ["-p"]
-    resume_args: ["--resume="]
     max_concurrent: 3
     max_attempts: 3
 
   cursor-opus:
+    driver: cursor-agent
     model: opus-4.5
-    command: cursor-agent
-    args: ["--force", "--output-format", "stream-json"]
-    prompt_args: ["-p"]
-    resume_args: ["--resume="]
     max_concurrent: 2
     max_attempts: 3
 
   claude-sonnet:
+    driver: claude
     model: sonnet
-    command: claude
-    args: ["--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose"]
-    prompt_args: ["-p"]
-    resume_args: ["--resume"]
     max_concurrent: 2
     max_attempts: 3
 
   claude-opus:
+    driver: claude
     model: opus
-    command: claude
-    args: ["--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose"]
-    prompt_args: ["-p"]
-    resume_args: ["--resume"]
     max_concurrent: 3
     max_attempts: 5
 
   opencode-glm:
+    driver: opencode
     model: opencode/glm-4.7-free
-    command: opencode
-    args: []
-    prompt_args: ["run"]
-    resume_args: ["--session"]
-    env:
-      OPENCODE_PERMISSION: '{"permission":"allow"}'
     max_concurrent: 2
     max_attempts: 3
 
   opencode-minimax:
+    driver: opencode
     model: opencode/minimax-m2.1-free
-    command: opencode
-    args: []
-    prompt_args: ["run"]
-    resume_args: ["--session"]
-    env:
-      OPENCODE_PERMISSION: '{"permission":"allow"}'
     max_concurrent: 2
     max_attempts: 3
 
   amp-smart:
-    model: null  # mode controls model
-    command: amp
-    args: ["--stream-json", "-m", "smart", "--dangerously-allow-all", "--no-notifications"]
-    prompt_args: ["--execute"]
-    resume_args: []
+    driver: amp
+    model: smart
     max_concurrent: 3
     max_attempts: 3
 
   codex-complex:
+    driver: codex
     model: gpt-5.2-codex
-    command: codex
-    args: ["exec", "--dangerously-bypass-approvals-and-sandbox", "--json", "--skip-git-repo-check", "--color=never"]
-    prompt_args: []  # prompt is positional
-    resume_args: ["resume"]
     max_concurrent: 2
     max_attempts: 3
 YAML;
 
         file_put_contents($this->getConfigPath(), $yaml);
+    }
+
+    /**
+     * Get the driver registry.
+     */
+    public function getDriverRegistry(): AgentDriverRegistry
+    {
+        return $this->driverRegistry;
     }
 }
