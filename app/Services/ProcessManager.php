@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Agents\Tasks\AgentTaskInterface;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
 use App\Models\Task;
@@ -33,6 +34,9 @@ class ProcessManager implements ProcessManagerInterface
 
     /** @var array<string, int> Agent process counts indexed by agent name */
     private array $agentCounts = [];
+
+    /** @var array<string, AgentTaskInterface> Agent tasks indexed by taskId for lifecycle hooks */
+    private array $agentTasks = [];
 
     /** Flag indicating if the process manager is shutting down */
     private bool $shuttingDown = false;
@@ -673,6 +677,112 @@ class ProcessManager implements ProcessManagerInterface
     }
 
     /**
+     * Spawn a new process using the AgentTask abstraction.
+     *
+     * This method encapsulates agent selection, prompt building, and lifecycle hooks.
+     * Use this for new code; prefer over spawnForTask() when using AgentTask implementations.
+     *
+     * @param  AgentTaskInterface  $agentTask  The agent task abstraction
+     * @param  string  $cwd  The current working directory
+     * @param  string|null  $runId  Optional run ID for directory organization
+     * @return SpawnResult The spawn result with success status and process or error
+     */
+    public function spawnAgentTask(AgentTaskInterface $agentTask, string $cwd, ?string $runId = null): SpawnResult
+    {
+        $taskId = $agentTask->getTaskId();
+
+        // Get agent name from the task abstraction
+        $agentName = $agentTask->getAgentName($this->configService);
+        if ($agentName === null) {
+            return SpawnResult::configError('No agent configured for task');
+        }
+
+        // Check agent health / backoff status before spawning
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
+            $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
+
+            return SpawnResult::agentInBackoff($agentName, $backoffSeconds);
+        }
+
+        // Check capacity
+        if (! $this->canSpawn($agentName)) {
+            return SpawnResult::atCapacity($agentName);
+        }
+
+        try {
+            // Get agent definition
+            $agentDef = $this->configService->getAgentDefinition($agentName);
+
+            // Build prompt from the task abstraction
+            $fullPrompt = $agentTask->buildPrompt($cwd);
+
+            // Build command array
+            $commandArray = [$agentDef['command']];
+            foreach ($agentDef['prompt_args'] as $promptArg) {
+                $commandArray[] = $promptArg;
+            }
+
+            $commandArray[] = $fullPrompt;
+
+            // Add model if specified
+            if (! empty($agentDef['model'])) {
+                $commandArray[] = '--model';
+                $commandArray[] = $agentDef['model'];
+            }
+
+            // Add additional args
+            foreach ($agentDef['args'] as $arg) {
+                $commandArray[] = $arg;
+            }
+
+            // Create output directory and files
+            $outputPaths = $this->createOutputDirectory($runId ?? $taskId);
+            $stdoutPath = $outputPaths['stdoutPath'];
+            $stderrPath = $outputPaths['stderrPath'];
+
+            // Create and configure the process with env vars
+            $env = array_merge($_ENV, $agentDef['env']);
+            $symfonyProcess = $this->createSymfonyProcess($commandArray, $cwd, $env);
+
+            // Start process with output capture
+            $this->startWithOutputCapture($symfonyProcess, $stdoutPath, $stderrPath);
+
+            // Check if process started successfully
+            if (! $symfonyProcess->isRunning()) {
+                return SpawnResult::spawnFailed($taskId);
+            }
+
+            // Get process type from the task abstraction
+            $processType = $agentTask->getProcessType();
+
+            // Create AgentProcess instance with file paths
+            $agentProcess = new AgentProcess(
+                $symfonyProcess,
+                $taskId,
+                $agentName,
+                time(),
+                $stdoutPath,
+                $stderrPath,
+                $processType,
+                $agentDef['model'] ?? null,
+                $runId
+            );
+
+            // Track the process
+            $this->activeAgentProcesses[$taskId] = $agentProcess;
+            $this->agentCounts[$agentName] = ($this->agentCounts[$agentName] ?? 0) + 1;
+
+            // Store agentTask for lifecycle hooks in poll()
+            $this->agentTasks[$taskId] = $agentTask;
+
+            return SpawnResult::success($agentProcess);
+
+        } catch (\Exception $exception) {
+            return SpawnResult::configError($exception->getMessage());
+        }
+    }
+
+    /**
      * Get array of active AgentProcess objects.
      *
      * @return array<AgentProcess>
@@ -739,7 +849,7 @@ class ProcessManager implements ProcessManagerInterface
                 $extracted = $this->extractCostAndModelFromOutput($output);
 
                 // Create completion result
-                $completions[] = new CompletionResult(
+                $completion = new CompletionResult(
                     taskId: $taskId,
                     agentName: $agentProcess->getAgentName(),
                     exitCode: $exitCode,
@@ -752,6 +862,26 @@ class ProcessManager implements ProcessManagerInterface
                     processType: $agentProcess->getProcessType(),
                     model: $extracted['model'] ?? $agentProcess->getModel()
                 );
+
+                $completions[] = $completion;
+
+                // Call lifecycle hooks if AgentTask was registered
+                if (isset($this->agentTasks[$taskId])) {
+                    $agentTask = $this->agentTasks[$taskId];
+
+                    // Always call onComplete first
+                    $agentTask->onComplete($completion);
+
+                    // Then call success/failure hook based on result
+                    if ($completion->isSuccess()) {
+                        $agentTask->onSuccess($completion);
+                    } else {
+                        $agentTask->onFailure($completion);
+                    }
+
+                    // Clean up agentTask tracking
+                    unset($this->agentTasks[$taskId]);
+                }
 
                 // Clean up tracking
                 unset($this->activeAgentProcesses[$taskId]);
