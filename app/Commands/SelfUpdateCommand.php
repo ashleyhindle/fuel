@@ -103,7 +103,7 @@ class SelfUpdateCommand extends Command
         $projectPath = app(FuelContext::class)->getProjectPath();
         if ($this->shouldRunInit($projectPath)) {
             $this->info('Updating project with latest guidelines and skills...');
-            $this->runInit($alreadyLatest ? 'fuel' : $targetPath);
+            $this->runInit($targetPath);
         } else {
             $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');
         }
