@@ -26,6 +26,7 @@ use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use App\TUI\ScreenBuffer;
+use App\TUI\Toast;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -130,6 +131,18 @@ class ConsumeCommand extends Command
     /** Debug log file handle */
     private mixed $debugFile = null;
 
+    /** Toast notification manager */
+    private ?Toast $toast = null;
+
+    /** Last click timestamp for double-click detection (in microseconds) */
+    private ?float $lastClickTime = null;
+
+    /** Last click position [row, col] for double-click detection */
+    private ?array $lastClickPos = null;
+
+    /** Double-click threshold in milliseconds */
+    private const DOUBLE_CLICK_THRESHOLD_MS = 500;
+
     public function __construct(
         private TaskService $taskService,
         private ConfigService $configService,
@@ -220,6 +233,9 @@ class ConsumeCommand extends Command
             $this->screenBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
             $this->previousBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
 
+            // Initialize toast notifications
+            $this->toast = new Toast;
+
             // Register SIGWINCH handler for terminal resize
             if (function_exists('pcntl_signal') && defined('SIGWINCH')) {
                 pcntl_signal(SIGWINCH, function (): void {
@@ -271,6 +287,14 @@ class ConsumeCommand extends Command
                 // Check for keyboard input (pause toggle, modal toggles, quit)
                 if ($this->handleKeyboardInput($paused, $statusLines)) {
                     break; // User pressed 'q' to exit
+                }
+
+                // Fast path during active selection or toast animation - skip heavy task management
+                if ($this->selectionStart !== null || $this->toast?->isVisible()) {
+                    $this->refreshDisplay($statusLines, $paused);
+                    usleep(16000); // 60fps
+
+                    continue;
                 }
 
                 // When paused, just refresh display and wait
@@ -1015,6 +1039,7 @@ class ConsumeCommand extends Command
         if ($this->selectionStart !== null && $this->previousLines !== []) {
             $this->debug('Selection active - skipping capture, just rendering highlight');
             $this->renderSelectionHighlight();
+            $this->toast?->render($this->getOutput(), $this->terminalWidth, $this->terminalHeight);
             $this->getOutput()->write("\033[?2026l"); // End synchronized output
 
             return;
@@ -1032,6 +1057,9 @@ class ConsumeCommand extends Command
 
         // Store new lines for next comparison
         $this->previousLines = $newLines;
+
+        // Render toast notification on top of everything
+        $this->toast?->render($this->getOutput(), $this->terminalWidth, $this->terminalHeight);
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
@@ -2170,17 +2198,52 @@ class ConsumeCommand extends Command
 
                     // Handle text selection - only allow when cursor is over text (I-beam)
                     if ($isButtonDown && $buttonNum === 0) {
-                        // Left mouse button down - only start selection if over text
+                        // Left mouse button down - check for double-click or start new selection
                         if ($this->currentCursorShape === 'text') {
-                            $this->selectionStart = [$row, $col];
-                            $this->selectionEnd = [$row, $col];
-                            $this->debug("Selection started at row=$row, col=$col");
+                            $now = microtime(true);
+                            $isDoubleClick = false;
+
+                            // Check if this is a double-click
+                            if ($this->lastClickTime !== null && $this->lastClickPos !== null) {
+                                $timeDiff = ($now - $this->lastClickTime) * 1000; // Convert to ms
+                                [$lastRow, $lastCol] = $this->lastClickPos;
+
+                                // Double-click if within time threshold and same position (±1 for tolerance)
+                                if ($timeDiff < self::DOUBLE_CLICK_THRESHOLD_MS &&
+                                    abs($row - $lastRow) <= 1 &&
+                                    abs($col - $lastCol) <= 1) {
+                                    $isDoubleClick = true;
+                                }
+                            }
+
+                            if ($isDoubleClick) {
+                                // Expand selection to word boundaries
+                                $this->expandSelectionToWord($row, $col);
+                                $this->debug("Double-click word select at row=$row, col=$col");
+
+                                // Reset click tracking so triple-click doesn't trigger
+                                $this->lastClickTime = null;
+                                $this->lastClickPos = null;
+                            } else {
+                                // Single click - start normal selection
+                                $this->selectionStart = [$row, $col];
+                                $this->selectionEnd = [$row, $col];
+                                $this->debug("Selection started at row=$row, col=$col");
+
+                                // Track this click for double-click detection
+                                $this->lastClickTime = $now;
+                                $this->lastClickPos = [$row, $col];
+                            }
                         }
                     } elseif ($isDrag && $buttonNum === 0 && $this->selectionStart !== null) {
                         // Dragging with left button - update selection end
                         $this->selectionEnd = [$row, $col];
-                        $this->forceRefresh = true; // Redraw to show selection highlight
                         $this->debug("Selection drag to row=$row, col=$col");
+
+                        // Render highlight immediately for responsive feedback
+                        $this->getOutput()->write("\033[?2026h"); // Begin sync
+                        $this->renderSelectionHighlight();
+                        $this->getOutput()->write("\033[?2026l"); // End sync
                     } elseif ($isButtonUp && $this->selectionStart !== null && $this->selectionEnd !== null) {
                         // Mouse up - copy selection to clipboard if we have a range
                         $this->copySelectionToClipboard();
@@ -2647,6 +2710,87 @@ class ConsumeCommand extends Command
         // 'c' = clipboard selection
         $base64 = base64_encode($text);
         $this->getOutput()->write("\033]52;c;{$base64}\007");
+
+        // Show toast notification
+        $this->toast?->show('Copied to clipboard', 'success', '', 1000);
+    }
+
+    /**
+     * Expand selection to word boundaries from a given position.
+     *
+     * Word characters are: a-zA-Z0-9_-@
+     */
+    private function expandSelectionToWord(int $row, int $col): void
+    {
+        if ($this->screenBuffer === null) {
+            return;
+        }
+
+        $line = $this->screenBuffer->getPlainLine($row);
+        $lineLength = mb_strlen($line);
+
+        // Adjust col to 0-indexed for string operations
+        $pos = $col - 1;
+
+        if ($pos < 0 || $pos >= $lineLength) {
+            return;
+        }
+
+        // Check if the character at position is a word character
+        $char = mb_substr($line, $pos, 1);
+        if (! $this->isWordChar($char)) {
+            // Clicked on non-word char, don't select anything
+            return;
+        }
+
+        // Find left boundary (scan left until non-word char or start)
+        $left = $pos;
+        while ($left > 0) {
+            $prevChar = mb_substr($line, $left - 1, 1);
+            if (! $this->isWordChar($prevChar)) {
+                break;
+            }
+            $left--;
+        }
+
+        // Find right boundary (scan right until non-word char or end)
+        $right = $pos;
+        while ($right < $lineLength - 1) {
+            $nextChar = mb_substr($line, $right + 1, 1);
+            if (! $this->isWordChar($nextChar)) {
+                break;
+            }
+            $right++;
+        }
+
+        // Set selection (convert back to 1-indexed)
+        $this->selectionStart = [$row, $left + 1];
+        $this->selectionEnd = [$row, $right + 1];
+
+        // Render highlight immediately
+        $this->getOutput()->write("\033[?2026h"); // Begin sync
+        $this->renderSelectionHighlight();
+        $this->getOutput()->write("\033[?2026l"); // End sync
+
+        // Brief pause so user can see what was selected
+        usleep(150000); // 150ms
+
+        // Copy to clipboard
+        $this->copySelectionToClipboard();
+    }
+
+    /**
+     * Check if a character is a word character for selection purposes.
+     *
+     * Word characters: a-zA-Z0-9_-@
+     */
+    private function isWordChar(string $char): bool
+    {
+        if ($char === '') {
+            return false;
+        }
+
+        return preg_match('/^[a-zA-Z0-9_\-@]$/', $char) === 1;
     }
 
     /**
