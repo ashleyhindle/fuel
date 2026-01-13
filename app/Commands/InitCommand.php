@@ -78,13 +78,15 @@ class InitCommand extends Command
 
         // Inject guidelines into AGENTS.md
         Artisan::call('guidelines', ['--add' => true, '--cwd' => $cwd]);
-        $this->line(Artisan::output());
+        $guidelinesOutput = trim(Artisan::output());
+        if ($guidelinesOutput !== '') {
+            $this->line($guidelinesOutput);
+        }
 
         // Install Fuel skills to agent skill directories
         $installed = $skillService->installSkills($cwd);
         if ($installed !== []) {
-            $skillCount = count($installed);
-            $this->info(sprintf('Installed %d skill%s to .claude/skills/ and .codex/skills/', $skillCount, $skillCount === 1 ? '' : 's'));
+            $this->info('Fuel skills updated: .claude/, .codex/');
         }
 
         // Add starter task only if no tasks exist

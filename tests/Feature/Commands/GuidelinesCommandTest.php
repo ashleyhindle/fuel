@@ -91,8 +91,7 @@ describe('guidelines command', function (): void {
 
         expect(file_exists($agentsMdPath))->toBeTrue();
         expect(file_exists($claudeMdPath))->toBeTrue();
-        expect($output)->toContain('Created AGENTS.md with Fuel guidelines');
-        expect($output)->toContain('Created CLAUDE.md with Fuel guidelines');
+        expect($output)->toContain('Fuel guidelines updated: AGENTS.md, CLAUDE.md');
 
         $agentsContent = file_get_contents($agentsMdPath);
         expect($agentsContent)->toContain('# Agent Instructions');
@@ -113,7 +112,7 @@ describe('guidelines command', function (): void {
         Artisan::call('guidelines', ['--add' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Updated AGENTS.md with Fuel guidelines');
+        expect($output)->toContain('Fuel guidelines updated: AGENTS.md, CLAUDE.md');
 
         $content = file_get_contents($agentsMdPath);
         expect($content)->toContain('<fuel>');
@@ -132,7 +131,7 @@ describe('guidelines command', function (): void {
         Artisan::call('guidelines', ['--add' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Updated AGENTS.md with Fuel guidelines');
+        expect($output)->toContain('Fuel guidelines updated: AGENTS.md, CLAUDE.md');
 
         $content = file_get_contents($agentsMdPath);
         expect($content)->toContain('Some existing content here');

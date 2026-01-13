@@ -35,14 +35,21 @@ class GuidelinesCommand extends Command
         $cwd = $this->option('cwd') ?: $context->getProjectPath();
         $fuelSection = "<fuel>\n{$content}</fuel>\n";
 
+        $updatedFiles = [];
         foreach (self::TARGET_FILES as $filename) {
-            $this->injectIntoFile($cwd.'/'.$filename, $fuelSection, $filename);
+            if ($this->injectIntoFile($cwd.'/'.$filename, $fuelSection, $filename)) {
+                $updatedFiles[] = $filename;
+            }
+        }
+
+        if ($updatedFiles !== []) {
+            $this->info('Fuel guidelines updated: '.implode(', ', $updatedFiles));
         }
 
         return self::SUCCESS;
     }
 
-    protected function injectIntoFile(string $path, string $fuelSection, string $filename): void
+    protected function injectIntoFile(string $path, string $fuelSection, string $filename): bool
     {
         if (file_exists($path)) {
             $existing = file_get_contents($path);
@@ -55,10 +62,12 @@ class GuidelinesCommand extends Command
             }
 
             file_put_contents($path, $updated);
-            $this->info('Updated '.$filename.' with Fuel guidelines');
+
+            return true;
         } else {
             file_put_contents($path, "# Agent Instructions\n\n".$fuelSection);
-            $this->info('Created '.$filename.' with Fuel guidelines');
+
+            return true;
         }
     }
 
