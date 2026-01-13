@@ -65,6 +65,7 @@ class GuidelinesCommand extends Command
 
             return true;
         }
+
         file_put_contents($path, "# Agent Instructions\n\n".$fuelSection);
         return true;
     }
