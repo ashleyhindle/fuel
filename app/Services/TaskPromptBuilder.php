@@ -19,6 +19,7 @@ class TaskPromptBuilder
     {
         $taskId = $task->short_id;
         $taskDetails = $this->formatTaskForPrompt($task);
+        $closingProtocol = $this->buildClosingProtocol($task, $taskId);
 
         return <<<PROMPT
 IMPORTANT: You are being orchestrated. Trust the system.
@@ -56,6 +57,139 @@ If you need human input (credentials, decisions, file permissions):
 2. ./fuel dep:add {$taskId} <needs-human-task-id>
 3. Exit immediately - do NOT wait or retry
 
+{$closingProtocol}
+
+== CONTEXT ==
+Working directory: {$cwd}
+Task ID: {$taskId}
+PROMPT;
+    }
+
+    /**
+     * Build a prompt for the epic commit task.
+     *
+     * @param  array<int, Task>  $completedTasks
+     */
+    public function buildCommitPrompt(Task $commitTask, Epic $epic, array $completedTasks, string $cwd): string
+    {
+        $taskId = $commitTask->short_id;
+        $epicId = $epic->short_id;
+        $taskSummary = $this->formatTaskSummaryForCommit($completedTasks);
+
+        return <<<PROMPT
+IMPORTANT: You are being orchestrated. Trust the system.
+
+== YOUR ASSIGNMENT ==
+You are assigned the COMMIT task: {$taskId}
+Your job is to organize and commit the staged changes for epic {$epicId}.
+
+== EPIC CONTEXT ==
+Epic: {$epicId}
+Title: {$epic->title}
+Description: {$epic->description}
+
+== COMPLETED TASKS ==
+{$taskSummary}
+
+== YOUR INSTRUCTIONS ==
+
+1. REVIEW STAGED CHANGES
+   Run `git status` and `git diff --cached` to see what's staged.
+
+   If NO changes are staged:
+   - Check for unstaged changes with `git diff`
+   - If there are unstaged changes, stage them with `git add`
+   - If there are NO changes at all, run `./fuel done {$taskId} --reason="No changes to commit"` and exit
+
+2. ORGANIZE INTO COMMITS
+   Review the staged changes and organize them into meaningful conventional commits.
+
+   Consider:
+   - Group related changes together
+   - Each commit should be atomic and self-contained
+   - Use conventional commit messages: feat:, fix:, refactor:, docs:, test:, chore:
+   - Reference the epic in commit messages where appropriate
+
+   Create commits:
+   ```bash
+   git commit -m "feat: description of feature changes"
+   git commit -m "fix: description of bug fixes"
+   # etc.
+   ```
+
+3. VERIFY
+   - Run tests to ensure nothing is broken: `./vendor/bin/pest --parallel --compact`
+   - Run linter: `./vendor/bin/pint`
+   - If tests fail, fix issues and amend commits as needed
+
+4. COMPLETE
+   Run: `./fuel done {$taskId} --commit=<last-commit-hash>`
+
+== FORBIDDEN ==
+- DO NOT start any other tasks
+- DO NOT modify code beyond what's needed to fix test failures
+- DO NOT push to remote (that's a separate step)
+
+== CONTEXT ==
+Working directory: {$cwd}
+Task ID: {$taskId}
+Epic ID: {$epicId}
+PROMPT;
+    }
+
+    /**
+     * Build the closing protocol based on whether task is part of an epic.
+     */
+    private function buildClosingProtocol(Task $task, string $taskId): string
+    {
+        $isEpicTask = ! empty($task->epic_id);
+
+        if ($isEpicTask) {
+            return $this->buildEpicTaskClosingProtocol($taskId);
+        }
+
+        return $this->buildStandaloneTaskClosingProtocol($taskId);
+    }
+
+    /**
+     * Closing protocol for tasks that are part of an epic (stage only, no commit).
+     */
+    private function buildEpicTaskClosingProtocol(string $taskId): string
+    {
+        return <<<PROTOCOL
+== CLOSING PROTOCOL (EPIC TASK) ==
+Before exiting, you MUST:
+1. If you changed code: run tests and linter/formatter
+2. Run `git status` to see modified files
+3. Run `git add <files>` for each file YOU modified (not files from other agents)
+4. VERIFY: `git diff --cached --stat` shows all YOUR changes are staged
+5. DO NOT commit - commits will be organized when the epic is approved
+6. ./fuel done {$taskId}
+7. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
+
+CRITICAL: Stage your changes with git add but DO NOT run git commit.
+Your work is part of an epic - all changes will be committed together after epic approval.
+
+⚠️  FILE COLLISION WARNING:
+If you see files in `git status` that you did NOT modify, DO NOT stage them with `git add`.
+Other agents may have modified those files while you were working. Only stage files YOU changed.
+
+CRITICAL - If you worked on the same file as another agent:
+- DO NOT remove, overwrite, or undo their changes
+- DO NOT assume your version is correct and theirs is wrong
+- Use `git diff <file>` to see ALL changes in the file
+- Preserve ALL changes from both agents - merge them together if needed
+- If you cannot safely merge, create a needs-human task and block yourself
+- When in doubt, preserve other agents' work - it's easier to add than to recover deleted work
+PROTOCOL;
+    }
+
+    /**
+     * Closing protocol for standalone tasks (full commit workflow).
+     */
+    private function buildStandaloneTaskClosingProtocol(string $taskId): string
+    {
+        return <<<PROTOCOL
 == CLOSING PROTOCOL ==
 Before exiting, you MUST:
 1. If you changed code: run tests and linter/formatter
@@ -79,11 +213,23 @@ CRITICAL - If you worked on the same file as another agent:
 - Preserve ALL changes from both agents - merge them together if needed
 - If you cannot safely merge, create a needs-human task and block yourself
 - When in doubt, preserve other agents' work - it's easier to add than to recover deleted work
+PROTOCOL;
+    }
 
-== CONTEXT ==
-Working directory: {$cwd}
-Task ID: {$taskId}
-PROMPT;
+    /**
+     * Format task list for commit prompt.
+     *
+     * @param  array<int, Task>  $tasks
+     */
+    private function formatTaskSummaryForCommit(array $tasks): string
+    {
+        $lines = [];
+        foreach ($tasks as $task) {
+            $commit = $task->commit_hash ?? 'no commit';
+            $lines[] = "- {$task->short_id}: {$task->title} [{$commit}]";
+        }
+
+        return implode("\n", $lines);
     }
 
     private function formatTaskForPrompt(Task $task): string
