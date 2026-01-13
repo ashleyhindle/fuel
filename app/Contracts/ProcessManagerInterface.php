@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Contracts;
 
+use App\Agents\Tasks\AgentTaskInterface;
 use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessResult;
 use App\Process\ProcessType;
+use App\Process\SpawnResult;
 
 /**
  * Contract for process management.
@@ -29,6 +31,19 @@ interface ProcessManagerInterface
      * @return Process The spawned process
      */
     public function spawn(string $taskId, string $agent, string $command, string $cwd, ProcessType $processType = ProcessType::Task, ?string $runId = null): Process;
+
+    /**
+     * Spawn a new process using the AgentTask abstraction.
+     *
+     * This method encapsulates agent selection, prompt building, and lifecycle hooks.
+     * Use this for new code; prefer over spawn() when using AgentTask implementations.
+     *
+     * @param  AgentTaskInterface  $agentTask  The agent task abstraction
+     * @param  string  $cwd  The current working directory
+     * @param  string|null  $runId  Optional run ID for directory organization
+     * @return SpawnResult The spawn result with success status and process or error
+     */
+    public function spawnAgentTask(AgentTaskInterface $agentTask, string $cwd, ?string $runId = null): SpawnResult;
 
     /**
      * Check if a process for the given task is currently running.

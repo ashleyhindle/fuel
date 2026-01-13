@@ -14,7 +14,7 @@ class Review extends Model
     public $timestamps = false; // Uses started_at/completed_at instead
 
     protected $fillable = [
-        'short_id', 'task_id', 'agent', 'status', 'issues',
+        'short_id', 'task_id', 'agent', 'status', 'original_status', 'issues',
         'started_at', 'completed_at', 'run_id',
     ];
 

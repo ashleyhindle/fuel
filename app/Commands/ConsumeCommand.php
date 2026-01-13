@@ -12,6 +12,7 @@ use App\Contracts\ReviewServiceInterface;
 use App\Enums\EpicStatus;
 use App\Enums\FailureType;
 use App\Enums\TaskStatus;
+use App\Models\Review;
 use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
@@ -68,9 +69,6 @@ class ConsumeCommand extends Command
 
     /** @var array<string, array{status: string, in_backoff: bool, is_dead: bool}> Track previous health state per agent */
     private array $previousHealthStates = [];
-
-    /** @var array<string, string> Track original task status before review (to handle already-done tasks) */
-    private array $preReviewTaskStatus = [];
 
     /** Current terminal width */
     private int $terminalWidth = 120;
@@ -648,15 +646,26 @@ class ConsumeCommand extends Command
 
         foreach ($this->reviewService->getPendingReviews() as $taskId) {
             if ($this->reviewService->isReviewComplete($taskId)) {
+                // Get the Review model to access original_status before calling getReviewResult
+                // (which removes it from pendingReviews)
+                $task = $this->taskService->find($taskId);
+                $review = null;
+                if ($task instanceof Task) {
+                    // Get the most recent pending review for this task
+                    $review = Review::where('task_id', $task->id)
+                        ->where('status', 'pending')
+                        ->orderBy('started_at', 'desc')
+                        ->first();
+                }
+
                 $result = $this->reviewService->getReviewResult($taskId);
                 if (! $result instanceof ReviewResult) {
                     continue;
                 }
 
-                // Check if task was already done before review
-                $wasAlreadyDone = isset($this->preReviewTaskStatus[$taskId]);
-                $originalStatus = $this->preReviewTaskStatus[$taskId] ?? null;
-                unset($this->preReviewTaskStatus[$taskId]);
+                // Check if task was already done before review using Review.original_status
+                $originalStatus = $review?->original_status;
+                $wasAlreadyDone = $originalStatus === TaskStatus::Done->value;
 
                 if ($result->passed) {
                     // Review passed

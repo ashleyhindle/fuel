@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Agents\Tasks\ReviewAgentTask;
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\TaskStatus;
@@ -11,7 +12,6 @@ use App\Models\Review;
 use App\Models\Run;
 use App\Models\Task;
 use App\Process\ProcessOutput;
-use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Prompts\ReviewPrompt;
 use Carbon\Carbon;
@@ -55,14 +55,7 @@ class ReviewService implements ReviewServiceInterface
             throw new \RuntimeException(sprintf("Task '%s' not found", $taskId));
         }
 
-        // 2. Get review agent from config (falls back to primary, then null)
-        $reviewAgent = $this->configService->getReviewAgent();
-        if ($reviewAgent === null) {
-            // No review agent configured - skip review
-            return false;
-        }
-
-        // 3. Capture git state
+        // 2. Capture git state
         $gitDiff = '';
         $gitStatus = '';
 
@@ -82,49 +75,38 @@ class ReviewService implements ReviewServiceInterface
             // Silently handle errors (matching original behavior of 2>/dev/null)
         }
 
-        // 4. Build review prompt
-        $prompt = $this->reviewPrompt->generate($task, $gitDiff, $gitStatus);
+        // 3. Create ReviewAgentTask instance
+        $agentTask = new ReviewAgentTask(
+            $task,
+            $this->taskService,
+            $this->reviewPrompt,
+            $gitDiff,
+            $gitStatus,
+        );
 
-        // 5. Build the command for the review agent
-        $agentDef = $this->configService->getAgentDefinition($reviewAgent);
-        $commandParts = [$agentDef['command']];
-
-        foreach ($agentDef['prompt_args'] as $promptArg) {
-            $commandParts[] = $promptArg;
+        // 4. Get review agent from task (returns null if no review agent configured)
+        $reviewAgent = $agentTask->getAgentName($this->configService);
+        if ($reviewAgent === null) {
+            // No review agent configured - skip review
+            return false;
         }
 
-        $commandParts[] = $prompt;
-
-        // Add model if specified
-        if (! empty($agentDef['model'])) {
-            $commandParts[] = '--model';
-            $commandParts[] = $agentDef['model'];
-        }
-
-        // Add additional args
-        foreach ($agentDef['args'] as $arg) {
-            $commandParts[] = $arg;
-        }
-
-        // Build command string with proper escaping
-        $command = implode(' ', array_map(escapeshellarg(...), $commandParts));
-
-        // 6. Create run entry for the review (upfront so we have run ID for directory)
+        // 5. Create run entry for the review (upfront so we have run ID for directory)
         $runShortId = $this->runService->createRun($taskId, [
             'agent' => $reviewAgent,
             'started_at' => date('c'),
         ]);
 
-        // 7. Spawn review process with run-based directory
-        $reviewTaskId = 'review-'.$taskId;
-        $this->processManager->spawn(
-            $reviewTaskId,
-            $reviewAgent,
-            $command,
-            $this->fuelContext->getProjectPath(),
-            ProcessType::Review,
-            $runShortId  // Pass run short_id for run-based directory
-        );
+        // 6. Spawn review process using ReviewAgentTask abstraction
+        $result = $this->processManager->spawnAgentTask($agentTask, $this->fuelContext->getProjectPath(), $runShortId);
+
+        if (! $result->success) {
+            // Spawn failed - return false to skip review
+            return false;
+        }
+
+        // 7. Capture original task status before updating to 'review'
+        $originalStatus = $task->status->value;
 
         // 8. Update task status to 'review'
         $this->taskService->update($taskId, ['status' => TaskStatus::Review->value]);
@@ -140,6 +122,7 @@ class ReviewService implements ReviewServiceInterface
             'agent' => $reviewAgent,
             'run_id' => $run?->id,
             'status' => 'pending',
+            'original_status' => $originalStatus,
             'started_at' => now(),
         ]);
         $reviewId = $reviewShortId;
