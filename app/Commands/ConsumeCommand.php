@@ -2974,6 +2974,53 @@ class ConsumeCommand extends Command
     }
 
     /**
+     * Update command palette suggestions based on current input.
+     */
+    private function updateCommandPaletteSuggestions(): void
+    {
+        // If input doesn't start with 'close ', set suggestions to empty array and return
+        if (! str_starts_with($this->commandPaletteInput, 'close ')) {
+            $this->commandPaletteSuggestions = [];
+
+            return;
+        }
+
+        // Extract search term: mb_substr($this->commandPaletteInput, 6) (after 'close ')
+        $searchTerm = mb_substr($this->commandPaletteInput, 6);
+
+        // Get all non-done tasks
+        $tasks = $this->taskService->all()->filter(fn (Task $t): bool => $t->status !== TaskStatus::Done);
+
+        // If search term is not empty, filter by partial match (case-insensitive) on short_id OR title
+        if ($searchTerm !== '') {
+            $searchTermLower = mb_strtolower($searchTerm);
+            $tasks = $tasks->filter(function (Task $t) use ($searchTermLower): bool {
+                $shortIdLower = mb_strtolower($t->short_id);
+                $titleLower = mb_strtolower($t->title);
+
+                return str_contains($shortIdLower, $searchTermLower) || str_contains($titleLower, $searchTermLower);
+            });
+        }
+
+        // Sort by priority, take first 10, convert to array of ['short_id' => ..., 'title' => ...]
+        $this->commandPaletteSuggestions = $tasks
+            ->sortBy('priority')
+            ->take(10)
+            ->map(fn (Task $t): array => [
+                'short_id' => $t->short_id,
+                'title' => $t->title,
+            ])
+            ->values()
+            ->toArray();
+
+        // If commandPaletteSuggestionIndex >= count, reset to count-1 (or -1 if empty)
+        $count = count($this->commandPaletteSuggestions);
+        if ($this->commandPaletteSuggestionIndex >= $count) {
+            $this->commandPaletteSuggestionIndex = $count > 0 ? $count - 1 : -1;
+        }
+    }
+
+    /**
      * Calculate the appropriate sleep duration based on current state.
      */
     private function calculateSleepMicroseconds(): int
