@@ -8,6 +8,42 @@ use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
+/**
+ * Helper function to run a command with piped stdin input.
+ */
+function runCommandWithPipedInput(string $command, string $stdinContent, string $cwd): array
+{
+    $descriptors = [
+        0 => ['pipe', 'r'], // stdin
+        1 => ['pipe', 'w'], // stdout
+        2 => ['pipe', 'w'], // stderr
+    ];
+
+    $process = proc_open($command, $descriptors, $pipes, $cwd);
+
+    if (! is_resource($process)) {
+        throw new \RuntimeException('Failed to open process');
+    }
+
+    // Write piped content to stdin
+    fwrite($pipes[0], $stdinContent);
+    fclose($pipes[0]);
+
+    // Read stdout and stderr
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $exitCode = proc_close($process);
+
+    return [
+        'exitCode' => $exitCode,
+        'stdout' => $stdout,
+        'stderr' => $stderr,
+    ];
+}
+
 // Add Command Tests
 describe('add command', function (): void {
     beforeEach(function (): void {
@@ -546,5 +582,78 @@ describe('add command', function (): void {
         expect($tasks->count())->toBe(1);
         expect($tasks->first()->title)->toBe('Future idea via backlog');
         expect($tasks->first()->status)->toBe(TaskStatus::Someday);
+    });
+
+    it('creates task from piped input without title argument', function (): void {
+        $pipedContent = "Task title from pipe\nThis is the description from piped input";
+        $fuelPath = realpath(__DIR__.'/../../../fuel');
+        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $task = json_decode($result['stdout'], true);
+
+        expect($result['exitCode'])->toBe(0);
+        expect($task['title'])->toBe('Task title from pipe');
+        expect($task['description'])->toBe('This is the description from piped input');
+    });
+
+    it('creates task from piped input with title argument', function (): void {
+        $pipedContent = 'This entire content becomes the description';
+        $fuelPath = realpath(__DIR__.'/../../../fuel');
+        $command = sprintf('php %s add "Title from argument" --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $task = json_decode($result['stdout'], true);
+
+        expect($result['exitCode'])->toBe(0);
+        expect($task['title'])->toBe('Title from argument');
+        expect($task['description'])->toBe('This entire content becomes the description');
+    });
+
+    it('creates task from piped input with only title (no description)', function (): void {
+        $pipedContent = 'Task title only';
+        $fuelPath = realpath(__DIR__.'/../../../fuel');
+        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $task = json_decode($result['stdout'], true);
+
+        expect($result['exitCode'])->toBe(0);
+        expect($task['title'])->toBe('Task title only');
+        expect($task['description'])->toBeNull();
+    });
+
+    it('creates task from piped input with multi-line description', function (): void {
+        $pipedContent = "Task Title\nLine 1 of description\nLine 2 of description\nLine 3 of description";
+        $fuelPath = realpath(__DIR__.'/../../../fuel');
+        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $task = json_decode($result['stdout'], true);
+
+        expect($result['exitCode'])->toBe(0);
+        expect($task['title'])->toBe('Task Title');
+        expect($task['description'])->toBe("Line 1 of description\nLine 2 of description\nLine 3 of description");
+    });
+
+    it('creates task from piped input with other flags', function (): void {
+        $pipedContent = "Piped Task Title\nPiped description";
+        $fuelPath = realpath(__DIR__.'/../../../fuel');
+        $command = sprintf(
+            'php %s add --type=feature --priority=3 --labels=test,piped --complexity=moderate --json --cwd=%s',
+            escapeshellarg($fuelPath),
+            escapeshellarg($this->tempDir)
+        );
+
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $task = json_decode($result['stdout'], true);
+
+        expect($result['exitCode'])->toBe(0);
+        expect($task['title'])->toBe('Piped Task Title');
+        expect($task['description'])->toBe('Piped description');
+        expect($task['type'])->toBe('feature');
+        expect($task['priority'])->toBe(3);
+        expect($task['labels'])->toBe(['test', 'piped']);
+        expect($task['complexity'])->toBe('moderate');
     });
 });
