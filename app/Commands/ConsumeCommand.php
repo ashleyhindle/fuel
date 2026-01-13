@@ -340,7 +340,9 @@ class ConsumeCommand extends Command
                         }
 
                         $this->refreshDisplay($statusLines, $paused);
-                        usleep(100000); // 100ms
+                        // Shorter sleep during selection for responsive highlighting
+                        $sleepUs = $this->selectionStart !== null ? 16000 : 100000;
+                        usleep($sleepUs);
                     }
 
                     // Invalidate cache after waiting period so we get fresh data
@@ -365,8 +367,9 @@ class ConsumeCommand extends Command
                     break;
                 }
 
-                // Sleep between poll cycles
-                usleep(100000); // 100ms
+                // Sleep between poll cycles - shorter during selection for responsive highlighting
+                $sleepUs = $this->selectionStart !== null ? 16000 : 100000; // 16ms (~60fps) vs 100ms
+                usleep($sleepUs);
             }
         } finally {
             $this->restoreTerminal();
