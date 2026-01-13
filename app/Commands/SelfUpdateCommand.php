@@ -97,11 +97,11 @@ class SelfUpdateCommand extends Command
         $this->info('Updated to '.$version);
 
         $projectPath = app(FuelContext::class)->getProjectPath();
-        if ($this->shouldRunMigrations($projectPath)) {
-            $this->info('Running migrations in current project...');
-            $this->runMigrations($targetPath);
+        if ($this->shouldRunInit($projectPath)) {
+            $this->info('Updating project with latest guidelines and skills...');
+            $this->runInit($targetPath);
         } else {
-            $this->line('No .fuel directory found in current path. Skipping migrations.');
+            $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');
         }
 
         return self::SUCCESS;
@@ -160,7 +160,7 @@ class SelfUpdateCommand extends Command
         return $home;
     }
 
-    private function shouldRunMigrations(string $startDir): bool
+    private function shouldRunInit(string $startDir): bool
     {
         $currentDir = $startDir;
         $maxLevels = 5;
@@ -185,16 +185,16 @@ class SelfUpdateCommand extends Command
         return false;
     }
 
-    private function runMigrations(string $binaryPath): void
+    private function runInit(string $binaryPath): void
     {
         if (! function_exists('proc_open')) {
-            $this->warn('proc_open is unavailable; skipping migrations.');
+            $this->warn('proc_open is unavailable; run `fuel init` manually to update guidelines and skills.');
 
             return;
         }
 
         $process = proc_open(
-            [$binaryPath, 'migrate', '--force'],
+            [$binaryPath, 'init'],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -204,7 +204,7 @@ class SelfUpdateCommand extends Command
         );
 
         if (! is_resource($process)) {
-            $this->warn('Failed to start migration process.');
+            $this->warn('Failed to start init process.');
 
             return;
         }
@@ -221,7 +221,7 @@ class SelfUpdateCommand extends Command
         }
 
         if ($exitCode !== 0) {
-            $this->warn('Migrations failed. Run `fuel migrate --force` manually.');
+            $this->warn('Init failed. Run `fuel init` manually to update guidelines and skills.');
             if ($stderr !== '') {
                 $this->line(trim($stderr));
             }
