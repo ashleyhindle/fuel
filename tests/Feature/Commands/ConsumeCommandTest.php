@@ -81,12 +81,12 @@ afterEach(function (): void {
 
 describe('consume command parallel execution logic', function (): void {
     it('verifies config supports multiple agent limits', function (): void {
-        // Create config with different agent limits
+        // Create config with different agent limits (driver-based format)
         $config = [
             'agents' => [
-                'test-agent-1' => ['command' => 'test-agent-1', 'max_concurrent' => 2],
-                'test-agent-2' => ['command' => 'test-agent-2', 'max_concurrent' => 3],
-                'claude' => ['command' => 'claude', 'max_concurrent' => 5],
+                'test-agent-1' => ['driver' => 'claude', 'max_concurrent' => 2],
+                'test-agent-2' => ['driver' => 'cursor-agent', 'max_concurrent' => 3],
+                'claude' => ['driver' => 'claude', 'max_concurrent' => 5],
             ],
             'complexity' => [
                 'trivial' => 'test-agent-1',
@@ -114,11 +114,11 @@ describe('consume command parallel execution logic', function (): void {
     });
 
     it('supports parallel task selection with different complexities', function (): void {
-        // Create config mapping complexities to different agents
+        // Create config mapping complexities to different agents (driver-based format)
         $config = [
             'agents' => [
-                'fast-agent' => ['command' => 'fast-agent', 'max_concurrent' => 4],
-                'smart-agent' => ['command' => 'smart-agent', 'max_concurrent' => 2],
+                'fast-agent' => ['driver' => 'claude', 'max_concurrent' => 4],
+                'smart-agent' => ['driver' => 'claude', 'max_concurrent' => 2],
             ],
             'complexity' => [
                 'trivial' => 'fast-agent',
@@ -172,7 +172,7 @@ describe('consume command parallel execution logic', function (): void {
         // Create config with agent but no max_concurrent
         $config = [
             'agents' => [
-                'test-agent' => ['command' => 'test-agent'],
+                'test-agent' => ['driver' => 'claude'],
             ],
             'complexity' => [
                 'simple' => 'test-agent',
@@ -332,7 +332,7 @@ describe('consume command permission-blocked detection', function (): void {
     it('detects "terminal commands are being rejected" pattern', function (): void {
         $config = [
             'agents' => [
-                'test-agent' => ['command' => 'test-agent'],
+                'test-agent' => ['driver' => 'claude'],
             ],
             'complexity' => [
                 'simple' => 'test-agent',
@@ -465,7 +465,7 @@ describe('consume command permission-blocked detection', function (): void {
     it('detects permission errors case-insensitively', function (): void {
         $config = [
             'agents' => [
-                'test-agent' => ['command' => 'test-agent'],
+                'test-agent' => ['driver' => 'claude'],
             ],
             'complexity' => [
                 'simple' => 'test-agent',
@@ -629,10 +629,10 @@ describe('consume command auto-close feature', function (): void {
     });
 
     it('shows auto-closed task in done count', function (): void {
-        // Create config
+        // Create config (driver-based format)
         $config = [
             'agents' => [
-                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+                'echo' => ['driver' => 'claude', 'max_concurrent' => 1],
             ],
             'complexity' => [
                 'trivial' => 'echo',
@@ -668,10 +668,10 @@ describe('consume command auto-close feature', function (): void {
     });
 
     it('shows manually done task in done count', function (): void {
-        // Create config
+        // Create config (driver-based format)
         $config = [
             'agents' => [
-                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
+                'echo' => ['driver' => 'claude', 'max_concurrent' => 1],
             ],
             'complexity' => [
                 'trivial' => 'echo',

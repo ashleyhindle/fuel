@@ -20,29 +20,21 @@ beforeEach(function (): void {
     // Create FuelContext for test directory
     $this->context = new FuelContext($this->testDir.'/.fuel');
 
-    // Create config file in test directory
+    // Create config file in test directory (driver-based format)
     $this->configPath = $this->context->getConfigPath();
     $configContent = <<<'YAML'
 primary: test-agent
 
 agents:
   test-agent:
-    command: echo
-    prompt_args: ["-p"]
+    driver: claude
     model: test-model
-    args: []
-    env: {}
-    resume_args: []
     max_concurrent: 2
     max_attempts: 3
 
   review-agent:
-    command: echo
-    prompt_args: ["-p"]
+    driver: claude
     model: review-model
-    args: []
-    env: {}
-    resume_args: []
     max_concurrent: 2
     max_attempts: 3
 
@@ -81,19 +73,20 @@ it('triggers a review by spawning a process', function (): void {
     $taskId = $task->short_id;
 
     // Set expectation on process manager to spawn a review process
+    // Note: driver-based config uses 'claude' command from the claude driver
     $this->processManager
         ->shouldReceive('spawn')
         ->once()
         ->withArgs(fn ($reviewTaskId, $agent, $command, $cwd, $processType): bool => $reviewTaskId === 'review-'.$taskId
             && $agent === 'review-agent'
-            && str_contains((string) $command, 'echo')
+            && str_contains((string) $command, 'claude')
             && $cwd === $this->context->getProjectPath()
             && $processType === ProcessType::Review)
         ->andReturn(new Process(
             id: 'p-test01',
             taskId: 'review-'.$taskId,
             agent: 'review-agent',
-            command: 'echo test',
+            command: 'claude test',
             cwd: $this->context->getProjectPath(),
             pid: 12345,
             status: ProcessStatus::Running,
@@ -308,18 +301,14 @@ it('uses configured review agent instead of completing agent', function (): void
 });
 
 it('falls back to primary agent when no review agent configured', function (): void {
-    // Create config without review (but with primary)
+    // Create config without review (but with primary) - driver-based format
     $configContent = <<<'YAML'
 primary: test-agent
 
 agents:
   test-agent:
-    command: echo
-    prompt_args: ["-p"]
+    driver: claude
     model: test-model
-    args: []
-    env: {}
-    resume_args: []
     max_concurrent: 2
     max_attempts: 3
 
@@ -367,16 +356,12 @@ YAML;
 });
 
 it('throws when no primary agent configured', function (): void {
-    // Create config without primary
+    // Create config without primary - driver-based format
     $configContent = <<<'YAML'
 agents:
   test-agent:
-    command: echo
-    prompt_args: ["-p"]
+    driver: claude
     model: test-model
-    args: []
-    env: {}
-    resume_args: []
     max_concurrent: 2
     max_attempts: 3
 

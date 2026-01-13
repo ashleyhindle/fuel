@@ -865,3 +865,149 @@ it('provides access to driver registry', function (): void {
     expect($registry->has('amp'))->toBeTrue();
     expect($registry->has('codex'))->toBeTrue();
 });
+
+// =============================================================================
+// AgentDriverRegistry Tests
+// =============================================================================
+
+it('registry auto-registers all built-in drivers', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    // Check all 5 built-in drivers are registered
+    expect($registry->has('claude'))->toBeTrue();
+    expect($registry->has('cursor-agent'))->toBeTrue();
+    expect($registry->has('opencode'))->toBeTrue();
+    expect($registry->has('amp'))->toBeTrue();
+    expect($registry->has('codex'))->toBeTrue();
+});
+
+it('registry retrieves driver by name', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    $driver = $registry->get('claude');
+
+    expect($driver)->toBeInstanceOf(\App\Agents\Drivers\AgentDriverInterface::class);
+    expect($driver->getName())->toBe('claude');
+    expect($driver->getCommand())->toBe('claude');
+});
+
+it('registry throws exception for unknown driver', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    expect(fn () => $registry->get('unknown-driver'))
+        ->toThrow(RuntimeException::class, "Unknown driver: 'unknown-driver'");
+});
+
+it('registry returns all registered drivers', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    $all = $registry->all();
+
+    expect($all)->toBeArray();
+    expect($all)->toHaveCount(5);
+    expect($all)->toHaveKeys(['claude', 'cursor-agent', 'opencode', 'amp', 'codex']);
+});
+
+it('registry can register custom driver', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    // Create a mock driver
+    $customDriver = new class implements \App\Agents\Drivers\AgentDriverInterface
+    {
+        public function getName(): string
+        {
+            return 'custom-driver';
+        }
+
+        public function getLabel(): string
+        {
+            return 'Custom Driver';
+        }
+
+        public function getCommand(): string
+        {
+            return 'custom-cli';
+        }
+
+        public function getPromptArgs(): array
+        {
+            return ['-p'];
+        }
+
+        public function getModelArg(): ?string
+        {
+            return '--model';
+        }
+
+        public function getDefaultArgs(): array
+        {
+            return ['--custom-arg'];
+        }
+
+        public function getDefaultEnv(): array
+        {
+            return [];
+        }
+
+        public function supportsResume(): bool
+        {
+            return false;
+        }
+
+        public function getResumeArgs(string $sessionId): array
+        {
+            return [];
+        }
+
+        public function getResumeCommand(string $sessionId): string
+        {
+            return '';
+        }
+
+        public function getResumeWithPromptCommand(string $sessionId, string $prompt): string
+        {
+            return '';
+        }
+    };
+
+    $registry->register($customDriver);
+
+    expect($registry->has('custom-driver'))->toBeTrue();
+    expect($registry->get('custom-driver'))->toBe($customDriver);
+});
+
+it('registry finds driver for agent name by exact match', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    $driver = $registry->getForAgentName('claude');
+
+    expect($driver->getName())->toBe('claude');
+});
+
+it('registry finds driver for agent name by pattern matching', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    // Pattern matching should work for common agent names
+    expect($registry->getForAgentName('claude-opus')->getName())->toBe('claude');
+    expect($registry->getForAgentName('claude-sonnet')->getName())->toBe('claude');
+    expect($registry->getForAgentName('cursor-composer')->getName())->toBe('cursor-agent');
+    expect($registry->getForAgentName('opencode-glm')->getName())->toBe('opencode');
+    expect($registry->getForAgentName('amp-smart')->getName())->toBe('amp');
+    expect($registry->getForAgentName('codex-complex')->getName())->toBe('codex');
+});
+
+it('registry finds driver by command binary', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    $driver = $registry->getForAgentName('some-agent', 'claude');
+
+    expect($driver->getName())->toBe('claude');
+    expect($driver->getCommand())->toBe('claude');
+});
+
+it('registry throws exception when no driver matches agent name', function (): void {
+    $registry = new AgentDriverRegistry;
+
+    expect(fn () => $registry->getForAgentName('unknown-agent-name'))
+        ->toThrow(RuntimeException::class, "No driver found for agent name: 'unknown-agent-name'");
+});

@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -95,17 +96,21 @@ describe('resume command', function (): void {
     it('shows error when agent is unknown', function (): void {
         $task = $this->taskService->create(['title' => 'Test task']);
 
-        // Create config file so ConfigService can load
+        // Create config file so ConfigService can load (driver-based format)
         $configPath = $this->tempDir.'/.fuel/config.yaml';
         file_put_contents($configPath, Yaml::dump([
             'agents' => [
-                'claude' => ['command' => 'claude'],
+                'claude' => ['driver' => 'claude'],
             ],
             'complexity' => [
                 'simple' => 'claude',
             ],
             'primary' => 'claude',
         ]));
+
+        // Bind ConfigService to use the test's context
+        $context = $this->app->make(FuelContext::class);
+        $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
 
         $runService = $this->app->make(RunService::class);
         $runService->logRun($task->short_id, [
@@ -114,9 +119,8 @@ describe('resume command', function (): void {
             'session_id' => 'test-session-123',
         ]);
 
-        $this->artisan('resume', ['id' => $task->short_id])
-            ->expectsOutputToContain("Unknown agent 'unknown-agent'")
-            ->assertExitCode(1);
+        $output = runCommand('resume', ['id' => $task->short_id]);
+        expect($output)->toContain("Unknown agent 'unknown-agent'");
     });
 
     it('shows error when specific run not found', function (): void {

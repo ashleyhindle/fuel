@@ -47,10 +47,10 @@ beforeEach(function (): void {
 
     // Initialize storage
 
-    // Create minimal config
+    // Create minimal config (driver-based format)
     $config = [
         'agents' => [
-            'test-agent' => ['command' => 'test-agent'],
+            'test-agent' => ['driver' => 'claude'],
         ],
         'complexity' => [
             'trivial' => 'test-agent',
@@ -170,11 +170,11 @@ it('uses agent from latest run when available', function (): void {
 });
 
 it('uses config review agent when no run exists', function (): void {
-    // Update config with review agent
+    // Update config with review agent (driver-based format)
     $config = [
         'agents' => [
-            'test-agent' => ['command' => 'test-agent'],
-            'review-agent' => ['command' => 'review-agent'],
+            'test-agent' => ['driver' => 'claude'],
+            'review-agent' => ['driver' => 'claude'],
         ],
         'complexity' => [
             'trivial' => 'test-agent',
