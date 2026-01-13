@@ -46,7 +46,7 @@ afterEach(function (): void {
 it('creates reviews table with correct schema', function (): void {
     $columns = $this->service->fetchAll('PRAGMA table_info(reviews)');
 
-    expect($columns)->toHaveCount(9);
+    expect($columns)->toHaveCount(10);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'short_id',
@@ -57,6 +57,7 @@ it('creates reviews table with correct schema', function (): void {
         'started_at',
         'completed_at',
         'run_id',
+        'original_status',
     ]);
 
     // Verify id is INTEGER PRIMARY KEY
