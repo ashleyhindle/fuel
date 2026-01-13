@@ -38,6 +38,8 @@ fuel add "Idea" --someday       # Add to backlog (future work)
 fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
 fuel show <id>                  # View task details
+fuel review <id>                # View review info (routes by ID: f-* task, e-* epic, r-* review)
+fuel trigger:review <f-id>      # Manually trigger a review of a completed task
 fuel consume --once             # Kanban view
 fuel tree                       # Tree view
 fuel backlog                    # List backlog items
@@ -139,6 +141,32 @@ fuel add "Implement API" --blocked-by=f-xxxx
 ```
 
 Blocked tasks won't appear in `fuel ready` until blockers are done.
+
+### Reviews
+
+The `fuel review` command provides a unified interface to view review information for tasks, epics, and review records. It intelligently routes based on the ID prefix:
+
+```bash
+fuel review f-abc123           # View task review (shows commit, diff stats)
+fuel review f-abc123 --diff    # View task review with full diff
+fuel review e-xyz789           # View epic review (all tasks + diffs)
+fuel review r-123456           # View review record details
+```
+
+**Review routing behavior:**
+- **Task IDs** (f-*): Shows task details, commit info, and diff stats
+- **Epic IDs** (e-*): Shows all tasks in epic with combined review information
+- **Review IDs** (r-* or review-*): Shows review execution details
+
+**Manually trigger a review:**
+
+When you need to trigger a review of a completed task (outside the normal workflow):
+
+```bash
+fuel trigger:review f-abc123   # Manually create a review for a completed task
+```
+
+This is useful for re-reviewing work or triggering reviews that were skipped.
 
 ### Epics
 
