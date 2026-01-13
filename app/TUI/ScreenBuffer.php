@@ -25,6 +25,13 @@ class ScreenBuffer
     /** Terminal height */
     private int $height;
 
+    /**
+     * Clickable regions mapped by identifier.
+     *
+     * @var array<string, array{startRow: int, endRow: int, startCol: int, endCol: int, type: string, data: mixed}>
+     */
+    private array $regions = [];
+
     public function __construct(int $width, int $height)
     {
         $this->width = $width;
@@ -40,11 +47,81 @@ class ScreenBuffer
         $emptyLine = str_repeat(' ', $this->width);
         $this->lines = [];
         $this->plainLines = [];
+        $this->regions = [];
 
         for ($row = 1; $row <= $this->height; $row++) {
             $this->lines[$row] = $emptyLine;
             $this->plainLines[$row] = $emptyLine;
         }
+    }
+
+    /**
+     * Register a clickable region.
+     *
+     * @param  string  $id  Unique identifier (e.g., task ID like "f-abc123")
+     * @param  int  $startRow  1-indexed start row
+     * @param  int  $endRow  1-indexed end row
+     * @param  int  $startCol  1-indexed start column
+     * @param  int  $endCol  1-indexed end column
+     * @param  string  $type  Region type (e.g., "task", "modal", "button")
+     * @param  mixed  $data  Optional associated data
+     */
+    public function registerRegion(
+        string $id,
+        int $startRow,
+        int $endRow,
+        int $startCol,
+        int $endCol,
+        string $type = 'task',
+        mixed $data = null
+    ): void {
+        $this->regions[$id] = [
+            'startRow' => $startRow,
+            'endRow' => $endRow,
+            'startCol' => $startCol,
+            'endCol' => $endCol,
+            'type' => $type,
+            'data' => $data,
+        ];
+    }
+
+    /**
+     * Find which region (if any) contains the given position.
+     *
+     * @param  int  $row  1-indexed row
+     * @param  int  $col  1-indexed column
+     * @return array{id: string, startRow: int, endRow: int, startCol: int, endCol: int, type: string, data: mixed}|null
+     */
+    public function getRegionAt(int $row, int $col): ?array
+    {
+        foreach ($this->regions as $id => $region) {
+            if ($row >= $region['startRow'] && $row <= $region['endRow'] &&
+                $col >= $region['startCol'] && $col <= $region['endCol']) {
+                return array_merge(['id' => $id], $region);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get all registered regions.
+     *
+     * @return array<string, array{startRow: int, endRow: int, startCol: int, endCol: int, type: string, data: mixed}>
+     */
+    public function getRegions(): array
+    {
+        return $this->regions;
+    }
+
+    /**
+     * Get a specific region by ID.
+     *
+     * @return array{startRow: int, endRow: int, startCol: int, endCol: int, type: string, data: mixed}|null
+     */
+    public function getRegion(string $id): ?array
+    {
+        return $this->regions[$id] ?? null;
     }
 
     /**

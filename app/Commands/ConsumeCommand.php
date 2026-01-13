@@ -1032,19 +1032,23 @@ class ConsumeCommand extends Command
         // Calculate column width (2 columns with 2 space gap)
         $columnWidth = (int) (($this->terminalWidth - 2) / 2);
 
-        // Build Ready column
-        $readyColumn = $this->buildTaskColumn('Ready', $readyTasks->take(10)->all(), $columnWidth, $readyTasks->count());
+        // Build Ready column with card metadata
+        $readyData = $this->buildTaskColumnWithMeta('Ready', $readyTasks->take(10)->all(), $columnWidth, $readyTasks->count());
+        $readyColumn = $readyData['lines'];
+        $readyCards = $readyData['cards'];
 
-        // Build In Progress column with status lines
-        $inProgressColumn = $this->buildInProgressColumn(
+        // Build In Progress column with card metadata
+        $inProgressData = $this->buildInProgressColumnWithMeta(
             'In Progress',
             $inProgressTasks->take(10)->all(),
             $columnWidth,
             $inProgressTasks->count(),
             $activeProcesses
         );
+        $inProgressColumn = $inProgressData['lines'];
+        $inProgressCards = $inProgressData['cards'];
 
-        // Pad columns to equal height
+        // Pad columns to equal height (before registering regions)
         $topMaxHeight = max(count($readyColumn), count($inProgressColumn));
         $readyColumn = $this->padColumn($readyColumn, $topMaxHeight, $columnWidth);
         $inProgressColumn = $this->padColumn($inProgressColumn, $topMaxHeight, $columnWidth);
@@ -1057,13 +1061,37 @@ class ConsumeCommand extends Command
             $currentRow++;
         }
 
+        // Register Ready column card regions (left column, starts at col 1)
+        foreach ($readyCards as $taskId => $cardMeta) {
+            // +1 because screen rows are 1-indexed, lineStart is 0-indexed
+            $startRow = $cardMeta['lineStart'] + 1;
+            $endRow = $cardMeta['lineEnd'] + 1;
+            $this->screenBuffer->registerRegion($taskId, $startRow, $endRow, 1, $columnWidth, 'task');
+        }
+
+        // Register In Progress column card regions (right column, starts after gap)
+        $inProgressStartCol = $columnWidth + 3; // column width + 2 space gap + 1
+        foreach ($inProgressCards as $taskId => $cardMeta) {
+            $startRow = $cardMeta['lineStart'] + 1;
+            $endRow = $cardMeta['lineEnd'] + 1;
+            $this->screenBuffer->registerRegion($taskId, $startRow, $endRow, $inProgressStartCol, $inProgressStartCol + $columnWidth - 1, 'task');
+        }
+
         // Add Review column if there are review tasks
         if ($reviewTasks->isNotEmpty()) {
             $currentRow++; // Empty line
-            $reviewColumn = $this->buildTaskColumn('Review', $reviewTasks->take(10)->all(), $this->terminalWidth, $reviewTasks->count(), 'review');
-            foreach ($reviewColumn as $line) {
+            $reviewData = $this->buildTaskColumnWithMeta('Review', $reviewTasks->take(10)->all(), $this->terminalWidth, $reviewTasks->count(), 'review');
+            $reviewStartRow = $currentRow;
+            foreach ($reviewData['lines'] as $line) {
                 $this->screenBuffer->setLine($currentRow, $line);
                 $currentRow++;
+            }
+
+            // Register Review column card regions (full width)
+            foreach ($reviewData['cards'] as $taskId => $cardMeta) {
+                $startRow = $reviewStartRow + $cardMeta['lineStart'];
+                $endRow = $reviewStartRow + $cardMeta['lineEnd'];
+                $this->screenBuffer->registerRegion($taskId, $startRow, $endRow, 1, $this->terminalWidth, 'task');
             }
         }
 
@@ -1286,6 +1314,9 @@ class ConsumeCommand extends Command
                 $this->getOutput()->write(sprintf("\033[%d;1H", $row));
                 $this->outputFormattedLine($line);
             }
+
+            // Render selection highlight overlay if active
+            $this->renderSelectionHighlight();
             $this->forceRefresh = false;
 
             return;
@@ -1304,6 +1335,68 @@ class ConsumeCommand extends Command
                 $this->getOutput()->write(sprintf("\033[%d;1H", $row));
                 $this->outputFormattedLine($newLine);
             }
+        }
+
+        // Render selection highlight overlay if active
+        $this->renderSelectionHighlight();
+    }
+
+    /**
+     * Render the selection highlight overlay using inverse video.
+     */
+    private function renderSelectionHighlight(): void
+    {
+        if ($this->selectionStart === null || $this->selectionEnd === null || $this->screenBuffer === null) {
+            return;
+        }
+
+        [$startRow, $startCol] = $this->selectionStart;
+        [$endRow, $endCol] = $this->selectionEnd;
+
+        // Normalize so start is before end
+        if ($startRow > $endRow || ($startRow === $endRow && $startCol > $endCol)) {
+            [$startRow, $startCol, $endRow, $endCol] = [$endRow, $endCol, $startRow, $startCol];
+        }
+
+        // Don't highlight if it's just a single position (click without drag)
+        if ($startRow === $endRow && $startCol === $endCol) {
+            return;
+        }
+
+        // Render inverted text for each row in the selection
+        for ($row = $startRow; $row <= $endRow; $row++) {
+            $line = $this->screenBuffer->getPlainLine($row);
+
+            // Determine column range for this row
+            if ($row === $startRow && $row === $endRow) {
+                // Single-line selection
+                $colStart = $startCol;
+                $colEnd = $endCol;
+            } elseif ($row === $startRow) {
+                // First row of multi-line: from startCol to end of line
+                $colStart = $startCol;
+                $colEnd = $this->terminalWidth;
+            } elseif ($row === $endRow) {
+                // Last row of multi-line: from start to endCol
+                $colStart = 1;
+                $colEnd = $endCol;
+            } else {
+                // Middle rows: full line
+                $colStart = 1;
+                $colEnd = $this->terminalWidth;
+            }
+
+            // Extract the selected portion and output with inverse video
+            $selectedText = mb_substr($line, $colStart - 1, $colEnd - $colStart + 1);
+
+            // Position cursor and output inverted text
+            // \033[7m = inverse video, \033[27m = normal video
+            $this->getOutput()->write(sprintf(
+                "\033[%d;%dH\033[7m%s\033[27m",
+                $row,
+                $colStart,
+                $selectedText
+            ));
         }
     }
 
@@ -1497,11 +1590,13 @@ class ConsumeCommand extends Command
      * Build a task column for the kanban board.
      *
      * @param  array<int, Task>  $tasks
-     * @return array<int, string>
+     * @return array{lines: array<int, string>, cards: array<string, array{lineStart: int, lineEnd: int}>}
      */
-    private function buildTaskColumn(string $title, array $tasks, int $width, int $totalCount, string $style = 'normal'): array
+    private function buildTaskColumnWithMeta(string $title, array $tasks, int $width, int $totalCount, string $style = 'normal'): array
     {
         $lines = [];
+        $cards = []; // Maps task ID to line range within this column
+
         $lines[] = $this->padLine(sprintf('<fg=white;options=bold>%s</> (%d)', $title, $totalCount), $width);
         $lines[] = str_repeat('─', $width);
 
@@ -1509,11 +1604,30 @@ class ConsumeCommand extends Command
             $lines[] = $this->padLine('<fg=gray>No tasks</>', $width);
         } else {
             foreach ($tasks as $task) {
-                $lines = array_merge($lines, $this->buildTaskCard($task, $width, $style));
+                $lineStart = count($lines);
+                $cardLines = $this->buildTaskCard($task, $width, $style);
+                $lines = array_merge($lines, $cardLines);
+                $lineEnd = count($lines) - 1;
+
+                $cards[$task->short_id] = [
+                    'lineStart' => $lineStart,
+                    'lineEnd' => $lineEnd,
+                ];
             }
         }
 
-        return $lines;
+        return ['lines' => $lines, 'cards' => $cards];
+    }
+
+    /**
+     * Build a task column for the kanban board (legacy, returns lines only).
+     *
+     * @param  array<int, Task>  $tasks
+     * @return array<int, string>
+     */
+    private function buildTaskColumn(string $title, array $tasks, int $width, int $totalCount, string $style = 'normal'): array
+    {
+        return $this->buildTaskColumnWithMeta($title, $tasks, $width, $totalCount, $style)['lines'];
     }
 
     /**
@@ -1521,11 +1635,13 @@ class ConsumeCommand extends Command
      *
      * @param  array<int, Task>  $tasks
      * @param  array<string, array>  $activeProcesses
-     * @return array<int, string>
+     * @return array{lines: array<int, string>, cards: array<string, array{lineStart: int, lineEnd: int}>}
      */
-    private function buildInProgressColumn(string $title, array $tasks, int $width, int $totalCount, array $activeProcesses): array
+    private function buildInProgressColumnWithMeta(string $title, array $tasks, int $width, int $totalCount, array $activeProcesses): array
     {
         $lines = [];
+        $cards = [];
+
         $lines[] = $this->padLine(sprintf('<fg=white;options=bold>%s</> (%d)', $title, $totalCount), $width);
         $lines[] = str_repeat('─', $width);
 
@@ -1535,11 +1651,32 @@ class ConsumeCommand extends Command
             foreach ($tasks as $task) {
                 $taskId = $task->short_id;
                 $processInfo = $activeProcesses[$taskId] ?? null;
-                $lines = array_merge($lines, $this->buildInProgressCard($task, $width, $processInfo));
+
+                $lineStart = count($lines);
+                $cardLines = $this->buildInProgressCard($task, $width, $processInfo);
+                $lines = array_merge($lines, $cardLines);
+                $lineEnd = count($lines) - 1;
+
+                $cards[$taskId] = [
+                    'lineStart' => $lineStart,
+                    'lineEnd' => $lineEnd,
+                ];
             }
         }
 
-        return $lines;
+        return ['lines' => $lines, 'cards' => $cards];
+    }
+
+    /**
+     * Build In Progress column (legacy, returns lines only).
+     *
+     * @param  array<int, Task>  $tasks
+     * @param  array<string, array>  $activeProcesses
+     * @return array<int, string>
+     */
+    private function buildInProgressColumn(string $title, array $tasks, int $width, int $totalCount, array $activeProcesses): array
+    {
+        return $this->buildInProgressColumnWithMeta($title, $tasks, $width, $totalCount, $activeProcesses)['lines'];
     }
 
     /**

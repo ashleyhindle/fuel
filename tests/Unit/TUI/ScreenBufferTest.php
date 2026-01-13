@@ -118,4 +118,71 @@ describe('ScreenBuffer', function () {
         expect($changed)->not->toContain(1);
         expect($changed)->not->toContain(3);
     });
+
+    test('registers and retrieves regions', function () {
+        $buffer = new ScreenBuffer(80, 24);
+
+        $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
+        $buffer->registerRegion('f-def456', 7, 9, 42, 80, 'task');
+
+        $region = $buffer->getRegion('f-abc123');
+        expect($region)->not->toBeNull();
+        expect($region['startRow'])->toBe(3);
+        expect($region['endRow'])->toBe(5);
+        expect($region['startCol'])->toBe(1);
+        expect($region['endCol'])->toBe(40);
+        expect($region['type'])->toBe('task');
+    });
+
+    test('finds region at position', function () {
+        $buffer = new ScreenBuffer(80, 24);
+
+        $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
+        $buffer->registerRegion('f-def456', 7, 9, 42, 80, 'task');
+
+        // Should find first region
+        $region = $buffer->getRegionAt(4, 20);
+        expect($region)->not->toBeNull();
+        expect($region['id'])->toBe('f-abc123');
+
+        // Should find second region
+        $region = $buffer->getRegionAt(8, 60);
+        expect($region)->not->toBeNull();
+        expect($region['id'])->toBe('f-def456');
+
+        // Should not find anything outside regions
+        $region = $buffer->getRegionAt(6, 20);
+        expect($region)->toBeNull();
+    });
+
+    test('clears regions on clear', function () {
+        $buffer = new ScreenBuffer(80, 24);
+
+        $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
+        $buffer->clear();
+
+        expect($buffer->getRegion('f-abc123'))->toBeNull();
+        expect($buffer->getRegions())->toBeEmpty();
+    });
+
+    test('gets all regions', function () {
+        $buffer = new ScreenBuffer(80, 24);
+
+        $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task');
+        $buffer->registerRegion('f-def456', 7, 9, 42, 80, 'task');
+
+        $regions = $buffer->getRegions();
+        expect($regions)->toHaveCount(2);
+        expect($regions)->toHaveKey('f-abc123');
+        expect($regions)->toHaveKey('f-def456');
+    });
+
+    test('region can store associated data', function () {
+        $buffer = new ScreenBuffer(80, 24);
+
+        $buffer->registerRegion('f-abc123', 3, 5, 1, 40, 'task', ['status' => 'in_progress']);
+
+        $region = $buffer->getRegion('f-abc123');
+        expect($region['data'])->toBe(['status' => 'in_progress']);
+    });
 });
