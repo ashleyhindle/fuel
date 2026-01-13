@@ -37,6 +37,19 @@ uses(TestCase::class)->in('Unit');
 
 expect()->extend('toBeOne', fn () => $this->toBe(1));
 
+/**
+ * Run an Artisan command and return captured output.
+ *
+ * @param  array<string, mixed>  $params
+ */
+function runCommand(string $command, array $params = []): string
+{
+    $output = new Symfony\Component\Console\Output\BufferedOutput;
+    Illuminate\Support\Facades\Artisan::call($command, $params, $output);
+
+    return $output->fetch();
+}
+
 /*
 |--------------------------------------------------------------------------
 | Functions
