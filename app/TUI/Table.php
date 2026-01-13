@@ -114,7 +114,7 @@ class Table
      */
     private function topBorder(array $columnWidths): string
     {
-        $line = '┌';
+        $line = '╭';
         $numColumns = count($columnWidths);
 
         for ($i = 0; $i < $numColumns; $i++) {
@@ -124,7 +124,7 @@ class Table
             }
         }
 
-        return $line.'┐';
+        return $line.'╮';
     }
 
     /**
@@ -200,7 +200,7 @@ class Table
      */
     private function bottomBorder(array $columnWidths): string
     {
-        $line = '└';
+        $line = '╰';
         $numColumns = count($columnWidths);
 
         for ($i = 0; $i < $numColumns; $i++) {
@@ -210,7 +210,7 @@ class Table
             }
         }
 
-        return $line.'┘';
+        return $line.'╯';
     }
 
     /**
