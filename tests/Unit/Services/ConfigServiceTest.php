@@ -1,7 +1,7 @@
 <?php
 
-use App\Agents\Drivers\AgentDriverInterface;
 use App\Agents\AgentDriverRegistry;
+use App\Agents\Drivers\AgentDriverInterface;
 use App\Services\ConfigService;
 use App\Services\FuelContext;
 use Symfony\Component\Yaml\Yaml;

@@ -1085,7 +1085,7 @@ class ConsumeCommand extends Command
     private function captureKanbanBoard(array $statusLines, bool $paused): array
     {
         // Initialize or resize buffer if needed
-        if (!$this->screenBuffer instanceof ScreenBuffer ||
+        if (! $this->screenBuffer instanceof ScreenBuffer ||
             $this->screenBuffer->getWidth() !== $this->terminalWidth ||
             $this->screenBuffer->getHeight() !== $this->terminalHeight) {
             $this->screenBuffer = new ScreenBuffer($this->terminalWidth, $this->terminalHeight);
@@ -1291,7 +1291,7 @@ class ConsumeCommand extends Command
      */
     private function captureModal(string $title, array $tasks, string $style, int $scrollOffset = 0): void
     {
-        if (!$this->screenBuffer instanceof ScreenBuffer) {
+        if (! $this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -1425,7 +1425,7 @@ class ConsumeCommand extends Command
      */
     private function renderSelectionHighlight(): void
     {
-        if ($this->selectionStart === null || $this->selectionEnd === null || !$this->screenBuffer instanceof ScreenBuffer) {
+        if ($this->selectionStart === null || $this->selectionEnd === null || ! $this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -2652,7 +2652,7 @@ class ConsumeCommand extends Command
     private function checkEpicCompletionSound(string $taskId): void
     {
         $task = $this->taskService->find($taskId);
-        if (!$task instanceof Task || empty($task->epic_id)) {
+        if (! $task instanceof Task || empty($task->epic_id)) {
             return;
         }
 
@@ -2674,7 +2674,7 @@ class ConsumeCommand extends Command
                 // Send notification with sound and desktop alert
                 $epicTitle = $epic?->title ?? $epicId;
                 $this->notificationService->alert(
-                    'Epic ready for review: ' . $epicTitle,
+                    'Epic ready for review: '.$epicTitle,
                     'Fuel: Epic Complete'
                 );
             }
@@ -2689,7 +2689,7 @@ class ConsumeCommand extends Command
      */
     private function updateCursorShape(int $row, int $col): void
     {
-        if (!$this->screenBuffer instanceof ScreenBuffer) {
+        if (! $this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -2714,7 +2714,7 @@ class ConsumeCommand extends Command
      */
     private function copySelectionToClipboard(): void
     {
-        if (!$this->screenBuffer instanceof ScreenBuffer || $this->selectionStart === null || $this->selectionEnd === null) {
+        if (! $this->screenBuffer instanceof ScreenBuffer || $this->selectionStart === null || $this->selectionEnd === null) {
             return;
         }
 
@@ -2750,7 +2750,7 @@ class ConsumeCommand extends Command
      */
     private function expandSelectionToWord(int $row, int $col): void
     {
-        if (!$this->screenBuffer instanceof ScreenBuffer) {
+        if (! $this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 

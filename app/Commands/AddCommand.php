@@ -251,7 +251,7 @@ class AddCommand extends Command
         } finally {
             // Restore terminal settings
             if ($sttySettings !== null) {
-                shell_exec('stty ' . $sttySettings);
+                shell_exec('stty '.$sttySettings);
             }
         }
     }

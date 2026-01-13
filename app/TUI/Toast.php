@@ -94,7 +94,7 @@ class Toast
      * Render the toast to output. Call this each frame.
      * Returns true if toast was rendered, false if hidden.
      *
-     * @param OutputInterface $output
+     * @param  OutputInterface  $output
      */
     public function render($output, int $terminalWidth, int $terminalHeight): bool
     {
@@ -191,12 +191,12 @@ class Toast
         // Render line with borders
         if ($isFullWidth) {
             // Full toast with both borders
-            $output->write($borderColor . $bold.self::BORDER_LEFT.$reset);
+            $output->write($borderColor.$bold.self::BORDER_LEFT.$reset);
             $output->write(sprintf('%s%s %s %s', $bgColor, $bodyColor, $padded, $reset));
-            $output->write($borderColor . $bold.self::BORDER_RIGHT.$reset);
+            $output->write($borderColor.$bold.self::BORDER_RIGHT.$reset);
         } else {
             // Partial toast (expanding/collapsing) - only left border
-            $output->write($borderColor . $bold.self::BORDER_LEFT.$reset);
+            $output->write($borderColor.$bold.self::BORDER_LEFT.$reset);
             $output->write(sprintf('%s%s %s %s', $bgColor, $bodyColor, $padded, $reset));
         }
     }

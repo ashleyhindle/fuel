@@ -27,8 +27,8 @@ class ScreenBuffer
     private array $regions = [];
 
     public function __construct(/** Terminal width */
-    private int $width, /** Terminal height */
-    private int $height)
+        private int $width, /** Terminal height */
+        private int $height)
     {
         $this->clear();
     }

@@ -128,6 +128,7 @@ class SelfUpdateCommand extends Command
                 passthru($targetPath.' init --cwd='.escapeshellarg($projectPath), $initResult);
                 exit($initResult);
             }
+
             $initResult = $this->call('init');
             if ($initResult !== self::SUCCESS) {
                 $this->error('Init failed with exit code: '.$initResult);
