@@ -1,3 +1,8 @@
+---
+name: consume-the-fuel
+description: Execute ready Fuel tasks efficiently. Use when asked to "consume the fuel", "work on tasks", or "do the work".
+---
+
 # Consume the Fuel
 
 Execute ready Fuel tasks efficiently with proper coordination.

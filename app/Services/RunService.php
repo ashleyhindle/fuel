@@ -25,7 +25,7 @@ class RunService
      * This method generates the run ID upfront so it can be used for process directories.
      *
      * @param  string  $taskId  Task ID (e.g., 'f-xxxxxx')
-     * @param  array<string, mixed>  $data  Run data (agent, model, started_at, session_id, cost_usd)
+     * @param  array<string, mixed>  $data  Run data (agent, model, started_at, session_id, cost_usd, pid, runner_instance_id)
      * @return string The generated run short_id (e.g., 'run-abc123')
      */
     public function createRun(string $taskId, array $data = []): string
@@ -53,6 +53,8 @@ class RunService
             'cost_usd' => $data['cost_usd'] ?? null,
             'status' => self::STATUS_RUNNING,
             'duration_seconds' => null,
+            'pid' => $data['pid'] ?? null,
+            'runner_instance_id' => $data['runner_instance_id'] ?? null,
         ]);
 
         return $shortId;
@@ -147,6 +149,39 @@ class RunService
     }
 
     /**
+     * Update a specific run by its short_id.
+     *
+     * @param  string  $runId  Run short_id (e.g., 'run-abc123')
+     * @param  array<string, mixed>  $data  Update data (pid, ended_at, exit_code, output, session_id, cost_usd)
+     */
+    public function updateRun(string $runId, array $data): void
+    {
+        $run = Run::where('short_id', $runId)->first();
+
+        if ($run === null) {
+            throw new RuntimeException(sprintf('Run %s not found', $runId));
+        }
+
+        // Truncate output to 10KB if present
+        if (isset($data['output']) && is_string($data['output']) && strlen($data['output']) > self::OUTPUT_MAX_LENGTH) {
+            $data['output'] = substr($data['output'], 0, self::OUTPUT_MAX_LENGTH);
+        }
+
+        // Calculate duration if ended_at is being set and started_at exists
+        if (isset($data['ended_at']) && $run->started_at !== null) {
+            $start = $run->started_at->getTimestamp();
+            $end = strtotime((string) $data['ended_at']);
+            if ($start !== false && $end !== false) {
+                $data['duration_seconds'] = $end - $start;
+            }
+            // Also update status to completed when ended_at is set
+            $data['status'] = self::STATUS_COMPLETED;
+        }
+
+        $run->update($data);
+    }
+
+    /**
      * Update the latest run for a task with completion data.
      *
      * @param  string  $taskId  Task ID
@@ -219,11 +254,12 @@ class RunService
     /**
      * Clean up orphaned runs (runs that started but never completed due to consume crash).
      * Marks incomplete runs as failed with a special exit code and message.
+     * Only marks a run as failed if the stored PID is dead.
+     * If PID is alive but runner is dead, logs warning and leaves as running.
      *
-     * @param  callable  $isPidDead  Callback (int $pid): bool to check if a PID is dead
      * @return int Number of orphaned runs cleaned up
      */
-    public function cleanupOrphanedRuns(callable $isPidDead): int
+    public function cleanupOrphanedRuns(): int
     {
         // Find all runs with status='running' and ended_at IS NULL
         $orphanedRuns = Run::where('status', self::STATUS_RUNNING)
@@ -234,21 +270,65 @@ class RunService
             return 0;
         }
 
-        // Mark each orphaned run as failed
+        // Mark each orphaned run as failed only if PID is dead
         $endedAt = date('c');
         $cleanupCount = 0;
 
         foreach ($orphanedRuns as $run) {
-            $run->update([
-                'status' => self::STATUS_FAILED,
-                'ended_at' => $endedAt,
-                'exit_code' => -1,
-                'output' => '[Run orphaned - consume process died before completion]',
-            ]);
-            $cleanupCount++;
+            $pid = $run->pid;
+
+            // If no PID stored, mark as failed (old behavior for backward compatibility)
+            if ($pid === null) {
+                $run->update([
+                    'status' => self::STATUS_FAILED,
+                    'ended_at' => $endedAt,
+                    'exit_code' => -1,
+                    'output' => '[Run orphaned - consume process died before completion]',
+                ]);
+                $cleanupCount++;
+
+                continue;
+            }
+
+            // Check if PID is alive using ProcessManager
+            if (! ProcessManager::isProcessAlive($pid)) {
+                // PID is dead, mark run as failed
+                $run->update([
+                    'status' => self::STATUS_FAILED,
+                    'ended_at' => $endedAt,
+                    'exit_code' => -1,
+                    'output' => '[Run orphaned - process died before completion]',
+                ]);
+                $cleanupCount++;
+            } else {
+                // PID is alive but runner is dead - log warning and leave as running
+                // The runner will handle completion when the process finishes
+                logger()->warning(sprintf(
+                    'Run %s has alive PID %d but runner %s is not active',
+                    $run->short_id,
+                    $pid,
+                    $run->runner_instance_id ?? 'unknown'
+                ));
+            }
         }
 
         return $cleanupCount;
+    }
+
+    /**
+     * Get all running runs for a specific runner instance.
+     *
+     * @param  string  $instanceId  The runner instance ID
+     * @return array<int, Run> Array of running runs for the instance
+     */
+    public function getRunningRunsForInstance(string $instanceId): array
+    {
+        return Run::where('status', self::STATUS_RUNNING)
+            ->where('runner_instance_id', $instanceId)
+            ->whereNull('ended_at')
+            ->orderBy('id')
+            ->get()
+            ->all();
     }
 
     /**

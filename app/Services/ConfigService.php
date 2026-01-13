@@ -18,6 +18,10 @@ class ConfigService
 
     private const DEFAULT_MAX_RETRIES = 5;
 
+    private const DEFAULT_CONSUME_PORT = 9981;
+
+    private const DEFAULT_GLOBAL_MAX_CONCURRENT = 5;
+
     /** @var array<string, mixed>|null */
     private ?array $config = null;
 
@@ -199,6 +203,20 @@ class ConfigService
                 sprintf("Primary agent '%s' is not defined in agents section", $config['primary'])
             );
         }
+
+        // Validate port if specified
+        if (isset($config['port'])) {
+            if (! is_int($config['port']) || $config['port'] < 1 || $config['port'] > 65535) {
+                throw new RuntimeException('Config port must be an integer between 1 and 65535');
+            }
+        }
+
+        // Validate global max_concurrent if specified
+        if (isset($config['max_concurrent'])) {
+            if (! is_int($config['max_concurrent']) || $config['max_concurrent'] < 1) {
+                throw new RuntimeException('Config max_concurrent must be a positive integer');
+            }
+        }
     }
 
     /**
@@ -245,7 +263,7 @@ class ConfigService
      * Get full agent definition by name.
      * Merges driver defaults with user overrides (extra_args, extra_env).
      *
-     * @return array{command: string, prompt_args: array<string>, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int, max_attempts: int, max_retries: int}
+     * @return array{command: string, prompt_args: array<string>, model_arg: ?string, model: ?string, args: array<string>, env: array<string, string>, resume_args: array<string>, max_concurrent: int, max_attempts: int, max_retries: int}
      */
     public function getAgentDefinition(string $agentName): array
     {
@@ -567,6 +585,12 @@ class ConfigService
 # Each agent uses a driver (claude, cursor-agent, opencode, amp, codex)
 # Drivers provide default args/env; use extra_args/extra_env to extend
 
+# TCP port for runner communication
+port: 9981
+
+# Global maximum concurrent agents (total cap regardless of per-agent limits)
+max_concurrent: 5
+
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
 review: claude-opus
@@ -637,5 +661,28 @@ YAML;
     public function getDriverRegistry(): AgentDriverRegistry
     {
         return $this->driverRegistry;
+    }
+
+    /**
+     * Get the TCP port for IPC communication.
+     * Returns configured port or default 9981.
+     */
+    public function getConsumePort(): int
+    {
+        $config = $this->loadConfig();
+
+        return $config['port'] ?? self::DEFAULT_CONSUME_PORT;
+    }
+
+    /**
+     * Get the global maximum concurrent processes.
+     * This is the total cap regardless of individual agent limits.
+     * Returns configured value or default 5.
+     */
+    public function getGlobalMaxConcurrent(): int
+    {
+        $config = $this->loadConfig();
+
+        return $config['max_concurrent'] ?? self::DEFAULT_GLOBAL_MAX_CONCURRENT;
     }
 }

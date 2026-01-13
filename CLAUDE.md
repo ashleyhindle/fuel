@@ -54,17 +54,27 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 ### 🚨 MANDATORY: Session Close Protocol - Land The Plane
 **YOU MUST COMPLETE EVERY STEP BELOW BEFORE EXITING. NO EXCEPTIONS.**
 
+**For EPIC tasks** (task is part of an epic):
 ```
 [ ] Run tests                     # Quality gate (if you changed code)
 [ ] Run linter/formatter          # Fix formatting (if you changed code)
 [ ] git add <files>               # Stage your changes
-[ ] git commit -m "feat/fix:..."  # Conventional commit - note the hash from output [main abc1234]
-[ ] fuel done <id> --commit=<hash>  # Mark complete with commit hash from above
-[ ] fuel add "..."              # File tasks for ANY remaining or discovered work
-
-[ ] Hand off - Provide context for next session
+[ ] DO NOT commit                 # Commits happen after epic approval
+[ ] fuel done <id>                # Mark complete (no --commit needed)
+[ ] fuel add "..."                # File tasks for ANY remaining or discovered work
+[ ] Hand off                      # Provide context for next session
 ```
 
+**For STANDALONE tasks** (task has no epic):
+```
+[ ] Run tests                     # Quality gate (if you changed code)
+[ ] Run linter/formatter          # Fix formatting (if you changed code)
+[ ] git add <files>               # Stage your changes
+[ ] git commit -m "feat/fix:..."  # Conventional commit - note the hash
+[ ] fuel done <id> --commit=<hash># Mark complete with commit hash
+[ ] fuel add "..."                # File tasks for ANY remaining or discovered work
+[ ] Hand off                      # Provide context for next session
+```
 
 Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 
@@ -171,6 +181,40 @@ fuel epic:reviewed <e-id>               # Mark as human-reviewed
 ```
 
 **Always use epics for multi-task work.** Standalone tasks are fine for single-file fixes.
+
+### Epic Commit Workflow
+
+When working on epic tasks, changes are staged but NOT committed until the epic is approved:
+
+1. **During epic work**: Each task stages changes with `git add` but does NOT commit
+2. **On epic approval** (`fuel approve <epic>`): A commit task is automatically created
+3. **Commit task**: An agent reviews all staged changes and organizes them into meaningful commits
+
+**Benefits:**
+- Cleaner git history with related changes grouped together
+- Human reviews staged changes before committing
+- Commits can be organized logically rather than per-task
+
+**Example flow:**
+```bash
+# Agent 1 completes task in epic
+git add src/Feature.php
+fuel done f-abc123  # No --commit
+
+# Agent 2 completes another task in epic
+git add src/Service.php tests/FeatureTest.php
+fuel done f-def456  # No --commit
+
+# Human approves the epic
+fuel approve e-xyz789
+# Output: Created commit task: f-commit1
+
+# Agent picks up commit task
+# Reviews staged changes, creates organized commits
+git commit -m "feat: add Feature with Service integration"
+git commit -m "test: add Feature tests"
+fuel done f-commit1 --commit=abc1234
+```
 
 ### Backlog Management
 

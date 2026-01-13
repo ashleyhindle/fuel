@@ -17,12 +17,6 @@ it('runs a basic command flow', function (): void {
     // init already calls guidelines --add, so AGENTS.md should exist
     expect(file_exists($cwd.'/AGENTS.md'))->toBeTrue();
 
-    $consumeExit = Artisan::call('consume', [
-        '--dryrun' => true,
-    ]);
-
-    expect($consumeExit)->toBe(0);
-
     $inspireExit = Artisan::call('inspire');
     expect($inspireExit)->toBe(0);
 

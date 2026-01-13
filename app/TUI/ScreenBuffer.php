@@ -20,6 +20,14 @@ class ScreenBuffer
     private array $plainLines = [];
 
     /**
+     * Overlay layers (layer 1+) rendered on top of main content.
+     * Each layer has a position and array of lines to render.
+     *
+     * @var array<int, array{startRow: int, startCol: int, lines: array<int, string>}>
+     */
+    private array $overlays = [];
+
+    /**
      * Clickable regions mapped by identifier.
      *
      * @var array<string, array{startRow: int, endRow: int, startCol: int, endCol: int, type: string, data: mixed}>
@@ -42,6 +50,7 @@ class ScreenBuffer
         $this->lines = [];
         $this->plainLines = [];
         $this->regions = [];
+        $this->overlays = [];
 
         for ($row = 1; $row <= $this->height; $row++) {
             $this->lines[$row] = $emptyLine;
@@ -148,11 +157,59 @@ class ScreenBuffer
     }
 
     /**
-     * Get the plain text at a row (1-indexed).
+     * Get the plain text at a row (1-indexed), compositing overlays on top.
      */
     public function getPlainLine(int $row): string
     {
-        return $this->plainLines[$row] ?? str_repeat(' ', $this->width);
+        $baseLine = $this->plainLines[$row] ?? str_repeat(' ', $this->width);
+
+        // Composite overlays onto the base line (higher layers rendered on top)
+        if ($this->overlays === []) {
+            return $baseLine;
+        }
+
+        // Convert to array for easy character replacement
+        $chars = preg_split('//u', $baseLine, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        // Pad to full width if needed
+        while (count($chars) < $this->width) {
+            $chars[] = ' ';
+        }
+
+        // Sort overlays by layer number (ascending) so higher layers overwrite
+        $sortedOverlays = $this->overlays;
+        ksort($sortedOverlays);
+
+        foreach ($sortedOverlays as $overlay) {
+            $startRow = $overlay['startRow'];
+            $startCol = $overlay['startCol'];
+            $lines = $overlay['lines'];
+
+            // Calculate which line of the overlay (if any) is on this row
+            $overlayLineIndex = $row - $startRow;
+            if ($overlayLineIndex < 0 || $overlayLineIndex >= count($lines)) {
+                continue; // This row doesn't have overlay content
+            }
+
+            $overlayLine = $lines[$overlayLineIndex];
+            if ($overlayLine === '') {
+                continue; // Empty line, skip
+            }
+
+            // Strip ANSI codes to get plain text
+            $plainOverlay = $this->stripAnsi($overlayLine);
+            $overlayChars = preg_split('//u', $plainOverlay, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+            // Overlay characters starting at startCol (1-indexed -> 0-indexed)
+            $colIndex = $startCol - 1;
+            foreach ($overlayChars as $char) {
+                if ($colIndex >= 0 && $colIndex < $this->width) {
+                    $chars[$colIndex] = $char;
+                }
+                $colIndex++;
+            }
+        }
+
+        return implode('', $chars);
     }
 
     /**
@@ -268,6 +325,56 @@ class ScreenBuffer
     public function getHeight(): int
     {
         return $this->height;
+    }
+
+    /**
+     * Add an overlay layer at a specific position.
+     * Overlays are rendered on top of the main content using cursor positioning.
+     *
+     * @param  int  $layer  Layer number (1+, higher = rendered later/on top)
+     * @param  int  $startRow  1-indexed starting row
+     * @param  int  $startCol  1-indexed starting column
+     * @param  array<int, string>  $lines  Array of lines (0-indexed)
+     */
+    public function setOverlay(int $layer, int $startRow, int $startCol, array $lines): void
+    {
+        if ($layer < 1) {
+            return; // Layer 0 is the main buffer
+        }
+
+        $this->overlays[$layer] = [
+            'startRow' => $startRow,
+            'startCol' => $startCol,
+            'lines' => $lines,
+        ];
+    }
+
+    /**
+     * Get all overlay layers sorted by layer number.
+     *
+     * @return array<int, array{startRow: int, startCol: int, lines: array<int, string>}>
+     */
+    public function getOverlays(): array
+    {
+        ksort($this->overlays);
+
+        return $this->overlays;
+    }
+
+    /**
+     * Check if any overlays are set.
+     */
+    public function hasOverlays(): bool
+    {
+        return $this->overlays !== [];
+    }
+
+    /**
+     * Clear only the overlay layers (keep main buffer intact).
+     */
+    public function clearOverlays(): void
+    {
+        $this->overlays = [];
     }
 
     /**

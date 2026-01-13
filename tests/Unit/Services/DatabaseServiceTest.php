@@ -31,7 +31,7 @@ it('creates runs table with correct schema', function (): void {
 
     $columns = $this->service->fetchAll('PRAGMA table_info(runs)');
 
-    expect($columns)->toHaveCount(14);
+    expect($columns)->toHaveCount(16);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'short_id',
@@ -47,6 +47,8 @@ it('creates runs table with correct schema', function (): void {
         'model',
         'output',
         'cost_usd',
+        'pid',
+        'runner_instance_id',
     ]);
 });
 

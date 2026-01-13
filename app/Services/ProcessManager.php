@@ -44,11 +44,28 @@ class ProcessManager implements ProcessManagerInterface
     /** Number of times SIGTERM/SIGINT has been received */
     private int $shutdownSignalCount = 0;
 
+    /** Flag indicating if this is a runner process (vs client) */
+    private bool $isRunner;
+
+    /** Optional callback for output chunks: (taskId, stream, chunk) => void */
+    private $outputCallback = null;
+
     public function __construct(
         private readonly ConfigService $configService,
         private readonly FuelContext $fuelContext,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
-    ) {}
+        bool $isRunner = true,
+    ) {
+        $this->isRunner = $isRunner;
+    }
+
+    /**
+     * Set callback for output chunks (used by IPC runner to broadcast output).
+     */
+    public function setOutputCallback(callable $callback): void
+    {
+        $this->outputCallback = $callback;
+    }
 
     /**
      * Check if a process for the given task is currently running.
@@ -270,9 +287,15 @@ class ProcessManager implements ProcessManagerInterface
     /**
      * Register signal handlers for graceful shutdown.
      * Should be called at the start of consume command.
+     * No-op when isRunner=false (client mode doesn't own processes).
      */
     public function registerSignalHandlers(): void
     {
+        // Client mode doesn't own processes, so don't register signal handlers
+        if (! $this->isRunner) {
+            return;
+        }
+
         if (! extension_loaded('pcntl')) {
             throw new \RuntimeException('PCNTL extension is required for signal handling');
         }
@@ -294,9 +317,6 @@ class ProcessManager implements ProcessManagerInterface
         if ($this->shutdownSignalCount === 1) {
             // First signal: graceful shutdown
             $this->shuttingDown = true;
-
-            // Output message to STDERR to ensure it's visible
-            fwrite(STDERR, "\n\033[33m⚠ Shutting down gracefully... Press Ctrl+C again to force quit.\033[0m\n");
 
             // Start graceful shutdown process
             $this->shutdown();
@@ -396,11 +416,20 @@ class ProcessManager implements ProcessManagerInterface
     /**
      * Check if can spawn a new process for the given agent.
      *
+     * Checks both per-agent limits and global max concurrent limit.
+     *
      * @param  string  $agentName  The agent name to check capacity for
      * @return bool True if can spawn, false if at capacity
      */
     public function canSpawn(string $agentName): bool
     {
+        // Check global limit first
+        $globalLimit = $this->configService->getGlobalMaxConcurrent();
+        if ($this->getActiveCount() >= $globalLimit) {
+            return false;
+        }
+
+        // Check per-agent limit
         $limit = $this->configService->getAgentLimit($agentName);
         $current = $this->agentCounts[$agentName] ?? 0;
 
@@ -626,7 +655,7 @@ class ProcessManager implements ProcessManagerInterface
 
             // Add model if specified
             if (! empty($agentDef['model'])) {
-                $commandArray[] = '--model';
+                $commandArray[] = $agentDef['model_arg'];
                 $commandArray[] = $agentDef['model'];
             }
 
@@ -806,6 +835,11 @@ class ProcessManager implements ProcessManagerInterface
             $incrementalOutput = $agentProcess->getIncrementalOutput();
             if (! empty($incrementalOutput)) {
                 $agentProcess->appendToOutputBuffer($incrementalOutput);
+
+                // Invoke output callback if set (for IPC broadcasting)
+                if ($this->outputCallback !== null) {
+                    ($this->outputCallback)($taskId, 'stdout', $incrementalOutput);
+                }
 
                 // Try to extract session ID if not already captured
                 if (! $agentProcess->isSessionIdCaptured()) {

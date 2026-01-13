@@ -9,6 +9,7 @@ use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
+use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\HelloEvent;
@@ -350,6 +351,23 @@ class ConsumeIpcClient
     }
 
     /**
+     * Set whether automatic task reviews are enabled on the runner.
+     */
+    public function setTaskReviewEnabled(bool $enabled): void
+    {
+        if ($this->socket === null) {
+            return;
+        }
+
+        $cmd = new SetTaskReviewCommand(
+            enabled: $enabled,
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
      * Poll for all available events (non-blocking).
      *
      * @return array<IpcMessage> Array of received events
@@ -488,6 +506,19 @@ class ConsumeIpcClient
     }
 
     /**
+     * Send a generic IPC command to the runner.
+     *
+     * This method allows sending any IPC command type, including custom commands
+     * not explicitly handled by dedicated methods in this class.
+     *
+     * @param  IpcMessage  $command  The command to send to the runner
+     */
+    public function sendCommand(IpcMessage $command): void
+    {
+        $this->sendMessage($command);
+    }
+
+    /**
      * Send an IPC message to the runner.
      */
     private function sendMessage(IpcMessage $message): void
@@ -602,11 +633,12 @@ class ConsumeIpcClient
             return;
         }
 
-        $this->activeProcesses[$event->taskId] = [
-            'task_id' => $event->taskId,
-            'run_id' => $event->runId,
-            'agent' => $event->agent,
-            'started_at' => $event->timestamp->format('c'),
+        $this->activeProcesses[$event->taskId()] = [
+            'task_id' => $event->taskId(),
+            'run_id' => $event->runId(),
+            'agent' => $event->agent(),
+            'started_at' => $event->timestamp()->format('c'),
+            'last_output_time' => null, // Will be updated on next snapshot
         ];
     }
 
@@ -619,7 +651,7 @@ class ConsumeIpcClient
             return;
         }
 
-        unset($this->activeProcesses[$event->taskId]);
+        unset($this->activeProcesses[$event->taskId()]);
     }
 
     /**
@@ -631,8 +663,8 @@ class ConsumeIpcClient
             return;
         }
 
-        $this->healthSummary[$event->agent] = [
-            'status' => $event->status,
+        $this->healthSummary[$event->agent()] = [
+            'status' => $event->status(),
         ];
     }
 }

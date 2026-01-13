@@ -51,6 +51,14 @@ class FuelContext
         return dirname($this->basePath);
     }
 
+    /**
+     * Get the PID file path (absolute).
+     */
+    public function getPidFilePath(): string
+    {
+        return $this->basePath.'/consume.pid';
+    }
+
     private function ensureMigrationCompatibility(): void
     {
         if (! is_file($this->getDatabasePath())) {

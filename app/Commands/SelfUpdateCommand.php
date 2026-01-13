@@ -72,8 +72,28 @@ class SelfUpdateCommand extends Command
 
         // Determine init settings BEFORE binary replacement to avoid zlib errors
         // after the phar file changes on disk
-        $projectPath = app(FuelContext::class)->getProjectPath();
+        $fuelContext = app(FuelContext::class);
+        $projectPath = $fuelContext->getProjectPath();
         $shouldRunInit = $this->shouldRunInit($projectPath);
+
+        // Check if consume daemon is running and stop it before update
+        $daemonWasRunning = false;
+        $pidFilePath = $fuelContext->getPidFilePath();
+        if (file_exists($pidFilePath)) {
+            $pidData = json_decode(file_get_contents($pidFilePath) ?: '', true);
+            if (is_array($pidData) && isset($pidData['pid'])) {
+                $pid = (int) $pidData['pid'];
+                if (function_exists('posix_kill') && posix_kill($pid, 0)) {
+                    $daemonWasRunning = true;
+                    $this->info('Stopping consume daemon before update...');
+                    posix_kill($pid, SIGTERM);
+                    // Wait up to 5 seconds for graceful shutdown
+                    for ($i = 0; $i < 50 && posix_kill($pid, 0); $i++) {
+                        usleep(100000);
+                    }
+                }
+            }
+        }
 
         // Download and install new binary if not already on latest
         if (! $alreadyLatest) {
@@ -137,6 +157,15 @@ class SelfUpdateCommand extends Command
             }
         } else {
             $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');
+        }
+
+        // Restart daemon if it was running before update
+        if ($daemonWasRunning && ! $alreadyLatest) {
+            $this->info('Restarting consume daemon with new version...');
+            // Start the new daemon in background
+            $cmd = escapeshellarg($targetPath).' consume:runner > /dev/null 2>&1 &';
+            exec($cmd);
+            $this->info('Daemon restarted.');
         }
 
         return self::SUCCESS;

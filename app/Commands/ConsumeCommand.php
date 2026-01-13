@@ -370,9 +370,15 @@ class ConsumeCommand extends Command
 
                 $this->ipcClient->finalizeAttach();
                 $this->debug('Attached to runner', $attachStart);
+
+                // Sync task review setting with runner
+                $this->ipcClient->setTaskReviewEnabled((bool) $this->option('review'));
             } else {
                 // Non-interactive: use blocking attach
                 $this->ipcClient->attach();
+
+                // Sync task review setting with runner
+                $this->ipcClient->setTaskReviewEnabled((bool) $this->option('review'));
             }
         } catch (\RuntimeException $e) {
             $this->restoreTerminal();
@@ -1217,11 +1223,28 @@ class ConsumeCommand extends Command
         $humanTasks = $boardData['human'];
         $doneTasks = $boardData['done'];
 
-        // Get active process metadata
+        // Get active process metadata - use IPC client if connected, otherwise local process manager
         $activeProcesses = [];
-        foreach ($this->processManager->getActiveProcesses() as $process) {
-            $metadata = $process->getMetadata();
-            $activeProcesses[$metadata['task_id']] = $metadata;
+        if ($this->ipcClient?->isConnected()) {
+            // Transform IPC active processes to match expected format
+            foreach ($this->ipcClient->getActiveProcesses() as $taskId => $processData) {
+                // Handle both integer timestamps (from snapshot) and string dates (from events)
+                $startedAt = $processData['started_at'] ?? time();
+                if (is_string($startedAt)) {
+                    $startedAt = strtotime($startedAt) ?: time();
+                }
+                $activeProcesses[$taskId] = [
+                    'task_id' => $taskId,
+                    'agent_name' => $processData['agent'] ?? 'unknown',
+                    'duration' => time() - $startedAt,
+                    'last_output_time' => $processData['last_output_time'] ?? null,
+                ];
+            }
+        } else {
+            foreach ($this->processManager->getActiveProcesses() as $process) {
+                $metadata = $process->getMetadata();
+                $activeProcesses[$metadata['task_id']] = $metadata;
+            }
         }
 
         // Calculate column width (2 columns with 2 space gap)
@@ -1495,28 +1518,46 @@ class ConsumeCommand extends Command
         $overlayLines = [];
         $overlayStartRow = $inputRow;
 
-        // Build suggestions box if there are suggestions
+        // Build suggestions box - dynamically sized but clears stale content above
+        $maxSlots = 5; // Maximum number of suggestion slots
+        $maxBoxHeight = $maxSlots + 2; // Max slots + top/bottom borders
+
         if ($this->commandPaletteSuggestions !== []) {
             $suggestionCount = count($this->commandPaletteSuggestions);
-            $maxVisible = min(5, $suggestionCount);
-            $visibleSuggestions = array_slice($this->commandPaletteSuggestions, 0, $maxVisible);
+            $visibleCount = min($maxSlots, $suggestionCount);
+            $visibleSuggestions = array_slice($this->commandPaletteSuggestions, 0, $visibleCount);
+            $actualBoxHeight = $visibleCount + 2; // Visible items + borders
 
-            // Calculate starting row for suggestions box (above input line)
-            $boxStartRow = $inputRow - 1 - $maxVisible - 2; // -2 for top and bottom borders
+            // Always start overlay at the same row (for max height) to clear stale content
+            $boxStartRow = $inputRow - 1 - $maxSlots - 2;
             $overlayStartRow = $boxStartRow;
+
+            // Add empty clearing lines for unused rows above the actual box
+            $clearingLines = $maxBoxHeight - $actualBoxHeight;
+            for ($i = 0; $i < $clearingLines; $i++) {
+                $overlayLines[] = ''; // Empty line - will just clear with \033[K
+            }
 
             // Top border
             $overlayLines[] = '╭'.str_repeat('─', $boxWidth - 2).'╮';
 
-            // Suggestion lines
+            // Suggestion lines - handle both command and task suggestions
             foreach ($visibleSuggestions as $index => $suggestion) {
-                $displayId = substr((string) $suggestion['short_id'], 2, 6);
-                $titleTrunc = $this->truncate((string) $suggestion['title'], $boxWidth - 14);
-                $content = sprintf('[%s] %s', $displayId, $titleTrunc);
+                if (isset($suggestion['command'])) {
+                    // Command suggestion: show command name + description
+                    $cmdName = $suggestion['command'];
+                    $cmdDesc = $this->truncate((string) $suggestion['description'], $boxWidth - strlen($cmdName) - 6);
+                    $content = sprintf('<fg=cyan>%s</> <fg=gray>%s</>', $cmdName, $cmdDesc);
+                } else {
+                    // Task suggestion: show ID + title
+                    $displayId = substr((string) $suggestion['short_id'], 2, 6);
+                    $titleTrunc = $this->truncate((string) $suggestion['title'], $boxWidth - 14);
+                    $content = sprintf('[%s] %s', $displayId, $titleTrunc);
+                }
 
-                // Apply selection styling
+                // Apply selection styling with explicit RGB for guaranteed contrast
                 if ($index === $this->commandPaletteSuggestionIndex) {
-                    $content = '<bg=blue;fg=white>'.$content.'</>';
+                    $content = '<bg=#1e40af;fg=#ffffff>'.$this->stripAnsi($content).'</>';
                 }
 
                 $contentLen = $this->visibleLength($content);
@@ -1528,8 +1569,15 @@ class ConsumeCommand extends Command
             $overlayLines[] = '╰'.str_repeat('─', $boxWidth - 2).'╯';
         } elseif (str_starts_with($this->commandPaletteInput, 'close ')) {
             // Show "No matching tasks" message
-            $boxStartRow = $inputRow - 1 - 3; // 3 lines: top border, message, bottom border
+            $actualBoxHeight = 3; // Top border, message, bottom border
+            $boxStartRow = $inputRow - 1 - $maxSlots - 2;
             $overlayStartRow = $boxStartRow;
+
+            // Add empty clearing lines for unused rows above the actual box
+            $clearingLines = $maxBoxHeight - $actualBoxHeight;
+            for ($i = 0; $i < $clearingLines; $i++) {
+                $overlayLines[] = ''; // Empty line - will just clear with \033[K
+            }
 
             // Top border
             $overlayLines[] = '╭'.str_repeat('─', $boxWidth - 2).'╮';
@@ -1658,6 +1706,9 @@ class ConsumeCommand extends Command
         foreach ($this->screenBuffer->getOverlays() as $overlay) {
             $startRow = $overlay['startRow'];
             $startCol = $overlay['startCol'];
+            // Only clear to end of line for left-aligned overlays (like command palette)
+            // Centered overlays (like modals) shouldn't clear or they'd erase the right column
+            $clearToEnd = $startCol <= 2;
 
             foreach ($overlay['lines'] as $i => $line) {
                 $row = $startRow + $i;
@@ -1669,6 +1720,10 @@ class ConsumeCommand extends Command
                 $this->getOutput()->write(sprintf("\033[%d;%dH", $row, $startCol));
                 $formatted = $formatter->format($line);
                 $this->getOutput()->write($formatted);
+                // Clear stale characters for left-aligned overlays only
+                if ($clearToEnd) {
+                    $this->getOutput()->write("\033[K");
+                }
             }
         }
     }
@@ -3180,9 +3235,9 @@ class ConsumeCommand extends Command
         $this->commandPaletteInput = '';
         $this->commandPaletteCursor = 0;
         $this->commandPaletteSuggestionIndex = -1;
-        $this->commandPaletteSuggestions = [];
         $this->selectionStart = null;
         $this->selectionEnd = null;
+        $this->updateCommandPaletteSuggestions(); // Show commands immediately
         $this->forceRefresh = true;
     }
 
@@ -3215,8 +3270,12 @@ class ConsumeCommand extends Command
 
         // Escape sequence
         if ($buf[0] === "\x1b") {
-            if ($len < 2) {
-                return 0; // Need more data
+            // Bare ESC (only ESC with no following chars) - treat as escape immediately
+            if ($len === 1) {
+                $this->deactivateCommandPalette();
+                $this->inputBuffer = '';
+
+                return 1;
             }
 
             // CSI sequences (ESC [)
@@ -3225,22 +3284,36 @@ class ConsumeCommand extends Command
                     return 0; // Need more data
                 }
 
+                // Mouse events (ESC [ M <btn> <x> <y>) - ignore but consume
+                if ($buf[2] === 'M') {
+                    if ($len < 6) {
+                        return 0; // Need more data for mouse event
+                    }
+                    $this->inputBuffer = substr($buf, 6);
+
+                    return 6; // Consume mouse event without action
+                }
+
                 // Arrow keys
                 switch ($buf[2]) {
                     case 'A': // Up arrow
                         $this->commandPaletteSuggestionUp();
+                        $this->inputBuffer = substr($buf, 3);
 
                         return 3;
                     case 'B': // Down arrow
                         $this->commandPaletteSuggestionDown();
+                        $this->inputBuffer = substr($buf, 3);
 
                         return 3;
                     case 'C': // Right arrow
                         $this->commandPaletteCursorRight();
+                        $this->inputBuffer = substr($buf, 3);
 
                         return 3;
                     case 'D': // Left arrow
                         $this->commandPaletteCursorLeft();
+                        $this->inputBuffer = substr($buf, 3);
 
                         return 3;
                 }
@@ -3248,12 +3321,14 @@ class ConsumeCommand extends Command
 
             // Bare ESC or ESC+other -> deactivate
             $this->deactivateCommandPalette();
+            $this->inputBuffer = substr($buf, 1);
 
             return 1;
         }
 
         // Single character handling
         $char = $buf[0];
+        $this->inputBuffer = substr($buf, 1); // Remove consumed byte
 
         // Enter (carriage return or newline)
         if ($char === "\r" || $char === "\n") {
@@ -3305,7 +3380,7 @@ class ConsumeCommand extends Command
             return 1;
         }
 
-        // Unknown character - consume it
+        // Unknown character - already consumed
         return 1;
     }
 
@@ -3381,21 +3456,41 @@ class ConsumeCommand extends Command
         }
     }
 
+    /** Available commands in the command palette */
+    private const PALETTE_COMMANDS = [
+        'close' => 'Mark a task as done',
+        'pause' => 'Pause task consumption',
+        'resume' => 'Resume task consumption',
+    ];
+
     /**
      * Accept the currently selected suggestion and update the input.
      */
     private function acceptCurrentSuggestion(): void
     {
         $index = $this->commandPaletteSuggestionIndex;
-        if ($index >= 0 && $index < count($this->commandPaletteSuggestions)) {
-            $selected = $this->commandPaletteSuggestions[$index];
-            // Assume suggestion has a short_id property (Task object or similar)
-            if (isset($selected->short_id) || (is_array($selected) && isset($selected['short_id']))) {
-                $shortId = is_object($selected) ? $selected->short_id : $selected['short_id'];
-                $this->commandPaletteInput = 'close '.$shortId;
-                $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
-                $this->updateCommandPaletteSuggestions();
-            }
+        if ($index < 0 || $index >= count($this->commandPaletteSuggestions)) {
+            return;
+        }
+
+        $selected = $this->commandPaletteSuggestions[$index];
+
+        // Check if this is a command suggestion (has 'command' key)
+        if (is_array($selected) && isset($selected['command'])) {
+            $this->commandPaletteInput = $selected['command'].' ';
+            $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
+            $this->commandPaletteSuggestionIndex = -1;
+            $this->updateCommandPaletteSuggestions();
+
+            return;
+        }
+
+        // Task suggestion - has short_id
+        if (isset($selected->short_id) || (is_array($selected) && isset($selected['short_id']))) {
+            $shortId = is_object($selected) ? $selected->short_id : $selected['short_id'];
+            $this->commandPaletteInput = 'close '.$shortId;
+            $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
+            $this->updateCommandPaletteSuggestions();
         }
     }
 
@@ -3404,20 +3499,50 @@ class ConsumeCommand extends Command
      */
     private function updateCommandPaletteSuggestions(): void
     {
-        // If input doesn't start with 'close ', set suggestions to empty array and return
-        if (! str_starts_with($this->commandPaletteInput, 'close ')) {
-            $this->commandPaletteSuggestions = [];
+        $input = $this->commandPaletteInput;
+
+        // Check if input matches a command with arguments (e.g., "close ")
+        if (str_starts_with($input, 'close ')) {
+            $this->updateTaskSuggestions(mb_substr($input, 6));
 
             return;
         }
 
-        // Extract search term: mb_substr($this->commandPaletteInput, 6) (after 'close ')
-        $searchTerm = mb_substr($this->commandPaletteInput, 6);
+        // Show matching commands
+        $this->updateCommandSuggestions($input);
+    }
 
+    /**
+     * Update suggestions with matching commands.
+     */
+    private function updateCommandSuggestions(string $input): void
+    {
+        $inputLower = mb_strtolower($input);
+        $suggestions = [];
+
+        foreach (self::PALETTE_COMMANDS as $command => $description) {
+            // Show all commands if input is empty, or filter by prefix match
+            if ($input === '' || str_starts_with($command, $inputLower)) {
+                $suggestions[] = [
+                    'command' => $command,
+                    'description' => $description,
+                ];
+            }
+        }
+
+        $this->commandPaletteSuggestions = $suggestions;
+        $this->clampSuggestionIndex();
+    }
+
+    /**
+     * Update suggestions with matching tasks for the close command.
+     */
+    private function updateTaskSuggestions(string $searchTerm): void
+    {
         // Get all non-done tasks
         $tasks = $this->taskService->all()->filter(fn (Task $t): bool => $t->status !== TaskStatus::Done);
 
-        // If search term is not empty, filter by partial match (case-insensitive) on short_id OR title
+        // Filter by partial match (case-insensitive) on short_id OR title
         if ($searchTerm !== '') {
             $searchTermLower = mb_strtolower($searchTerm);
             $tasks = $tasks->filter(function (Task $t) use ($searchTermLower): bool {
@@ -3428,7 +3553,7 @@ class ConsumeCommand extends Command
             });
         }
 
-        // Sort by priority, take first 10, convert to array of ['short_id' => ..., 'title' => ...]
+        // Sort by priority, take first 10
         $this->commandPaletteSuggestions = $tasks
             ->sortBy('priority')
             ->take(10)
@@ -3439,7 +3564,14 @@ class ConsumeCommand extends Command
             ->values()
             ->toArray();
 
-        // If commandPaletteSuggestionIndex >= count, reset to count-1 (or -1 if empty)
+        $this->clampSuggestionIndex();
+    }
+
+    /**
+     * Clamp the suggestion index to valid range.
+     */
+    private function clampSuggestionIndex(): void
+    {
         $count = count($this->commandPaletteSuggestions);
         if ($this->commandPaletteSuggestionIndex >= $count) {
             $this->commandPaletteSuggestionIndex = $count > 0 ? $count - 1 : -1;
@@ -3453,6 +3585,26 @@ class ConsumeCommand extends Command
     {
         // Trim input
         $input = trim($this->commandPaletteInput);
+
+        // Handle pause command
+        if ($input === 'pause') {
+            $this->ipcClient?->sendPause();
+            $this->toast?->show('Paused', 'success');
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
+        // Handle resume command
+        if ($input === 'resume') {
+            $this->ipcClient?->sendResume();
+            $this->toast?->show('Resumed', 'success');
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
 
         // Parse /close command
         if (preg_match('/^close\s+(\S+)/', $input, $matches)) {
@@ -3491,9 +3643,15 @@ class ConsumeCommand extends Command
             $this->invalidateTaskCache();
             $this->checkEpicCompletionSound($taskIdInput);
             $this->toast?->show('Closed: '.$task->short_id, 'success');
-        } elseif ($input !== '' && ! str_starts_with($input, 'close')) {
-            // Handle unknown command
-            $this->toast?->show('Unknown command', 'error');
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
+        // Handle unknown command or empty input
+        if ($input !== '' && ! str_starts_with($input, 'close')) {
+            $this->toast?->show('Unknown command: '.$input, 'error');
         }
 
         // Always call deactivateCommandPalette() and set forceRefresh=true at end
@@ -3665,7 +3823,7 @@ class ConsumeCommand extends Command
             return null;
         }
 
-        return $this->formatStatus('🚀', "Spawned {$event->taskId} with {$event->agent}", 'cyan');
+        return $this->formatStatus('🚀', "Spawned {$event->taskId()} with {$event->agent()}", 'cyan');
     }
 
     /**
@@ -3677,10 +3835,10 @@ class ConsumeCommand extends Command
             return null;
         }
 
-        $icon = $event->exitCode === 0 ? '✓' : '✗';
-        $color = $event->exitCode === 0 ? 'green' : 'red';
+        $icon = $event->exitCode() === 0 ? '✓' : '✗';
+        $color = $event->exitCode() === 0 ? 'green' : 'red';
 
-        return $this->formatStatus($icon, "Completed {$event->taskId} (exit {$event->exitCode})", $color);
+        return $this->formatStatus($icon, "Completed {$event->taskId()} (exit {$event->exitCode()})", $color);
     }
 
     /**
@@ -3692,13 +3850,13 @@ class ConsumeCommand extends Command
             return null;
         }
 
-        $color = match ($event->level) {
+        $color = match ($event->level()) {
             'error' => 'red',
             'warn' => 'yellow',
             default => 'gray',
         };
 
-        return $this->formatStatus('•', $event->text, $color);
+        return $this->formatStatus('•', $event->text(), $color);
     }
 
     /**
@@ -3710,6 +3868,6 @@ class ConsumeCommand extends Command
             return null;
         }
 
-        return $this->formatStatus('⚕', "Agent {$event->agent}: {$event->status}", 'yellow');
+        return $this->formatStatus('⚕', "Agent {$event->agent()}: {$event->status()}", 'yellow');
     }
 }

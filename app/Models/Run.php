@@ -17,7 +17,7 @@ class Run extends Model
     protected $fillable = [
         'short_id', 'task_id', 'agent', 'status', 'exit_code',
         'started_at', 'ended_at', 'duration_seconds', 'session_id',
-        'error_type', 'model', 'output', 'cost_usd',
+        'error_type', 'model', 'output', 'cost_usd', 'pid', 'runner_instance_id',
     ];
 
     protected $casts = [
@@ -27,6 +27,7 @@ class Run extends Model
         'started_at' => 'datetime',
         'ended_at' => 'datetime',
         'error_type' => FailureType::class,
+        'pid' => 'integer',
     ];
 
     protected $appends = ['run_id'];
