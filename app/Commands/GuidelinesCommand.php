@@ -64,11 +64,9 @@ class GuidelinesCommand extends Command
             file_put_contents($path, $updated);
 
             return true;
-        } else {
-            file_put_contents($path, "# Agent Instructions\n\n".$fuelSection);
-
-            return true;
         }
+        file_put_contents($path, "# Agent Instructions\n\n".$fuelSection);
+        return true;
     }
 
     protected function getGuidelinesContent(): string
