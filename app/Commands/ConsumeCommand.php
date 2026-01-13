@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Agents\Tasks\WorkAgentTask;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
@@ -479,16 +480,27 @@ class ConsumeCommand extends Command
         $taskTitle = $task->title;
         $shortTitle = mb_strlen((string) $taskTitle) > 40 ? mb_substr((string) $taskTitle, 0, 37).'...' : $taskTitle;
 
-        // Build structured prompt with task details
+        // Get working directory
         $cwd = $this->fuelContext->getProjectPath();
-        $fullPrompt = $this->promptBuilder->build($task, $cwd);
+
+        // Create WorkAgentTask abstraction
+        $reviewEnabled = (bool) $this->option('review');
+        $agentTask = new WorkAgentTask(
+            $task,
+            $this->taskService,
+            $this->promptBuilder,
+            $this->reviewService,
+            $reviewEnabled
+        );
+
+        // Wire up epic completion callback
+        $agentTask->setEpicCompletionCallback($this->checkEpicCompletionSound(...));
 
         // Determine agent name for capacity check and dryrun display
         $agentName = $agentOverride;
         if ($agentName === null) {
-            $complexity = $task->complexity ?? 'simple';
             try {
-                $agentName = $this->configService->getAgentForComplexity($complexity);
+                $agentName = $agentTask->getAgentName($this->configService);
             } catch (\RuntimeException $e) {
                 $this->error('Failed to get agent: '.$e->getMessage());
                 $this->line('Use --agent to override or ensure .fuel/config.yaml exists');
@@ -525,6 +537,7 @@ class ConsumeCommand extends Command
 
         if ($dryrun) {
             // Dryrun: show what would happen without claiming or spawning
+            $fullPrompt = $agentTask->buildPrompt($cwd);
             $statusLines[] = $this->formatStatus('👁', sprintf('[DRYRUN] Would spawn %s for %s: %s', $agentName, $taskId, $shortTitle), 'cyan');
             $this->setTerminalTitle('fuel: [DRYRUN] '.$taskId);
             $this->newLine();
@@ -556,8 +569,8 @@ class ConsumeCommand extends Command
             'started_at' => date('c'),
         ]);
 
-        // Spawn via ProcessManager with run ID
-        $result = $this->processManager->spawnForTask($task, $fullPrompt, $cwd, $agentOverride, $runId);
+        // Spawn via ProcessManager using WorkAgentTask abstraction
+        $result = $this->processManager->spawnAgentTask($agentTask, $cwd, $runId);
 
         if (! $result->success) {
             // Agent in backoff should already be caught above, but handle just in case
@@ -785,7 +798,8 @@ class ConsumeCommand extends Command
         // Clear retry attempts on success
         unset($this->taskRetryAttempts[$taskId]);
 
-        // Check task status
+        // Check task status to determine what happened
+        // Note: WorkAgentTask.onSuccess() has already handled review triggering or task completion
         $task = $this->taskService->find($taskId);
         if (! $task instanceof Task) {
             // Task was deleted?
@@ -794,42 +808,12 @@ class ConsumeCommand extends Command
             return;
         }
 
-        // Always trigger review as quality gate for ALL completions (Phase 3 spec)
-        // Track original status to handle already-done tasks correctly
-        $originalStatus = $task->status;
-        $wasAlreadyDone = $originalStatus === TaskStatus::Done;
-
-        if (! $this->option('review')) {
-            // Skip review and mark done directly
-            if (! $wasAlreadyDone) {
-                $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
-            }
-
-            $this->checkEpicCompletionSound($taskId);
-            $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (no review) (%s)', $taskId, $durationStr), 'green');
-        } elseif ($this->reviewService instanceof ReviewServiceInterface) {
-            // Trigger review if ReviewService is available
-            try {
-                // Store original status before triggering review
-                if ($wasAlreadyDone) {
-                    $this->preReviewTaskStatus[$taskId] = $originalStatus;
-                }
-
-                $reviewTriggered = $this->reviewService->triggerReview($taskId, $completion->agentName);
-                if ($reviewTriggered) {
-                    $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan');
-                } else {
-                    // No review agent configured - auto-complete with warning
-                    $this->fallbackAutoComplete($taskId, $statusLines, $durationStr, true);
-                }
-            } catch (\RuntimeException) {
-                // Review failed to trigger - fall back to auto-complete
-                $this->fallbackAutoComplete($taskId, $statusLines, $durationStr);
-            }
-        } else {
-            // No ReviewService - fall back to auto-complete
-            $this->fallbackAutoComplete($taskId, $statusLines, $durationStr);
-        }
+        // Display appropriate status message based on what WorkAgentTask.onSuccess() did
+        match ($task->status) {
+            TaskStatus::InReview => $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan'),
+            TaskStatus::Done => $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green'),
+            default => $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green'),
+        };
     }
 
     /**
@@ -850,38 +834,6 @@ class ConsumeCommand extends Command
         }
 
         $this->runService->updateLatestRun($taskId, $data);
-    }
-
-    /**
-     * Fall back to auto-completing the task when review is not available.
-     *
-     * @param  array<string>  $statusLines
-     * @param  bool  $noReviewAgent  Whether this is due to no review agent configured (shows warning)
-     */
-    private function fallbackAutoComplete(
-        string $taskId,
-        array &$statusLines,
-        string $durationStr,
-        bool $noReviewAgent = false
-    ): void {
-        // Add 'auto-closed' label to indicate it wasn't self-reported
-        $this->taskService->update($taskId, [
-            'add_labels' => ['auto-closed'],
-        ]);
-
-        // Use DoneCommand logic so future done enhancements apply automatically
-        Artisan::call('done', [
-            'ids' => [$taskId],
-            '--reason' => 'Auto-completed by consume (agent exit 0)',
-        ]);
-
-        $this->checkEpicCompletionSound($taskId);
-
-        if ($noReviewAgent) {
-            $statusLines[] = $this->formatStatus('⚠', sprintf('%s auto-completed - no review agent configured (%s)', $taskId, $durationStr), 'yellow');
-        } else {
-            $statusLines[] = $this->formatStatus('✓', sprintf('%s auto-completed (%s)', $taskId, $durationStr), 'green');
-        }
     }
 
     /**
