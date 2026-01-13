@@ -17,7 +17,7 @@ class AddCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'add
-        {title : The task title}
+        {title? : The task title}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--d|description= : Task description}
@@ -34,9 +34,35 @@ class AddCommand extends Command
 
     public function handle(TaskService $taskService, EpicService $epicService): int
     {
+        $title = $this->argument('title');
+
+        // Interactive mode if no title provided
+        if (empty($title)) {
+            $title = $this->ask('Title');
+            if (empty($title)) {
+                return $this->outputError('Title is required');
+            }
+
+            $description = $this->ask('Description (optional)');
+
+            $complexity = $this->choice(
+                'Complexity',
+                ['trivial', 'simple', 'moderate', 'complex'],
+                1 // default to 'simple'
+            );
+        }
+
         $data = [
-            'title' => $this->argument('title'),
+            'title' => $title,
         ];
+
+        // Add interactive values if set
+        if (isset($description) && $description !== null && $description !== '') {
+            $data['description'] = $description;
+        }
+        if (isset($complexity)) {
+            $data['complexity'] = $complexity;
+        }
 
         // Set status to someday if --someday or --backlog flag is present
         if ($this->option('backlog') || $this->option('someday')) {
