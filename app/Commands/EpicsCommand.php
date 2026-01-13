@@ -9,6 +9,7 @@ use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\EpicService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 
 class EpicsCommand extends Command
@@ -70,7 +71,8 @@ class EpicsCommand extends Command
                 ];
             }, $epics);
 
-            $this->table($headers, $rows);
+            $table = new Table;
+            $table->render($headers, $rows, $this->output);
 
             return self::SUCCESS;
         } catch (\Exception $exception) {
