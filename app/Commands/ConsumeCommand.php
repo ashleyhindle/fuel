@@ -105,14 +105,20 @@ class ConsumeCommand extends Command
     /** @var array<string, bool> Track epics we've already played completion sound for */
     private array $notifiedEpics = [];
 
-    /** Whether mouse reporting is currently enabled */
-    private bool $mouseReportingEnabled = true;
-
     /** Screen buffer for differential rendering and future text selection */
     private ?ScreenBuffer $screenBuffer = null;
 
     /** Previous screen buffer for comparison */
     private ?ScreenBuffer $previousBuffer = null;
+
+    /** Current mouse cursor shape (for avoiding redundant OSC 22 sends) */
+    private string $currentCursorShape = 'default';
+
+    /** Selection start position [row, col] or null if not selecting */
+    private ?array $selectionStart = null;
+
+    /** Selection end position [row, col] or null if not selecting */
+    private ?array $selectionEnd = null;
 
     public function __construct(
         private TaskService $taskService,
@@ -218,8 +224,7 @@ class ConsumeCommand extends Command
             $this->getOutput()->write("\033[?1049h");
             $this->inAlternateScreen = true;
             $this->getOutput()->write("\033[?25l"); // Hide cursor
-            $this->getOutput()->write("\033[?1000h"); // Enable mouse reporting
-            $this->mouseReportingEnabled = true;
+            $this->getOutput()->write("\033[?1003h"); // Enable mouse reporting (any-event mode)
             $this->getOutput()->write("\033[H\033[2J");
 
             shell_exec('stty -icanon -echo');
@@ -393,7 +398,8 @@ class ConsumeCommand extends Command
         // Exit alternate screen buffer and show cursor
         if ($this->inAlternateScreen) {
             // Use echo to ensure output even if Laravel output is unavailable
-            echo "\033[?1000l";   // Disable mouse reporting
+            echo "\033[?1003l";   // Disable mouse reporting
+            echo "\033]22;default\033\\"; // Reset cursor shape to default
             echo "\033[?25h";     // Show cursor
             echo "\033[?1049l";   // Exit alternate screen
             echo "\033]0;\007";   // Reset terminal title
@@ -1084,8 +1090,6 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
-        $mouseStatus = $this->mouseReportingEnabled ? '<fg=green>m: mouse ON</>' : '<fg=yellow>m: mouse OFF</>';
-        $footerParts[] = $mouseStatus;
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
@@ -1393,8 +1397,6 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
-        $mouseStatus = $this->mouseReportingEnabled ? '<fg=green>m: mouse ON</>' : '<fg=yellow>m: mouse OFF</>';
-        $footerParts[] = $mouseStatus;
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
@@ -1929,22 +1931,25 @@ class ConsumeCommand extends Command
             // Mouse event: ESC [ M <btn> <x> <y> (6 bytes total)
             if ($buf[1] === '[') {
                 if ($len >= 3 && $buf[2] === 'M') {
-                    // If mouse reporting is disabled, ignore mouse events
-                    if (! $this->mouseReportingEnabled) {
-                        $this->inputBuffer = substr($buf, 6);
-
-                        return 6;
-                    }
-
                     if ($len < 6) {
                         return 0; // Need more data for mouse event
                     }
 
                     // Parse mouse event
                     $btn = ord($buf[3]) - 32;
+                    $col = ord($buf[4]) - 32; // 1-indexed column
+                    $row = ord($buf[5]) - 32; // 1-indexed row
+
+                    // Decode button state
                     $isWheelUp = ($btn & 64) && ($btn & 3) === 0;
                     $isWheelDown = ($btn & 64) && ($btn & 3) === 1;
+                    $isMotion = ($btn & 32) !== 0; // Motion flag
+                    $buttonNum = $btn & 3; // 0=left, 1=middle, 2=right, 3=release
+                    $isButtonDown = ! $isMotion && $buttonNum !== 3 && ! ($btn & 64);
+                    $isButtonUp = ! $isMotion && $buttonNum === 3;
+                    $isDrag = $isMotion && $buttonNum !== 3;
 
+                    // Handle wheel scrolling
                     if ($isWheelUp || $isWheelDown) {
                         $scrollDelta = $isWheelUp ? -1 : 1;
                         if ($this->showDoneModal) {
@@ -1955,6 +1960,26 @@ class ConsumeCommand extends Command
                             $this->forceRefresh = true;
                         }
                     }
+
+                    // Handle text selection
+                    if ($isButtonDown && $buttonNum === 0) {
+                        // Left mouse button down - start selection
+                        $this->selectionStart = [$row, $col];
+                        $this->selectionEnd = [$row, $col];
+                    } elseif ($isDrag && $buttonNum === 0 && $this->selectionStart !== null) {
+                        // Dragging with left button - update selection end
+                        $this->selectionEnd = [$row, $col];
+                        $this->forceRefresh = true; // Redraw to show selection highlight
+                    } elseif ($isButtonUp && $this->selectionStart !== null && $this->selectionEnd !== null) {
+                        // Mouse up - copy selection to clipboard if we have a range
+                        $this->copySelectionToClipboard();
+                        $this->selectionStart = null;
+                        $this->selectionEnd = null;
+                        $this->forceRefresh = true;
+                    }
+
+                    // Update cursor shape based on content under mouse
+                    $this->updateCursorShape($row, $col);
 
                     $this->inputBuffer = substr($buf, 6);
 
@@ -2017,21 +2042,6 @@ class ConsumeCommand extends Command
                     $this->doneModalScroll = 0;
                 }
 
-                $this->forceRefresh = true;
-
-                return 1;
-
-            case 'm':
-            case 'M':
-                $this->mouseReportingEnabled = ! $this->mouseReportingEnabled;
-                if ($this->mouseReportingEnabled) {
-                    $this->getOutput()->write("\033[?1000h"); // Enable mouse reporting
-                    $statusLines[] = $this->formatStatus('🖱', 'Mouse reporting enabled', 'green');
-                } else {
-                    $this->getOutput()->write("\033[?1000l"); // Disable mouse reporting
-                    $statusLines[] = $this->formatStatus('🖱', 'Mouse reporting disabled (text selection enabled)', 'yellow');
-                }
-                $statusLines = $this->trimStatusLines($statusLines);
                 $this->forceRefresh = true;
 
                 return 1;
@@ -2370,5 +2380,98 @@ class ConsumeCommand extends Command
         } catch (\RuntimeException) {
             // Epic not found, ignore
         }
+    }
+
+    /**
+     * Update mouse cursor shape based on content under the cursor.
+     * Uses OSC 22 to set pointer shape - "text" over text content, "default" elsewhere.
+     */
+    private function updateCursorShape(int $row, int $col): void
+    {
+        if ($this->screenBuffer === null) {
+            return;
+        }
+
+        // Check what's under the cursor
+        $char = $this->screenBuffer->charAt($row, $col);
+
+        // Determine desired cursor shape
+        // Use "text" cursor if there's a non-whitespace character
+        $hasText = $char !== '' && $char !== ' ' && trim($char) !== '';
+        $desiredShape = $hasText ? 'text' : 'default';
+
+        // Only send OSC 22 if shape changed (avoid redundant output)
+        if ($desiredShape !== $this->currentCursorShape) {
+            $this->currentCursorShape = $desiredShape;
+            // OSC 22 ; <shape> ST - set pointer shape
+            $this->getOutput()->write("\033]22;{$desiredShape}\033\\");
+        }
+    }
+
+    /**
+     * Copy the current selection to the system clipboard using OSC 52.
+     */
+    private function copySelectionToClipboard(): void
+    {
+        if ($this->screenBuffer === null || $this->selectionStart === null || $this->selectionEnd === null) {
+            return;
+        }
+
+        [$startRow, $startCol] = $this->selectionStart;
+        [$endRow, $endCol] = $this->selectionEnd;
+
+        // Don't copy if it's just a click (no actual selection)
+        if ($startRow === $endRow && $startCol === $endCol) {
+            return;
+        }
+
+        // Extract the selected text
+        $text = $this->screenBuffer->extractSelection($startRow, $startCol, $endRow, $endCol);
+
+        if ($text === '') {
+            return;
+        }
+
+        // OSC 52 - manipulate selection data
+        // Format: \033]52;c;<base64-data>\007
+        // 'c' = clipboard selection
+        $base64 = base64_encode($text);
+        $this->getOutput()->write("\033]52;c;{$base64}\007");
+    }
+
+    /**
+     * Check if a position is within the current selection.
+     */
+    private function isInSelection(int $row, int $col): bool
+    {
+        if ($this->selectionStart === null || $this->selectionEnd === null) {
+            return false;
+        }
+
+        [$startRow, $startCol] = $this->selectionStart;
+        [$endRow, $endCol] = $this->selectionEnd;
+
+        // Normalize so start is before end
+        if ($startRow > $endRow || ($startRow === $endRow && $startCol > $endCol)) {
+            [$startRow, $startCol, $endRow, $endCol] = [$endRow, $endCol, $startRow, $startCol];
+        }
+
+        if ($row < $startRow || $row > $endRow) {
+            return false;
+        }
+
+        if ($row === $startRow && $row === $endRow) {
+            return $col >= $startCol && $col <= $endCol;
+        }
+
+        if ($row === $startRow) {
+            return $col >= $startCol;
+        }
+
+        if ($row === $endRow) {
+            return $col <= $endCol;
+        }
+
+        return true; // Middle rows are fully selected
     }
 }
