@@ -106,9 +106,8 @@ YAML;
 
         // Blocked tasks are in a modal, but count shows in footer
         expect($output)->toContain('b: blocked (1)');
-        // Blocker task should be in Ready
-        $blockerShortId = substr((string) $blocker->short_id, 2, 6);
-        expect($output)->toContain(sprintf('[%s ·s]', $blockerShortId));
+        // Blocker task should be in Ready column with its title
+        expect($output)->toContain('Blocker task');
     });
 
     it('shows in progress tasks in In Progress column', function (): void {
@@ -118,9 +117,9 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        // Title may be truncated, so check for short ID with complexity char
-        $shortId = substr((string) $task->short_id, 2, 6);
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        // Check for In Progress column and task title
+        expect($output)->toContain('In Progress (1)');
+        expect($output)->toContain('In progress task');
     });
 
     it('shows done task count in footer', function (): void {
@@ -141,10 +140,9 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        // Review tasks appear in "Review" column
-        $shortId = substr((string) $task->short_id, 2, 6);
+        // Review tasks appear in "Review" column with title
         expect($output)->toContain('Review (1)');
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        expect($output)->toContain('Review task');
     });
 
     it('does not show review tasks in other columns', function (): void {
@@ -154,11 +152,9 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        $reviewShortId = substr((string) $reviewTask->short_id, 2, 6);
-
         // Review task should appear in Review column
         expect($output)->toContain('Review (1)');
-        expect($output)->toContain(sprintf('[%s ·s]', $reviewShortId));
+        expect($output)->toContain('Review task');
 
         // Check that Ready and In Progress have 0 tasks
         expect($output)->toContain('Ready (0)');
@@ -175,9 +171,8 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr((string) $stuckTask->short_id, 2, 6);
         expect($output)->toContain('🪫');
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        expect($output)->toContain('Stuck task');
     });
 
     it('does not show failed icon for consumed tasks with zero exit code', function (): void {
@@ -190,8 +185,7 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr((string) $successTask->short_id, 2, 6);
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        expect($output)->toContain('Success task');
         expect($output)->not->toContain('🪫');
     });
 
@@ -205,9 +199,8 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr((string) $stuckTask->short_id, 2, 6);
         expect($output)->toContain('🪫');
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        expect($output)->toContain('Stuck PID task');
     });
 
     it('does not show stuck emoji for in_progress tasks with running PID', function (): void {
@@ -222,8 +215,7 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr((string) $runningTask->short_id, 2, 6);
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        expect($output)->toContain('Running task');
         expect($output)->not->toContain('🪫');
     });
 
@@ -236,15 +228,16 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        $trivialShortId = substr((string) $trivialTask->short_id, 2, 6);
-        $simpleShortId = substr((string) $simpleTask->short_id, 2, 6);
-        $moderateShortId = substr((string) $moderateTask->short_id, 2, 6);
-        $complexShortId = substr((string) $complexTask->short_id, 2, 6);
-
-        expect($output)->toContain(sprintf('[%s ·t]', $trivialShortId));
-        expect($output)->toContain(sprintf('[%s ·s]', $simpleShortId));
-        expect($output)->toContain(sprintf('[%s ·m]', $moderateShortId));
-        expect($output)->toContain(sprintf('[%s ·c]', $complexShortId));
+        // Card footer format: ╰───────── t ─╯ (complexity char before closing)
+        expect($output)->toContain('Trivial task');
+        expect($output)->toContain('Simple task');
+        expect($output)->toContain('Moderate task');
+        expect($output)->toContain('Complex task');
+        // Check complexity chars appear in card footers
+        expect($output)->toContain(' t ─╯');
+        expect($output)->toContain(' s ─╯');
+        expect($output)->toContain(' m ─╯');
+        expect($output)->toContain(' c ─╯');
     });
 
     it('defaults to simple complexity when complexity is missing', function (): void {
@@ -253,8 +246,9 @@ YAML;
         Artisan::call('consume', ['--once' => true]);
         $output = Artisan::output();
 
-        $shortId = substr((string) $task->short_id, 2, 6);
-        expect($output)->toContain(sprintf('[%s ·s]', $shortId));
+        expect($output)->toContain('Task without complexity');
+        // Default complexity is simple ('s')
+        expect($output)->toContain(' s ─╯');
     });
 
     it('shows footer with keyboard shortcuts', function (): void {
@@ -264,6 +258,6 @@ YAML;
         expect($output)->toContain('Shift+Tab');
         expect($output)->toContain('b: blocked');
         expect($output)->toContain('d: done');
-        expect($output)->toContain('Ctrl+C');
+        expect($output)->toContain('q: exit');
     });
 });

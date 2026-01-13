@@ -112,6 +112,21 @@ final class AgentProcess
         }
     }
 
+    /**
+     * Get last output time from stdout file modification time.
+     * Persists across consume restarts since it's based on the file, not memory.
+     */
+    public function getLastOutputTime(): ?int
+    {
+        if ($this->stdoutPath !== null && file_exists($this->stdoutPath)) {
+            $mtime = filemtime($this->stdoutPath);
+
+            return $mtime !== false ? $mtime : null;
+        }
+
+        return null;
+    }
+
     public function clearOutputBuffer(): void
     {
         $this->outputBuffer = '';
@@ -157,7 +172,7 @@ final class AgentProcess
     /**
      * Get metadata array for display purposes.
      *
-     * @return array{task_id: string, agent_name: string, model: ?string, start_time: int, session_id: ?string, duration: int}
+     * @return array{task_id: string, agent_name: string, model: ?string, start_time: int, session_id: ?string, duration: int, last_output_time: ?int}
      */
     public function getMetadata(): array
     {
@@ -168,6 +183,7 @@ final class AgentProcess
             'start_time' => $this->startTime,
             'session_id' => $this->sessionId,
             'duration' => $this->getDuration(),
+            'last_output_time' => $this->getLastOutputTime(),
         ];
     }
 }

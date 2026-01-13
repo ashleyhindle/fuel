@@ -76,11 +76,23 @@ class ConsumeCommand extends Command
     /** Whether done modal is visible */
     private bool $showDoneModal = false;
 
-    /** @var array<string, int> Track last activity timestamp per task (for relative time) */
-    private array $lastActivityTimestamps = [];
-
     /** Flag to force refresh on next loop (e.g., after SIGWINCH) */
     private bool $forceRefresh = false;
+
+    /** Scroll offset for blocked modal */
+    private int $blockedModalScroll = 0;
+
+    /** Scroll offset for done modal */
+    private int $doneModalScroll = 0;
+
+    /** Spinner frame counter for activity indicator */
+    private int $spinnerFrame = 0;
+
+    /** Spinner characters for activity animation */
+    private const SPINNER_CHARS = ['⠇', '⠏', '⠛', '⠹', '⠸', '⠼', '⠴', '⠦'];
+
+    /** Input buffer for batched reading */
+    private string $inputBuffer = '';
 
     public function __construct(
         private TaskService $taskService,
@@ -98,7 +110,7 @@ class ConsumeCommand extends Command
 
     public function handle(): int
     {
-        $this->call('migrate', ['--force' => true]);
+        $this->call('migrate', ['--force' => true, '--silent' => true, '--quiet' => true]);
 
         // Validate config early before entering TUI
         try {
@@ -177,6 +189,7 @@ class ConsumeCommand extends Command
             $this->getOutput()->write("\033[?1049h");
             $this->inAlternateScreen = true;
             $this->getOutput()->write("\033[?25l"); // Hide cursor
+            $this->getOutput()->write("\033[?1000h"); // Enable mouse reporting
             $this->getOutput()->write("\033[H\033[2J");
 
             shell_exec('stty -icanon -echo');
@@ -201,8 +214,10 @@ class ConsumeCommand extends Command
                 // Reload config on each iteration to pick up changes
                 $this->configService->reload();
 
-                // Check for keyboard input (pause toggle, modal toggles)
-                $this->handleKeyboardInput($paused, $statusLines);
+                // Check for keyboard input (pause toggle, modal toggles, quit)
+                if ($this->handleKeyboardInput($paused, $statusLines)) {
+                    break; // User pressed 'q' to exit
+                }
 
                 // When paused, just refresh display and wait
                 if ($paused) {
@@ -284,16 +299,12 @@ class ConsumeCommand extends Command
                     // Poll while waiting
                     for ($i = 0; $i < $interval * 10 && ! $this->processManager->isShuttingDown(); $i++) {
                         \pcntl_signal_dispatch();
-                        // Check for pause toggle while waiting
-                        if ($this->checkForPauseToggle()) {
-                            $paused = ! $paused;
-                            $statusLines[] = $paused
-                                ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
-                                : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
-                            $statusLines = $this->trimStatusLines($statusLines);
-                            $this->refreshDisplay($statusLines, $paused);
+                        // Check for keyboard input while waiting
+                        if ($this->handleKeyboardInput($paused, $statusLines)) {
+                            break 2; // User pressed 'q' to exit
                         }
 
+                        $this->refreshDisplay($statusLines, $paused);
                         usleep(100000); // 100ms
                     }
 
@@ -352,6 +363,7 @@ class ConsumeCommand extends Command
         // Exit alternate screen buffer and show cursor
         if ($this->inAlternateScreen) {
             // Use echo to ensure output even if Laravel output is unavailable
+            echo "\033[?1000l";   // Disable mouse reporting
             echo "\033[?25h";     // Show cursor
             echo "\033[?1049l";   // Exit alternate screen
             echo "\033]0;\007";   // Reset terminal title
@@ -937,8 +949,6 @@ class ConsumeCommand extends Command
 
         // End synchronized output (terminal flushes buffer to screen at once)
         $this->getOutput()->write("\033[?2026l");
-        // Clear from cursor to end of screen to remove any leftover content below
-        $this->getOutput()->write("\033[J");
     }
 
     /**
@@ -961,9 +971,6 @@ class ConsumeCommand extends Command
         foreach ($this->processManager->getActiveProcesses() as $process) {
             $metadata = $process->getMetadata();
             $activeProcesses[$metadata['task_id']] = $metadata;
-
-            // Update last activity timestamp
-            $this->lastActivityTimestamps[$metadata['task_id']] = time();
         }
 
         // Calculate column width (2 columns with 2 space gap)
@@ -1016,32 +1023,46 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Render status history
-        if ($statusLines !== []) {
-            $this->newLine();
-            foreach ($statusLines as $line) {
-                $this->line($line);
-            }
-        }
-
-        // Render footer with controls
-        $this->newLine();
+        // Build footer (key instructions only)
         $footerParts = [];
-        if ($paused) {
-            $footerParts[] = '<fg=yellow>PAUSED</>';
-        }
-
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
-        $footerParts[] = '<fg=gray>Ctrl+C: exit</>';
-        $this->line(implode(' | ', $footerParts));
+        $footerParts[] = '<fg=gray>q: exit</>';
+        $footerLine = implode(' <fg=#555>|</> ', $footerParts);
+
+        // Footer always takes 2 lines: status line + key instructions
+        $footerHeight = 2;
+
+        // Render status history above footer (positioned from bottom)
+        $statusLineCount = count($statusLines);
+        if ($statusLineCount > 0) {
+            $startRow = $this->terminalHeight - $statusLineCount - $footerHeight;
+            foreach ($statusLines as $i => $line) {
+                $this->getOutput()->write(sprintf("\033[%d;1H%s", $startRow + $i, $line));
+            }
+        }
+
+        // Render status line above key instructions (centered)
+        if ($paused) {
+            $statusLine = '<fg=yellow>PAUSED</>';
+        } else {
+            $spinner = self::SPINNER_CHARS[$this->spinnerFrame % count(self::SPINNER_CHARS)];
+            $this->spinnerFrame++;
+            $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
+        }
+        $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
+        $this->getOutput()->write(sprintf("\033[%d;1H%s%s", $this->terminalHeight - 1, str_repeat(' ', $statusPadding), $statusLine));
+
+        // Position footer at bottom of screen
+        $paddingAmount = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($footerLine)) / 2));
+        $this->getOutput()->write(sprintf("\033[%d;1H%s%s%s", $this->terminalHeight, str_repeat(' ', $paddingAmount), $footerLine, str_repeat(' ', $paddingAmount)));
 
         // Render modals if active
         if ($this->showBlockedModal) {
-            $this->renderModal('Blocked Tasks', $blockedTasks->take(20)->all(), 'blocked');
+            $this->renderModal('Blocked Tasks', $blockedTasks->all(), 'blocked', $this->blockedModalScroll);
         } elseif ($this->showDoneModal) {
-            $this->renderModal('Done Tasks', $doneTasks->take(20)->all(), 'done');
+            $this->renderModal('Done Tasks', $doneTasks->all(), 'done', $this->doneModalScroll);
         }
     }
 
@@ -1159,9 +1180,8 @@ class ConsumeCommand extends Command
     private function buildTaskCard(Task $task, int $width, string $style = 'normal'): array
     {
         $lines = [];
-        $shortId = $task->short_id;
+        $shortId = (string) $task->short_id;
         $taskTitle = (string) $task->title;
-        $displayId = substr((string) $shortId, 2, 6);
         $complexityChar = $this->getComplexityChar($task);
 
         // Icons
@@ -1174,12 +1194,19 @@ class ConsumeCommand extends Command
         }
 
         $icons = array_filter([$consumeIcon, $failedIcon, $autoClosedIcon]);
-        $iconString = implode(' ', $icons);
-        $iconWidth = count($icons) * 3;
+        $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
+        $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
 
-        $truncatedTitle = $this->truncate($taskTitle, $width - 11 - $iconWidth);
+        $truncatedTitle = $this->truncate($taskTitle, $width - 4 - $iconWidth);
 
         // Colors based on style
+        $borderColor = match ($style) {
+            'blocked' => 'fg=#b36666',
+            'done' => 'fg=#888888',
+            'review' => 'fg=yellow',
+            default => 'fg=gray',
+        };
+
         $idColor = match ($style) {
             'blocked' => 'fg=#b36666',
             'done' => 'fg=#888888',
@@ -1194,20 +1221,23 @@ class ConsumeCommand extends Command
         };
         $titleEnd = ($style === 'done' || $style === 'review') ? '</>' : '';
 
-        // Card border top
-        $lines[] = $this->padLine('<fg=gray>┌'.str_repeat('─', $width - 4).'┐</>', $width);
+        // Header: ╭─ f-abc123 ────────╮
+        // Fixed chars: ╭─ (2) + space (1) + space (1) + ╮ (1) = 5, plus id length
+        $headerIdPart = sprintf('<%s>%s</>', $idColor, $shortId);
+        $headerIdLen = strlen($shortId);
+        $headerDashesLen = max(1, $width - 5 - $headerIdLen);
+        $headerLine = sprintf('<%s>╭─</> %s <%s>%s╮</>', $borderColor, $headerIdPart, $borderColor, str_repeat('─', $headerDashesLen));
+        $lines[] = $this->padLine($headerLine, $width);
 
-        // Task ID and title line
-        if ($iconString !== '') {
-            $taskLine = sprintf('│ <%s>[%s ·%s]</> %s %s%s%s', $idColor, $displayId, $complexityChar, $iconString, $titleColor, $truncatedTitle, $titleEnd);
-        } else {
-            $taskLine = sprintf('│ <%s>[%s ·%s]</> %s%s%s', $idColor, $displayId, $complexityChar, $titleColor, $truncatedTitle, $titleEnd);
-        }
+        // Content line: │ title {icons} │
+        $contentLine = sprintf('<%s>│</> %s%s%s', $borderColor, $titleColor, $truncatedTitle, $titleEnd).$iconString;
+        $lines[] = $this->padLineWithBorderColor($contentLine, $width, $borderColor);
 
-        $lines[] = $this->padLineWithBorder($taskLine, $width);
-
-        // Card border bottom
-        $lines[] = $this->padLine('<fg=gray>└'.str_repeat('─', $width - 4).'┘</>', $width);
+        // Footer: ╰───────────── t ─╯
+        // Fixed chars: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
+        $footerDashesLen = max(1, $width - 6);
+        $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
+        $lines[] = $this->padLine($footerLine, $width);
 
         return $lines;
     }
@@ -1221,48 +1251,57 @@ class ConsumeCommand extends Command
     private function buildInProgressCard(Task $task, int $width, ?array $processInfo): array
     {
         $lines = [];
-        $shortId = $task->short_id;
+        $shortId = (string) $task->short_id;
         $taskTitle = (string) $task->title;
-        $displayId = substr((string) $shortId, 2, 6);
         $complexityChar = $this->getComplexityChar($task);
 
         // Icons
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
         $icons = array_filter([$consumeIcon, $failedIcon]);
-        $iconString = implode(' ', $icons);
-        $iconWidth = count($icons) * 3;
+        $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
+        $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
 
-        $truncatedTitle = $this->truncate($taskTitle, $width - 11 - $iconWidth);
+        $truncatedTitle = $this->truncate($taskTitle, $width - 4 - $iconWidth);
 
-        // Card border top
-        $lines[] = $this->padLine('<fg=gray>┌'.str_repeat('─', $width - 4).'┐</>', $width);
+        $borderColor = 'fg=gray';
+        $idColor = 'fg=cyan';
 
-        // Task ID and title line
-        if ($iconString !== '') {
-            $taskLine = sprintf('│ <fg=cyan>[%s ·%s]</> %s %s', $displayId, $complexityChar, $iconString, $truncatedTitle);
-        } else {
-            $taskLine = sprintf('│ <fg=cyan>[%s ·%s]</> %s', $displayId, $complexityChar, $truncatedTitle);
-        }
+        // Header: ╭─ f-abc123 ────────╮
+        // Fixed chars: ╭─ (2) + space (1) + space (1) + ╮ (1) = 5, plus id length
+        $headerIdPart = sprintf('<%s>%s</>', $idColor, $shortId);
+        $headerIdLen = strlen($shortId);
+        $headerDashesLen = max(1, $width - 5 - $headerIdLen);
+        $headerLine = sprintf('<%s>╭─</> %s <%s>%s╮</>', $borderColor, $headerIdPart, $borderColor, str_repeat('─', $headerDashesLen));
+        $lines[] = $this->padLine($headerLine, $width);
 
-        $lines[] = $this->padLineWithBorder($taskLine, $width);
+        // Content line: │ title {icons} │
+        $contentLine = sprintf('<%s>│</> %s', $borderColor, $truncatedTitle).$iconString;
+        $lines[] = $this->padLineWithBorderColor($contentLine, $width, $borderColor);
 
         // Status line if we have process info
         if ($processInfo !== null) {
             $agentName = $processInfo['agent_name'] ?? 'unknown';
             $duration = $this->formatDuration($processInfo['duration'] ?? 0);
 
-            // Calculate relative time since last activity
-            $lastActivity = $this->lastActivityTimestamps[$shortId] ?? $processInfo['start_time'] ?? time();
-            $sinceActivity = time() - $lastActivity;
-            $activityStr = $sinceActivity < 5 ? 'now' : $this->formatDuration($sinceActivity).' ago';
+            // Calculate relative time since last output from agent
+            $lastOutputTime = $processInfo['last_output_time'] ?? null;
+            if ($lastOutputTime !== null) {
+                $sinceOutput = time() - $lastOutputTime;
+                $activityStr = $sinceOutput < 5 ? 'now' : $this->formatDuration($sinceOutput).' ago';
+            } else {
+                $activityStr = 'waiting...';
+            }
 
-            $statusLine = sprintf('│ <fg=gray>%s · %s · last: %s</>', $agentName, $duration, $activityStr);
-            $lines[] = $this->padLineWithBorder($statusLine, $width);
+            $statusLine = sprintf('<%s>│</> <fg=gray>%s · %s · last: %s</>', $borderColor, $agentName, $duration, $activityStr);
+            $lines[] = $this->padLineWithBorderColor($statusLine, $width, $borderColor);
         }
 
-        // Card border bottom
-        $lines[] = $this->padLine('<fg=gray>└'.str_repeat('─', $width - 4).'┘</>', $width);
+        // Footer: ╰───────────── t ─╯
+        // Fixed chars: ╰ (1) + space (1) + complexity (1) + space (1) + ─╯ (2) = 6
+        $footerDashesLen = max(1, $width - 6);
+        $footerLine = sprintf('<%s>╰%s %s ─╯</>', $borderColor, str_repeat('─', $footerDashesLen), $complexityChar);
+        $lines[] = $this->padLine($footerLine, $width);
 
         return $lines;
     }
@@ -1272,10 +1311,18 @@ class ConsumeCommand extends Command
      */
     private function padLineWithBorder(string $line, int $width): string
     {
-        $visibleLen = $this->visibleLength($line);
-        $padding = max(0, $width - $visibleLen - 2); // -2 for │ at end
+        return $this->padLineWithBorderColor($line, $width, 'fg=gray');
+    }
 
-        return $line.str_repeat(' ', $padding).'<fg=gray>│</>';
+    /**
+     * Pad a line with colored border character at the end.
+     */
+    private function padLineWithBorderColor(string $line, int $width, string $borderColor): string
+    {
+        $visibleLen = $this->visibleLength($line);
+        $padding = max(0, $width - $visibleLen - 1); // -1 for │ at end
+
+        return $line.str_repeat(' ', $padding).sprintf('<%s>│</>', $borderColor);
     }
 
     /**
@@ -1329,7 +1376,7 @@ class ConsumeCommand extends Command
      *
      * @param  array<int, Task>  $tasks
      */
-    private function renderModal(string $title, array $tasks, string $style): void
+    private function renderModal(string $title, array $tasks, string $style, int $scrollOffset = 0): void
     {
         // Modal dimensions (centered, 60% width, up to 80% height)
         $modalWidth = min((int) ($this->terminalWidth * 0.6), $this->terminalWidth - 8);
@@ -1337,22 +1384,39 @@ class ConsumeCommand extends Command
         $startCol = (int) (($this->terminalWidth - $modalWidth) / 2);
         $startRow = 3;
 
+        // Calculate visible task slots (header=3 lines, footer=1 line)
+        $visibleSlots = $maxHeight - 4;
+        $totalTasks = count($tasks);
+
+        // Clamp scroll offset to valid range
+        $maxScroll = max(0, $totalTasks - $visibleSlots);
+        $scrollOffset = max(0, min($scrollOffset, $maxScroll));
+
+        // Update the caller's scroll position if it was clamped
+        if ($style === 'done') {
+            $this->doneModalScroll = $scrollOffset;
+        } else {
+            $this->blockedModalScroll = $scrollOffset;
+        }
+
         // Build modal content
         $modalLines = [];
-        $modalLines[] = '╔'.str_repeat('═', $modalWidth - 2).'╗';
-        $modalLines[] = '║ <fg=white;options=bold>'.$this->truncate($title, $modalWidth - 6).'</>'.str_repeat(' ', max(0, $modalWidth - $this->visibleLength($title) - 4)).'║';
-        $modalLines[] = '╠'.str_repeat('═', $modalWidth - 2).'╣';
+        $modalLines[] = '<fg=cyan>╭'.str_repeat('─', $modalWidth - 2).'╮</>';
+
+        // Title with scroll indicator
+        $scrollIndicator = $totalTasks > $visibleSlots ? sprintf(' (%d-%d of %d)', $scrollOffset + 1, min($scrollOffset + $visibleSlots, $totalTasks), $totalTasks) : '';
+        $titleWithIndicator = $title.$scrollIndicator;
+        $modalLines[] = '<fg=cyan>│</> <fg=white;options=bold>'.$this->truncate($titleWithIndicator, $modalWidth - 6).'</>'.str_repeat(' ', max(0, $modalWidth - $this->visibleLength($titleWithIndicator) - 3)).'<fg=cyan>│</>';
+        $modalLines[] = '<fg=cyan>├'.str_repeat('─', $modalWidth - 2).'┤</>';
 
         if ($tasks === []) {
             $emptyMsg = 'No tasks';
-            $modalLines[] = '║ <fg=gray>'.$emptyMsg.'</>'.str_repeat(' ', max(0, $modalWidth - strlen($emptyMsg) - 4)).'║';
+            $modalLines[] = '<fg=cyan>│</> <fg=gray>'.$emptyMsg.'</>'.str_repeat(' ', max(0, $modalWidth - strlen($emptyMsg) - 3)).'<fg=cyan>│</>';
         } else {
-            foreach ($tasks as $task) {
-                if (count($modalLines) >= $maxHeight - 2) {
-                    $modalLines[] = '║ <fg=gray>... and more</>'.str_repeat(' ', max(0, $modalWidth - 14)).'║';
-                    break;
-                }
+            // Slice tasks based on scroll offset
+            $visibleTasks = array_slice($tasks, $scrollOffset, $visibleSlots);
 
+            foreach ($visibleTasks as $task) {
                 $displayId = substr((string) $task->short_id, 2, 6);
                 $titleTrunc = $this->truncate((string) $task->title, $modalWidth - 16);
                 $complexityChar = $this->getComplexityChar($task);
@@ -1360,16 +1424,12 @@ class ConsumeCommand extends Command
                 $idColor = $style === 'blocked' ? 'fg=#b36666' : 'fg=#888888';
                 $content = sprintf('<%s>[%s ·%s]</> %s', $idColor, $displayId, $complexityChar, $titleTrunc);
                 $contentLen = $this->visibleLength($content);
-                $padding = max(0, $modalWidth - $contentLen - 4);
-                $modalLines[] = '║ '.$content.str_repeat(' ', $padding).'║';
+                $padding = max(0, $modalWidth - $contentLen - 3);
+                $modalLines[] = '<fg=cyan>│</> '.$content.str_repeat(' ', $padding).'<fg=cyan>│</>';
             }
         }
 
-        $modalLines[] = '╠'.str_repeat('═', $modalWidth - 2).'╣';
-        $footerText = 'Press Escape or '.(($style === 'blocked') ? 'b' : 'd').' to close';
-        $footerPadding = max(0, $modalWidth - strlen($footerText) - 4);
-        $modalLines[] = '║ <fg=gray>'.$footerText.'</>'.str_repeat(' ', $footerPadding).'║';
-        $modalLines[] = '╚'.str_repeat('═', $modalWidth - 2).'╝';
+        $modalLines[] = '<fg=cyan>╰'.str_repeat('─', $modalWidth - 2).'╯</>';
 
         // Render modal using absolute positioning
         foreach ($modalLines as $i => $line) {
@@ -1417,106 +1477,177 @@ class ConsumeCommand extends Command
      *
      * @param  bool  $paused  Reference to paused state
      * @param  array<string>  $statusLines  Reference to status lines
+     * @return bool True if should exit, false to continue
      */
-    private function handleKeyboardInput(bool &$paused, array &$statusLines): void
+    private function handleKeyboardInput(bool &$paused, array &$statusLines): bool
     {
+        // Batch read available input into buffer
         $read = [STDIN];
         $write = null;
         $except = null;
 
-        // Non-blocking check (0 timeout)
-        if (stream_select($read, $write, $except, 0, 0) <= 0) {
-            return;
+        if (stream_select($read, $write, $except, 0, 0) > 0) {
+            $chunk = fread(STDIN, 256);
+            if ($chunk !== false) {
+                $this->inputBuffer .= $chunk;
+            }
         }
 
-        $char = fgetc(STDIN);
-        if ($char === false) {
-            return;
+        if ($this->inputBuffer === '') {
+            return false;
         }
 
-        // Handle escape sequences (Shift+Tab, Escape key)
-        if ($char === "\x1b") {
-            // Read the rest of the escape sequence
-            $seq = '';
-            while (($next = fgetc(STDIN)) !== false) {
-                $seq .= $next;
-                // Escape sequences typically end after 1-2 chars
-                if (strlen($seq) >= 2) {
-                    break;
+        // Process all complete sequences in the buffer
+        while ($this->inputBuffer !== '') {
+            $consumed = $this->processInputSequence($paused, $statusLines);
+            if ($consumed === 0) {
+                // Check if buffer is just a bare ESC with no more data waiting
+                if ($this->inputBuffer === "\x1b") {
+                    $read = [STDIN];
+                    $write = null;
+                    $except = null;
+                    if (stream_select($read, $write, $except, 0, 0) === 0) {
+                        // No more data - treat as standalone Escape
+                        $this->handleBareEscape();
+                        $this->inputBuffer = '';
+                    }
                 }
+                break;
             }
-
-            // Check if it's Shift+Tab ([Z)
-            if ($seq === '[Z') {
-                // Drain any remaining buffered input to avoid multiple toggles
-                while (fgetc(STDIN) !== false) {
-                    // drain
-                }
-
-                $paused = ! $paused;
-                $statusLines[] = $paused
-                    ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
-                    : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
-                $statusLines = $this->trimStatusLines($statusLines);
-
-                return;
+            if ($consumed === -1) {
+                return true; // Exit requested
             }
-
-            // Check if it's just Escape (no sequence or short sequence)
-            if ($seq === '' || $seq === '[') {
-                // Close any open modals
-                if ($this->showBlockedModal || $this->showDoneModal) {
-                    $this->showBlockedModal = false;
-                    $this->showDoneModal = false;
-                    $this->forceRefresh = true;
-                }
-
-                return;
-            }
-
-            return;
         }
 
-        // Handle single character keys
+        return false;
+    }
+
+    /**
+     * Handle a bare Escape keypress (close modals).
+     */
+    private function handleBareEscape(): void
+    {
+        if ($this->showBlockedModal || $this->showDoneModal) {
+            $this->showBlockedModal = false;
+            $this->showDoneModal = false;
+            $this->blockedModalScroll = 0;
+            $this->doneModalScroll = 0;
+            $this->forceRefresh = true;
+        }
+    }
+
+    /**
+     * Process a single input sequence from the buffer.
+     *
+     * @return int Bytes consumed (0 = incomplete, -1 = exit requested)
+     */
+    private function processInputSequence(bool &$paused, array &$statusLines): int
+    {
+        $buf = $this->inputBuffer;
+        $len = strlen($buf);
+
+        if ($len === 0) {
+            return 0;
+        }
+
+        // Escape sequence
+        if ($buf[0] === "\x1b") {
+            if ($len < 2) {
+                return 0; // Need more data
+            }
+
+            // Mouse event: ESC [ M <btn> <x> <y> (6 bytes total)
+            if ($len >= 2 && $buf[1] === '[') {
+                if ($len >= 3 && $buf[2] === 'M') {
+                    if ($len < 6) {
+                        return 0; // Need more data for mouse event
+                    }
+
+                    // Parse mouse event
+                    $btn = ord($buf[3]) - 32;
+                    $isWheelUp = ($btn & 64) && ($btn & 3) === 0;
+                    $isWheelDown = ($btn & 64) && ($btn & 3) === 1;
+
+                    if ($isWheelUp || $isWheelDown) {
+                        $scrollDelta = $isWheelUp ? -1 : 1;
+                        if ($this->showDoneModal) {
+                            $this->doneModalScroll = max(0, $this->doneModalScroll + $scrollDelta);
+                            $this->forceRefresh = true;
+                        } elseif ($this->showBlockedModal) {
+                            $this->blockedModalScroll = max(0, $this->blockedModalScroll + $scrollDelta);
+                            $this->forceRefresh = true;
+                        }
+                    }
+
+                    $this->inputBuffer = substr($buf, 6);
+
+                    return 6;
+                }
+
+                // Shift+Tab: ESC [ Z (3 bytes)
+                if ($len >= 3 && $buf[2] === 'Z') {
+                    $paused = ! $paused;
+                    $statusLines[] = $paused
+                        ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
+                        : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
+                    $statusLines = $this->trimStatusLines($statusLines);
+                    $this->inputBuffer = substr($buf, 3);
+
+                    return 3;
+                }
+
+                // Other CSI sequences - consume ESC [
+                $this->inputBuffer = substr($buf, 2);
+
+                return 2;
+            }
+
+            // ESC followed by non-[ character - treat as bare escape + that char
+            $this->handleBareEscape();
+            $this->inputBuffer = substr($buf, 1);
+
+            return 1;
+        }
+
+        // Single character keys
+        $char = $buf[0];
+        $this->inputBuffer = substr($buf, 1);
+
         switch ($char) {
             case 'b':
             case 'B':
-                // Toggle blocked modal
                 $this->showBlockedModal = ! $this->showBlockedModal;
                 if ($this->showBlockedModal) {
-                    $this->showDoneModal = false; // Close done modal if open
+                    $this->showDoneModal = false;
+                    $this->doneModalScroll = 0;
+                    $this->blockedModalScroll = 0;
+                } else {
+                    $this->blockedModalScroll = 0;
                 }
-
                 $this->forceRefresh = true;
-                break;
+
+                return 1;
 
             case 'd':
             case 'D':
-                // Toggle done modal
                 $this->showDoneModal = ! $this->showDoneModal;
                 if ($this->showDoneModal) {
-                    $this->showBlockedModal = false; // Close blocked modal if open
+                    $this->showBlockedModal = false;
+                    $this->blockedModalScroll = 0;
+                    $this->doneModalScroll = 0;
+                } else {
+                    $this->doneModalScroll = 0;
                 }
-
                 $this->forceRefresh = true;
-                break;
+
+                return 1;
 
             case 'q':
             case 'Q':
-                // Close any open modals, or do nothing
-                if ($this->showBlockedModal || $this->showDoneModal) {
-                    $this->showBlockedModal = false;
-                    $this->showDoneModal = false;
-                    $this->forceRefresh = true;
-                }
-
-                break;
+                return -1; // Exit requested
         }
 
-        // Drain any remaining buffered input
-        while (fgetc(STDIN) !== false) {
-            // drain
-        }
+        return 1; // Consume unknown single char
     }
 
     /**
