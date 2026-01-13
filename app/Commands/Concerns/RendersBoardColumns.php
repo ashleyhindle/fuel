@@ -35,8 +35,10 @@ trait RendersBoardColumns
         $text = $stripped ?? $line;
 
         // Count emoji characters that display as 2 columns wide
-        // Common emojis used in the board: ⚡ 👤 ❌ 🪫
-        $emojiCount = preg_match_all('/[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]/u', $text);
+        // Ranges: 1F300-1F9FF (misc symbols/emoji), 1FA00-1FAFF (extended-A, includes 🪫),
+        // 2300-23FF (misc technical, includes ⏳⏸), 25A0-25FF (geometric, includes ▶),
+        // 2600-26FF (misc symbols, includes ⚡⚠), 2700-27BF (dingbats, includes ✓✗)
+        $emojiCount = preg_match_all('/[\x{1F300}-\x{1F9FF}]|[\x{1FA00}-\x{1FAFF}]|[\x{2300}-\x{23FF}]|[\x{25A0}-\x{25FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]/u', $text);
 
         return mb_strlen($text) + $emojiCount;
     }

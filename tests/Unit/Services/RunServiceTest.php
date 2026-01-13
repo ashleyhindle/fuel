@@ -23,7 +23,7 @@ beforeEach(function (): void {
         [$this->taskId, 'Test Task', 'open']
     );
 
-    $this->runService = makeRunService($this->databaseService);
+    $this->runService = makeRunService();
 });
 
 afterEach(function (): void {

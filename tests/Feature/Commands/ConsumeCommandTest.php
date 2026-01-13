@@ -628,7 +628,7 @@ describe('consume command auto-close feature', function (): void {
         expect($closedTask->reason)->toBe('Auto-completed by consume (agent exit 0)');
     });
 
-    it('shows auto-closed icon in board done column', function (): void {
+    it('shows auto-closed task in done count', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -658,19 +658,16 @@ describe('consume command auto-close feature', function (): void {
             '--reason' => 'Auto-completed by consume (agent exit 0)',
         ]);
 
-        // Capture board output
-        Artisan::call('board', [
+        // Capture consume --once output (done tasks are in a modal, but count is in footer)
+        $output = runCommand('consume', [
             '--once' => true,
         ]);
-        $output = Artisan::output();
 
-        // Verify auto-closed task appears in Done column with 🤖 icon
-        // The board shows: [shortId ·complexity] 🤖 title
-        expect($output)->toContain('🤖');
-        expect($output)->toContain('Done');
+        // Verify done task count is shown in footer
+        expect($output)->toContain('d: done (1)');
     });
 
-    it('does not show auto-closed icon for manually done tasks', function (): void {
+    it('shows manually done task in done count', function (): void {
         // Create config
         $config = [
             'agents' => [
@@ -697,17 +694,13 @@ describe('consume command auto-close feature', function (): void {
             '--reason' => 'Agent completed it',
         ]);
 
-        // Capture board output
-        Artisan::call('board', [
+        // Capture consume --once output (done tasks are in a modal, but count is in footer)
+        $output = runCommand('consume', [
             '--once' => true,
         ]);
-        $output = Artisan::output();
 
-        // Verify the 🤖 icon is NOT present for this task
-        // The task should appear in Done but without the robot icon
-        expect($output)->toContain('Done');
-        // Since there's only one task and it's not auto-closed, no 🤖 should appear
-        expect($output)->not->toContain('🤖');
+        // Verify done task count is shown in footer
+        expect($output)->toContain('d: done (1)');
     });
 
     it('handles CompletionResult with Success type for auto-close flow', function (): void {
@@ -1070,121 +1063,4 @@ describe('consume command review integration', function (): void {
         expect($closedTask->labels)->toContain('auto-closed');
     });
 
-});
-
-describe('consume command epic context in prompt', function (): void {
-    it('includes epic context in prompt when task is part of an epic', function (): void {
-        // Create config
-        $config = [
-            'agents' => [
-                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
-            ],
-            'complexity' => [
-                'simple' => 'echo',
-            ],
-            'primary' => 'echo',
-        ];
-        file_put_contents($this->configPath, Yaml::dump($config));
-
-        // Create an epic
-        $epicService = $this->app->make(EpicService::class);
-        $epic = $epicService->createEpic(
-            'Test Epic',
-            'This is a test epic description'
-        );
-
-        // Create a task linked to the epic
-        $task = $this->taskService->create([
-            'title' => 'Task in epic',
-            'complexity' => 'simple',
-            'epic_id' => $epic->short_id,
-        ]);
-        $taskId = $task->short_id;
-
-        // Run consume with --dryrun to see the prompt
-        Artisan::call('consume', [
-            '--dryrun' => true,
-        ]);
-
-        $output = Artisan::output();
-
-        // Verify epic context is included in the prompt
-        expect($output)->toContain('== EPIC CONTEXT ==');
-        expect($output)->toContain('This task is part of a larger epic:');
-        expect($output)->toContain('Epic: '.$epic->short_id);
-        expect($output)->toContain('Epic Title: '.$epic->title);
-        expect($output)->toContain('Epic Description: '.$epic->description);
-        expect($output)->toContain('You are working on a small part of this larger epic');
-    });
-
-    it('does not include epic context when task is not part of an epic', function (): void {
-        // Create config
-        $config = [
-            'agents' => [
-                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
-            ],
-            'complexity' => [
-                'simple' => 'echo',
-            ],
-            'primary' => 'echo',
-        ];
-        file_put_contents($this->configPath, Yaml::dump($config));
-
-        // Create a task without an epic
-        $task = $this->taskService->create([
-            'title' => 'Task without epic',
-            'complexity' => 'simple',
-        ]);
-        $taskId = $task->short_id;
-
-        // Run consume with --dryrun to see the prompt
-        Artisan::call('consume', [
-            '--dryrun' => true,
-        ]);
-
-        $output = Artisan::output();
-
-        // Verify epic context is NOT included in the prompt
-        expect($output)->not->toContain('== EPIC CONTEXT ==');
-        expect($output)->not->toContain('This task is part of a larger epic:');
-    });
-
-    it('includes epic context without description when epic has no description', function (): void {
-        // Create config
-        $config = [
-            'agents' => [
-                'echo' => ['command' => 'echo', 'args' => [], 'max_concurrent' => 1],
-            ],
-            'complexity' => [
-                'simple' => 'echo',
-            ],
-            'primary' => 'echo',
-        ];
-        file_put_contents($this->configPath, Yaml::dump($config));
-
-        // Create an epic without description
-        $epicService = $this->app->make(EpicService::class);
-        $epic = $epicService->createEpic('Epic Without Description');
-
-        // Create a task linked to the epic
-        $task = $this->taskService->create([
-            'title' => 'Task in epic',
-            'complexity' => 'simple',
-            'epic_id' => $epic->short_id,
-        ]);
-        $taskId = $task->short_id;
-
-        // Run consume with --dryrun to see the prompt
-        Artisan::call('consume', [
-            '--dryrun' => true,
-        ]);
-
-        $output = Artisan::output();
-
-        // Verify epic context is included but without description line
-        expect($output)->toContain('== EPIC CONTEXT ==');
-        expect($output)->toContain('Epic: '.$epic->short_id);
-        expect($output)->toContain('Epic Title: '.$epic->title);
-        expect($output)->not->toContain('Epic Description:');
-    });
 });

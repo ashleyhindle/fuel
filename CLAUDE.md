@@ -38,7 +38,7 @@ fuel add "Idea" --someday       # Add to backlog (future work)
 fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
 fuel show <id>                  # View task details
-fuel board --once               # Kanban view
+fuel consume --once             # Kanban view
 fuel tree                       # Tree view
 fuel backlog                    # List backlog items
 fuel promote <b-id>             # Promote backlog item to task
@@ -228,7 +228,7 @@ When parallel tasks share an interface, define it in a parent task's description
 ## Development Commands
 
 ```bash
-./vendor/bin/pest                              # Run all tests (only on epic complete, takes a long time)
+./vendor/bin/pest --parallel --compact                              # Run all tests (only on epic complete, takes a long time)
 ./vendor/bin/pest tests/Unit/TaskServiceTest.php  # Single file
 ./vendor/bin/pest --filter="creates a task"    # Pattern match
 ./vendor/bin/pint                              # Code formatting
@@ -309,7 +309,7 @@ it('is true', function () {
 
 ### Running Tests
 - Run the minimal number of tests using an appropriate filter before finalizing code edits.
-- To run all tests: vendor/bin/pest --compact (only on epic complete, takes a long time)
+- To run all tests: vendor/bin/pest --parallel --compact (only on epic complete, takes a long time)
 - To run all tests in a file: vendor/bin/pest --compact tests/Feature/ExampleTest.php
 - To filter on a particular test name: vendor/bin/pest --compact --filter=testName (recommended after making a change to a related file).
 

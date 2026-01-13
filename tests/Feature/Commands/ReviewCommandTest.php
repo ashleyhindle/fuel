@@ -117,7 +117,7 @@ it('triggers review for valid task', function (): void {
 
     expect($exitCode)->toBe(0);
     expect($output)->toContain(sprintf('Triggering review for %s...', $task->short_id));
-    expect($output)->toContain('Review spawned. Check `fuel board` for status.');
+    expect($output)->toContain('Review spawned. Check `fuel consume --once` for status.');
 });
 
 it('shows error for non-existent task', function (): void {

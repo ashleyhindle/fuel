@@ -5,6 +5,8 @@ use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\RunService;
 use App\Services\TaskService;
+use Illuminate\Support\Facades\Artisan;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Tests\TestCase;
 
 /*
@@ -36,6 +38,19 @@ uses(TestCase::class)->in('Unit');
 */
 
 expect()->extend('toBeOne', fn () => $this->toBe(1));
+
+/**
+ * Run an Artisan command and return captured output.
+ *
+ * @param  array<string, mixed>  $params
+ */
+function runCommand(string $command, array $params = []): string
+{
+    $output = new BufferedOutput;
+    Artisan::call($command, $params, $output);
+
+    return $output->fetch();
+}
 
 /*
 |--------------------------------------------------------------------------

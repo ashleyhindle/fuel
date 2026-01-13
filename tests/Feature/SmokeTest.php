@@ -184,13 +184,13 @@ it('runs a basic command flow', function (): void {
 
     expect($shown['short_id'] ?? null)->toBe($taskId);
 
-    Artisan::call('board', [
-        '--json' => true,
+    // Test consume --once for kanban board view
+    $consumeOutput = runCommand('consume', [
         '--once' => true,
     ]);
-    $board = json_decode(Artisan::output(), true);
 
-    expect($board)->toHaveKeys(['ready', 'in_progress', 'review', 'blocked', 'human', 'done']);
+    expect($consumeOutput)->toContain('Ready');
+    expect($consumeOutput)->toContain('In Progress');
 
     Artisan::call('done', [
         'ids' => [$taskId],
