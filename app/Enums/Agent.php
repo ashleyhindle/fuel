@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+/**
+ * @deprecated Use AgentDriverRegistry instead. This enum will be removed in a future version.
+ */
 enum Agent: string
 {
     case Claude = 'claude';

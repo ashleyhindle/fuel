@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Agents\AgentDriverRegistry;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Enums\Agent;
 use App\Enums\TaskStatus;
 use App\Models\Run;
 use App\Models\Task;
@@ -108,14 +108,19 @@ class SummaryCommand extends Command
         $this->line(sprintf('<fg=white;options=bold>%s (%s)</>', $header, $run->run_id));
 
         // Agent info
-        $agent = Agent::fromString($run->agent ?? null);
-        if ($agent instanceof Agent) {
-            $agentLabel = $agent->label();
-            $model = $run->model ?? null;
-            $agentDisplay = $model ? sprintf('%s (%s)', $agentLabel, $model) : $agentLabel;
-            $this->line('  <fg=cyan>Agent:</> '.$agentDisplay);
-        } elseif (isset($run->agent) && $run->agent !== null) {
-            $this->line('  <fg=cyan>Agent:</> '.$run->agent);
+        $driver = null;
+        if (isset($run->agent) && $run->agent !== null) {
+            try {
+                $registry = new AgentDriverRegistry;
+                $driver = $registry->getForAgentName($run->agent);
+                $agentLabel = $driver->getLabel();
+                $model = $run->model ?? null;
+                $agentDisplay = $model ? sprintf('%s (%s)', $agentLabel, $model) : $agentLabel;
+                $this->line('  <fg=cyan>Agent:</> '.$agentDisplay);
+            } catch (\RuntimeException $e) {
+                // Driver not found, fall back to raw agent name
+                $this->line('  <fg=cyan>Agent:</> '.$run->agent);
+            }
         }
 
         // Duration
@@ -138,10 +143,10 @@ class SummaryCommand extends Command
         }
 
         // Session ID and resume command
-        if (isset($run->session_id) && $run->session_id !== null && $agent instanceof Agent) {
+        if (isset($run->session_id) && $run->session_id !== null && $driver !== null) {
             $this->newLine();
             $this->line('  <fg=cyan>Session:</> '.$run->session_id);
-            $this->line('  <fg=cyan>Resume:</> '.$agent->resumeCommand($run->session_id));
+            $this->line('  <fg=cyan>Resume:</> '.$driver->getResumeCommand($run->session_id));
         }
 
         // Parse and display output summary

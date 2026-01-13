@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Agents\AgentDriverRegistry;
 use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Enums\Agent;
 use App\Models\Run;
 use App\Models\Task;
 use App\Services\OutputParser;
@@ -167,10 +167,15 @@ class RunsCommand extends Command
         if ($run->session_id !== null) {
             $this->line('  Session: '.$run->session_id);
 
-            $agent = Agent::fromString($run->agent);
-            if ($agent instanceof Agent) {
-                $this->newLine();
-                $this->line('  <fg=green>Resume:</> '.$agent->resumeCommand($run->session_id));
+            if ($run->agent !== null) {
+                try {
+                    $registry = new AgentDriverRegistry;
+                    $driver = $registry->getForAgentName($run->agent);
+                    $this->newLine();
+                    $this->line('  <fg=green>Resume:</> '.$driver->getResumeCommand($run->session_id));
+                } catch (\RuntimeException $e) {
+                    // Driver not found, skip resume command
+                }
             }
         }
 
