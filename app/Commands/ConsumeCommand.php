@@ -1339,6 +1339,102 @@ class ConsumeCommand extends Command
     }
 
     /**
+     * Render the command palette to the screen buffer.
+     *
+     * Displays a suggestions box above the input line with autocomplete suggestions,
+     * and an input line at the bottom of the terminal with a block cursor.
+     */
+    private function captureCommandPalette(): void
+    {
+        if (! $this->screenBuffer instanceof ScreenBuffer) {
+            return;
+        }
+
+        // Calculate box width and position
+        $boxWidth = min(60, $this->terminalWidth - 4);
+        $startCol = 2;
+
+        // Input line is at terminalHeight - 1
+        $inputRow = $this->terminalHeight - 1;
+
+        // Render suggestions box if there are suggestions
+        if ($this->commandPaletteSuggestions !== []) {
+            $suggestionCount = count($this->commandPaletteSuggestions);
+            $maxVisible = min(5, $suggestionCount);
+            $visibleSuggestions = array_slice($this->commandPaletteSuggestions, 0, $maxVisible);
+
+            // Calculate starting row for suggestions box (above input line)
+            $boxStartRow = $inputRow - 1 - $maxVisible - 2; // -2 for top and bottom borders
+
+            // Top border
+            $topBorder = '╭'.str_repeat('─', $boxWidth - 2).'╮';
+            $this->screenBuffer->setLine($boxStartRow, str_repeat(' ', $startCol - 1).$topBorder);
+
+            // Suggestion lines
+            $lineIndex = 1;
+            foreach ($visibleSuggestions as $index => $task) {
+                $displayId = substr((string) $task->short_id, 2, 6);
+                $titleTrunc = $this->truncate((string) $task->title, $boxWidth - 14);
+                $content = sprintf('[%s] %s', $displayId, $titleTrunc);
+
+                // Apply selection styling
+                if ($index === $this->commandPaletteSuggestionIndex) {
+                    $content = '<bg=blue;fg=white>'.$content.'</>';
+                }
+
+                $contentLen = $this->visibleLength($content);
+                $padding = max(0, $boxWidth - $contentLen - 2);
+                $line = '│'.$content.str_repeat(' ', $padding).'│';
+
+                $this->screenBuffer->setLine($boxStartRow + $lineIndex, str_repeat(' ', $startCol - 1).$line);
+                $lineIndex++;
+            }
+
+            // Bottom border
+            $bottomBorder = '╰'.str_repeat('─', $boxWidth - 2).'╯';
+            $this->screenBuffer->setLine($boxStartRow + $lineIndex, str_repeat(' ', $startCol - 1).$bottomBorder);
+        } elseif (str_starts_with($this->commandPaletteInput, 'close ')) {
+            // Show "No matching tasks" message
+            $boxStartRow = $inputRow - 1 - 3; // 3 lines: top border, message, bottom border
+
+            // Top border
+            $topBorder = '╭'.str_repeat('─', $boxWidth - 2).'╮';
+            $this->screenBuffer->setLine($boxStartRow, str_repeat(' ', $startCol - 1).$topBorder);
+
+            // Message line
+            $message = 'No matching tasks';
+            $messageLen = mb_strlen($message);
+            $padding = max(0, $boxWidth - $messageLen - 2);
+            $messageLine = '│'.$message.str_repeat(' ', $padding).'│';
+            $this->screenBuffer->setLine($boxStartRow + 1, str_repeat(' ', $startCol - 1).$messageLine);
+
+            // Bottom border
+            $bottomBorder = '╰'.str_repeat('─', $boxWidth - 2).'╯';
+            $this->screenBuffer->setLine($boxStartRow + 2, str_repeat(' ', $startCol - 1).$bottomBorder);
+        }
+
+        // Render input line with block cursor
+        $input = $this->commandPaletteInput;
+        $cursor = $this->commandPaletteCursor;
+
+        // Split input at cursor position
+        $before = mb_substr($input, 0, $cursor);
+        $after = mb_substr($input, $cursor);
+
+        // Build input line with block cursor
+        if ($cursor < mb_strlen($input)) {
+            // Cursor is on a character
+            $charAtCursor = mb_substr($input, $cursor, 1);
+            $inputLine = '> /'.$before.'<bg=white;fg=black>'.$charAtCursor.'</>'.mb_substr($after, 1);
+        } else {
+            // Cursor is at the end - show block cursor on space
+            $inputLine = '> /'.$before.'<bg=white;fg=black> </>';
+        }
+
+        $this->screenBuffer->setLine($inputRow, $inputLine);
+    }
+
+    /**
      * Strip ANSI codes from a string.
      */
     private function stripAnsi(string $text): string
@@ -2881,6 +2977,116 @@ class ConsumeCommand extends Command
         $this->commandPaletteSuggestionIndex = -1;
         $this->commandPaletteSuggestions = [];
         $this->forceRefresh = true;
+    }
+
+    /**
+     * Handle keyboard input when command palette is active.
+     *
+     * @return int Bytes consumed (0=incomplete, -1=exit)
+     */
+    private function handleCommandPaletteInput(): int
+    {
+        $buf = $this->inputBuffer;
+        $len = strlen($buf);
+
+        if ($len === 0) {
+            return 0;
+        }
+
+        // Escape sequence
+        if ($buf[0] === "\x1b") {
+            if ($len < 2) {
+                return 0; // Need more data
+            }
+
+            // CSI sequences (ESC [)
+            if ($buf[1] === '[') {
+                if ($len < 3) {
+                    return 0; // Need more data
+                }
+
+                // Arrow keys
+                switch ($buf[2]) {
+                    case 'A': // Up arrow
+                        $this->commandPaletteSuggestionUp();
+
+                        return 3;
+                    case 'B': // Down arrow
+                        $this->commandPaletteSuggestionDown();
+
+                        return 3;
+                    case 'C': // Right arrow
+                        $this->commandPaletteCursorRight();
+
+                        return 3;
+                    case 'D': // Left arrow
+                        $this->commandPaletteCursorLeft();
+
+                        return 3;
+                }
+            }
+
+            // Bare ESC or ESC+other -> deactivate
+            $this->deactivateCommandPalette();
+
+            return 1;
+        }
+
+        // Single character handling
+        $char = $buf[0];
+
+        // Enter (carriage return or newline)
+        if ($char === "\r" || $char === "\n") {
+            $this->executeCommandPalette();
+
+            return 1;
+        }
+
+        // Backspace (DEL or BS)
+        if ($char === "\x7f" || $char === "\x08") {
+            $this->commandPaletteBackspace();
+
+            return 1;
+        }
+
+        // Ctrl+A (move to start)
+        if ($char === "\x01") {
+            $this->commandPaletteCursor = 0;
+
+            return 1;
+        }
+
+        // Ctrl+E (move to end)
+        if ($char === "\x05") {
+            $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
+
+            return 1;
+        }
+
+        // Ctrl+C (cancel)
+        if ($char === "\x03") {
+            $this->deactivateCommandPalette();
+
+            return 1;
+        }
+
+        // Tab (accept suggestion)
+        if ($char === "\t") {
+            $this->acceptCurrentSuggestion();
+
+            return 1;
+        }
+
+        // Printable characters
+        $ord = ord($char);
+        if ($ord >= 32 && $ord < 127) {
+            $this->commandPaletteInsertChar($char);
+
+            return 1;
+        }
+
+        // Unknown character - consume it
+        return 1;
     }
 
     /**
