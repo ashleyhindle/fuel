@@ -491,7 +491,7 @@ final class ConsumeRunner
     }
 
     /**
-     * Handle task create command - create a new task.
+     * Handle task create command - create a new task and send response.
      */
     private function handleTaskCreateCommand(\App\Ipc\IpcMessage $message): void
     {
@@ -524,11 +524,31 @@ final class ConsumeRunner
                     $taskData['blocked_by'] = $message->blockedBy;
                 }
 
-                $this->taskService->create($taskData);
+                $task = $this->taskService->create($taskData);
                 $this->invalidateTaskCache();
                 $this->broadcastSnapshot();
+
+                // Send response event with created task ID
+                $response = new \App\Ipc\Events\TaskCreateResponseEvent(
+                    taskId: $task->short_id,
+                    success: true,
+                    error: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: $this->runnerState['instance_id'],
+                    requestId: $message->getRequestId()
+                );
+                $this->broadcastEvent($response, $message->getInstanceId());
             } catch (\RuntimeException $e) {
-                // Task creation failed - ignore
+                // Send failure response
+                $response = new \App\Ipc\Events\TaskCreateResponseEvent(
+                    taskId: '',
+                    success: false,
+                    error: $e->getMessage(),
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: $this->runnerState['instance_id'],
+                    requestId: $message->getRequestId()
+                );
+                $this->broadcastEvent($response, $message->getInstanceId());
             }
         }
     }

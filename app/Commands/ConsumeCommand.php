@@ -19,7 +19,6 @@ use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Process\ProcessType;
-use App\Process\ReviewResult;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcClient;
@@ -812,7 +811,6 @@ class ConsumeCommand extends Command
         $statusLines = $this->trimStatusLines($statusLines);
     }
 
-
     /**
      * Handle a completed process result.
      *
@@ -1077,10 +1075,8 @@ class ConsumeCommand extends Command
 
         // Create a needs-human task for permission configuration
         if ($this->ipcClient?->isConnected()) {
-            // When using IPC, we need to create the task first using direct service call
-            // to get the ID, then notify the runner. This is a temporary solution until
-            // the IPC protocol supports response messages with created task IDs.
-            $humanTask = $this->taskService->create([
+            // Use IPC protocol with response mechanism to create task
+            $taskData = [
                 'title' => 'Configure agent permissions for '.$agentName,
                 'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
                     "To fix, either:\n".
@@ -1090,14 +1086,22 @@ class ConsumeCommand extends Command
                     "   - cursor-agent: args: [\"--force\"]\n".
                     "   - opencode: env: {OPENCODE_PERMISSION: '{\"permission\":\"allow\"}'}\n\n".
                     "See README.md 'Agent Permissions' section for details.",
-                'labels' => ['needs-human'],
+                'labels' => 'needs-human',
                 'priority' => 1,
-            ]);
+            ];
+
+            $humanTaskId = $this->ipcClient->createTaskWithResponse($taskData);
+
+            if ($humanTaskId === null) {
+                // Fallback to direct service call if IPC response failed
+                $humanTask = $this->taskService->create($taskData);
+                $humanTaskId = $humanTask->short_id;
+            }
 
             // Add dependency and reopen task via IPC
             $depCmd = new DependencyAddCommand(
                 taskId: $taskId,
-                blockerTaskId: $humanTask->short_id,
+                blockerTaskId: $humanTaskId,
                 timestamp: new DateTimeImmutable('now'),
                 instanceId: $this->ipcClient->getInstanceId()
             );
@@ -1129,9 +1133,11 @@ class ConsumeCommand extends Command
             // Block the original task until permissions are configured
             $this->taskService->addDependency($taskId, $humanTask->short_id);
             $this->taskService->reopen($taskId);
+
+            $humanTaskId = $humanTask->short_id;
         }
 
-        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTask->short_id), 'yellow');
+        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTaskId), 'yellow');
     }
 
     /**
@@ -3623,7 +3629,7 @@ class ConsumeCommand extends Command
             }
 
             // Execute
-            $this->taskService->done($taskIdInput);
+            $this->ipcClient?->sendTaskDone($taskIdInput);
             $this->invalidateTaskCache();
             $this->checkEpicCompletionSound($taskIdInput);
             $this->toast?->show('Closed: '.$task->short_id, 'success');

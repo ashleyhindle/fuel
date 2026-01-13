@@ -15,6 +15,7 @@ enum ConsumeEventType: string
     case OutputChunk = 'output_chunk';
     case Error = 'error';
     case ReviewCompleted = 'review_completed';
+    case TaskCreateResponse = 'task_create_response';
 
     public static function fromString(string $value): self
     {

@@ -11,10 +11,13 @@ use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
+use App\Ipc\Commands\TaskCreateCommand;
+use App\Ipc\Commands\TaskDoneCommand;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\HelloEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Ipc\Events\TaskCompletedEvent;
+use App\Ipc\Events\TaskCreateResponseEvent;
 use App\Ipc\Events\TaskSpawnedEvent;
 use App\Ipc\IpcMessage;
 use App\Models\Task;
@@ -458,6 +461,14 @@ class ConsumeIpcClient
     }
 
     /**
+     * Get the instance ID for this client session.
+     */
+    public function getInstanceId(): string
+    {
+        return $this->instanceId;
+    }
+
+    /**
      * Send pause command to runner.
      */
     public function sendPause(): void
@@ -494,6 +505,21 @@ class ConsumeIpcClient
     }
 
     /**
+     * Send task done command to runner.
+     */
+    public function sendTaskDone(string $taskId, ?string $reason = null, ?string $commitHash = null): void
+    {
+        $cmd = new TaskDoneCommand(
+            taskId: $taskId,
+            reason: $reason,
+            commitHash: $commitHash,
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
      * Request a fresh snapshot from runner.
      */
     public function requestSnapshot(): void
@@ -516,6 +542,71 @@ class ConsumeIpcClient
     public function sendCommand(IpcMessage $command): void
     {
         $this->sendMessage($command);
+    }
+
+    /**
+     * Send a TaskCreateCommand and wait for the response with the created task ID.
+     *
+     * @param  array  $taskData  Task data containing title, description, etc.
+     * @param  int  $timeoutSeconds  Maximum time to wait for response
+     * @return string|null The created task's ID, or null if creation failed
+     */
+    public function createTaskWithResponse(array $taskData, int $timeoutSeconds = 5): ?string
+    {
+        if ($this->socket === null) {
+            return null;
+        }
+
+        // Generate a request ID for correlation
+        $requestId = $this->protocol->generateRequestId();
+
+        // Create and send the TaskCreateCommand with the request ID
+        $command = new TaskCreateCommand(
+            title: $taskData['title'],
+            description: $taskData['description'] ?? null,
+            labels: $taskData['labels'] ?? null,
+            priority: $taskData['priority'] ?? null,
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId,
+            requestId: $requestId
+        );
+
+        $this->sendMessage($command);
+
+        // Wait for the TaskCreateResponseEvent with matching request ID
+        $deadline = time() + $timeoutSeconds;
+
+        // Temporarily set socket to blocking mode for reliable response
+        $wasBlocking = stream_get_meta_data($this->socket)['blocked'] ?? false;
+        stream_set_blocking($this->socket, true);
+        stream_set_timeout($this->socket, 1);
+
+        try {
+            while (time() < $deadline) {
+                $event = $this->readEvent();
+                if ($event !== null) {
+                    // Check if it's a TaskCreateResponse with matching request ID
+                    if ($event instanceof TaskCreateResponseEvent &&
+                        $event->getRequestId() === $requestId) {
+                        if ($event->success) {
+                            return $event->taskId;
+                        }
+
+                        return null; // Creation failed
+                    }
+                    // Process other events normally (don't lose them)
+                    if ($event->type() !== 'task_create_response') {
+                        $this->applyEvent($event);
+                    }
+                }
+                usleep(50000); // 50ms
+            }
+
+            return null; // Timeout
+        } finally {
+            // Restore original blocking mode
+            stream_set_blocking($this->socket, $wasBlocking);
+        }
     }
 
     /**

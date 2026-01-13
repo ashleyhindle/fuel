@@ -27,6 +27,7 @@ use App\Ipc\Events\OutputChunkEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Ipc\Events\StatusLineEvent;
 use App\Ipc\Events\TaskCompletedEvent;
+use App\Ipc\Events\TaskCreateResponseEvent;
 use App\Ipc\Events\TaskSpawnedEvent;
 use App\Ipc\IpcMessage;
 use DateTimeImmutable;
@@ -142,6 +143,7 @@ final class ConsumeIpcProtocol
                 ConsumeEventType::OutputChunk => $this->decodeOutputChunkEvent($data),
                 ConsumeEventType::Error => $this->decodeErrorEvent($data),
                 ConsumeEventType::ReviewCompleted => $this->decodeReviewCompletedEvent($data),
+                ConsumeEventType::TaskCreateResponse => $this->decodeTaskCreateResponseEvent($data),
             };
         } catch (\ValueError) {
             // Unknown type
@@ -271,6 +273,18 @@ final class ConsumeIpcProtocol
             wasAlreadyDone: $data['was_already_done'] ?? false,
             instanceId: $data['instance_id'] ?? '',
             timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
+            requestId: $data['request_id'] ?? null
+        );
+    }
+
+    private function decodeTaskCreateResponseEvent(array $data): TaskCreateResponseEvent
+    {
+        return new TaskCreateResponseEvent(
+            taskId: $data['task_id'] ?? '',
+            success: $data['success'] ?? false,
+            error: $data['error'] ?? null,
+            timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : new DateTimeImmutable,
+            instanceId: $data['instance_id'] ?? '',
             requestId: $data['request_id'] ?? null
         );
     }
