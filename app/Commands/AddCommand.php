@@ -32,6 +32,47 @@ class AddCommand extends Command
 
     protected $description = 'Add a new task';
 
+    /**
+     * Ask for multi-line input from the user.
+     * User can paste multiple lines and end input by typing "END" on its own line or pressing Ctrl+D.
+     */
+    private function askMultiline(string $question): string
+    {
+        $this->line($question);
+        $this->line('<fg=gray>You can paste multiple lines. Type "END" on its own line or press Ctrl+D when done.</>');
+        $this->line('<fg=gray>Press Enter on an empty line to skip.</>');
+
+        $lines = [];
+        $firstLine = true;
+
+        while (true) {
+            $line = fgets(STDIN);
+
+            // Handle EOF (Ctrl+D)
+            if ($line === false) {
+                break;
+            }
+
+            $line = rtrim($line, "\r\n");
+
+            // If first line is empty, skip description entirely
+            if ($firstLine && $line === '') {
+                return '';
+            }
+
+            $firstLine = false;
+
+            // Check for terminator
+            if ($line === 'END') {
+                break;
+            }
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
     public function handle(TaskService $taskService, EpicService $epicService): int
     {
         $title = $this->argument('title');
@@ -43,13 +84,9 @@ class AddCommand extends Command
                 return $this->outputError('Title is required');
             }
 
-            $description = $this->ask('Description (optional)');
+            $description = $this->askMultiline('Description (optional)');
 
-            $complexity = $this->choice(
-                'Complexity',
-                ['trivial', 'simple', 'moderate', 'complex'],
-                1 // default to 'simple'
-            );
+            $complexity = $this->askComplexityWithImmediateSelection();
         }
 
         $data = [
@@ -137,5 +174,84 @@ class AddCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Ask for complexity with immediate selection (no Enter required).
+     * User can press 1-4 to select immediately, or use arrow keys + Enter for traditional selection.
+     * Falls back to simple input if not in a terminal (e.g., piped input).
+     */
+    private function askComplexityWithImmediateSelection(): string
+    {
+        $options = ['trivial', 'simple', 'moderate', 'complex'];
+        $default = 1; // 'simple'
+
+        $this->line('Complexity:');
+        foreach ($options as $index => $option) {
+            $number = $index + 1;
+            $marker = $index === $default ? ' <fg=green>(default)</>' : '';
+            $this->line("  [{$number}] {$option}{$marker}");
+        }
+
+        // Check if stdin is a terminal - if not, use simple input mode
+        if (! posix_isatty(STDIN)) {
+            $this->line('<fg=gray>Enter 1-4, or press Enter for default</>');
+            $input = trim(fgets(STDIN) ?: '');
+
+            if ($input === '') {
+                return $options[$default];
+            }
+
+            if (ctype_digit($input) && (int) $input >= 1 && (int) $input <= 4) {
+                return $options[(int) $input - 1];
+            }
+
+            // Invalid input, use default
+            return $options[$default];
+        }
+
+        // Save current terminal settings
+        $sttySettings = shell_exec('stty -g');
+
+        try {
+            // Enable raw mode for immediate key capture
+            shell_exec('stty -icanon -echo');
+
+            $this->line('<fg=gray>Press 1-4 to select immediately, or Enter for default</>');
+
+            while (true) {
+                $char = fgetc(STDIN);
+
+                if ($char === false) {
+                    // EOF or error, use default
+                    break;
+                }
+
+                // Check for number keys 1-4
+                if ($char >= '1' && $char <= '4') {
+                    $selected = (int) $char - 1;
+                    $this->line("<info>Selected: {$options[$selected]}</info>");
+
+                    return $options[$selected];
+                }
+
+                // Check for Enter key (newline)
+                if ($char === "\n" || $char === "\r") {
+                    $this->line("<info>Selected: {$options[$default]} (default)</info>");
+
+                    return $options[$default];
+                }
+
+                // Ignore other keys (including arrow keys which send escape sequences)
+            }
+
+            // If we break out of the loop (EOF), use default
+            return $options[$default];
+        } finally {
+            // Restore terminal settings
+            if ($sttySettings !== null) {
+                shell_exec("stty {$sttySettings}");
+            }
+        }
     }
 }
