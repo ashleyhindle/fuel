@@ -1051,6 +1051,7 @@ class ConsumeCommand extends Command
             $this->spinnerFrame++;
             $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
         }
+
         $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
         $this->getOutput()->write(sprintf("\033[%d;1H%s%s", $this->terminalHeight - 1, str_repeat(' ', $statusPadding), $statusLine));
 
@@ -1512,8 +1513,10 @@ class ConsumeCommand extends Command
                         $this->inputBuffer = '';
                     }
                 }
+
                 break;
             }
+
             if ($consumed === -1) {
                 return true; // Exit requested
             }
@@ -1557,7 +1560,7 @@ class ConsumeCommand extends Command
             }
 
             // Mouse event: ESC [ M <btn> <x> <y> (6 bytes total)
-            if ($len >= 2 && $buf[1] === '[') {
+            if ($buf[1] === '[') {
                 if ($len >= 3 && $buf[2] === 'M') {
                     if ($len < 6) {
                         return 0; // Need more data for mouse event
@@ -1624,6 +1627,7 @@ class ConsumeCommand extends Command
                 } else {
                     $this->blockedModalScroll = 0;
                 }
+
                 $this->forceRefresh = true;
 
                 return 1;
@@ -1638,6 +1642,7 @@ class ConsumeCommand extends Command
                 } else {
                     $this->doneModalScroll = 0;
                 }
+
                 $this->forceRefresh = true;
 
                 return 1;
