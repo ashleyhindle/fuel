@@ -92,7 +92,19 @@ class ShowCommand extends Command
                 $this->outputJson($taskData);
             } else {
                 $this->info('Task: '.$task->short_id);
-                $this->line('  Title: '.$task->title);
+
+                // Handle multiline titles by splitting and indenting each line
+                $titleLines = explode("\n", (string) $task->title);
+                $firstLine = true;
+                foreach ($titleLines as $line) {
+                    if ($firstLine) {
+                        $this->line('  Title: '.$line);
+                        $firstLine = false;
+                    } else {
+                        $this->line('  '.$line);
+                    }
+                }
+
                 $this->line('  Status: '.($task->status instanceof TaskStatus ? $task->status->value : $task->status));
 
                 if (isset($task->description) && $task->description !== null) {

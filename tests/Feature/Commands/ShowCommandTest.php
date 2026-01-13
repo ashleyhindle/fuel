@@ -93,6 +93,20 @@ describe('show command', function (): void {
         expect($output)->toContain('  Line 3');
     });
 
+    it('shows multiline titles with proper indentation', function (): void {
+        $task = $this->taskService->create([
+            'title' => "Multi-line task title\nSecond line\nThird line",
+            'description' => 'Test description',
+        ]);
+
+        Artisan::call('show', ['id' => $task->short_id]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Title: Multi-line task title');
+        expect($output)->toContain('  Second line');
+        expect($output)->toContain('  Third line');
+    });
+
     it('shows task with blockers in blocked_by array', function (): void {
         $blocker = $this->taskService->create(['title' => 'Blocker']);
         $task = $this->taskService->create(['title' => 'Blocked task']);
