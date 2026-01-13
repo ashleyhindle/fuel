@@ -64,10 +64,14 @@ class ConsumeIpcClient
     /** Whether SnapshotEvent has been received during attach */
     private bool $receivedSnapshot = false;
 
-    public function __construct()
+    /** IP address for TCP connections */
+    private string $ip;
+
+    public function __construct(string $ip = '127.0.0.1')
     {
         $this->protocol = new ConsumeIpcProtocol;
         $this->instanceId = $this->protocol->generateInstanceId();
+        $this->ip = $ip;
     }
 
     /**
@@ -132,9 +136,9 @@ class ConsumeIpcClient
     /**
      * Check if TCP server is ready (non-blocking).
      */
-    public function isServerReady(int $port, string $ip = '127.0.0.1'): bool
+    public function isServerReady(int $port): bool
     {
-        $socket = @stream_socket_client("tcp://{$ip}:{$port}", $errno, $errstr, 0.1);
+        $socket = @stream_socket_client("tcp://{$this->ip}:{$port}", $errno, $errstr, 0.1);
         if ($socket !== false) {
             fclose($socket);
 
@@ -149,10 +153,10 @@ class ConsumeIpcClient
      *
      * @throws \RuntimeException If server not ready within timeout
      */
-    public function waitForServer(int $port, int $maxWait = 5, string $ip = '127.0.0.1'): void
+    public function waitForServer(int $port, int $maxWait = 5): void
     {
         $waited = 0;
-        $host = "{$ip}:{$port}";
+        $host = "{$this->ip}:{$port}";
 
         while ($waited < $maxWait) {
             $socket = @stream_socket_client("tcp://{$host}", $errno, $errstr, 1);
@@ -165,7 +169,7 @@ class ConsumeIpcClient
             $waited += 0.1;
         }
 
-        throw new \RuntimeException("Runner not ready on {$ip}:{$port} after {$maxWait} seconds");
+        throw new \RuntimeException("Runner not ready on {$this->ip}:{$port} after {$maxWait} seconds");
     }
 
     /**
@@ -173,12 +177,12 @@ class ConsumeIpcClient
      *
      * @throws \RuntimeException If connection fails
      */
-    public function connect(int $port, string $ip = '127.0.0.1'): void
+    public function connect(int $port): void
     {
-        $socket = @stream_socket_client("tcp://{$ip}:{$port}", $errno, $errstr, 5);
+        $socket = @stream_socket_client("tcp://{$this->ip}:{$port}", $errno, $errstr, 5);
 
         if ($socket === false) {
-            throw new \RuntimeException("Failed to connect to runner on {$ip}:{$port}: {$errstr} ({$errno})");
+            throw new \RuntimeException("Failed to connect to runner on {$this->ip}:{$port}: {$errstr} ({$errno})");
         }
 
         // Keep socket in blocking mode initially for reliable attach

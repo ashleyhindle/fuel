@@ -306,10 +306,10 @@ class ConsumeCommand extends Command
 
         // Initialize IPC client and connect to runner (with animation)
         try {
-            $this->ipcClient = new ConsumeIpcClient;
+            $ip = $this->option('ip');
+            $this->ipcClient = new ConsumeIpcClient($ip);
             $pidFilePath = $this->fuelContext->getPidFilePath();
             $port = $this->configService->getConsumePort();
-            $ip = $this->option('ip');
             $isRemote = $ip !== '127.0.0.1';
 
             // Only start local runner if not connecting to a remote runner
@@ -324,7 +324,7 @@ class ConsumeCommand extends Command
                 // Wait for server with animation
                 if (! $singleIteration) {
                     $connected = $this->showConnectingAnimation(
-                        fn (): bool => $this->ipcClient->isServerReady($port, $ip),
+                        fn (): bool => $this->ipcClient->isServerReady($port),
                         'Starting runner',
                         10000
                     );
@@ -332,7 +332,7 @@ class ConsumeCommand extends Command
                         throw new \RuntimeException('Timed out waiting for runner to start');
                     }
                 } else {
-                    $this->ipcClient->waitForServer($port, 5, $ip);
+                    $this->ipcClient->waitForServer($port, 5);
                 }
             }
 
@@ -341,7 +341,7 @@ class ConsumeCommand extends Command
                 $this->debug('Connecting to runner on '.$ip.':'.$port);
                 $connectStart = microtime(true);
             }
-            $this->ipcClient->connect($port, $ip);
+            $this->ipcClient->connect($port);
             if (! $singleIteration) {
                 $this->debug('Socket connected', $connectStart);
             }
@@ -3537,10 +3537,10 @@ class ConsumeCommand extends Command
      */
     private function handleIpcControl(): int
     {
-        $this->ipcClient = new ConsumeIpcClient;
+        $ip = $this->option('ip');
+        $this->ipcClient = new ConsumeIpcClient($ip);
         $pidFilePath = $this->fuelContext->getPidFilePath();
         $port = $this->configService->getConsumePort();
-        $ip = $this->option('ip');
         $isRemote = $ip !== '127.0.0.1';
 
         // Check if runner is alive (skip for remote runners - PID file is local only)
@@ -3551,7 +3551,7 @@ class ConsumeCommand extends Command
         }
 
         try {
-            $this->ipcClient->connect($port, $ip);
+            $this->ipcClient->connect($port);
             $this->ipcClient->attach();
         } catch (\RuntimeException $e) {
             $this->error('Failed to connect to runner: '.$e->getMessage());
