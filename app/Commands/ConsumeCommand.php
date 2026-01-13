@@ -1011,6 +1011,15 @@ class ConsumeCommand extends Command
         // Begin synchronized output (terminal buffers until end marker)
         $this->getOutput()->write("\033[?2026h");
 
+        // During active selection, skip expensive board capture and just update highlight
+        if ($this->selectionStart !== null && $this->previousLines !== []) {
+            $this->debug('Selection active - skipping capture, just rendering highlight');
+            $this->renderSelectionHighlight();
+            $this->getOutput()->write("\033[?2026l"); // End synchronized output
+
+            return;
+        }
+
         // Capture the new screen content by rendering to a buffer
         $captureStart = microtime(true);
         $newLines = $this->captureKanbanBoard($statusLines, $paused);
