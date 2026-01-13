@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Enums\EpicStatus;
 use App\Enums\FailureType;
 use App\Enums\TaskStatus;
 use App\Models\Task;
@@ -17,7 +18,9 @@ use App\Process\ProcessType;
 use App\Process\ReviewResult;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
+use App\Services\EpicService;
 use App\Services\FuelContext;
+use App\Services\NotificationService;
 use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
@@ -95,6 +98,9 @@ class ConsumeCommand extends Command
     /** Input buffer for batched reading */
     private string $inputBuffer = '';
 
+    /** @var array<string, bool> Track epics we've already played completion sound for */
+    private array $notifiedEpics = [];
+
     public function __construct(
         private TaskService $taskService,
         private ConfigService $configService,
@@ -103,6 +109,8 @@ class ConsumeCommand extends Command
         private FuelContext $fuelContext,
         private BackoffStrategy $backoffStrategy,
         private TaskPromptBuilder $promptBuilder,
+        private EpicService $epicService,
+        private NotificationService $notificationService,
         private ?AgentHealthTrackerInterface $healthTracker = null,
         private ?ReviewServiceInterface $reviewService = null,
     ) {
@@ -573,6 +581,7 @@ class ConsumeCommand extends Command
                             ]);
                         }
 
+                        $this->checkEpicCompletionSound($taskId);
                         $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s (was already done)', $taskId), 'green');
                     } else {
                         // Task was in_progress - mark as done
@@ -580,6 +589,7 @@ class ConsumeCommand extends Command
                             'ids' => [$taskId],
                             '--reason' => 'Review passed',
                         ]);
+                        $this->checkEpicCompletionSound($taskId);
                         $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
                     }
                 } else {
@@ -710,6 +720,7 @@ class ConsumeCommand extends Command
                 $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
             }
 
+            $this->checkEpicCompletionSound($taskId);
             $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (no review) (%s)', $taskId, $durationStr), 'green');
         } elseif ($this->reviewService instanceof ReviewServiceInterface) {
             // Trigger review if ReviewService is available
@@ -778,6 +789,8 @@ class ConsumeCommand extends Command
             'ids' => [$taskId],
             '--reason' => 'Auto-completed by consume (agent exit 0)',
         ]);
+
+        $this->checkEpicCompletionSound($taskId);
 
         if ($noReviewAgent) {
             $statusLines[] = $this->formatStatus('⚠', sprintf('%s auto-completed - no review agent configured (%s)', $taskId, $durationStr), 'yellow');
@@ -1944,5 +1957,43 @@ class ConsumeCommand extends Command
         }
 
         return $unhealthyAgents;
+    }
+
+    /**
+     * Check if a completed task's epic is now review pending and send notification.
+     * Only notifies once per epic.
+     */
+    private function checkEpicCompletionSound(string $taskId): void
+    {
+        $task = $this->taskService->find($taskId);
+        if ($task === null || empty($task->epic_id)) {
+            return;
+        }
+
+        $epicId = (string) $task->epic_id;
+
+        // Already notified for this epic
+        if (isset($this->notifiedEpics[$epicId])) {
+            return;
+        }
+
+        // Check if epic is now review pending (all tasks done)
+        try {
+            $epic = $this->epicService->getEpic($epicId);
+            $epicStatus = $this->epicService->getEpicStatus($epicId);
+            if ($epicStatus === EpicStatus::ReviewPending) {
+                // Mark as notified so we don't play again
+                $this->notifiedEpics[$epicId] = true;
+
+                // Send notification with sound and desktop alert
+                $epicTitle = $epic?->title ?? $epicId;
+                $this->notificationService->alert(
+                    "Epic ready for review: {$epicTitle}",
+                    'Fuel: Epic Complete'
+                );
+            }
+        } catch (\RuntimeException) {
+            // Epic not found, ignore
+        }
     }
 }
