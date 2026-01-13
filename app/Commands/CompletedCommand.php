@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 
 class CompletedCommand extends Command
@@ -17,7 +18,7 @@ class CompletedCommand extends Command
     protected $signature = 'completed
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
-        {--limit=20 : Number of completed tasks to show}';
+        {--limit=15 : Number of completed tasks to show}';
 
     protected $description = 'Show a list of recently completed tasks';
 
@@ -25,7 +26,7 @@ class CompletedCommand extends Command
     {
         $limit = (int) $this->option('limit');
         if ($limit < 1) {
-            $limit = 20;
+            $limit = 15;
         }
 
         $tasks = $taskService->all()
@@ -55,7 +56,8 @@ class CompletedCommand extends Command
                 $t->priority ?? 2,
             ])->toArray();
 
-            $this->table($headers, $rows);
+            $table = new Table;
+            $table->render($headers, $rows, $this->output);
         }
 
         return self::SUCCESS;
