@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Agents\AgentDriverRegistry;
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Enums\Agent;
 use App\Models\Run;
 use App\Models\Task;
 use App\Services\ConfigService;
@@ -94,9 +94,11 @@ class ResumeSessionCommand extends Command
                 $command = $agentDef['command'];
             }
 
-            // Try to determine the agent type for resume
-            $agent = Agent::fromAgentName($agentName, $command);
-            if (! $agent instanceof Agent) {
+            // Get driver via registry using agent name from config
+            $registry = new AgentDriverRegistry;
+            try {
+                $driver = $registry->getForAgentName($agentName, $command);
+            } catch (RuntimeException $e) {
                 return $this->outputError(
                     sprintf("Unknown agent '%s' for run '%s'. ", $agentName, $run->run_id).
                     'Cannot determine resume command format.'
@@ -105,12 +107,12 @@ class ResumeSessionCommand extends Command
 
             $prompt = $this->option('prompt');
             $resumeCommand = ($prompt !== null && $prompt !== '')
-                ? $agent->resumeWithPromptCommand($sessionId, $prompt)
-                : $agent->resumeCommand($sessionId);
+                ? $driver->getResumeWithPromptCommand($sessionId, $prompt)
+                : $driver->getResumeCommand($sessionId);
 
             if (! $this->option('json')) {
                 $this->info(sprintf('Resuming session for task %s, run %s', $taskId, $run->run_id));
-                $this->line(sprintf('Agent: %s (%s)', $agent->label(), $agentName));
+                $this->line(sprintf('Agent: %s (%s)', $driver->getLabel(), $agentName));
                 $this->line('Session: '.$sessionId);
                 if ($prompt !== null && $prompt !== '') {
                     $this->line('Prompt: '.$prompt);
@@ -129,14 +131,14 @@ class ResumeSessionCommand extends Command
             // For interactive resume (no prompt), use pcntl_exec to replace this process
             // This ensures the agent inherits the TTY properly
             if ($prompt === null || $prompt === '') {
-                $binary = $agent->binary();
+                $binary = $driver->getCommand();
                 $binaryPath = trim((string) shell_exec('which '.$binary));
 
                 if ($binaryPath === '') {
                     return $this->outputError(sprintf("Could not find '%s' in PATH", $binary));
                 }
 
-                $args = $agent->resumeArgs($sessionId);
+                $args = $driver->getResumeArgs($sessionId);
 
                 // pcntl_exec replaces this process entirely - never returns on success
                 pcntl_exec($binaryPath, $args);
