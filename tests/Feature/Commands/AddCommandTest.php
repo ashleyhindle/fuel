@@ -587,7 +587,7 @@ describe('add command', function (): void {
     it('creates task from piped input without title argument', function (): void {
         $pipedContent = "Task title from pipe\nThis is the description from piped input";
         $fuelPath = realpath(__DIR__.'/../../../fuel');
-        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+        $command = sprintf('%s %s add --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
 
         $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
         $task = json_decode($result['stdout'], true);
@@ -600,7 +600,7 @@ describe('add command', function (): void {
     it('creates task from piped input with title argument', function (): void {
         $pipedContent = 'This entire content becomes the description';
         $fuelPath = realpath(__DIR__.'/../../../fuel');
-        $command = sprintf('php %s add "Title from argument" --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+        $command = sprintf('%s %s add "Title from argument" --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
 
         $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
         $task = json_decode($result['stdout'], true);

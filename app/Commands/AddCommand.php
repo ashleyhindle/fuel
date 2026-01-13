@@ -73,11 +73,56 @@ class AddCommand extends Command
         return implode("\n", $lines);
     }
 
+    /**
+     * Read piped input from stdin if available.
+     * Returns null if stdin is a terminal (no piped input).
+     */
+    private function readPipedInput(): ?string
+    {
+        // Check if stdin is a terminal - if so, no piped input
+        if (posix_isatty(STDIN)) {
+            return null;
+        }
+
+        // Read all available input from stdin
+        $content = '';
+        stream_set_blocking(STDIN, false);
+
+        while (($chunk = fread(STDIN, 8192)) !== false && $chunk !== '') {
+            $content .= $chunk;
+        }
+
+        stream_set_blocking(STDIN, true);
+
+        // Return null if no content was piped
+        $trimmed = trim($content);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
     public function handle(TaskService $taskService, EpicService $epicService): int
     {
         $title = $this->argument('title');
+        $pipedContent = $this->readPipedInput();
 
-        // Interactive mode if no title provided
+        // Handle piped input
+        if ($pipedContent !== null) {
+            if (empty($title)) {
+                // No title argument - extract from piped content
+                $lines = explode("\n", $pipedContent, 2);
+                $title = trim($lines[0]);
+                $description = isset($lines[1]) ? trim($lines[1]) : null;
+
+                if (empty($title)) {
+                    return $this->outputError('Piped content must have at least one non-empty line for title');
+                }
+            } else {
+                // Title provided as argument - entire piped content becomes description
+                $description = $pipedContent;
+            }
+        }
+
+        // Interactive mode if no title provided and no piped input
         if (empty($title)) {
             $title = $this->ask('Title');
             if (empty($title)) {
