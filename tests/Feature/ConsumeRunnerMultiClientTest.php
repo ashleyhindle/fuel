@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Ipc\Events\TaskSpawnedEvent;
+use App\Services\ConfigService;
 use App\Services\ConsumeIpcProtocol;
 use App\Services\ConsumeIpcServer;
 
@@ -14,6 +15,12 @@ beforeEach(function () {
     // Change to test directory
     $this->originalDir = getcwd();
     chdir($this->testDir);
+
+    // Mock ConfigService to avoid config validation errors
+    // Use a random port between 10000-60000 to avoid conflicts
+    $this->testPort = rand(10000, 60000);
+    $this->mockConfigService = Mockery::mock(ConfigService::class);
+    $this->mockConfigService->shouldReceive('getConsumePort')->andReturn($this->testPort);
 });
 
 afterEach(function () {
@@ -44,7 +51,7 @@ describe('ConsumeRunner multi-client', function () {
     test('two clients both receive broadcast events', function () {
         // Create protocol and IPC server
         $protocol = new ConsumeIpcProtocol;
-        $ipcServer = new ConsumeIpcServer($protocol);
+        $ipcServer = new ConsumeIpcServer($protocol, $this->mockConfigService);
 
         // Start IPC server
         $ipcServer->start();
@@ -121,7 +128,7 @@ describe('ConsumeRunner multi-client', function () {
     test('broadcast sends to all connected clients via IpcServer', function () {
         // Create protocol and IPC server
         $protocol = new ConsumeIpcProtocol;
-        $ipcServer = new ConsumeIpcServer($protocol);
+        $ipcServer = new ConsumeIpcServer($protocol, $this->mockConfigService);
 
         // Start IPC server
         $ipcServer->start();
@@ -222,7 +229,7 @@ describe('ConsumeRunner multi-client', function () {
     test('client count increases as clients connect', function () {
         // Create IPC server
         $protocol = new ConsumeIpcProtocol;
-        $ipcServer = new ConsumeIpcServer($protocol);
+        $ipcServer = new ConsumeIpcServer($protocol, $this->mockConfigService);
 
         // Start server
         $ipcServer->start();

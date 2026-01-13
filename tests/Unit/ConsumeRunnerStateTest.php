@@ -83,7 +83,7 @@ afterEach(function () {
 
 describe('pause and resume', function () {
     test('pause() sets paused to true', function () {
-        expect($this->runner->isPaused())->toBeFalse();
+        expect($this->runner->isPaused())->toBeTrue();
 
         $this->runner->pause();
 
@@ -112,8 +112,8 @@ describe('pause and resume', function () {
         expect($this->runner->isPaused())->toBeFalse();
     });
 
-    test('isPaused() returns false initially', function () {
-        expect($this->runner->isPaused())->toBeFalse();
+    test('isPaused() returns true initially', function () {
+        expect($this->runner->isPaused())->toBeTrue();
     });
 });
 
@@ -203,19 +203,19 @@ describe('getSnapshot', function () {
     });
 
     test('snapshot runner_state reflects current paused state', function () {
-        // Initially not paused
+        // Initially paused (runner starts paused)
         $snapshot1 = $this->runner->getSnapshot();
-        expect($snapshot1->runnerState['paused'])->toBeFalse();
-
-        // Pause and check again
-        $this->runner->pause();
-        $snapshot2 = $this->runner->getSnapshot();
-        expect($snapshot2->runnerState['paused'])->toBeTrue();
+        expect($snapshot1->runnerState['paused'])->toBeTrue();
 
         // Resume and check again
         $this->runner->resume();
+        $snapshot2 = $this->runner->getSnapshot();
+        expect($snapshot2->runnerState['paused'])->toBeFalse();
+
+        // Pause and check again
+        $this->runner->pause();
         $snapshot3 = $this->runner->getSnapshot();
-        expect($snapshot3->runnerState['paused'])->toBeFalse();
+        expect($snapshot3->runnerState['paused'])->toBeTrue();
     });
 });
 
