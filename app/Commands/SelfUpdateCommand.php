@@ -103,7 +103,7 @@ class SelfUpdateCommand extends Command
         $projectPath = app(FuelContext::class)->getProjectPath();
         if ($this->shouldRunInit($projectPath)) {
             $this->info('Updating project with latest guidelines and skills...');
-            $this->runInit($targetPath);
+            $this->call('init');
         } else {
             $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');
         }
@@ -187,49 +187,6 @@ class SelfUpdateCommand extends Command
         }
 
         return false;
-    }
-
-    private function runInit(string $binaryPath): void
-    {
-        if (! function_exists('proc_open')) {
-            $this->warn('proc_open is unavailable; run `fuel init` manually to update guidelines and skills.');
-
-            return;
-        }
-
-        $process = proc_open(
-            [$binaryPath, 'init'],
-            [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ],
-            $pipes
-        );
-
-        if (! is_resource($process)) {
-            $this->warn('Failed to start init process.');
-
-            return;
-        }
-
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]) ?: '';
-        $stderr = stream_get_contents($pipes[2]) ?: '';
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        $exitCode = proc_close($process);
-        if ($stdout !== '') {
-            $this->line(trim($stdout));
-        }
-
-        if ($exitCode !== 0) {
-            $this->warn('Init failed. Run `fuel init` manually to update guidelines and skills.');
-            if ($stderr !== '') {
-                $this->line(trim($stderr));
-            }
-        }
     }
 
     /**
