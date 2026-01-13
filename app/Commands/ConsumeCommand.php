@@ -110,7 +110,7 @@ class ConsumeCommand extends Command
 
     public function handle(): int
     {
-        $this->call('migrate', ['--force' => true, '--silent' => true, '--quiet' => true]);
+        Artisan::call('migrate', ['--force' => true], new \Symfony\Component\Console\Output\NullOutput);
 
         // Validate config early before entering TUI
         try {
