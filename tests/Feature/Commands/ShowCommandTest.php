@@ -203,7 +203,6 @@ describe('show command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('(live output)');
-        expect($output)->toContain('Showing live output (tail)...');
         expect($output)->toContain('Line 1');
         expect($output)->toContain('Line 2');
         expect($output)->toContain('Line 3');
@@ -233,7 +232,6 @@ describe('show command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('(live output)');
-        expect($output)->toContain('Showing live output (tail)...');
         // Should contain last 50 lines (11-60)
         expect($output)->toContain('Line 11');
         expect($output)->toContain('Line 60');

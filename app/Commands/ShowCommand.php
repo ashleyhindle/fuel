@@ -214,9 +214,11 @@ class ShowCommand extends Command
 
                         // Show output only for latest run
                         if ($isLatest) {
+                            $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
+
                             if ($this->option('tail') && $liveOutput !== null) {
-                                $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
                                 if ($stdoutPath !== null) {
+                                    $this->line('    <fg=gray>Path: '.$stdoutPath.'</>');
                                     // Check if process is still running
                                     if ($task->consume_pid !== null && ! ProcessManager::isProcessAlive($task->consume_pid)) {
                                         $this->line('    <fg=red>(agent not running - PID '.$task->consume_pid.' not found)</>');
@@ -227,8 +229,11 @@ class ShowCommand extends Command
                                     }
                                 }
                             } elseif ($liveOutput !== null) {
+                                if ($stdoutPath !== null) {
+                                    $this->line('    <fg=gray>Path: '.$stdoutPath.'</>');
+                                }
+
                                 $this->line('    <fg=yellow>(live output)</>');
-                                $this->line('    <fg=gray>Showing live output (tail)...</>');
                                 $this->outputChunk($liveOutput, $this->option('raw'));
                             } elseif (isset($run->output) && $run->output !== null && $run->output !== '') {
                                 $this->line('    <fg=cyan>Run Output</>');
@@ -239,8 +244,12 @@ class ShowCommand extends Command
                 } elseif ($liveOutput !== null) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Run Output (live) ──</>');
+                    $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
+                    if ($stdoutPath !== null) {
+                        $this->line('  <fg=gray>Path: '.$stdoutPath.'</>');
+                    }
+
                     if ($this->option('tail')) {
-                        $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
                         if ($stdoutPath !== null) {
                             // Check if process is still running
                             if ($task->consume_pid !== null && ! ProcessManager::isProcessAlive($task->consume_pid)) {

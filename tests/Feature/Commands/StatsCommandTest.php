@@ -12,7 +12,9 @@ uses()->group('commands');
 describe('stats command', function (): void {
     beforeEach(function (): void {
         $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-        mkdir($this->tempDir.'/.fuel', 0755, true);
+        if (! is_dir($this->tempDir.'/.fuel')) {
+            mkdir($this->tempDir.'/.fuel', 0755, true);
+        }
 
         $context = new FuelContext($this->tempDir.'/.fuel');
         $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
