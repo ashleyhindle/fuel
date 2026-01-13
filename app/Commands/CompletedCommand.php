@@ -45,7 +45,6 @@ class CompletedCommand extends Command
             }
 
             $this->info(sprintf('Completed tasks (%d):', $tasks->count()));
-            $this->newLine();
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority'];
             $rows = $tasks->map(fn (Task $t): array => [
