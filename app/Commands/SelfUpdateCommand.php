@@ -122,14 +122,11 @@ class SelfUpdateCommand extends Command
 
             // If we just replaced the binary, execute the new binary for init
             // to avoid zlib errors from the old process reading the changed phar
+            // We exit() directly to avoid any Laravel cleanup that could trigger zlib errors
             if (! $alreadyLatest) {
                 $initResult = 0;
                 passthru($targetPath.' init --cwd='.escapeshellarg($projectPath), $initResult);
-                if ($initResult !== 0) {
-                    $this->error('Init failed with exit code: '.$initResult);
-
-                    return self::FAILURE;
-                }
+                exit($initResult);
             } else {
                 $initResult = $this->call('init');
                 if ($initResult !== self::SUCCESS) {
