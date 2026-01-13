@@ -1,5 +1,7 @@
 <?php
 
+use Symfony\Component\Console\Output\BufferedOutput;
+use Illuminate\Support\Facades\Artisan;
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -44,8 +46,8 @@ expect()->extend('toBeOne', fn () => $this->toBe(1));
  */
 function runCommand(string $command, array $params = []): string
 {
-    $output = new Symfony\Component\Console\Output\BufferedOutput;
-    Illuminate\Support\Facades\Artisan::call($command, $params, $output);
+    $output = new BufferedOutput;
+    Artisan::call($command, $params, $output);
 
     return $output->fetch();
 }

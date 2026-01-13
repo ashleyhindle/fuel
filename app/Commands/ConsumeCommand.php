@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use Symfony\Component\Console\Output\NullOutput;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
@@ -110,7 +111,7 @@ class ConsumeCommand extends Command
 
     public function handle(): int
     {
-        Artisan::call('migrate', ['--force' => true], new \Symfony\Component\Console\Output\NullOutput);
+        Artisan::call('migrate', ['--force' => true], new NullOutput);
 
         // Validate config early before entering TUI
         try {
