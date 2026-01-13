@@ -70,6 +70,11 @@ class SelfUpdateCommand extends Command
             $this->info(sprintf('Already on latest version (%s)', $version));
         }
 
+        // Determine init settings BEFORE binary replacement to avoid zlib errors
+        // after the phar file changes on disk
+        $projectPath = app(FuelContext::class)->getProjectPath();
+        $shouldRunInit = $this->shouldRunInit($projectPath);
+
         // Download and install new binary if not already on latest
         if (! $alreadyLatest) {
             // Create target directory if it doesn't exist
@@ -111,13 +116,12 @@ class SelfUpdateCommand extends Command
             $this->info('Updated to '.$version);
         }
 
-        // Always run init to update guidelines and skills in current project
-        $projectPath = app(FuelContext::class)->getProjectPath();
-        if ($this->shouldRunInit($projectPath)) {
+        // Run init to update guidelines and skills in current project
+        if ($shouldRunInit) {
             $this->info('Updating project with latest guidelines and skills...');
 
             // If we just replaced the binary, execute the new binary for init
-            // to avoid issues with the old process running after binary replacement
+            // to avoid zlib errors from the old process reading the changed phar
             if (! $alreadyLatest) {
                 $initResult = 0;
                 passthru($targetPath.' init --cwd='.escapeshellarg($projectPath), $initResult);
