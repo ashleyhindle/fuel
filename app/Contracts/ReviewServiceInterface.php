@@ -80,4 +80,12 @@ interface ReviewServiceInterface
      * @return array<string> Array of task IDs that were recovered
      */
     public function recoverStuckReviews(): array;
+
+    /**
+     * Get pending review data for a task (includes review ID and run ID).
+     *
+     * @param  string  $taskId  The task ID to get pending review data for
+     * @return array{reviewId: string, runId: string, timestamp: int}|null The review data or null if not pending
+     */
+    public function getPendingReviewData(string $taskId): ?array;
 }

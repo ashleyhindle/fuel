@@ -399,4 +399,15 @@ class ReviewService implements ReviewServiceInterface
 
         return $recovered;
     }
+
+    /**
+     * Get pending review data for a task (includes review ID and run ID).
+     *
+     * @param  string  $taskId  The task ID to get pending review data for
+     * @return array{reviewId: string, runId: string, timestamp: int}|null The review data or null if not pending
+     */
+    public function getPendingReviewData(string $taskId): ?array
+    {
+        return $this->pendingReviews[$taskId] ?? null;
+    }
 }

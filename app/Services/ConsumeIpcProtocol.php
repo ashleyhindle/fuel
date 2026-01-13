@@ -8,6 +8,7 @@ use App\DTO\ConsumeSnapshot;
 use App\Enums\ConsumeCommandType;
 use App\Enums\ConsumeEventType;
 use App\Ipc\Commands\AttachCommand;
+use App\Ipc\Commands\DependencyAddCommand;
 use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
@@ -16,6 +17,9 @@ use App\Ipc\Commands\ResumeCommand;
 use App\Ipc\Commands\SetIntervalCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
+use App\Ipc\Commands\TaskCreateCommand;
+use App\Ipc\Commands\TaskReopenCommand;
+use App\Ipc\Commands\TaskStartCommand;
 use App\Ipc\Events\ErrorEvent;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\HelloEvent;
@@ -115,6 +119,10 @@ final class ConsumeIpcProtocol
                 ConsumeCommandType::SetInterval => SetIntervalCommand::fromArray($data),
                 ConsumeCommandType::RequestSnapshot => RequestSnapshotCommand::fromArray($data),
                 ConsumeCommandType::SetTaskReviewEnabled => SetTaskReviewCommand::fromArray($data),
+                ConsumeCommandType::TaskStart => TaskStartCommand::fromArray($data),
+                ConsumeCommandType::TaskReopen => TaskReopenCommand::fromArray($data),
+                ConsumeCommandType::TaskCreate => TaskCreateCommand::fromArray($data),
+                ConsumeCommandType::DependencyAdd => DependencyAddCommand::fromArray($data),
             };
         } catch (\ValueError) {
             // Not a command type, try event types
@@ -133,6 +141,7 @@ final class ConsumeIpcProtocol
                 ConsumeEventType::HealthChange => $this->decodeHealthChangeEvent($data),
                 ConsumeEventType::OutputChunk => $this->decodeOutputChunkEvent($data),
                 ConsumeEventType::Error => $this->decodeErrorEvent($data),
+                ConsumeEventType::ReviewCompleted => $this->decodeReviewCompletedEvent($data),
             };
         } catch (\ValueError) {
             // Unknown type
@@ -247,6 +256,19 @@ final class ConsumeIpcProtocol
     {
         return new ErrorEvent(
             message: $data['message'] ?? '',
+            instanceId: $data['instance_id'] ?? '',
+            timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
+            requestId: $data['request_id'] ?? null
+        );
+    }
+
+    private function decodeReviewCompletedEvent(array $data): \App\Ipc\Events\ReviewCompletedEvent
+    {
+        return new \App\Ipc\Events\ReviewCompletedEvent(
+            taskId: $data['task_id'] ?? '',
+            passed: $data['passed'] ?? false,
+            issues: $data['issues'] ?? [],
+            wasAlreadyDone: $data['was_already_done'] ?? false,
             instanceId: $data['instance_id'] ?? '',
             timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
             requestId: $data['request_id'] ?? null

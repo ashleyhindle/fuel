@@ -14,6 +14,7 @@ enum ConsumeEventType: string
     case HealthChange = 'health_change';
     case OutputChunk = 'output_chunk';
     case Error = 'error';
+    case ReviewCompleted = 'review_completed';
 
     public static function fromString(string $value): self
     {

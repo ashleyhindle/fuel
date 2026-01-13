@@ -358,6 +358,26 @@ describe('round-trip event types', function () {
         expect($decoded->chunk())->toBe('test output');
     });
 
+    test('ReviewCompletedEvent', function () {
+        $original = new \App\Ipc\Events\ReviewCompletedEvent(
+            taskId: 'f-abc123',
+            passed: true,
+            issues: [],
+            wasAlreadyDone: false,
+            instanceId: $this->instanceId
+        );
+
+        $encoded = $this->protocol->encode($original);
+        $decoded = $this->protocol->decode($encoded, $this->instanceId);
+
+        expect($decoded)->toBeInstanceOf(\App\Ipc\Events\ReviewCompletedEvent::class);
+        expect($decoded->type())->toBe(ConsumeEventType::ReviewCompleted->value);
+        expect($decoded->taskId())->toBe('f-abc123');
+        expect($decoded->passed())->toBeTrue();
+        expect($decoded->issues())->toBe([]);
+        expect($decoded->wasAlreadyDone())->toBeFalse();
+    });
+
     test('ErrorEvent', function () {
         $original = new ErrorEvent(
             message: 'Test error',

@@ -12,7 +12,9 @@ use App\Contracts\ReviewServiceInterface;
 use App\Enums\EpicStatus;
 use App\Enums\FailureType;
 use App\Enums\TaskStatus;
-use App\Models\Review;
+use App\Ipc\Commands\DependencyAddCommand;
+use App\Ipc\Commands\TaskReopenCommand;
+use App\Ipc\Commands\TaskStartCommand;
 use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
@@ -31,6 +33,7 @@ use App\Services\TaskService;
 use App\TUI\GradientText;
 use App\TUI\ScreenBuffer;
 use App\TUI\Toast;
+use DateTimeImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -708,56 +711,71 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Mark task as in_progress and flag as consumed before spawning agent
-        $this->taskService->start($taskId);
-        $this->taskService->update($taskId, [
-            'consumed' => true,
-        ]);
-        $this->invalidateTaskCache();
+        // If connected to IPC runner, delegate spawning to runner
+        if ($this->ipcClient?->isConnected()) {
+            // Send TaskStart command to runner
+            $cmd = new TaskStartCommand(
+                taskId: $taskId,
+                agentOverride: $agentOverride,
+                timestamp: new DateTimeImmutable,
+                instanceId: 'client' // Client instance ID
+            );
+            $this->ipcClient->sendCommand($cmd);
 
-        // Determine agent and model for run entry
-        $complexity = $task->complexity ?? 'simple';
-        $runAgentName = $agentOverride ?? $this->configService->getAgentForComplexity($complexity);
-        $agentDef = $this->configService->getAgentDefinition($runAgentName);
-        $runModel = $agentDef['model'] ?? null;
+            $statusLines[] = $this->formatStatus('📨', sprintf('Sent spawn request for %s: %s', $taskId, $shortTitle), 'yellow');
+        } else {
+            // Standalone mode: handle spawning directly (legacy path)
+            // Mark task as in_progress and flag as consumed before spawning agent
+            $this->taskService->start($taskId);
+            $this->taskService->update($taskId, [
+                'consumed' => true,
+            ]);
+            $this->invalidateTaskCache();
 
-        // Create run entry before spawning to get run ID for process directory
-        $runId = $this->runService->createRun($taskId, [
-            'agent' => $runAgentName,
-            'model' => $runModel,
-            'started_at' => date('c'),
-        ]);
+            // Determine agent and model for run entry
+            $complexity = $task->complexity ?? 'simple';
+            $runAgentName = $agentOverride ?? $this->configService->getAgentForComplexity($complexity);
+            $agentDef = $this->configService->getAgentDefinition($runAgentName);
+            $runModel = $agentDef['model'] ?? null;
 
-        // Spawn via ProcessManager using WorkAgentTask abstraction
-        $result = $this->processManager->spawnAgentTask($agentTask, $cwd, $runId);
+            // Create run entry before spawning to get run ID for process directory
+            $runId = $this->runService->createRun($taskId, [
+                'agent' => $runAgentName,
+                'model' => $runModel,
+                'started_at' => date('c'),
+            ]);
 
-        if (! $result->success) {
-            // Agent in backoff should already be caught above, but handle just in case
-            if ($result->isInBackoff()) {
+            // Spawn via ProcessManager using WorkAgentTask abstraction
+            $result = $this->processManager->spawnAgentTask($agentTask, $cwd, $runId);
+
+            if (! $result->success) {
+                // Agent in backoff should already be caught above, but handle just in case
+                if ($result->isInBackoff()) {
+                    $this->taskService->reopen($taskId);
+                    $this->invalidateTaskCache();
+
+                    return false;
+                }
+
+                $this->error($result->error ?? 'Unknown spawn error');
+
+                // Revert task state
                 $this->taskService->reopen($taskId);
                 $this->invalidateTaskCache();
 
                 return false;
             }
 
-            $this->error($result->error ?? 'Unknown spawn error');
+            $process = $result->process;
+            $pid = $process->getPid();
 
-            // Revert task state
-            $this->taskService->reopen($taskId);
-            $this->invalidateTaskCache();
+            // Store the process PID in the task
+            $this->taskService->update($taskId, [
+                'consume_pid' => $pid,
+            ]);
 
-            return false;
+            $statusLines[] = $this->formatStatus('🚀', sprintf('Spawning %s for %s: %s', $process->getAgentName(), $taskId, $shortTitle), 'yellow');
         }
-
-        $process = $result->process;
-        $pid = $process->getPid();
-
-        // Store the process PID in the task
-        $this->taskService->update($taskId, [
-            'consume_pid' => $pid,
-        ]);
-
-        $statusLines[] = $this->formatStatus('🚀', sprintf('Spawning %s for %s: %s', $process->getAgentName(), $taskId, $shortTitle), 'yellow');
 
         return true;
     }
@@ -794,99 +812,6 @@ class ConsumeCommand extends Command
         $statusLines = $this->trimStatusLines($statusLines);
     }
 
-    /**
-     * Check for completed reviews and process their results.
-     *
-     * @param  array<string>  $statusLines
-     */
-    private function checkCompletedReviews(array &$statusLines): void
-    {
-        if (! $this->reviewService instanceof ReviewServiceInterface) {
-            return;
-        }
-
-        foreach ($this->reviewService->getPendingReviews() as $taskId) {
-            if ($this->reviewService->isReviewComplete($taskId)) {
-                // Get the Review model to access original_status before calling getReviewResult
-                // (which removes it from pendingReviews)
-                $task = $this->taskService->find($taskId);
-                $review = null;
-                if ($task instanceof Task) {
-                    // Get the most recent pending review for this task
-                    $review = Review::where('task_id', $task->id)
-                        ->where('status', 'pending')
-                        ->orderBy('started_at', 'desc')
-                        ->first();
-                }
-
-                $result = $this->reviewService->getReviewResult($taskId);
-                if (! $result instanceof ReviewResult) {
-                    continue;
-                }
-
-                // Check if task was already done before review using Review.original_status
-                $originalStatus = $review?->original_status;
-                $wasAlreadyDone = $originalStatus === TaskStatus::Done->value;
-
-                if ($result->passed) {
-                    // Review passed
-                    if ($wasAlreadyDone) {
-                        // Task was already done - confirm done (maybe update reason)
-                        $task = $this->taskService->find($taskId);
-                        if ($task && $task->status !== TaskStatus::Done) {
-                            // Task status changed (shouldn't happen, but handle gracefully)
-                            Artisan::call('done', [
-                                'ids' => [$taskId],
-                                '--reason' => 'Review passed (was already done)',
-                            ]);
-                        }
-
-                        $this->checkEpicCompletionSound($taskId);
-                        $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s (was already done)', $taskId), 'green');
-                    } else {
-                        // Task was in_progress - mark as done
-                        Artisan::call('done', [
-                            'ids' => [$taskId],
-                            '--reason' => 'Review passed',
-                        ]);
-                        $this->checkEpicCompletionSound($taskId);
-                        $statusLines[] = $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
-                    }
-                } else {
-                    // Review found issues - reopen task if it was already done
-                    $issuesSummary = $result->issues === [] ? 'issues found' : implode(', ', $result->issues);
-
-                    // Store the review issues on the task for the next agent run
-                    if ($result->issues !== []) {
-                        $this->taskService->setLastReviewIssues($taskId, $result->issues);
-                    }
-
-                    if ($wasAlreadyDone) {
-                        // Task was already done but review failed - reopen with issues
-                        try {
-                            $this->taskService->reopen($taskId);
-                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
-                        } catch (\RuntimeException $e) {
-                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s (could not reopen: %s)', $taskId, $issuesSummary, $e->getMessage()), 'yellow');
-                        }
-                    } else {
-                        // Task needs to be reopened so it can be retried
-                        try {
-                            $this->taskService->reopen($taskId);
-                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
-                        } catch (\RuntimeException) {
-                            $statusLines[] = $this->formatStatus('⚠', sprintf('Review found issues for %s: %s', $taskId, $issuesSummary), 'yellow');
-                        }
-                    }
-                }
-
-                $this->invalidateTaskCache();
-            }
-        }
-
-        // Trim status lines after processing reviews
-        $statusLines = $this->trimStatusLines($statusLines);
-    }
 
     /**
      * Handle a completed process result.
@@ -1033,7 +958,18 @@ class ConsumeCommand extends Command
             $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
 
             // Reopen task so it can be retried
-            $this->taskService->reopen($taskId);
+            if ($this->ipcClient?->isConnected()) {
+                // Send via IPC when connected to runner
+                $reopenCmd = new TaskReopenCommand(
+                    taskId: $taskId,
+                    timestamp: new DateTimeImmutable('now'),
+                    instanceId: $this->ipcClient->getInstanceId()
+                );
+                $this->ipcClient->sendCommand($reopenCmd);
+            } else {
+                // Fall back to direct service call when not connected
+                $this->taskService->reopen($taskId);
+            }
 
             // Get backoff time if health tracker is available
             $backoffInfo = '';
@@ -1085,7 +1021,18 @@ class ConsumeCommand extends Command
             $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
 
             // Reopen task so it can be retried on next cycle
-            $this->taskService->reopen($taskId);
+            if ($this->ipcClient?->isConnected()) {
+                // Send via IPC when connected to runner
+                $reopenCmd = new TaskReopenCommand(
+                    taskId: $taskId,
+                    timestamp: new DateTimeImmutable('now'),
+                    instanceId: $this->ipcClient->getInstanceId()
+                );
+                $this->ipcClient->sendCommand($reopenCmd);
+            } else {
+                // Fall back to direct service call when not connected
+                $this->taskService->reopen($taskId);
+            }
 
             // Get backoff time info
             $backoffInfo = '';
@@ -1129,23 +1076,60 @@ class ConsumeCommand extends Command
         unset($this->taskRetryAttempts[$taskId]);
 
         // Create a needs-human task for permission configuration
-        $humanTask = $this->taskService->create([
-            'title' => 'Configure agent permissions for '.$agentName,
-            'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
-                "To fix, either:\n".
-                "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
-                "2. Or add autonomous flags to .fuel/config.yaml agent definition:\n".
-                "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
-                "   - cursor-agent: args: [\"--force\"]\n".
-                "   - opencode: env: {OPENCODE_PERMISSION: '{\"permission\":\"allow\"}'}\n\n".
-                "See README.md 'Agent Permissions' section for details.",
-            'labels' => ['needs-human'],
-            'priority' => 1,
-        ]);
+        if ($this->ipcClient?->isConnected()) {
+            // When using IPC, we need to create the task first using direct service call
+            // to get the ID, then notify the runner. This is a temporary solution until
+            // the IPC protocol supports response messages with created task IDs.
+            $humanTask = $this->taskService->create([
+                'title' => 'Configure agent permissions for '.$agentName,
+                'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
+                    "To fix, either:\n".
+                    "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
+                    "2. Or add autonomous flags to .fuel/config.yaml agent definition:\n".
+                    "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
+                    "   - cursor-agent: args: [\"--force\"]\n".
+                    "   - opencode: env: {OPENCODE_PERMISSION: '{\"permission\":\"allow\"}'}\n\n".
+                    "See README.md 'Agent Permissions' section for details.",
+                'labels' => ['needs-human'],
+                'priority' => 1,
+            ]);
 
-        // Block the original task until permissions are configured
-        $this->taskService->addDependency($taskId, $humanTask->short_id);
-        $this->taskService->reopen($taskId);
+            // Add dependency and reopen task via IPC
+            $depCmd = new DependencyAddCommand(
+                taskId: $taskId,
+                blockerTaskId: $humanTask->short_id,
+                timestamp: new DateTimeImmutable('now'),
+                instanceId: $this->ipcClient->getInstanceId()
+            );
+            $this->ipcClient->sendCommand($depCmd);
+
+            // Reopen the task
+            $reopenCmd = new TaskReopenCommand(
+                taskId: $taskId,
+                timestamp: new DateTimeImmutable('now'),
+                instanceId: $this->ipcClient->getInstanceId()
+            );
+            $this->ipcClient->sendCommand($reopenCmd);
+        } else {
+            // Fall back to direct service calls when not connected
+            $humanTask = $this->taskService->create([
+                'title' => 'Configure agent permissions for '.$agentName,
+                'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
+                    "To fix, either:\n".
+                    "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
+                    "2. Or add autonomous flags to .fuel/config.yaml agent definition:\n".
+                    "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
+                    "   - cursor-agent: args: [\"--force\"]\n".
+                    "   - opencode: env: {OPENCODE_PERMISSION: '{\"permission\":\"allow\"}'}\n\n".
+                    "See README.md 'Agent Permissions' section for details.",
+                'labels' => ['needs-human'],
+                'priority' => 1,
+            ]);
+
+            // Block the original task until permissions are configured
+            $this->taskService->addDependency($taskId, $humanTask->short_id);
+            $this->taskService->reopen($taskId);
+        }
 
         $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTask->short_id), 'yellow');
     }
@@ -3806,6 +3790,7 @@ class ConsumeCommand extends Command
             'task_completed' => $statusLines[] = $this->handleTaskCompletedIpcEvent($event),
             'status_line' => $statusLines[] = $this->handleStatusLineIpcEvent($event),
             'health_change' => $statusLines[] = $this->handleHealthChangeIpcEvent($event),
+            'review_completed' => $statusLines[] = $this->handleReviewCompletedIpcEvent($event),
             'output_chunk' => $this->spinnerFrame++, // Just spin the activity indicator
             default => null,
         };
@@ -3869,5 +3854,35 @@ class ConsumeCommand extends Command
         }
 
         return $this->formatStatus('⚕', "Agent {$event->agent()}: {$event->status()}", 'yellow');
+    }
+
+    /**
+     * Format review completed event for status line.
+     */
+    private function handleReviewCompletedIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    {
+        if (! $event instanceof \App\Ipc\Events\ReviewCompletedEvent) {
+            return null;
+        }
+
+        $taskId = $event->taskId();
+
+        if ($event->passed()) {
+            // Review passed
+            $this->checkEpicCompletionSound($taskId);
+            if ($event->wasAlreadyDone()) {
+                return $this->formatStatus('✓', sprintf('Review passed for %s (was already done)', $taskId), 'green');
+            } else {
+                return $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
+            }
+        } else {
+            // Review failed
+            $issuesSummary = $event->issues() === [] ? 'issues found' : implode(', ', $event->issues());
+            if ($event->wasAlreadyDone()) {
+                return $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
+            } else {
+                return $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
+            }
+        }
     }
 }

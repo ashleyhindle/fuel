@@ -427,18 +427,21 @@ final class ConsumeRunner
     }
 
     /**
-     * Handle task start command - start a task.
+     * Handle task start command - start and spawn a task.
      */
     private function handleTaskStartCommand(\App\Ipc\IpcMessage $message): void
     {
-        // Cast to TaskStartCommand to access taskId property
+        // Cast to TaskStartCommand to access taskId and agentOverride properties
         if ($message instanceof \App\Ipc\Commands\TaskStartCommand) {
             try {
-                $this->taskService->start($message->taskId);
-                $this->invalidateTaskCache();
-                $this->broadcastSnapshot();
+                $task = $this->taskService->find($message->taskId);
+                if ($task) {
+                    // Spawn the task through the existing trySpawnTask method
+                    $this->trySpawnTask($task, $message->agentOverride);
+                    $this->broadcastSnapshot();
+                }
             } catch (\RuntimeException $e) {
-                // Task not found or already started - ignore
+                // Task not found or spawn failed - ignore
             }
         }
     }
@@ -535,10 +538,10 @@ final class ConsumeRunner
      */
     private function handleDependencyAddCommand(\App\Ipc\IpcMessage $message): void
     {
-        // Cast to DependencyAddCommand to access taskId and dependencyId properties
+        // Cast to DependencyAddCommand to access taskId and blockerTaskId properties
         if ($message instanceof \App\Ipc\Commands\DependencyAddCommand) {
             try {
-                $this->taskService->addDependency($message->taskId, $message->dependencyId);
+                $this->taskService->addDependency($message->taskId, $message->blockerTaskId);
                 $this->invalidateTaskCache();
                 $this->broadcastSnapshot();
             } catch (\RuntimeException $e) {
@@ -987,15 +990,24 @@ final class ConsumeRunner
 
         foreach ($this->reviewService->getPendingReviews() as $taskId) {
             if ($this->reviewService->isReviewComplete($taskId)) {
+                // Get the review's original_status from ReviewService's tracking
+                // Note: We need to get this before getReviewResult() which removes from pendingReviews
+                $pendingReviewData = $this->reviewService->getPendingReviewData($taskId);
+                $reviewId = $pendingReviewData['reviewId'] ?? null;
+                $originalStatus = null;
+                $wasAlreadyDone = false;
+
+                if ($reviewId !== null) {
+                    // Get the Review model to access original_status
+                    $review = \App\Models\Review::where('short_id', $reviewId)->first();
+                    $originalStatus = $review?->original_status;
+                    $wasAlreadyDone = $originalStatus === TaskStatus::Done->value;
+                }
+
                 $result = $this->reviewService->getReviewResult($taskId);
                 if (! $result instanceof ReviewResult) {
                     continue;
                 }
-
-                // Check if task was already done before review
-                $wasAlreadyDone = isset($this->preReviewTaskStatus[$taskId]);
-                $originalStatus = $this->preReviewTaskStatus[$taskId] ?? null;
-                unset($this->preReviewTaskStatus[$taskId]);
 
                 if ($result->passed) {
                     // Review passed
@@ -1041,6 +1053,9 @@ final class ConsumeRunner
                         }
                     }
                 }
+
+                // Broadcast ReviewCompletedEvent to IPC clients
+                $this->broadcastReviewCompleted($taskId, $result->passed, $result->issues, $wasAlreadyDone);
 
                 $this->invalidateTaskCache();
             }
@@ -1266,6 +1281,21 @@ final class ConsumeRunner
             runId: $runId ?? '',
             exitCode: $exitCode,
             completionType: $typeString,
+            instanceId: $this->instanceId
+        );
+        $this->ipcServer->broadcast($event);
+    }
+
+    /**
+     * Broadcast ReviewCompletedEvent to all connected clients.
+     */
+    private function broadcastReviewCompleted(string $taskId, bool $passed, array $issues, bool $wasAlreadyDone): void
+    {
+        $event = new \App\Ipc\Events\ReviewCompletedEvent(
+            taskId: $taskId,
+            passed: $passed,
+            issues: $issues,
+            wasAlreadyDone: $wasAlreadyDone,
             instanceId: $this->instanceId
         );
         $this->ipcServer->broadcast($event);
