@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Services\FuelContext;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
+use Throwable;
 
 class SelfUpdateCommand extends Command
 {
@@ -21,6 +22,17 @@ class SelfUpdateCommand extends Command
     private const GITHUB_RELEASES_BASE = 'https://github.com';
 
     public function handle(): int
+    {
+        try {
+            return $this->doUpdate();
+        } catch (Throwable $e) {
+            $this->error('Self-update failed: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
+    }
+
+    private function doUpdate(): int
     {
         // Detect OS
         $os = $this->detectOs();
