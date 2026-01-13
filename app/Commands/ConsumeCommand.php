@@ -2856,6 +2856,124 @@ class ConsumeCommand extends Command
     }
 
     /**
+     * Activate the command palette.
+     */
+    private function activateCommandPalette(): void
+    {
+        $this->commandPaletteActive = true;
+        $this->commandPaletteInput = '';
+        $this->commandPaletteCursor = 0;
+        $this->commandPaletteSuggestionIndex = -1;
+        $this->commandPaletteSuggestions = [];
+        $this->selectionStart = null;
+        $this->selectionEnd = null;
+        $this->forceRefresh = true;
+    }
+
+    /**
+     * Deactivate the command palette.
+     */
+    private function deactivateCommandPalette(): void
+    {
+        $this->commandPaletteActive = false;
+        $this->commandPaletteInput = '';
+        $this->commandPaletteCursor = 0;
+        $this->commandPaletteSuggestionIndex = -1;
+        $this->commandPaletteSuggestions = [];
+        $this->forceRefresh = true;
+    }
+
+    /**
+     * Insert a character at the cursor position in the command palette input.
+     */
+    private function commandPaletteInsertChar(string $char): void
+    {
+        $input = $this->commandPaletteInput;
+        $cursor = $this->commandPaletteCursor;
+        $before = mb_substr($input, 0, $cursor);
+        $after = mb_substr($input, $cursor);
+        $this->commandPaletteInput = $before.$char.$after;
+        $this->commandPaletteCursor++;
+        $this->updateCommandPaletteSuggestions();
+    }
+
+    /**
+     * Remove the character before the cursor in the command palette input.
+     */
+    private function commandPaletteBackspace(): void
+    {
+        if ($this->commandPaletteCursor > 0) {
+            $input = $this->commandPaletteInput;
+            $cursor = $this->commandPaletteCursor;
+            $before = mb_substr($input, 0, $cursor - 1);
+            $after = mb_substr($input, $cursor);
+            $this->commandPaletteInput = $before.$after;
+            $this->commandPaletteCursor--;
+            $this->updateCommandPaletteSuggestions();
+        }
+    }
+
+    /**
+     * Move the cursor left in the command palette input.
+     */
+    private function commandPaletteCursorLeft(): void
+    {
+        if ($this->commandPaletteCursor > 0) {
+            $this->commandPaletteCursor--;
+        }
+    }
+
+    /**
+     * Move the cursor right in the command palette input.
+     */
+    private function commandPaletteCursorRight(): void
+    {
+        $inputLength = mb_strlen($this->commandPaletteInput);
+        if ($this->commandPaletteCursor < $inputLength) {
+            $this->commandPaletteCursor++;
+        }
+    }
+
+    /**
+     * Move to the previous suggestion in the command palette.
+     */
+    private function commandPaletteSuggestionUp(): void
+    {
+        if ($this->commandPaletteSuggestionIndex > -1) {
+            $this->commandPaletteSuggestionIndex--;
+        }
+    }
+
+    /**
+     * Move to the next suggestion in the command palette.
+     */
+    private function commandPaletteSuggestionDown(): void
+    {
+        $suggestionCount = count($this->commandPaletteSuggestions);
+        if ($this->commandPaletteSuggestionIndex < $suggestionCount - 1) {
+            $this->commandPaletteSuggestionIndex++;
+        }
+    }
+
+    /**
+     * Accept the currently selected suggestion and update the input.
+     */
+    private function acceptCurrentSuggestion(): void
+    {
+        $index = $this->commandPaletteSuggestionIndex;
+        if ($index >= 0 && $index < count($this->commandPaletteSuggestions)) {
+            $selected = $this->commandPaletteSuggestions[$index];
+            // Assume suggestion has a short_id property (Task object or similar)
+            if (isset($selected->short_id) || (is_array($selected) && isset($selected['short_id']))) {
+                $shortId = is_object($selected) ? $selected->short_id : $selected['short_id'];
+                $this->commandPaletteInput = 'close '.$shortId;
+                $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
+                $this->updateCommandPaletteSuggestions();
+            }
+        }
+    }
+
+    /**
      * Calculate the appropriate sleep duration based on current state.
      */
     private function calculateSleepMicroseconds(): int
