@@ -43,39 +43,16 @@ This displays a live Kanban board and spawns agents for each ready task based on
 
 ### Agent Permissions
 
-By default, agents prompt for permission before editing files or running commands. This blocks `fuel consume` from running autonomously since it spawns agents in headless mode.
+**All drivers include autonomous mode by default** - they skip permission prompts to enable headless execution during `fuel consume`. This includes:
 
-**Option 1: Autonomous mode (unattended)**
-
-Enable auto-approve flags in `.fuel/config.yaml`:
-
-```yaml
-moderate:
-  agent: claude
-  model: sonnet
-  args:
-    - "--dangerously-skip-permissions"
-
-simple:
-  agent: cursor-agent
-  model: composer-1
-  args:
-    - "--force"
-```
+- **claude**: `--dangerously-skip-permissions`
+- **cursor-agent**: `--force`
+- **opencode**: `OPENCODE_PERMISSION={"permission":"allow"}`
+- **amp**: `--dangerously-allow-all`
+- **codex**: `--dangerously-bypass-approvals-and-sandbox`
 
 > [!CAUTION]
 > Autonomous mode allows agents to modify files and run commands without approval. Use in trusted environments only.
-
-**Option 2: Interactive mode (supervised)**
-
-Run your agent interactively and let it work through tasks:
-
-```bash
-claude
-# Then say: "Work through all the remaining fuel"
-```
-
-When prompted for permissions, select "Always allow" to build up a trusted toolset. Once configured, `fuel consume` will work smoothly since permissions persist across sessions.
 
 ## Why Fuel?
 
@@ -191,41 +168,63 @@ Commit it. Branch it. Merge it. Git handles the rest.
 
 ## Configuration
 
-Fuel uses `.fuel/config.yaml` to route tasks to different agents based on complexity.
+Fuel uses `.fuel/config.yaml` with a driver-based approach: define agents once, reference them by name.
 
 ```yaml
+# Primary agent for orchestration/decision-making (required)
+primary: claude-opus
+review: claude-opus
+
+# Map complexity levels to agent names
 complexity:
-  trivial:
-    agent: cursor-agent
-    model: composer-1
-    # args:
-    #   - "--force"
+  trivial: cursor-composer
+  simple: cursor-composer
+  moderate: claude-sonnet
+  complex: claude-opus
 
-  simple:
-    agent: cursor-agent
+# Define agents once with drivers
+agents:
+  cursor-composer:
+    driver: cursor-agent
     model: composer-1
-    # args:
-    #   - "--force"
+    max_concurrent: 3
+    max_attempts: 3
 
-  moderate:
-    agent: claude
+  claude-sonnet:
+    driver: claude
     model: sonnet
-    # args:
-    #   - "--dangerously-skip-permissions"
+    max_concurrent: 2
+    max_attempts: 3
 
-  complex:
-    agent: claude
+  claude-opus:
+    driver: claude
     model: opus
-    # args:
-    #   - "--dangerously-skip-permissions"
+    max_concurrent: 3
+    max_attempts: 5
 ```
 
-Each complexity level maps to:
-- `agent` - The CLI command to spawn (e.g., `claude`, `cursor-agent`, `opencode`)
-- `model` - Model name passed via `--model` flag
-- `args` - Optional extra arguments (e.g., `["--mcp-server", "github"]`)
+### Drivers
 
-All agents use `-p` for prompts and `--model` for model selection.
+Built-in drivers handle CLI invocation and provide sensible defaults:
+
+- **claude** - Claude Code CLI (`claude`)
+- **cursor-agent** - Cursor Agent CLI (`cursor-agent`)
+- **opencode** - OpenCode CLI (`opencode`)
+- **amp** - Amp CLI (`amp`)
+- **codex** - Codex CLI (`codex`)
+
+Drivers automatically set up the correct CLI args and environment. Use `extra_args` or `extra_env` to extend defaults:
+
+```yaml
+agents:
+  claude-sonnet-auto:
+    driver: claude
+    model: sonnet
+    extra_args:
+      - "--dangerously-skip-permissions"
+    max_concurrent: 2
+    max_attempts: 3
+```
 
 ## Deployment
 
