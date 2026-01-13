@@ -1377,9 +1377,9 @@ class ConsumeCommand extends Command
 
             // Suggestion lines
             $lineIndex = 1;
-            foreach ($visibleSuggestions as $index => $task) {
-                $displayId = substr((string) $task->short_id, 2, 6);
-                $titleTrunc = $this->truncate((string) $task->title, $boxWidth - 14);
+            foreach ($visibleSuggestions as $index => $suggestion) {
+                $displayId = substr((string) $suggestion['short_id'], 2, 6);
+                $titleTrunc = $this->truncate((string) $suggestion['title'], $boxWidth - 14);
                 $content = sprintf('[%s] %s', $displayId, $titleTrunc);
 
                 // Apply selection styling
