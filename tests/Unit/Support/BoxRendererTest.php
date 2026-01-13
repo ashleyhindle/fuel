@@ -18,10 +18,10 @@ it('renders a basic box with title and content', function (): void {
 
     $output = $this->bufferedOutput->fetch();
 
-    expect($output)->toContain('┌')
-        ->and($output)->toContain('┐')
-        ->and($output)->toContain('└')
-        ->and($output)->toContain('┘')
+    expect($output)->toContain('╭')
+        ->and($output)->toContain('╮')
+        ->and($output)->toContain('╰')
+        ->and($output)->toContain('╯')
         ->and($output)->toContain('│')
         ->and($output)->toContain('TEST')
         ->and($output)->toContain('Line 1')

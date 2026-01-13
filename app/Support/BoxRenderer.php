@@ -113,19 +113,19 @@ class BoxRenderer
     }
 
     /**
-     * Generate top border.
+     * Generate top border with rounded corners.
      */
     private function topBorder(int $width): string
     {
-        return '┌'.str_repeat('─', $width - 2).'┐';
+        return '╭'.str_repeat('─', $width - 2).'╮';
     }
 
     /**
-     * Generate bottom border.
+     * Generate bottom border with rounded corners.
      */
     private function bottomBorder(int $width): string
     {
-        return '└'.str_repeat('─', $width - 2).'┘';
+        return '╰'.str_repeat('─', $width - 2).'╯';
     }
 
     /**

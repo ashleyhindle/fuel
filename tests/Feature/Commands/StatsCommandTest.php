@@ -319,9 +319,9 @@ describe('stats command', function (): void {
         Artisan::call('stats', []);
         $output = Artisan::output();
 
-        // Check all boxes are properly formatted with borders
-        expect($output)->toContain('┌─────────────────────────────────────────┐');
-        expect($output)->toContain('└─────────────────────────────────────────┘');
+        // Check all boxes are properly formatted with rounded corner borders
+        expect($output)->toContain('╭─────────────────────────────────────────╮');
+        expect($output)->toContain('╰─────────────────────────────────────────╯');
         expect($output)->toContain('├─────────────────────────────────────────┤');
 
         // Check all major sections exist
