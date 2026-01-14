@@ -44,12 +44,13 @@ function findChromeExecutable() {
       "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
       "/Applications/Chromium.app/Contents/MacOS/Chromium",
       "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+      "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
     ];
     for (const p of candidates) if (fs.existsSync(p)) return p;
   }
 
   // linux
-  const cmds = ["google-chrome-stable", "google-chrome", "chromium-browser", "chromium", "microsoft-edge"];
+  const cmds = ["google-chrome-stable", "google-chrome", "chromium-browser", "chromium", "microsoft-edge", "brave-browser", "brave"];
   for (const c of cmds) {
     const p = which(c);
     if (p) return p;
