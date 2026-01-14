@@ -2960,6 +2960,7 @@ class ConsumeCommand extends Command
     private const PALETTE_COMMANDS = [
         'close' => 'Mark a task as done',
         'pause' => 'Pause task consumption',
+        'reload' => 'Reload configuration',
         'resume' => 'Resume task consumption',
     ];
 
@@ -3100,6 +3101,16 @@ class ConsumeCommand extends Command
         if ($input === 'resume') {
             $this->ipcClient?->sendResume();
             $this->toast?->show('Resumed', 'success');
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
+        // Handle reload command
+        if ($input === 'reload') {
+            $this->ipcClient?->sendReloadConfig();
+            $this->toast?->show('Config reloaded', 'success');
             $this->deactivateCommandPalette();
             $this->forceRefresh = true;
 

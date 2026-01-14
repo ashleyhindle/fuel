@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Ipc\Commands\AttachCommand;
 use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
+use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
@@ -498,6 +499,18 @@ class ConsumeIpcClient
     public function sendStop(): void
     {
         $cmd = new StopCommand(
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
+     * Send reload config command to runner.
+     */
+    public function sendReloadConfig(): void
+    {
+        $cmd = new ReloadConfigCommand(
             timestamp: new DateTimeImmutable,
             instanceId: $this->instanceId
         );

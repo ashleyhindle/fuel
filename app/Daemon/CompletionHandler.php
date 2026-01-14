@@ -131,7 +131,29 @@ final class CompletionHandler
             'consume_pid' => null,
         ]);
 
-        // Handle by completion type
+        // For Task processes, WorkAgentTask.onSuccess() handles business logic via ProcessManager.poll()
+        // We only need to do infra work here (health tracking, retry clearing)
+        if ($completion->processType === \App\Process\ProcessType::Task) {
+            if ($completion->isSuccess() && $this->healthTracker) {
+                $this->healthTracker->recordSuccess($completion->agentName);
+            }
+            if ($completion->isSuccess()) {
+                $this->handlers->clearRetryAttempts($completion->taskId);
+            }
+            // Failure/NetworkError/PermissionBlocked still need handling
+            if (! $completion->isSuccess()) {
+                match ($completion->type) {
+                    CompletionType::Failed => $this->handlers->handleFailure($completion),
+                    CompletionType::NetworkError => $this->handlers->handleNetworkError($completion),
+                    CompletionType::PermissionBlocked => $this->handlers->handlePermissionBlocked($completion),
+                    default => null,
+                };
+            }
+
+            return; // Skip business logic - WorkAgentTask.onSuccess() already handled it
+        }
+
+        // Handle by completion type for non-Task processes
         match ($completion->type) {
             CompletionType::Success => $this->handlers->handleSuccess($completion),
             CompletionType::Failed => $this->handlers->handleFailure($completion),
@@ -139,7 +161,6 @@ final class CompletionHandler
             CompletionType::PermissionBlocked => $this->handlers->handlePermissionBlocked($completion),
         };
     }
-
 
     /**
      * Update the latest run for a task, skipping if the task no longer exists.
@@ -163,10 +184,5 @@ final class CompletionHandler
     public function clearRetryAttempts(string $taskId): void
     {
         $this->handlers->clearRetryAttempts($taskId);
-    }
-
-    public function getPreReviewTaskStatus(): array
-    {
-        return $this->handlers->getPreReviewTaskStatus();
     }
 }

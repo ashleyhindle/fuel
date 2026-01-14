@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Agents\Tasks\WorkAgentTask;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Models\Task;
 use App\Services\ConfigService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\RunService;
-use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use Illuminate\Support\Collection;
 
@@ -39,12 +39,17 @@ final class TaskSpawner
     /** @var bool Whether the runner is shutting down */
     private bool $shuttingDown = false;
 
+    /** @var bool Whether review is enabled for spawned tasks */
+    private bool $reviewEnabled = false;
+
+    /** @var callable|null Callback for epic completion */
+    private $epicCompletionCallback = null;
+
     public function __construct(
         private readonly TaskService $taskService,
         private readonly ConfigService $configService,
         private readonly RunService $runService,
         private readonly ProcessManager $processManager,
-        private readonly TaskPromptBuilder $promptBuilder,
         private readonly FuelContext $fuelContext,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
     ) {
@@ -77,7 +82,24 @@ final class TaskSpawner
     }
 
     /**
+     * Set whether review is enabled for spawned tasks.
+     */
+    public function setReviewEnabled(bool $reviewEnabled): void
+    {
+        $this->reviewEnabled = $reviewEnabled;
+    }
+
+    /**
+     * Set callback for epic completion.
+     */
+    public function setEpicCompletionCallback(?callable $epicCompletionCallback): void
+    {
+        $this->epicCompletionCallback = $epicCompletionCallback;
+    }
+
+    /**
      * Try to spawn a task if agent capacity allows.
+     *
      * @return bool True if task was spawned, false otherwise
      */
     public function trySpawnTask(Task $task, ?string $agentOverride, ?callable $onTaskSpawned = null): bool
@@ -88,9 +110,21 @@ final class TaskSpawner
 
         $taskId = $task->short_id;
         $cwd = $this->fuelContext->getProjectPath();
-        $fullPrompt = $this->promptBuilder->build($task, $cwd);
 
-        $agentName = $this->determineAgent($task, $agentOverride);
+        // Create WorkAgentTask via container
+        $agentTask = app(WorkAgentTask::class, [
+            'task' => $task,
+            'reviewEnabled' => $this->reviewEnabled,
+            'agentOverride' => $agentOverride,
+        ]);
+
+        // Wire epicCompletionCallback if set
+        if ($this->epicCompletionCallback !== null) {
+            $agentTask->setEpicCompletionCallback($this->epicCompletionCallback);
+        }
+
+        // Get agent via WorkAgentTask
+        $agentName = $agentTask->getAgentName($this->configService);
         if ($agentName === null || ! $this->isAgentAvailable($agentName)) {
             return false;
         }
@@ -98,9 +132,11 @@ final class TaskSpawner
         $this->markTaskConsumed($taskId);
         $runId = $this->createRunEntry($taskId, $agentName, $agentOverride);
 
-        $result = $this->processManager->spawnForTask($task, $fullPrompt, $cwd, $agentOverride, $runId);
+        // Replace spawnForTask with spawnAgentTask
+        $result = $this->processManager->spawnAgentTask($agentTask, $cwd, $runId);
         if (! $result->success) {
             $this->handleSpawnFailure($taskId, $result->isInBackoff());
+
             return false;
         }
 
@@ -111,19 +147,6 @@ final class TaskSpawner
         }
 
         return true;
-    }
-
-    private function determineAgent(Task $task, ?string $agentOverride): ?string
-    {
-        if ($agentOverride !== null) {
-            return $agentOverride;
-        }
-        $complexity = $task->complexity ?? 'simple';
-        try {
-            return $this->configService->getAgentForComplexity($complexity);
-        } catch (\RuntimeException $e) {
-            return null;
-        }
     }
 
     private function isAgentAvailable(string $agentName): bool
@@ -140,6 +163,7 @@ final class TaskSpawner
                 return false;
             }
         }
+
         return true;
     }
 
@@ -153,6 +177,7 @@ final class TaskSpawner
     private function createRunEntry(string $taskId, string $agentName, ?string $agentOverride): string
     {
         $agentDef = $this->configService->getAgentDefinition($agentName);
+
         return $this->runService->createRun($taskId, [
             'agent' => $agentName,
             'model' => $agentDef['model'] ?? null,

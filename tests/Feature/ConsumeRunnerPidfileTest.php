@@ -111,7 +111,6 @@ describe('ConsumeRunner PID file handling', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -133,7 +132,8 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager
@@ -233,7 +233,6 @@ describe('ConsumeRunner PID file handling', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -255,7 +254,8 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager
@@ -355,7 +355,6 @@ describe('ConsumeRunner PID file handling', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -377,7 +376,8 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager
@@ -473,7 +473,6 @@ describe('ConsumeRunner PID file handling', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -495,7 +494,8 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager
@@ -597,7 +597,6 @@ describe('ConsumeRunner PID file handling', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -619,7 +618,8 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager
@@ -721,7 +721,6 @@ describe('ConsumeRunner PID file handling', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -743,7 +742,8 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager

@@ -52,7 +52,6 @@ beforeEach(function () {
         $this->configService,
         $this->runService,
         $this->processManager,
-        $this->promptBuilder,
         $this->fuelContext,
         $this->healthTracker
     );
@@ -71,7 +70,8 @@ beforeEach(function () {
     $this->ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
         $this->ipcServer,
         $this->lifecycleManager,
-        $this->completionHandler
+        $this->completionHandler,
+        $this->configService
     );
 
     // Create SnapshotManager

@@ -98,7 +98,6 @@ describe('ConsumeRunner client attach', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -118,7 +117,8 @@ describe('ConsumeRunner client attach', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager
@@ -240,7 +240,6 @@ describe('ConsumeRunner client attach', function () {
             $configService,
             $runService,
             $processManager,
-            $promptBuilder,
             $fuelContext,
             $healthTracker
         );
@@ -261,7 +260,8 @@ describe('ConsumeRunner client attach', function () {
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
-            $completionHandler
+            $completionHandler,
+            $configService
         );
 
         // Create SnapshotManager

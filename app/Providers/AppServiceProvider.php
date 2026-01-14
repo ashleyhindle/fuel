@@ -16,6 +16,7 @@ use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
 use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
+use App\Services\BrowserDaemonManager;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
@@ -150,16 +151,20 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(TaskPromptBuilder::class);
 
+        $this->app->singleton(BrowserDaemonManager::class, fn (): BrowserDaemonManager => BrowserDaemonManager::getInstance());
+
         $this->app->singleton(LifecycleManager::class, fn (Application $app): LifecycleManager => new LifecycleManager(
             fuelContext: $app->make(FuelContext::class),
         ));
+
+        // ConsumeIpcServer MUST be a singleton - all daemon components share the same server instance
+        $this->app->singleton(\App\Services\ConsumeIpcServer::class);
 
         $this->app->singleton(TaskSpawner::class, fn (Application $app): TaskSpawner => new TaskSpawner(
             taskService: $app->make(TaskService::class),
             configService: $app->make(ConfigService::class),
             runService: $app->make(RunService::class),
             processManager: $app->make(ProcessManagerInterface::class),
-            promptBuilder: $app->make(TaskPromptBuilder::class),
             fuelContext: $app->make(FuelContext::class),
             healthTracker: $app->make(AgentHealthTrackerInterface::class),
         ));
