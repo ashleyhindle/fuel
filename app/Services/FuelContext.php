@@ -65,15 +65,29 @@ class FuelContext
      * Uses argv[0] which reliably contains the binary path for both
      * regular PHP scripts and phar/compiled binaries.
      * SCRIPT_FILENAME doesn't work for phars (returns phar:// URI).
+     *
+     * When argv[0] is just a command name (e.g., 'fuel' from PATH),
+     * realpath fails because there's no 'fuel' in cwd. In that case,
+     * we fall back to 'which' to find the binary in PATH.
      */
     public function getFuelBinaryPath(): string
     {
         $scriptPath = $_SERVER['argv'][0] ?? null;
 
         if ($scriptPath !== null) {
+            // Try realpath first - works for ./fuel and /full/path/to/fuel
             $realPath = realpath($scriptPath);
             if ($realPath !== false) {
                 return $realPath;
+            }
+
+            // If argv[0] doesn't contain a path separator, it was resolved via PATH
+            // Use 'which' to find the actual binary location
+            if (! str_contains($scriptPath, '/')) {
+                $whichPath = trim((string) shell_exec('which '.escapeshellarg($scriptPath).' 2>/dev/null'));
+                if ($whichPath !== '' && is_executable($whichPath)) {
+                    return $whichPath;
+                }
             }
         }
 
