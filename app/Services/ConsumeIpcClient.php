@@ -287,6 +287,17 @@ class ConsumeIpcClient
 
         // Try to read with MSG_PEEK - this forces the OS to check the connection state
         // without consuming any actual data from the buffer
+        if (! function_exists('socket_import_stream')) {
+            // Sockets extension not available, fall back to feof check
+            if (feof($this->socket)) {
+                $this->connected = false;
+
+                return false;
+            }
+
+            return $this->connected;
+        }
+
         $socketResource = socket_import_stream($this->socket);
         if ($socketResource === false) {
             // Can't import stream, fall back to feof check
