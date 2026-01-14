@@ -64,13 +64,40 @@ class FuelContext
      */
     public function getFuelBinaryPath(): string
     {
-        $scriptPath = $_SERVER['SCRIPT_FILENAME'] ?? $_SERVER['argv'][0] ?? null;
+        // Try multiple sources for the script path
+        $candidates = [
+            $_SERVER['SCRIPT_FILENAME'] ?? null,
+            $_SERVER['argv'][0] ?? null,
+            $_SERVER['_'] ?? null, // Bash often sets this to the full path
+        ];
 
-        if ($scriptPath !== null) {
-            $realPath = realpath($scriptPath);
-            if ($realPath !== false) {
+        foreach ($candidates as $candidate) {
+            if ($candidate === null || $candidate === '') {
+                continue;
+            }
+
+            // Try realpath first
+            $realPath = realpath($candidate);
+            if ($realPath !== false && is_executable($realPath)) {
                 return $realPath;
             }
+
+            // If it's an absolute path that exists, use it directly
+            if (str_starts_with($candidate, '/') && is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        // Try to find 'fuel' in PATH using shell
+        $whichFuel = trim((string) shell_exec('which fuel 2>/dev/null'));
+        if ($whichFuel !== '' && is_executable($whichFuel)) {
+            return $whichFuel;
+        }
+
+        // Last resort: check if we're in a project with a local fuel script
+        $localFuel = $this->getProjectPath().'/fuel';
+        if (is_file($localFuel) && is_executable($localFuel)) {
+            return $localFuel;
         }
 
         throw new \RuntimeException('Unable to determine fuel binary path');
