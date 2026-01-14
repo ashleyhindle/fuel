@@ -65,19 +65,59 @@ final class LifecycleManager
         if ($this->skipCleanup || ! $this->stopCalled) {
             return;
         }
+
         $this->deletePidFile();
     }
 
-    public function pause(): void { $this->paused = true; }
-    public function resume(): void { $this->paused = false; }
-    public function isPaused(): bool { return $this->paused; }
-    public function isShuttingDown(): bool { return $this->shuttingDown; }
-    public function getInstanceId(): string { return $this->instanceId; }
-    public function getStartedAt(): DateTimeImmutable { return $this->startedAt; }
-    public function isGracefulShutdown(): bool { return $this->gracefulShutdown; }
-    public function isStopCalled(): bool { return $this->stopCalled; }
-    public function setSkipCleanup(bool $skip): void { $this->skipCleanup = $skip; }
-    public function isSkipCleanup(): bool { return $this->skipCleanup; }
+    public function pause(): void
+    {
+        $this->paused = true;
+    }
+
+    public function resume(): void
+    {
+        $this->paused = false;
+    }
+
+    public function isPaused(): bool
+    {
+        return $this->paused;
+    }
+
+    public function isShuttingDown(): bool
+    {
+        return $this->shuttingDown;
+    }
+
+    public function getInstanceId(): string
+    {
+        return $this->instanceId;
+    }
+
+    public function getStartedAt(): DateTimeImmutable
+    {
+        return $this->startedAt;
+    }
+
+    public function isGracefulShutdown(): bool
+    {
+        return $this->gracefulShutdown;
+    }
+
+    public function isStopCalled(): bool
+    {
+        return $this->stopCalled;
+    }
+
+    public function setSkipCleanup(bool $skip): void
+    {
+        $this->skipCleanup = $skip;
+    }
+
+    public function isSkipCleanup(): bool
+    {
+        return $this->skipCleanup;
+    }
 
     private function writePidFile(int $port): void
     {
@@ -92,15 +132,73 @@ final class LifecycleManager
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-        file_put_contents($pidFile, json_encode($pidData, JSON_THROW_ON_ERROR));
-        chmod($pidFile, 0600);
+
+        // Open file with exclusive lock for writing
+        $lockFile = $pidFile.'.lock';
+        $lock = fopen($lockFile, 'c');
+        if ($lock === false) {
+            throw new \RuntimeException("Failed to open lock file: {$lockFile}");
+        }
+
+        try {
+            // Acquire exclusive lock
+            if (! flock($lock, LOCK_EX)) {
+                throw new \RuntimeException("Failed to acquire lock for PID file: {$pidFile}");
+            }
+
+            // Write PID data atomically
+            $tempFile = $pidFile.'.tmp.'.uniqid();
+            if (file_put_contents($tempFile, json_encode($pidData, JSON_THROW_ON_ERROR)) === false) {
+                throw new \RuntimeException("Failed to write temporary PID file: {$tempFile}");
+            }
+
+            // Atomic rename to replace the old PID file
+            if (! rename($tempFile, $pidFile)) {
+                @unlink($tempFile);
+                throw new \RuntimeException("Failed to rename temporary PID file to: {$pidFile}");
+            }
+
+            chmod($pidFile, 0600);
+        } finally {
+            // Release lock and close lock file
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     private function deletePidFile(): void
     {
         $pidFile = $this->fuelContext->getPidFilePath();
-        if (file_exists($pidFile)) {
-            unlink($pidFile);
+        if (! file_exists($pidFile)) {
+            return;
+        }
+
+        // Open lock file with exclusive lock for deletion
+        $lockFile = $pidFile.'.lock';
+        $lock = fopen($lockFile, 'c');
+        if ($lock === false) {
+            // If we can't open lock file, try to delete PID file anyway
+            @unlink($pidFile);
+
+            return;
+        }
+
+        try {
+            // Acquire exclusive lock
+            if (flock($lock, LOCK_EX)) {
+                if (file_exists($pidFile)) {
+                    unlink($pidFile);
+                }
+            }
+        } finally {
+            // Release lock and close lock file
+            flock($lock, LOCK_UN);
+            fclose($lock);
+
+            // Clean up lock file if no PID file exists
+            if (! file_exists($pidFile)) {
+                @unlink($lockFile);
+            }
         }
     }
 
@@ -110,18 +208,55 @@ final class LifecycleManager
         if (! file_exists($pidFile)) {
             return;
         }
-        $content = file_get_contents($pidFile);
-        if ($content === false) {
+
+        // Open lock file with exclusive lock for cleanup check
+        $lockFile = $pidFile.'.lock';
+        $lock = fopen($lockFile, 'c');
+        if ($lock === false) {
+            // If we can't open lock file, skip cleanup
             return;
         }
-        $data = json_decode($content, true);
-        if (! is_array($data) || ! isset($data['pid'])) {
-            unlink($pidFile);
-            return;
-        }
-        $pid = (int) $data['pid'];
-        if (! ProcessManager::isProcessAlive($pid)) {
-            unlink($pidFile);
+
+        try {
+            // Acquire exclusive lock
+            if (! flock($lock, LOCK_EX)) {
+                return;
+            }
+
+            // Re-check existence after acquiring lock
+            if (! file_exists($pidFile)) {
+                return;
+            }
+
+            $content = file_get_contents($pidFile);
+            if ($content === false) {
+                return;
+            }
+
+            $data = json_decode($content, true);
+            if (! is_array($data) || ! isset($data['pid'])) {
+                unlink($pidFile);
+
+                return;
+            }
+
+            $pid = (int) $data['pid'];
+            if (! ProcessManager::isProcessAlive($pid)) {
+                unlink($pidFile);
+
+                // Clean up lock file after removing stale PID file
+                flock($lock, LOCK_UN);
+                fclose($lock);
+                @unlink($lockFile);
+
+                return;
+            }
+        } finally {
+            // Release lock if we still have it
+            if (is_resource($lock)) {
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
         }
     }
 
@@ -130,6 +265,7 @@ final class LifecycleManager
         $data = random_bytes(16);
         $data[6] = chr(ord($data[6]) & 0x0F | 0x40);
         $data[8] = chr(ord($data[8]) & 0x3F | 0x80);
+
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }

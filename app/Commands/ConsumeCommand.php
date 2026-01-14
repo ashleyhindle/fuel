@@ -10,6 +10,12 @@ use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
+use App\Ipc\Events\HealthChangeEvent;
+use App\Ipc\Events\ReviewCompletedEvent;
+use App\Ipc\Events\StatusLineEvent;
+use App\Ipc\Events\TaskCompletedEvent;
+use App\Ipc\Events\TaskSpawnedEvent;
+use App\Ipc\IpcMessage;
 use App\Models\Task;
 use App\Process\ProcessType;
 use App\Services\BackoffStrategy;
@@ -237,7 +243,8 @@ class ConsumeCommand extends Command
         if (! $singleIteration) {
             $this->renderConnectingFrame(0, 'Cleaning up');
         }
-        $this->runService->cleanupOrphanedRuns(fn (int $pid): bool => ! ProcessManager::isProcessAlive($pid));
+
+        $this->runService->cleanupOrphanedRuns();
 
         // Recover stuck reviews (tasks in 'review' status with no active review process)
         if ($this->reviewService instanceof ReviewServiceInterface) {
@@ -250,8 +257,8 @@ class ConsumeCommand extends Command
             }
         }
 
-        $interval = max(1, (int) $this->option('interval'));
-        $agentOverride = $this->option('agent');
+        max(1, (int) $this->option('interval'));
+        $this->option('agent');
 
         // Register ProcessManager signal handlers first
         try {
@@ -272,7 +279,21 @@ class ConsumeCommand extends Command
             $pidFilePath = $this->fuelContext->getPidFilePath();
 
             if (file_exists($pidFilePath)) {
-                $pidData = json_decode(file_get_contents($pidFilePath), true);
+                // Use shared lock for reading PID file
+                $lockFile = $pidFilePath.'.lock';
+                $lock = @fopen($lockFile, 'c');
+
+                if ($lock !== false) {
+                    flock($lock, LOCK_SH);
+                    $content = file_get_contents($pidFilePath);
+                    flock($lock, LOCK_UN);
+                    fclose($lock);
+                    $pidData = json_decode($content, true);
+                } else {
+                    // Fallback to direct read
+                    $pidData = json_decode(@file_get_contents($pidFilePath), true);
+                }
+
                 $pid = $pidData['pid'] ?? null;
 
                 if ($pid && ProcessManager::isProcessAlive($pid)) {
@@ -304,6 +325,7 @@ class ConsumeCommand extends Command
                     $frame = 0;
                     $this->renderConnectingFrame($frame++, 'Starting runner');
                 }
+
                 $this->ipcClient->startRunner($this->fuelContext->getProjectPath().'/fuel');
 
                 // Wait for server with animation
@@ -326,6 +348,7 @@ class ConsumeCommand extends Command
                 $this->debug('Connecting to runner on '.$ip.':'.$port);
                 $connectStart = microtime(true);
             }
+
             $this->ipcClient->connect($port);
             if (! $singleIteration) {
                 $this->debug('Socket connected', $connectStart);
@@ -365,9 +388,9 @@ class ConsumeCommand extends Command
                 // Sync task review setting with runner
                 $this->ipcClient->setTaskReviewEnabled((bool) $this->option('review'));
             }
-        } catch (\RuntimeException $e) {
+        } catch (\RuntimeException $runtimeException) {
             $this->restoreTerminal();
-            $this->error('Failed to connect to runner: '.$e->getMessage());
+            $this->error('Failed to connect to runner: '.$runtimeException->getMessage());
 
             return self::FAILURE;
         }
@@ -538,7 +561,7 @@ class ConsumeCommand extends Command
         $this->updateTerminalSize();
 
         // Create or reset gradient if status changed
-        if ($this->connectingGradient === null || $this->connectingStatus !== $status) {
+        if (! $this->connectingGradient instanceof GradientText || $this->connectingStatus !== $status) {
             $this->connectingGradient = GradientText::cyan($status);
             $this->connectingStatus = $status;
         }
@@ -757,6 +780,7 @@ class ConsumeCommand extends Command
                 if (is_string($startedAt)) {
                     $startedAt = strtotime($startedAt) ?: time();
                 }
+
                 $activeProcesses[$taskId] = [
                     'task_id' => $taskId,
                     'agent_name' => $processData['agent'] ?? 'unknown',
@@ -1145,6 +1169,7 @@ class ConsumeCommand extends Command
         } else {
             $overlayStartRow = $inputRow;
         }
+
         $overlayLines[] = $inputLine;
 
         // Store as overlay layer 2 (command palette renders on top of modals)
@@ -2009,7 +2034,7 @@ class ConsumeCommand extends Command
         }
 
         if ($this->commandPaletteActive) {
-            return $this->handleCommandPaletteInput($paused, $statusLines);
+            return $this->handleCommandPaletteInput();
         }
 
         // Escape sequence
@@ -2158,6 +2183,7 @@ class ConsumeCommand extends Command
                             ? $this->formatStatus('⏸', 'PAUSED - press Shift+Tab to resume', 'yellow')
                             : $this->formatStatus('▶', 'Resumed - looking for tasks...', 'green');
                     }
+
                     $statusLines = $this->trimStatusLines($statusLines);
                     $this->inputBuffer = substr($buf, 3);
 
@@ -2759,11 +2785,10 @@ class ConsumeCommand extends Command
      *
      * @return int Bytes consumed (0=incomplete, -1=exit)
      */
-    private function handleCommandPaletteInput(bool &$paused, array &$statusLines): int
+    private function handleCommandPaletteInput(): int
     {
         $buf = $this->inputBuffer;
         $len = strlen($buf);
-
         if ($len === 0) {
             return 0;
         }
@@ -2789,6 +2814,7 @@ class ConsumeCommand extends Command
                     if ($len < 6) {
                         return 0; // Need more data for mouse event
                     }
+
                     $this->inputBuffer = substr($buf, 6);
 
                     return 6; // Consume mouse event without action
@@ -2828,8 +2854,8 @@ class ConsumeCommand extends Command
 
         // Single character handling
         $char = $buf[0];
-        $this->inputBuffer = substr($buf, 1); // Remove consumed byte
-
+        $this->inputBuffer = substr($buf, 1);
+        // Remove consumed byte
         // Enter (carriage return or newline)
         if ($char === "\r" || $char === "\n") {
             $this->executeCommandPalette();
@@ -3193,11 +3219,23 @@ class ConsumeCommand extends Command
      */
     private function hasIpcControlFlag(): bool
     {
-        return $this->option('status')
-            || $this->option('pause')
-            || $this->option('resume')
-            || $this->option('stop')
-            || $this->option('force');
+        if ($this->option('status')) {
+            return true;
+        }
+
+        if ($this->option('pause')) {
+            return true;
+        }
+
+        if ($this->option('resume')) {
+            return true;
+        }
+
+        if ($this->option('stop')) {
+            return true;
+        }
+
+        return (bool) $this->option('force');
     }
 
     /**
@@ -3221,8 +3259,8 @@ class ConsumeCommand extends Command
         try {
             $this->ipcClient->connect($port);
             $this->ipcClient->attach();
-        } catch (\RuntimeException $e) {
-            $this->error('Failed to connect to runner: '.$e->getMessage());
+        } catch (\RuntimeException $runtimeException) {
+            $this->error('Failed to connect to runner: '.$runtimeException->getMessage());
 
             return self::FAILURE;
         }
@@ -3280,6 +3318,7 @@ class ConsumeCommand extends Command
             foreach ($events as $event) {
                 $this->ipcClient->applyEvent($event);
             }
+
             usleep(50000);
         }
 
@@ -3305,7 +3344,7 @@ class ConsumeCommand extends Command
     /**
      * Handle an IPC event and update status lines.
      */
-    private function handleIpcEvent(\App\Ipc\IpcMessage $event, array &$statusLines): void
+    private function handleIpcEvent(IpcMessage $event, array &$statusLines): void
     {
         // Apply event to IPC client state
         $this->ipcClient?->applyEvent($event);
@@ -3328,36 +3367,36 @@ class ConsumeCommand extends Command
     /**
      * Format task spawned event for status line.
      */
-    private function handleTaskSpawnedIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    private function handleTaskSpawnedIpcEvent(IpcMessage $event): ?string
     {
-        if (! $event instanceof \App\Ipc\Events\TaskSpawnedEvent) {
+        if (! $event instanceof TaskSpawnedEvent) {
             return null;
         }
 
-        return $this->formatStatus('🚀', "Spawned {$event->taskId()} with {$event->agent()}", 'cyan');
+        return $this->formatStatus('🚀', sprintf('Spawned %s with %s', $event->taskId(), $event->agent()), 'cyan');
     }
 
     /**
      * Format task completed event for status line.
      */
-    private function handleTaskCompletedIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    private function handleTaskCompletedIpcEvent(IpcMessage $event): ?string
     {
-        if (! $event instanceof \App\Ipc\Events\TaskCompletedEvent) {
+        if (! $event instanceof TaskCompletedEvent) {
             return null;
         }
 
         $icon = $event->exitCode() === 0 ? '✓' : '✗';
         $color = $event->exitCode() === 0 ? 'green' : 'red';
 
-        return $this->formatStatus($icon, "Completed {$event->taskId()} (exit {$event->exitCode()})", $color);
+        return $this->formatStatus($icon, sprintf('Completed %s (exit %d)', $event->taskId(), $event->exitCode()), $color);
     }
 
     /**
      * Format status line event for display.
      */
-    private function handleStatusLineIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    private function handleStatusLineIpcEvent(IpcMessage $event): ?string
     {
-        if (! $event instanceof \App\Ipc\Events\StatusLineEvent) {
+        if (! $event instanceof StatusLineEvent) {
             return null;
         }
 
@@ -3373,21 +3412,21 @@ class ConsumeCommand extends Command
     /**
      * Format health change event for status line.
      */
-    private function handleHealthChangeIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    private function handleHealthChangeIpcEvent(IpcMessage $event): ?string
     {
-        if (! $event instanceof \App\Ipc\Events\HealthChangeEvent) {
+        if (! $event instanceof HealthChangeEvent) {
             return null;
         }
 
-        return $this->formatStatus('⚕', "Agent {$event->agent()}: {$event->status()}", 'yellow');
+        return $this->formatStatus('⚕', sprintf('Agent %s: %s', $event->agent(), $event->status()), 'yellow');
     }
 
     /**
      * Format review completed event for status line.
      */
-    private function handleReviewCompletedIpcEvent(\App\Ipc\IpcMessage $event): ?string
+    private function handleReviewCompletedIpcEvent(IpcMessage $event): ?string
     {
-        if (! $event instanceof \App\Ipc\Events\ReviewCompletedEvent) {
+        if (! $event instanceof ReviewCompletedEvent) {
             return null;
         }
 
@@ -3398,17 +3437,14 @@ class ConsumeCommand extends Command
             $this->checkEpicCompletionSound($taskId);
             if ($event->wasAlreadyDone()) {
                 return $this->formatStatus('✓', sprintf('Review passed for %s (was already done)', $taskId), 'green');
-            } else {
-                return $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
             }
-        } else {
-            // Review failed
-            $issuesSummary = $event->issues() === [] ? 'issues found' : implode(', ', $event->issues());
-            if ($event->wasAlreadyDone()) {
-                return $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
-            } else {
-                return $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
-            }
+
+            return $this->formatStatus('✓', sprintf('Review passed for %s', $taskId), 'green');
         }
+
+        // Review failed
+        $issuesSummary = $event->issues() === [] ? 'issues found' : implode(', ', $event->issues());
+
+        return $this->formatStatus('⚠', sprintf('Review found issues for %s (reopened): %s', $taskId, $issuesSummary), 'yellow');
     }
 }

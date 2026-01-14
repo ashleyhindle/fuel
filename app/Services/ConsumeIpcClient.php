@@ -15,7 +15,6 @@ use App\Ipc\Commands\StopCommand;
 use App\Ipc\Commands\TaskCreateCommand;
 use App\Ipc\Commands\TaskDoneCommand;
 use App\Ipc\Events\HealthChangeEvent;
-use App\Ipc\Events\HelloEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Ipc\Events\TaskCompletedEvent;
 use App\Ipc\Events\TaskCreateResponseEvent;
@@ -34,13 +33,13 @@ use Illuminate\Support\Collection;
 class ConsumeIpcClient
 {
     /** @var resource|null Unix domain socket connection */
-    private $socket = null;
+    private $socket;
 
     /** Protocol handler for encoding/decoding messages */
-    private ConsumeIpcProtocol $protocol;
+    private readonly ConsumeIpcProtocol $protocol;
 
     /** Unique instance ID for this client session */
-    private string $instanceId;
+    private readonly string $instanceId;
 
     /** Board state from latest snapshot */
     private array $boardState = [];
@@ -69,14 +68,11 @@ class ConsumeIpcClient
     /** Whether SnapshotEvent has been received during attach */
     private bool $receivedSnapshot = false;
 
-    /** IP address for TCP connections */
-    private string $ip;
-
-    public function __construct(string $ip = '127.0.0.1')
+    public function __construct(/** IP address for TCP connections */
+        private readonly string $ip = '127.0.0.1')
     {
         $this->protocol = new ConsumeIpcProtocol;
         $this->instanceId = $this->protocol->generateInstanceId();
-        $this->ip = $ip;
     }
 
     /**
@@ -88,9 +84,37 @@ class ConsumeIpcClient
             return false;
         }
 
-        $content = file_get_contents($pidFilePath);
-        if ($content === false) {
-            return false;
+        // Open lock file with shared lock for reading
+        $lockFile = $pidFilePath.'.lock';
+        $lock = @fopen($lockFile, 'c');
+
+        // If we can't open lock file, fall back to direct read (backward compatibility)
+        if ($lock === false) {
+            $content = @file_get_contents($pidFilePath);
+            if ($content === false) {
+                return false;
+            }
+        } else {
+            try {
+                // Acquire shared lock for reading
+                if (! flock($lock, LOCK_SH)) {
+                    return false;
+                }
+
+                // Re-check existence after acquiring lock
+                if (! file_exists($pidFilePath)) {
+                    return false;
+                }
+
+                $content = file_get_contents($pidFilePath);
+                if ($content === false) {
+                    return false;
+                }
+            } finally {
+                // Release lock and close lock file
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
         }
 
         $data = json_decode($content, true);
@@ -106,7 +130,7 @@ class ConsumeIpcClient
         }
 
         // Fallback: check if PID exists in process table
-        $result = shell_exec("ps -p $pid -o pid=");
+        $result = shell_exec(sprintf('ps -p %d -o pid=', $pid));
 
         return $result !== null && trim($result) === (string) $pid;
     }
@@ -143,7 +167,7 @@ class ConsumeIpcClient
      */
     public function isServerReady(int $port): bool
     {
-        $socket = @stream_socket_client("tcp://{$this->ip}:{$port}", $errno, $errstr, 0.1);
+        $socket = @stream_socket_client(sprintf('tcp://%s:%d', $this->ip, $port), $errno, $errstr, 0.1);
         if ($socket !== false) {
             fclose($socket);
 
@@ -161,20 +185,21 @@ class ConsumeIpcClient
     public function waitForServer(int $port, int $maxWait = 5): void
     {
         $waited = 0;
-        $host = "{$this->ip}:{$port}";
+        $host = sprintf('%s:%d', $this->ip, $port);
 
         while ($waited < $maxWait) {
-            $socket = @stream_socket_client("tcp://{$host}", $errno, $errstr, 1);
+            $socket = @stream_socket_client('tcp://'.$host, $errno, $errstr, 1);
             if ($socket !== false) {
                 fclose($socket);
 
                 return; // Server is ready
             }
+
             usleep(100000); // 100ms
             $waited += 0.1;
         }
 
-        throw new \RuntimeException("Runner not ready on {$this->ip}:{$port} after {$maxWait} seconds");
+        throw new \RuntimeException(sprintf('Runner not ready on %s:%d after %d seconds', $this->ip, $port, $maxWait));
     }
 
     /**
@@ -184,10 +209,10 @@ class ConsumeIpcClient
      */
     public function connect(int $port): void
     {
-        $socket = @stream_socket_client("tcp://{$this->ip}:{$port}", $errno, $errstr, 5);
+        $socket = @stream_socket_client(sprintf('tcp://%s:%d', $this->ip, $port), $errno, $errstr, 5);
 
         if ($socket === false) {
-            throw new \RuntimeException("Failed to connect to runner on {$this->ip}:{$port}: {$errstr} ({$errno})");
+            throw new \RuntimeException(sprintf('Failed to connect to runner on %s:%d: %s (%s)', $this->ip, $port, $errstr, $errno));
         }
 
         // Keep socket in blocking mode initially for reliable attach
@@ -206,6 +231,7 @@ class ConsumeIpcClient
             fclose($this->socket);
             $this->socket = null;
         }
+
         $this->connected = false;
     }
 
@@ -238,13 +264,13 @@ class ConsumeIpcClient
 
         // Wait for HelloEvent
         $helloEvent = $this->waitForEvent('hello', 5);
-        if ($helloEvent === null) {
+        if (! $helloEvent instanceof IpcMessage) {
             throw new \RuntimeException('Did not receive HelloEvent from runner');
         }
 
         // Wait for SnapshotEvent
         $snapshotEvent = $this->waitForEvent('snapshot', 5);
-        if ($snapshotEvent === null) {
+        if (! $snapshotEvent instanceof IpcMessage) {
             throw new \RuntimeException('Did not receive SnapshotEvent from runner');
         }
 
@@ -294,7 +320,7 @@ class ConsumeIpcClient
         $receivedNew = false;
         $event = $this->readEvent();
 
-        while ($event !== null) {
+        while ($event instanceof IpcMessage) {
             if ($event->type() === 'hello') {
                 $this->receivedHello = true;
                 $receivedNew = true;
@@ -330,6 +356,7 @@ class ConsumeIpcClient
         if (! $this->receivedHello) {
             throw new \RuntimeException('Did not receive HelloEvent from runner');
         }
+
         if (! $this->receivedSnapshot) {
             throw new \RuntimeException('Did not receive SnapshotEvent from runner');
         }
@@ -380,7 +407,7 @@ class ConsumeIpcClient
     {
         $events = [];
 
-        while (($event = $this->readEvent()) !== null) {
+        while (($event = $this->readEvent()) instanceof IpcMessage) {
             $events[] = $event;
         }
 
@@ -597,7 +624,7 @@ class ConsumeIpcClient
         try {
             while (time() < $deadline) {
                 $event = $this->readEvent();
-                if ($event !== null) {
+                if ($event instanceof IpcMessage) {
                     // Check if it's a TaskCreateResponse with matching request ID
                     if ($event instanceof TaskCreateResponseEvent &&
                         $event->getRequestId() === $requestId) {
@@ -607,11 +634,13 @@ class ConsumeIpcClient
 
                         return null; // Creation failed
                     }
+
                     // Process other events normally (don't lose them)
                     if ($event->type() !== 'task_create_response') {
                         $this->applyEvent($event);
                     }
                 }
+
                 usleep(50000); // 50ms
             }
 
@@ -669,15 +698,13 @@ class ConsumeIpcClient
             while (time() < $deadline) {
                 // If we have partial data in buffer but no complete message,
                 // wait a bit for more data to arrive
-                if (strlen($this->readBuffer) > 0 && strpos($this->readBuffer, "\n") === false) {
+                if ($this->readBuffer !== '' && ! str_contains($this->readBuffer, "\n")) {
                     usleep(100000); // 100ms to let more data arrive
                 }
 
                 $event = $this->readEvent();
-                if ($event !== null) {
-                    if ($event->type() === $eventType) {
-                        return $event;
-                    }
+                if ($event instanceof IpcMessage && $event->type() === $eventType) {
+                    return $event;
                 }
 
                 usleep(50000); // 50ms

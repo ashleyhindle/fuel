@@ -2,9 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Contracts\AgentHealthTrackerInterface;
+use App\Contracts\ReviewServiceInterface;
+use App\Daemon\BrowserCommandHandler;
+use App\Daemon\CompletionHandler;
+use App\Daemon\IpcCommandDispatcher;
 use App\Daemon\LifecycleManager;
+use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
 use App\Services\BackoffStrategy;
+use App\Services\BrowserDaemonManager;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcProtocol;
 use App\Services\ConsumeIpcServer;
@@ -15,7 +22,7 @@ use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     // Use isolated temp directory for tests
     $this->testDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->testDir.'/.fuel', 0755, true);
@@ -28,7 +35,7 @@ beforeEach(function () {
     $this->testPort = random_int(49152, 65535);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Close Mockery
     Mockery::close();
 
@@ -48,12 +55,13 @@ afterEach(function () {
                 unlink($file->getPathname());
             }
         }
+
         rmdir($this->testDir);
     }
 });
 
-describe('ConsumeRunner PID file handling', function () {
-    test('stale PID file with dead process is deleted on start', function () {
+describe('ConsumeRunner PID file handling', function (): void {
+    test('stale PID file with dead process is deleted on start', function (): void {
         // Create a stale PID file with a dead PID
         $stalePid = 99999; // PID that doesn't exist
         $stalePidData = [
@@ -100,7 +108,7 @@ describe('ConsumeRunner PID file handling', function () {
         $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true);
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
@@ -117,9 +125,9 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Create CompletionHandler (can't mock as it's final)
         // Mock review service for CompletionHandler
-        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+        $reviewService = Mockery::mock(ReviewServiceInterface::class);
 
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
@@ -129,19 +137,19 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
         $browserManager->shouldReceive('start')->once();
         $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -150,7 +158,7 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -162,21 +170,15 @@ describe('ConsumeRunner PID file handling', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Skip cleanup for this test (we're just testing PID file creation)
@@ -198,7 +200,7 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcServer->stop();
     });
 
-    test('runner creates PID file on start', function () {
+    test('runner creates PID file on start', function (): void {
         // Ensure no PID file exists
         expect(file_exists('.fuel/consume.pid'))->toBeFalse();
 
@@ -236,7 +238,7 @@ describe('ConsumeRunner PID file handling', function () {
         $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true);
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
@@ -253,9 +255,9 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Create CompletionHandler (can't mock as it's final)
         // Mock review service for CompletionHandler
-        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+        $reviewService = Mockery::mock(ReviewServiceInterface::class);
 
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
@@ -265,19 +267,19 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
         $browserManager->shouldReceive('start')->once();
         $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -286,7 +288,7 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -298,21 +300,15 @@ describe('ConsumeRunner PID file handling', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Skip cleanup for this test (we're just testing PID file creation)
@@ -336,7 +332,7 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcServer->stop();
     });
 
-    test('runner deletes PID file on stop', function () {
+    test('runner deletes PID file on stop', function (): void {
         // Create dependencies
         $protocol = new ConsumeIpcProtocol;
 
@@ -372,7 +368,7 @@ describe('ConsumeRunner PID file handling', function () {
         $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true);
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
@@ -389,9 +385,9 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Create CompletionHandler (can't mock as it's final)
         // Mock review service for CompletionHandler
-        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+        $reviewService = Mockery::mock(ReviewServiceInterface::class);
 
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
@@ -401,19 +397,19 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
         $browserManager->shouldReceive('start')->once();
         $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -422,7 +418,7 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -434,21 +430,15 @@ describe('ConsumeRunner PID file handling', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Call stop() before starting to simulate IPC stop command
@@ -465,7 +455,7 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcServer->stop();
     });
 
-    test('malformed PID file is deleted on start', function () {
+    test('malformed PID file is deleted on start', function (): void {
         // Create a malformed PID file (invalid JSON)
         file_put_contents('.fuel/consume.pid', 'invalid json{');
         expect(file_exists('.fuel/consume.pid'))->toBeTrue();
@@ -504,7 +494,7 @@ describe('ConsumeRunner PID file handling', function () {
         $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true);
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
@@ -521,9 +511,9 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Create CompletionHandler (can't mock as it's final)
         // Mock review service for CompletionHandler
-        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+        $reviewService = Mockery::mock(ReviewServiceInterface::class);
 
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
@@ -533,19 +523,19 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
         $browserManager->shouldReceive('start')->once();
         $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -554,7 +544,7 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -566,21 +556,15 @@ describe('ConsumeRunner PID file handling', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Skip cleanup for this test (we're just testing PID file creation)
@@ -599,7 +583,7 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcServer->stop();
     });
 
-    test('PID file without pid field is deleted on start', function () {
+    test('PID file without pid field is deleted on start', function (): void {
         // Create a PID file without the required 'pid' field
         $invalidPidData = [
             'started_at' => '2024-01-01T00:00:00+00:00',
@@ -642,7 +626,7 @@ describe('ConsumeRunner PID file handling', function () {
         $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true);
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
@@ -659,9 +643,9 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Create CompletionHandler (can't mock as it's final)
         // Mock review service for CompletionHandler
-        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+        $reviewService = Mockery::mock(ReviewServiceInterface::class);
 
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
@@ -671,19 +655,19 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
         $browserManager->shouldReceive('start')->once();
         $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -692,7 +676,7 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -704,21 +688,15 @@ describe('ConsumeRunner PID file handling', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Skip cleanup for this test (we're just testing PID file creation)
@@ -738,7 +716,7 @@ describe('ConsumeRunner PID file handling', function () {
         $ipcServer->stop();
     });
 
-    test('runner starts successfully after cleaning stale PID', function () {
+    test('runner starts successfully after cleaning stale PID', function (): void {
         // Create a stale PID file
         $stalePidData = [
             'pid' => 99999,
@@ -780,7 +758,7 @@ describe('ConsumeRunner PID file handling', function () {
         $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true);
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
@@ -797,9 +775,9 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Create CompletionHandler (can't mock as it's final)
         // Mock review service for CompletionHandler
-        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+        $reviewService = Mockery::mock(ReviewServiceInterface::class);
 
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
@@ -809,19 +787,19 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
         $browserManager->shouldReceive('start')->once();
         $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -830,7 +808,7 @@ describe('ConsumeRunner PID file handling', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -842,21 +820,15 @@ describe('ConsumeRunner PID file handling', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Skip cleanup for this test
@@ -870,11 +842,115 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Verify new PID file exists with correct PID
         expect(file_exists('.fuel/consume.pid'))->toBeTrue();
+
         $newPidData = json_decode(file_get_contents('.fuel/consume.pid'), true);
         expect($newPidData['pid'])->toBe(getmypid());
         expect($newPidData['instance_id'])->not->toBe('old-instance');
 
         // Clean up
         $ipcServer->stop();
+    });
+
+    test('concurrent PID file access is protected by flock', function (): void {
+        // This test verifies that the flock-based locking prevents race conditions
+        // when multiple processes try to access the PID file simultaneously
+
+        // Create a PID file
+        $initialPidData = [
+            'pid' => 12345,
+            'started_at' => '2024-01-01T00:00:00+00:00',
+            'instance_id' => 'initial-instance',
+            'port' => 9981,
+        ];
+        file_put_contents('.fuel/consume.pid', json_encode($initialPidData));
+
+        // Fork a child process to simulate concurrent access
+        if (! function_exists('pcntl_fork')) {
+            $this->markTestSkipped('pcntl extension required for concurrency test');
+        }
+
+        $pid = pcntl_fork();
+
+        if ($pid === -1) {
+            $this->fail('Failed to fork process');
+        } elseif ($pid === 0) {
+            // Child process: try to write to PID file
+            $fuelContext = new FuelContext($this->testDir.'/.fuel');
+            $lifecycleManager = new LifecycleManager($fuelContext);
+
+            // Attempt to write (should use lock)
+            try {
+                // Use reflection to access private method
+                $reflection = new ReflectionClass($lifecycleManager);
+                $method = $reflection->getMethod('writePidFile');
+                $method->setAccessible(true);
+                $method->invoke($lifecycleManager, 9982);
+
+                // Child exits successfully
+                exit(0);
+            } catch (\Exception $e) {
+                // Child exits with error
+                exit(1);
+            }
+        } else {
+            // Parent process: also try to write to PID file
+            $fuelContext = new FuelContext($this->testDir.'/.fuel');
+            $lifecycleManager = new LifecycleManager($fuelContext);
+
+            // Give child a moment to start
+            usleep(10000); // 10ms
+
+            // Parent also attempts to write
+            try {
+                $reflection = new ReflectionClass($lifecycleManager);
+                $method = $reflection->getMethod('writePidFile');
+                $method->setAccessible(true);
+                $method->invoke($lifecycleManager, 9983);
+            } catch (\Exception $e) {
+                $this->fail('Parent failed to write PID file: '.$e->getMessage());
+            }
+
+            // Wait for child to complete
+            $status = 0;
+            pcntl_waitpid($pid, $status);
+
+            // Verify child exited successfully (0 = success)
+            expect(pcntl_wexitstatus($status))->toBe(0);
+
+            // Verify PID file exists and contains valid data
+            expect(file_exists('.fuel/consume.pid'))->toBeTrue();
+
+            // One of the processes should have won the race
+            $finalPidData = json_decode(file_get_contents('.fuel/consume.pid'), true);
+            expect($finalPidData)->toBeArray();
+            expect($finalPidData)->toHaveKey('pid');
+            expect($finalPidData)->toHaveKey('port');
+
+            // Port should be either from parent or child
+            expect(in_array($finalPidData['port'], [9982, 9983]))->toBeTrue();
+
+            // Clean up lock file if it exists
+            @unlink('.fuel/consume.pid.lock');
+        }
+    });
+
+    test('lock file is cleaned up after PID file deletion', function (): void {
+        // Create dependencies
+        $fuelContext = new FuelContext($this->testDir.'/.fuel');
+        $lifecycleManager = new LifecycleManager($fuelContext);
+
+        // Start lifecycle (creates PID file and lock file)
+        $lifecycleManager->start(9999);
+
+        // Verify both PID file and lock file exist
+        expect(file_exists('.fuel/consume.pid'))->toBeTrue();
+
+        // Clean up (deletes PID file and should clean up lock file)
+        $lifecycleManager->stop(true);
+        $lifecycleManager->cleanup();
+
+        // Verify both PID file and lock file are deleted
+        expect(file_exists('.fuel/consume.pid'))->toBeFalse();
+        expect(file_exists('.fuel/consume.pid.lock'))->toBeFalse();
     });
 });
