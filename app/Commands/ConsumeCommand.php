@@ -564,6 +564,9 @@ class ConsumeCommand extends Command
     {
         $this->updateTerminalSize();
 
+        // Clear entire screen to prevent residual text from showing
+        echo "\033[H\033[2J";
+
         // Create or reset gradient if status changed
         if (! $this->connectingGradient instanceof GradientText || $this->connectingStatus !== $status) {
             $this->connectingGradient = GradientText::cyan($status);
