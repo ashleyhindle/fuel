@@ -577,6 +577,12 @@ class ConsumeIpcClient
             // Try to connect and attach
             $this->connect($this->port);
             $this->attach();
+
+            // Set socket to non-blocking for main event loop
+            // (attach() leaves it in blocking mode)
+            if ($this->socket !== null) {
+                stream_set_blocking($this->socket, false);
+            }
         } catch (\Throwable) {
             // Silently fail - we'll try again later
             $this->connected = false;
