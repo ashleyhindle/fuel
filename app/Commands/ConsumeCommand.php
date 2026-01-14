@@ -2934,6 +2934,7 @@ class ConsumeCommand extends Command
 
     /** Available commands in the command palette */
     private const PALETTE_COMMANDS = [
+        'add' => 'Create a new task',
         'close' => 'Mark a task as done',
         'pause' => 'Pause task consumption',
         'reload' => 'Reload configuration',
@@ -3093,6 +3094,32 @@ class ConsumeCommand extends Command
             return;
         }
 
+        // Handle add command - creates task with just a title
+        if (preg_match('/^add\s+(.+)$/', $input, $matches)) {
+            $title = trim($matches[1]);
+
+            if ($title === '') {
+                $this->toast?->show('Task title required', 'error');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            $taskId = $this->ipcClient?->createTaskWithResponse(['title' => $title]);
+
+            if ($taskId !== null) {
+                $this->toast?->show('Created: '.$taskId, 'success');
+            } else {
+                $this->toast?->show('Failed to create task', 'error');
+            }
+
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
         // Parse /close command
         if (preg_match('/^close\s+(\S+)/', $input, $matches)) {
             $taskIdInput = $matches[1];
@@ -3136,7 +3163,7 @@ class ConsumeCommand extends Command
         }
 
         // Handle unknown command or empty input
-        if ($input !== '' && ! str_starts_with($input, 'close')) {
+        if ($input !== '' && ! str_starts_with($input, 'close') && ! str_starts_with($input, 'add')) {
             $this->toast?->show('Unknown command: '.$input, 'error');
         }
 
