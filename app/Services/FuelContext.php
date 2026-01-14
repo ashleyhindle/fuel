@@ -62,36 +62,16 @@ class FuelContext
     /**
      * Get the path to the fuel binary that is currently running.
      *
-     * Tries multiple sources in order:
-     * 1. argv[0] with realpath - works for ./fuel and /full/path/to/fuel
-     * 2. PHP_SELF - reliable for phars, gives full path
-     * 3. 'which' command - fallback when argv[0] is bare command name
+     * PHP_SELF contains the script path - relative for dev (./fuel),
+     * absolute for phars (/path/to/fuel). realpath() handles both.
      */
     public function getFuelBinaryPath(): string
     {
-        // Try argv[0] first - works for ./fuel and /full/path/to/fuel
-        $scriptPath = $_SERVER['argv'][0] ?? null;
-        if ($scriptPath !== null) {
-            $realPath = realpath($scriptPath);
-            if ($realPath !== false) {
-                return $realPath;
-            }
-        }
-
-        // Try PHP_SELF - for phars this contains the full binary path
         $phpSelf = $_SERVER['PHP_SELF'] ?? null;
         if ($phpSelf !== null) {
             $realPath = realpath($phpSelf);
             if ($realPath !== false) {
                 return $realPath;
-            }
-        }
-
-        // Last resort: use 'which' when argv[0] is a bare command name
-        if ($scriptPath !== null && ! str_contains($scriptPath, '/')) {
-            $whichPath = trim((string) shell_exec('which '.escapeshellarg($scriptPath).' 2>/dev/null'));
-            if ($whichPath !== '' && is_executable($whichPath)) {
-                return $whichPath;
             }
         }
 
