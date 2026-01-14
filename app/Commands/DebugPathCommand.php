@@ -23,6 +23,9 @@ class DebugPathCommand extends Command
         $argv0 = $_SERVER['argv'][0] ?? null;
         $scriptFilename = $_SERVER['SCRIPT_FILENAME'] ?? null;
         $underscore = $_SERVER['_'] ?? null;
+        $phpSelf = $_SERVER['PHP_SELF'] ?? null;
+        $pathTranslated = $_SERVER['PATH_TRANSLATED'] ?? null;
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? null;
 
         $argv0Realpath = $argv0 !== null ? realpath($argv0) : false;
         $whichResult = null;
@@ -42,9 +45,14 @@ class DebugPathCommand extends Command
         $data = [
             'argv[0]' => $argv0,
             'argv[0] realpath' => $argv0Realpath !== false ? $argv0Realpath : '(failed)',
-            'which result' => $whichResult ?: '(not applicable - argv[0] contains /)',
+            'which result' => $whichResult ?: '(n/a - argv[0] contains /)',
             'SCRIPT_FILENAME' => $scriptFilename,
             '$_SERVER[_]' => $underscore,
+            'PHP_SELF' => $phpSelf,
+            'PATH_TRANSLATED' => $pathTranslated,
+            'SCRIPT_NAME' => $scriptName,
+            '__FILE__' => __FILE__,
+            'PHP_BINARY' => PHP_BINARY,
             'cwd' => getcwd(),
             'resolved binary' => $resolvedPath ?? '(failed: '.$resolvedError.')',
             '.fuel path' => $context->basePath,
