@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Ipc\Events\ConfigReloadedEvent;
 use App\DTO\ConsumeSnapshot;
 use App\Enums\ConsumeCommandType;
 use App\Enums\ConsumeEventType;
@@ -31,6 +30,7 @@ use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Commands\TaskStartCommand;
 use App\Ipc\Events\BlockedTasksEvent;
 use App\Ipc\Events\BrowserResponseEvent;
+use App\Ipc\Events\ConfigReloadedEvent;
 use App\Ipc\Events\DoneTasksEvent;
 use App\Ipc\Events\ErrorEvent;
 use App\Ipc\Events\HealthChangeEvent;

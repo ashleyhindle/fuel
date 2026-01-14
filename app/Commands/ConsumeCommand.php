@@ -330,7 +330,7 @@ class ConsumeCommand extends Command
                     $this->renderConnectingFrame($frame++, 'Starting runner');
                 }
 
-                $this->ipcClient->startRunner($this->fuelContext->getProjectPath().'/fuel');
+                $this->ipcClient->startRunner($this->fuelContext->getFuelBinaryPath());
 
                 // Wait for server with animation
                 if (! $singleIteration) {
@@ -3309,7 +3309,7 @@ class ConsumeCommand extends Command
 
         // Start runner in background
         $this->info('Starting runner daemon...');
-        $ipcClient->startRunner($this->fuelContext->getProjectPath().'/fuel');
+        $ipcClient->startRunner($this->fuelContext->getFuelBinaryPath());
 
         // Wait for runner to be ready
         try {
@@ -3401,7 +3401,7 @@ class ConsumeCommand extends Command
         // Start the runner again
         $this->info('Starting runner...');
         try {
-            $this->ipcClient->startRunner($this->fuelContext->getProjectPath().'/fuel');
+            $this->ipcClient->startRunner($this->fuelContext->getFuelBinaryPath());
 
             // Wait for server to be ready
             $this->ipcClient->waitForServer($port, 10);

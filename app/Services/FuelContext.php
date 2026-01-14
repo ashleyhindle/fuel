@@ -59,6 +59,23 @@ class FuelContext
         return $this->basePath.'/consume.pid';
     }
 
+    /**
+     * Get the path to the fuel binary that is currently running.
+     */
+    public function getFuelBinaryPath(): string
+    {
+        $scriptPath = $_SERVER['SCRIPT_FILENAME'] ?? $_SERVER['argv'][0] ?? null;
+
+        if ($scriptPath !== null) {
+            $realPath = realpath($scriptPath);
+            if ($realPath !== false) {
+                return $realPath;
+            }
+        }
+
+        throw new \RuntimeException('Unable to determine fuel binary path');
+    }
+
     private function ensureMigrationCompatibility(): void
     {
         if (! is_file($this->getDatabasePath())) {
