@@ -34,6 +34,7 @@ final class DaemonLoop
         private readonly ProcessManager $processManager,
         private readonly TaskService $taskService,
         private readonly RunService $runService,
+        private readonly BrowserCommandHandler $browserCommandHandler,
     ) {
         $this->commandHandlers = new CommandHandlers(
             $taskService,
@@ -169,6 +170,13 @@ final class DaemonLoop
             onTaskCreate: fn ($message) => $this->commandHandlers->handleTaskCreate($message, $this->ipcServer),
             onDependencyAdd: fn ($message) => $this->commandHandlers->handleDependencyAdd($message),
             onReloadConfig: fn () => $this->snapshotManager->broadcastConfigReloaded(),
+            onBrowserCreate: fn ($message) => $this->browserCommandHandler->handleBrowserCreate($message),
+            onBrowserPage: fn ($message) => $this->browserCommandHandler->handleBrowserPage($message),
+            onBrowserGoto: fn ($message) => $this->browserCommandHandler->handleBrowserGoto($message),
+            onBrowserEval: fn ($message) => $this->browserCommandHandler->handleBrowserEval($message),
+            onBrowserScreenshot: fn ($message) => $this->browserCommandHandler->handleBrowserScreenshot($message),
+            onBrowserClose: fn ($message) => $this->browserCommandHandler->handleBrowserClose($message),
+            onBrowserStatus: fn ($message) => $this->browserCommandHandler->handleBrowserStatus($message),
         );
     }
 }

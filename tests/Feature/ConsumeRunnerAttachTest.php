@@ -113,12 +113,23 @@ describe('ConsumeRunner client attach', function () {
         );
         $ipcServer = new ConsumeIpcServer($protocol);
 
+        // Mock BrowserDaemonManager for BrowserCommandHandler
+        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+
+        // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
+        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+            $browserManager,
+            $ipcServer,
+            $lifecycleManager
+        );
+
         // Create IpcCommandDispatcher
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
-            $configService
+            $configService,
+            $browserCommandHandler
         );
 
         // Create SnapshotManager
@@ -146,6 +157,7 @@ describe('ConsumeRunner client attach', function () {
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
+            $browserManager,
             null, // reviewManager
             $healthTracker
         );
@@ -256,12 +268,23 @@ describe('ConsumeRunner client attach', function () {
             $reviewService
         );
 
+        // Mock BrowserDaemonManager for BrowserCommandHandler
+        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+
+        // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
+        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+            $browserManager,
+            $ipcServer,
+            $lifecycleManager
+        );
+
         // Create IpcCommandDispatcher
         $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
-            $configService
+            $configService,
+            $browserCommandHandler
         );
 
         // Create SnapshotManager
@@ -289,6 +312,7 @@ describe('ConsumeRunner client attach', function () {
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
+            $browserManager,
             null, // reviewManager
             $healthTracker
         );

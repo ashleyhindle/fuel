@@ -66,12 +66,23 @@ beforeEach(function () {
         null  // reviewService
     );
 
+    // Mock BrowserDaemonManager for BrowserCommandHandler
+    $this->browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+
+    // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
+    $this->browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $this->browserManager,
+        $this->ipcServer,
+        $this->lifecycleManager
+    );
+
     // Create IpcCommandDispatcher
     $this->ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
         $this->ipcServer,
         $this->lifecycleManager,
         $this->completionHandler,
-        $this->configService
+        $this->configService,
+        $this->browserCommandHandler
     );
 
     // Create SnapshotManager

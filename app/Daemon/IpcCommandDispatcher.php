@@ -26,6 +26,7 @@ final class IpcCommandDispatcher
         private readonly LifecycleManager $lifecycleManager,
         private readonly CompletionHandler $completionHandler,
         private readonly ConfigService $configService,
+        private readonly BrowserCommandHandler $browserCommandHandler,
     ) {}
 
     /**
@@ -41,6 +42,13 @@ final class IpcCommandDispatcher
      * @param  callable  $onTaskCreate  Callback when task create command is received
      * @param  callable  $onDependencyAdd  Callback when dependency add command is received
      * @param  callable  $onReloadConfig  Callback when config reload command is received
+     * @param  callable  $onBrowserCreate  Callback when browser create command is received
+     * @param  callable  $onBrowserPage  Callback when browser page command is received
+     * @param  callable  $onBrowserGoto  Callback when browser goto command is received
+     * @param  callable  $onBrowserEval  Callback when browser eval command is received
+     * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
+     * @param  callable  $onBrowserClose  Callback when browser close command is received
+     * @param  callable  $onBrowserStatus  Callback when browser status command is received
      */
     public function pollIpcCommands(
         callable $onPause,
@@ -53,6 +61,13 @@ final class IpcCommandDispatcher
         callable $onTaskCreate,
         callable $onDependencyAdd,
         callable $onReloadConfig,
+        callable $onBrowserCreate,
+        callable $onBrowserPage,
+        callable $onBrowserGoto,
+        callable $onBrowserEval,
+        callable $onBrowserScreenshot,
+        callable $onBrowserClose,
+        callable $onBrowserStatus,
     ): void {
         $commands = $this->ipcServer->poll();
 
@@ -71,6 +86,13 @@ final class IpcCommandDispatcher
                     onTaskCreate: $onTaskCreate,
                     onDependencyAdd: $onDependencyAdd,
                     onReloadConfig: $onReloadConfig,
+                    onBrowserCreate: $onBrowserCreate,
+                    onBrowserPage: $onBrowserPage,
+                    onBrowserGoto: $onBrowserGoto,
+                    onBrowserEval: $onBrowserEval,
+                    onBrowserScreenshot: $onBrowserScreenshot,
+                    onBrowserClose: $onBrowserClose,
+                    onBrowserStatus: $onBrowserStatus,
                 );
             }
         }
@@ -91,6 +113,13 @@ final class IpcCommandDispatcher
      * @param  callable  $onTaskCreate  Callback when task create command is received
      * @param  callable  $onDependencyAdd  Callback when dependency add command is received
      * @param  callable  $onReloadConfig  Callback when config reload command is received
+     * @param  callable  $onBrowserCreate  Callback when browser create command is received
+     * @param  callable  $onBrowserPage  Callback when browser page command is received
+     * @param  callable  $onBrowserGoto  Callback when browser goto command is received
+     * @param  callable  $onBrowserEval  Callback when browser eval command is received
+     * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
+     * @param  callable  $onBrowserClose  Callback when browser close command is received
+     * @param  callable  $onBrowserStatus  Callback when browser status command is received
      */
     private function handleIpcCommand(
         string $clientId,
@@ -105,6 +134,13 @@ final class IpcCommandDispatcher
         callable $onTaskCreate,
         callable $onDependencyAdd,
         callable $onReloadConfig,
+        callable $onBrowserCreate,
+        callable $onBrowserPage,
+        callable $onBrowserGoto,
+        callable $onBrowserEval,
+        callable $onBrowserScreenshot,
+        callable $onBrowserClose,
+        callable $onBrowserStatus,
     ): void {
         // Handle commands based on message type
         match ($message->type()) {
@@ -120,6 +156,14 @@ final class IpcCommandDispatcher
             'task_done' => $onTaskDone($message),
             'task_create' => $onTaskCreate($message),
             'dependency_add' => $onDependencyAdd($message),
+            // Browser commands
+            'browser_create' => $onBrowserCreate($message),
+            'browser_page' => $onBrowserPage($message),
+            'browser_goto' => $onBrowserGoto($message),
+            'browser_eval' => $onBrowserEval($message),
+            'browser_screenshot' => $onBrowserScreenshot($message),
+            'browser_close' => $onBrowserClose($message),
+            'browser_status' => $onBrowserStatus($message),
             // attach/detach handled implicitly via accept() detecting new connections
             default => null,
         };
