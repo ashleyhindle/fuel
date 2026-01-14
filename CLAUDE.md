@@ -13,7 +13,7 @@ This project uses **Fuel** for lightweight task tracking. Tasks live in `.fuel/a
 
 ```bash
 fuel ready                      # Show tasks ready to work on
-fuel add "Task title"           # Add a new task
+fuel add "Task title" [--blocked-by=f-id]           # Add a new task
 fuel add "Idea" --someday       # Add to backlog (future work)
 fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
@@ -38,13 +38,11 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 [ ] Run tests                     # Quality gate (if you changed code)
 [ ] Run linter/formatter          # Fix formatting (if you changed code)
 [ ] git add <files>               # Stage your changes
-[ ] git commit -m "feat/fix:..."  # Conventional commit - note the hash
+[ ] git commit -m "feat/fix:..."  # Conventional commit - remember the hash
 [ ] fuel done <id> --commit=<hash># Mark complete with commit hash
 [ ] fuel add "..."                # File tasks for ANY remaining or discovered work
 [ ] Hand off                      # Provide context for next session
 ```
-
-Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 
 ### Workflow to work on one task
 
@@ -55,67 +53,10 @@ Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 5. `fuel done <id> --commit=<hash>` - Complete with commit hash
 6. Land the plane
 
-### Exiting Plan Mode
+### Exiting Plan Mode & Epic planning
+**Immediately after exiting plan mode**, or when required, convert your approved plan into well-defined Fuel tasks.
 
-**Immediately after exiting plan mode**, convert your approved plan into well-defined Fuel tasks:
-
-1. **Create an epic** for the overall feature or change
-2. **Break down into scoped tasks** - each task should have:
-   - Single, clear responsibility
-   - Accurate `--complexity` rating
-   - Proper `--blocked-by` dependencies
-   - Descriptive title and description
-3. **Order by dependencies** - foundational work first (models before services, services before commands)
-
-**Example: Converting a plan to Fuel tasks**
-
-After plan approval for "Add user authentication with JWT":
-
-```bash
-# Create epic for the feature
-fuel epic:add "Add user authentication" --description="JWT-based auth with login/logout endpoints"
-
-# Break into dependency-ordered tasks (note the epic ID from above)
-fuel add "Create User model and migration" --epic=e-xxxx --complexity=simple --priority=1
-fuel add "Implement JWT token service" --epic=e-xxxx --complexity=moderate --priority=1 --blocked-by=f-user-model
-fuel add "Add login/logout API endpoints" --epic=e-xxxx --complexity=moderate --priority=1 --blocked-by=f-jwt-service
-fuel add "Add auth middleware" --epic=e-xxxx --complexity=simple --priority=1 --blocked-by=f-jwt-service
-fuel add "Add auth tests" --epic=e-xxxx --complexity=simple --priority=1 --blocked-by=f-endpoints,f-middleware
-```
-
-### Task Options
-
-```bash
-fuel add "Title" --description="..." --type=bug|fix|feature|task|epic|chore|docs|test|refactor --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex
-```
-
-### Writing Good Descriptions
-
-Descriptions should be explicit enough for a less capable agent to complete without guessing. Include: files to modify (exact paths), what to change (methods, patterns), expected behavior, and patterns to follow. **Give one clear solution, not options—subagents execute, they don't decide.**
-
-**Bad**: "Fix the ID display bug"
-**Good**: "BoardCommand.php:320 uses substr($id, 5, 4) for old format. Change to substr($id, 2, 6) for f-xxxxxx format."
-
-### Complexity
-
-**Always set `--complexity`:** `trivial` (typos) | `simple` (single focus) | `moderate` (multiple files) | `complex` (multiple files, requires judgement or careful coordination)
-
-### Dependencies
-
-```bash
-fuel add "Implement API" --blocked-by=f-xxxx
-```
-
-Blocked tasks won't appear in `fuel ready` until blockers are done.
-
-### Epics
-
-**Use epics for any feature or change requiring multiple tasks.** Epics group related tasks and trigger a combined review when all tasks complete.
-
-**When to create an epic:**
-- Feature with 2+ tasks (e.g., "Add user preferences" → API + UI + tests)
-- Refactoring spanning multiple files/concerns
-- Any work you'd want reviewed as a coherent whole
+**Always use epics for any feature or change requiring multiple tasks.** Epics group related tasks and trigger a combined review when all tasks complete.
 
 **Workflow:**
 1. `fuel epic:add "Feature name" --description="What and why"`
@@ -148,9 +89,25 @@ fuel epic:show <e-id>                   # View epic + linked tasks
 fuel epic:reviewed <e-id>               # Mark as human-reviewed
 ```
 
+When parallel tasks share an interface, define it in a parent task's description. Avoid parallel work on tasks touching same files - use dependencies instead.
 **Always use epics for multi-task work.** Standalone tasks are fine for single-file fixes.
 
 **On epic approval**, you may be asked to squash the epic's commits into cleaner logical commits using `git rebase -i`.
+
+### Task Options
+
+```bash
+fuel add "Title" --description="..." --type=bug|fix|feature|task|epic|chore|docs|test|refactor --priority=0|1|2|3|4 --blocked-by=f-xxxx --labels=api,urgent --complexity=trivial|simple|moderate|complex --epic=e-xxxx
+```
+**Always set `--complexity`:** `trivial` (typos) | `simple` (single focus) | `moderate` (multiple files) | `complex` (multiple files, requires judgement or careful coordination)
+
+### Writing Good Descriptions
+
+Descriptions should be explicit enough for a less capable agent to complete without guessing. Include: files to modify (exact paths), what to change (methods, patterns), expected behavior, and patterns to follow. **Give one clear solution, not options—subagents execute, they don't decide.**
+
+**Bad**: "Fix the ID display bug"
+**Good**: "BoardCommand.php:320 uses substr($id, 5, 4) for old format. Change to substr($id, 2, 6) for f-xxxxxx format."
+
 
 ### Backlog Management
 
@@ -160,16 +117,6 @@ The backlog is for **rough ideas and future work** that isn't ready to implement
 
 - **Backlog (`fuel add --someday`)**: Rough ideas, future enhancements, "nice to have" features, exploratory concepts, work that needs more thought before implementation
 - **Tasks (`fuel add`)**: Work that's ready to implement now, has clear requirements, can be started immediately
-
-**Backlog commands:**
-
-```bash
-fuel add "Future idea" --someday          # Add to backlog (ignores other options)
-fuel backlog                              # List all backlog items
-fuel promote <f-id>                      # Promote backlog item to task (adds --priority, --type, etc.)
-fuel defer <f-id>                         # Move a task to backlog
-fuel remove <f-id>                        # Delete a backlog item
-```
 
 **Promoting backlog to tasks:**
 
@@ -191,81 +138,14 @@ When blocked on credentials, decisions, or manual steps:
 2. `fuel dep:add <your-task> <needs-human-task>` - Block your work
 3. Human runs `fuel done <needs-human-task>`, your task reappears in `fuel ready`
 
-### Parallel Execution to consume the fuel
-Do this when asked to consume the fuel
-
-Primary agent coordinates - subagents do NOT pick tasks:
-
-1. Primary runs `fuel ready --json`, identifies parallel work
-2. Primary claims each task with `fuel start <id>` before spawning
-3. Primary spawns subagents with explicit task IDs and instructions to run `fuel done <id>`
-4. Primary reviews subagent work (tests added? tests pass? matches requirements?)
-5. If issues found: `fuel add "Fix X from f-xxxx"`
-6. Check `fuel ready` for newly unblocked work
-
-When parallel tasks share an interface, define it in a parent task's description. Avoid parallel work on tasks touching same files - use dependencies instead.
-
 ### Testing Visual Changes with Browser
+Use the fuel browser testing skill. If you don't have the skill, run fuel --help | grep -i browser.
 
-This project includes a browser daemon for testing visual output (e.g., CLI output rendering, board displays, console formatting):
-
-**Browser Daemon Setup:**
-- Uses Playwright with headless Chrome/Chromium
-- Managed via `BrowserDaemonManager` service
-- Automatically starts when needed, stops on shutdown
-
-**Testing Visual Output:**
-
-1. **For CLI command output** - capture and verify visual rendering:
-```php
-use App\Services\BrowserDaemonManager;
-
-test('board command renders correctly', function () {
-    $browser = BrowserDaemonManager::getInstance();
-    $browser->start();
-
-    // Create context and page
-    $browser->createContext('test-ctx', ['viewport' => ['width' => 1280, 'height' => 720]]);
-    $browser->createPage('test-ctx', 'test-page');
-
-    // Navigate to test HTML (e.g., terminal output rendered as HTML)
-    $browser->goto('test-page', 'file:///path/to/output.html');
-
-    // Take screenshot for visual comparison
-    $result = $browser->screenshot('test-page', '/tmp/board-output.png', true);
-
-    // Verify layout with JavaScript
-    $check = $browser->eval('test-page', 'document.querySelector(".board-column").offsetWidth');
-    expect($check['value'])->toBeGreaterThan(200);
-
-    $browser->closeContext('test-ctx');
-});
-```
-
-2. **For terminal output formatting** - verify alignment and spacing:
-```php
-// When testing commands with complex visual output (boards, trees, tables)
-// 1. Capture the output
-// 2. Convert ANSI to HTML or take terminal screenshot
-// 3. Use browser daemon to verify visual properties
-// 4. Check alignment, column widths, emoji rendering, etc.
-```
-
-**Common Visual Testing Scenarios:**
-- Board column alignment with emojis (emojis are 2-chars wide in terminals)
-- Tree structure indentation and connecting lines
-- Table formatting and cell padding
-- ANSI color rendering
-- Multi-byte character handling (e.g., Japanese text)
-
-**Environment Variables:**
-- `FUEL_BROWSER_EXECUTABLE`: Override browser path if Chrome not in standard location
+fuel includes a browser daemon for testing webpages:
 
 **Tips:**
-- Visual tests should be marked appropriately: `@group visual`
 - Screenshots are saved to `/tmp` by default, specify custom paths as needed
-- Browser daemon auto-manages lifecycle, no manual cleanup needed
-- Use `$browser->status()` to debug daemon state</fuel>
+- Browser daemon auto-manages lifecycle, no manual cleanup needed</fuel>
 
 ## Development Commands
 
