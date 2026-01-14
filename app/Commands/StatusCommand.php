@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 
 class StatusCommand extends Command
@@ -59,18 +60,21 @@ class StatusCommand extends Command
         if ($this->option('json')) {
             $this->outputJson($stats);
         } else {
-            $this->info('Task Statistics:');
+            $this->line('<fg=white;options=bold>Task Statistics</>');
             $this->newLine();
-            $this->table(
+
+            $table = new Table;
+            $table->render(
                 ['Status', 'Count'],
                 [
-                    ['Open', $stats['open']],
-                    ['In Progress', $stats['in_progress']],
-                    ['Review', $stats['review']],
-                    ['Done', $stats['done']],
-                    ['Blocked', $stats['blocked']],
-                    ['Total', $stats['total']],
-                ]
+                    ['Open', (string) $stats['open']],
+                    ['In Progress', (string) $stats['in_progress']],
+                    ['Review', (string) $stats['review']],
+                    ['Done', (string) $stats['done']],
+                    ['Blocked', (string) $stats['blocked']],
+                    ['Total', (string) $stats['total']],
+                ],
+                $this->output
             );
         }
 
