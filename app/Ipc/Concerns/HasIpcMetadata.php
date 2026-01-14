@@ -29,6 +29,11 @@ trait HasIpcMetadata
         return $this->requestId;
     }
 
+    public function getRequestId(): ?string
+    {
+        return $this->requestId;
+    }
+
     /**
      * Convert the message to an array representation.
      * Implementers should call parent::toArray() and merge with their own fields.

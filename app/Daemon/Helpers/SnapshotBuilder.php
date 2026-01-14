@@ -7,6 +7,9 @@ namespace App\Daemon\Helpers;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Daemon\LifecycleManager;
 use App\DTO\ConsumeSnapshot;
+use App\Enums\TaskStatus;
+use App\Models\Epic;
+use App\Services\ConfigService;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
 
@@ -14,13 +17,13 @@ use App\Services\TaskService;
  * Builds snapshots for SnapshotManager.
  * Extracted to reduce SnapshotManager size.
  */
-final class SnapshotBuilder
+final readonly class SnapshotBuilder
 {
     public function __construct(
-        private readonly TaskService $taskService,
-        private readonly ProcessManager $processManager,
-        private readonly ?AgentHealthTrackerInterface $healthTracker,
-        private readonly ?LifecycleManager $lifecycleManager,
+        private TaskService $taskService,
+        private ProcessManager $processManager,
+        private ?AgentHealthTrackerInterface $healthTracker,
+        private ?LifecycleManager $lifecycleManager,
     ) {}
 
     public function buildSnapshot(): ConsumeSnapshot
@@ -29,13 +32,13 @@ final class SnapshotBuilder
         $allTasks = $this->taskService->all();
         $boardData = [
             'ready' => $this->taskService->ready(),
-            'in_progress' => $allTasks->filter(fn ($t) => $t->status === \App\Enums\TaskStatus::InProgress),
-            'review' => $allTasks->filter(fn ($t) => $t->status === \App\Enums\TaskStatus::Review)
+            'in_progress' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::InProgress),
+            'review' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Review)
                 ->sortByDesc('updated_at')
                 ->values(),
             'blocked' => $this->taskService->blocked(),
-            'human' => $allTasks->filter(fn ($t) => $t->status === \App\Enums\TaskStatus::Open && is_array($t->labels) && in_array('needs-human', $t->labels, true)),
-            'done' => $allTasks->filter(fn ($t) => $t->status === \App\Enums\TaskStatus::Done)
+            'human' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Open && is_array($t->labels) && in_array('needs-human', $t->labels, true)),
+            'done' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Done)
                 ->sortByDesc('updated_at')
                 ->values(),
         ];
@@ -50,12 +53,12 @@ final class SnapshotBuilder
         }
 
         // Get agent limits from config
-        $configService = app(\App\Services\ConfigService::class);
+        $configService = app(ConfigService::class);
         $agentLimits = $configService->getAgentLimits();
 
         // Get all epics referenced by tasks (for display)
         $epicIds = $allTasks->pluck('epic_id')->filter()->unique()->values()->toArray();
-        $epics = $epicIds !== [] ? \App\Models\Epic::whereIn('id', $epicIds)->get()->all() : [];
+        $epics = $epicIds !== [] ? Epic::whereIn('id', $epicIds)->get()->all() : [];
 
         // Get runner state info from LifecycleManager if available
         $paused = $this->lifecycleManager?->isPaused() ?? true;

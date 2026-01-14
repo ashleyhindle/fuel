@@ -7,6 +7,15 @@ namespace App\Daemon\Helpers;
 use App\Daemon\LifecycleManager;
 use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
+use App\Ipc\Commands\DependencyAddCommand;
+use App\Ipc\Commands\TaskCreateCommand;
+use App\Ipc\Commands\TaskDoneCommand;
+use App\Ipc\Commands\TaskReopenCommand;
+use App\Ipc\Commands\TaskStartCommand;
+use App\Ipc\Events\TaskCreateResponseEvent;
+use App\Ipc\IpcMessage;
+use App\Models\Task;
+use App\Services\ConsumeIpcServer;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -15,14 +24,14 @@ use Illuminate\Support\Facades\Artisan;
  * Handles IPC command execution for DaemonLoop.
  * Extracted to reduce DaemonLoop size.
  */
-final class CommandHandlers
+final readonly class CommandHandlers
 {
     public function __construct(
-        private readonly TaskService $taskService,
-        private readonly TaskSpawner $taskSpawner,
-        private readonly ProcessManager $processManager,
-        private readonly SnapshotManager $snapshotManager,
-        private readonly LifecycleManager $lifecycleManager,
+        private TaskService $taskService,
+        private TaskSpawner $taskSpawner,
+        private ProcessManager $processManager,
+        private SnapshotManager $snapshotManager,
+        private LifecycleManager $lifecycleManager,
     ) {}
 
     public function handleStop(bool $graceful): void
@@ -35,75 +44,97 @@ final class CommandHandlers
         }
     }
 
-    public function handleTaskStart(\App\Ipc\IpcMessage $message): void
+    public function handleTaskStart(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\TaskStartCommand) {
+        if ($message instanceof TaskStartCommand) {
             try {
                 $task = $this->taskService->find($message->taskId);
-                if ($task) {
-                    $this->taskSpawner->trySpawnTask($task, $message->agentOverride, function (string $taskId, string $runId, string $agentName) {
+                if ($task instanceof Task) {
+                    $this->taskSpawner->trySpawnTask($task, $message->agentOverride, function (string $taskId, string $runId, string $agentName): void {
                         $this->snapshotManager->broadcastTaskSpawned($taskId, $runId, $agentName);
                     });
                     $this->snapshotManager->broadcastSnapshot();
                 }
-            } catch (\RuntimeException $e) {
+            } catch (\RuntimeException) {
                 // Task not found or spawn failed - ignore
             }
         }
     }
 
-    public function handleTaskReopen(\App\Ipc\IpcMessage $message): void
+    public function handleTaskReopen(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\TaskReopenCommand) {
+        if ($message instanceof TaskReopenCommand) {
             try {
                 $this->taskService->reopen($message->taskId);
                 $this->taskSpawner->invalidateTaskCache();
                 $this->snapshotManager->broadcastSnapshot();
-            } catch (\RuntimeException $e) {
+            } catch (\RuntimeException) {
                 // Task not found or cannot be reopened - ignore
             }
         }
     }
 
-    public function handleTaskDone(\App\Ipc\IpcMessage $message): void
+    public function handleTaskDone(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\TaskDoneCommand) {
+        if ($message instanceof TaskDoneCommand) {
             try {
                 $params = ['ids' => [$message->taskId]];
-                if (isset($message->reason)) {
+                if ($message->reason !== null) {
                     $params['--reason'] = $message->reason;
                 }
-                if (isset($message->commitHash)) {
+
+                if ($message->commitHash !== null) {
                     $params['--commit'] = $message->commitHash;
                 }
+
                 Artisan::call('done', $params);
                 $this->taskSpawner->invalidateTaskCache();
                 $this->snapshotManager->broadcastSnapshot();
-            } catch (\RuntimeException $e) {
+            } catch (\RuntimeException) {
                 // Task not found or cannot be marked done - ignore
             }
         }
     }
 
-    public function handleTaskCreate(\App\Ipc\IpcMessage $message, \App\Services\ConsumeIpcServer $ipcServer): void
+    public function handleTaskCreate(IpcMessage $message, ConsumeIpcServer $ipcServer): void
     {
-        if ($message instanceof \App\Ipc\Commands\TaskCreateCommand) {
+        if ($message instanceof TaskCreateCommand) {
             try {
                 $taskData = ['title' => $message->title];
 
-                if (isset($message->description)) $taskData['description'] = $message->description;
-                if (isset($message->priority)) $taskData['priority'] = $message->priority;
-                if (isset($message->type)) $taskData['type'] = $message->type;
-                if (isset($message->labels)) $taskData['labels'] = $message->labels;
-                if (isset($message->complexity)) $taskData['complexity'] = $message->complexity;
-                if (isset($message->epicId)) $taskData['epic_id'] = $message->epicId;
-                if (isset($message->blockedBy)) $taskData['blocked_by'] = $message->blockedBy;
+                if ($message->description !== null) {
+                    $taskData['description'] = $message->description;
+                }
+
+                if ($message->priority !== null) {
+                    $taskData['priority'] = $message->priority;
+                }
+
+                if ($message->type !== null) {
+                    $taskData['type'] = $message->type;
+                }
+
+                if ($message->labels !== null) {
+                    $taskData['labels'] = $message->labels;
+                }
+
+                if ($message->complexity !== null) {
+                    $taskData['complexity'] = $message->complexity;
+                }
+
+                if ($message->epicId !== null) {
+                    $taskData['epic_id'] = $message->epicId;
+                }
+
+                if ($message->blockedBy !== null) {
+                    $taskData['blocked_by'] = $message->blockedBy;
+                }
 
                 $task = $this->taskService->create($taskData);
                 $this->taskSpawner->invalidateTaskCache();
                 $this->snapshotManager->broadcastSnapshot();
 
-                $response = new \App\Ipc\Events\TaskCreateResponseEvent(
+                $response = new TaskCreateResponseEvent(
                     taskId: $task->short_id,
                     success: true,
                     error: null,
@@ -113,7 +144,7 @@ final class CommandHandlers
                 );
                 $ipcServer->broadcast($response);
             } catch (\RuntimeException $e) {
-                $response = new \App\Ipc\Events\TaskCreateResponseEvent(
+                $response = new TaskCreateResponseEvent(
                     taskId: '',
                     success: false,
                     error: $e->getMessage(),
@@ -126,14 +157,14 @@ final class CommandHandlers
         }
     }
 
-    public function handleDependencyAdd(\App\Ipc\IpcMessage $message): void
+    public function handleDependencyAdd(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\DependencyAddCommand) {
+        if ($message instanceof DependencyAddCommand) {
             try {
                 $this->taskService->addDependency($message->taskId, $message->blockerTaskId);
                 $this->taskSpawner->invalidateTaskCache();
                 $this->snapshotManager->broadcastSnapshot();
-            } catch (\RuntimeException $e) {
+            } catch (\RuntimeException) {
                 // Dependency add failed - ignore
             }
         }

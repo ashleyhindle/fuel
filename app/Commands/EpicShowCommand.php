@@ -9,7 +9,9 @@ use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\EpicService;
+use App\Services\RunService;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -24,7 +26,7 @@ class EpicShowCommand extends Command
 
     protected $description = 'Show epic details including linked tasks';
 
-    public function handle(TaskService $taskService, EpicService $epicService): int
+    public function handle(TaskService $taskService, EpicService $epicService, RunService $runService): int
     {
         try {
             $epic = $epicService->getEpic($this->argument('id'));
@@ -98,8 +100,8 @@ class EpicShowCommand extends Command
                 $this->line(sprintf('  Linked Tasks (%d):', count($sortedTasks)));
                 $this->newLine();
 
-                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority'];
-                $rows = array_map(function (Task $task) use ($blockedIds): array {
+                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Run ID', 'Exit Code'];
+                $rows = array_map(function (Task $task) use ($blockedIds, $runService): array {
                     $isBlocked = in_array($task->short_id, $blockedIds, true);
 
                     // Add visual indicator for blocked tasks (like tree command)
@@ -107,16 +109,24 @@ class EpicShowCommand extends Command
                         ? '<fg=yellow>blocked</>'
                         : $task->status->value;
 
+                    // Get latest run for this task
+                    $latestRun = $runService->getLatestRun($task->short_id);
+                    $runId = $latestRun?->short_id ?? '';
+                    $exitCode = $latestRun?->exit_code !== null ? (string) $latestRun->exit_code : '';
+
                     return [
                         $task->short_id,
                         $task->title ?? '',
                         $statusDisplay,
                         $task->type ?? '',
                         isset($task->priority) ? (string) $task->priority : '',
+                        $runId,
+                        $exitCode,
                     ];
                 }, $sortedTasks);
 
-                $this->table($headers, $rows);
+                $table = new Table;
+                $table->render($headers, $rows, $this->output);
             }
 
             return self::SUCCESS;

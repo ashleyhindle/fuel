@@ -10,9 +10,7 @@ use App\Enums\FailureType;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\CompletionResult;
-use App\Process\CompletionType;
 use App\Services\ConfigService;
-use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -41,7 +39,7 @@ final class CompletionHandlers
     {
         $taskId = $completion->taskId;
 
-        if ($this->healthTracker) {
+        if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
             $this->healthTracker->recordSuccess($completion->agentName);
         }
 
@@ -63,13 +61,13 @@ final class CompletionHandlers
 
                 $reviewTriggered = $this->reviewService->triggerReview($taskId, $completion->agentName);
                 if (! $reviewTriggered) {
-                    $this->fallbackAutoComplete($taskId, true);
+                    $this->fallbackAutoComplete($taskId);
                 }
             } catch (\RuntimeException) {
-                $this->fallbackAutoComplete($taskId, false);
+                $this->fallbackAutoComplete($taskId);
             }
         } else {
-            $this->fallbackAutoComplete($taskId, false);
+            $this->fallbackAutoComplete($taskId);
         }
     }
 
@@ -141,7 +139,7 @@ final class CompletionHandlers
         $this->taskService->reopen($taskId);
     }
 
-    private function fallbackAutoComplete(string $taskId, bool $noReviewAgent = false): void
+    private function fallbackAutoComplete(string $taskId): void
     {
         $this->taskService->update($taskId, ['add_labels' => ['auto-closed']]);
         Artisan::call('done', [

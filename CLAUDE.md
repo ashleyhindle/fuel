@@ -1,28 +1,8 @@
-# CLAUDE.md
-
-<!--
-  CLAUDE.md - AI Agent Instructions File
-  
-  This file is automatically read by AI coding agents (Claude Code, Cursor, Windsurf,
-  OpenCode, and similar tools) when they work on this repository. It provides:
-  
-  - Project architecture and directory structure
-  - Development commands (testing, formatting, building)
-  - The Fuel task management system and workflows
-  - Testing patterns and best practices
-  - Session protocols for agent coordination
-  
-  Keep this file up to date as the project evolves. AI agents rely on this
-  documentation to understand context and follow project conventions.
--->
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+'rg' is much faster and better than 'grep'. Prefer 'rg'.
 
 ## Project Overview
 
 Fuel is a standalone CLI task management and execution system for AI agents, built with Laravel Zero. It provides task tracking via SQLite (`.fuel/agent.db`) for fast queries and reliable storage.
-
-The original design spec is archived in `FUEL-PLAN-ORIGINAL.md` (outdated - kept for historical reference). Reference implementation exists in `agent-resources/old-implementation-within-boost/`. Laravel Zero docs are in `agent-resources/laravel-zero-docs/`.
 
 <fuel>
 ## Fuel Task Management
@@ -38,8 +18,6 @@ fuel add "Idea" --someday       # Add to backlog (future work)
 fuel start <id>                 # Claim a task (in_progress)
 fuel done <id>                  # Mark task complete
 fuel show <id>                  # View task details
-fuel review <id>                # View review info (routes by ID: f-* task, e-* epic, r-* review)
-fuel trigger:review <f-id>      # Manually trigger a review of a completed task
 fuel consume --once             # Kanban view
 fuel tree                       # Tree view
 fuel backlog                    # List backlog items
@@ -56,18 +34,6 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 ### 🚨 MANDATORY: Session Close Protocol - Land The Plane
 **YOU MUST COMPLETE EVERY STEP BELOW BEFORE EXITING. NO EXCEPTIONS.**
 
-**For EPIC tasks** (task is part of an epic):
-```
-[ ] Run tests                     # Quality gate (if you changed code)
-[ ] Run linter/formatter          # Fix formatting (if you changed code)
-[ ] git add <files>               # Stage your changes
-[ ] DO NOT commit                 # Commits happen after epic approval
-[ ] fuel done <id>                # Mark complete (no --commit needed)
-[ ] fuel add "..."                # File tasks for ANY remaining or discovered work
-[ ] Hand off                      # Provide context for next session
-```
-
-**For STANDALONE tasks** (task has no epic):
 ```
 [ ] Run tests                     # Quality gate (if you changed code)
 [ ] Run linter/formatter          # Fix formatting (if you changed code)
@@ -142,32 +108,6 @@ fuel add "Implement API" --blocked-by=f-xxxx
 
 Blocked tasks won't appear in `fuel ready` until blockers are done.
 
-### Reviews
-
-The `fuel review` command provides a unified interface to view review information for tasks, epics, and review records. It intelligently routes based on the ID prefix:
-
-```bash
-fuel review f-abc123           # View task review (shows commit, diff stats)
-fuel review f-abc123 --diff    # View task review with full diff
-fuel review e-xyz789           # View epic review (all tasks + diffs)
-fuel review r-123456           # View review record details
-```
-
-**Review routing behavior:**
-- **Task IDs** (f-*): Shows task details, commit info, and diff stats
-- **Epic IDs** (e-*): Shows all tasks in epic with combined review information
-- **Review IDs** (r-* or review-*): Shows review execution details
-
-**Manually trigger a review:**
-
-When you need to trigger a review of a completed task (outside the normal workflow):
-
-```bash
-fuel trigger:review f-abc123   # Manually create a review for a completed task
-```
-
-This is useful for re-reviewing work or triggering reviews that were skipped.
-
 ### Epics
 
 **Use epics for any feature or change requiring multiple tasks.** Epics group related tasks and trigger a combined review when all tasks complete.
@@ -210,39 +150,7 @@ fuel epic:reviewed <e-id>               # Mark as human-reviewed
 
 **Always use epics for multi-task work.** Standalone tasks are fine for single-file fixes.
 
-### Epic Commit Workflow
-
-When working on epic tasks, changes are staged but NOT committed until the epic is approved:
-
-1. **During epic work**: Each task stages changes with `git add` but does NOT commit
-2. **On epic approval** (`fuel approve <epic>`): A commit task is automatically created
-3. **Commit task**: An agent reviews all staged changes and organizes them into meaningful commits
-
-**Benefits:**
-- Cleaner git history with related changes grouped together
-- Human reviews staged changes before committing
-- Commits can be organized logically rather than per-task
-
-**Example flow:**
-```bash
-# Agent 1 completes task in epic
-git add src/Feature.php
-fuel done f-abc123  # No --commit
-
-# Agent 2 completes another task in epic
-git add src/Service.php tests/FeatureTest.php
-fuel done f-def456  # No --commit
-
-# Human approves the epic
-fuel approve e-xyz789
-# Output: Created commit task: f-commit1
-
-# Agent picks up commit task
-# Reviews staged changes, creates organized commits
-git commit -m "feat: add Feature with Service integration"
-git commit -m "test: add Feature tests"
-fuel done f-commit1 --commit=abc1234
-```
+**On epic approval**, you may be asked to squash the epic's commits into cleaner logical commits using `git rebase -i`.
 
 ### Backlog Management
 
@@ -295,7 +203,69 @@ Primary agent coordinates - subagents do NOT pick tasks:
 5. If issues found: `fuel add "Fix X from f-xxxx"`
 6. Check `fuel ready` for newly unblocked work
 
-When parallel tasks share an interface, define it in a parent task's description. Avoid parallel work on tasks touching same files - use dependencies instead.</fuel>
+When parallel tasks share an interface, define it in a parent task's description. Avoid parallel work on tasks touching same files - use dependencies instead.
+
+### Testing Visual Changes with Browser
+
+This project includes a browser daemon for testing visual output (e.g., CLI output rendering, board displays, console formatting):
+
+**Browser Daemon Setup:**
+- Uses Playwright with headless Chrome/Chromium
+- Managed via `BrowserDaemonManager` service
+- Automatically starts when needed, stops on shutdown
+
+**Testing Visual Output:**
+
+1. **For CLI command output** - capture and verify visual rendering:
+```php
+use App\Services\BrowserDaemonManager;
+
+test('board command renders correctly', function () {
+    $browser = BrowserDaemonManager::getInstance();
+    $browser->start();
+
+    // Create context and page
+    $browser->createContext('test-ctx', ['viewport' => ['width' => 1280, 'height' => 720]]);
+    $browser->createPage('test-ctx', 'test-page');
+
+    // Navigate to test HTML (e.g., terminal output rendered as HTML)
+    $browser->goto('test-page', 'file:///path/to/output.html');
+
+    // Take screenshot for visual comparison
+    $result = $browser->screenshot('test-page', '/tmp/board-output.png', true);
+
+    // Verify layout with JavaScript
+    $check = $browser->eval('test-page', 'document.querySelector(".board-column").offsetWidth');
+    expect($check['value'])->toBeGreaterThan(200);
+
+    $browser->closeContext('test-ctx');
+});
+```
+
+2. **For terminal output formatting** - verify alignment and spacing:
+```php
+// When testing commands with complex visual output (boards, trees, tables)
+// 1. Capture the output
+// 2. Convert ANSI to HTML or take terminal screenshot
+// 3. Use browser daemon to verify visual properties
+// 4. Check alignment, column widths, emoji rendering, etc.
+```
+
+**Common Visual Testing Scenarios:**
+- Board column alignment with emojis (emojis are 2-chars wide in terminals)
+- Tree structure indentation and connecting lines
+- Table formatting and cell padding
+- ANSI color rendering
+- Multi-byte character handling (e.g., Japanese text)
+
+**Environment Variables:**
+- `FUEL_BROWSER_EXECUTABLE`: Override browser path if Chrome not in standard location
+
+**Tips:**
+- Visual tests should be marked appropriately: `@group visual`
+- Screenshots are saved to `/tmp` by default, specify custom paths as needed
+- Browser daemon auto-manages lifecycle, no manual cleanup needed
+- Use `$browser->status()` to debug daemon state</fuel>
 
 ## Development Commands
 
@@ -318,45 +288,9 @@ When parallel tasks share an interface, define it in a parent task's description
 - `tests/` - Pest tests (Feature and Unit)
 - `fuel` - CLI entry point
 
-### Key Services
-- **TaskService** - SQLite task storage with partial ID matching
-- **RunService** - Agent run history (SQLite)
-- **ConfigService** - Agent routing by complexity (`.fuel/config.yaml`)
-
 ### Data Storage
 - `.fuel/agent.db` - SQLite database (tasks, epics, reviews, runs, agent health)
 - `.fuel/config.yaml` - Agent configuration
-
-## Testing Patterns
-
-**Tests must NEVER modify the real workspace.** Always use isolated temp directories:
-
-```php
-// CORRECT - use isolated temp directory
-$this->testDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-mkdir($this->testDir.'/.fuel', 0755, true);
-
-// INCORRECT - will delete real files when agents run tests!
-$processDir = getcwd().'/.fuel/processes';
-File::deleteDirectory($processDir);  // NEVER DO THIS
-```
-
-For command tests checking JSON output, use `Artisan::call()` + `Artisan::output()`:
-
-```php
-// CORRECT - captures output reliably
-Artisan::call('command', ['--json' => true]);
-$output = Artisan::output();
-expect($output)->toContain('expected');
-
-// INCORRECT - expectsOutputToContain() unreliable with JSON
-$this->artisan('command', ['--json' => true])
-    ->expectsOutputToContain('expected');  // May fail unexpectedly
-```
-
-
-
-# Pest Tests
 
 ## Pest
 - If you need to verify a feature is working, write or update a Unit / Feature test.
@@ -381,21 +315,51 @@ it('is true', function () {
 
 ### Running Tests
 - Run the minimal number of tests using an appropriate filter before finalizing code edits.
-- To run all tests: vendor/bin/pest --parallel --compact (only on epic complete, takes a long time)
-- To run all tests in a file: vendor/bin/pest --compact tests/Feature/ExampleTest.php
-- To filter on a particular test name: vendor/bin/pest --compact --filter=testName (recommended after making a change to a related file).
 
-### Mocking
-- Mocking can be very helpful when appropriate.
+## Dependency Injection
 
-### Datasets
-- Use datasets in Pest to simplify tests that have a lot of duplicated data. This is often the case when testing validation rules, so consider this solution when writing tests for validation rules.
+### Prefer `app()` Over Passing Dependencies
 
-<code-snippet name="Pest Dataset Example" lang="php">
-it('has emails', function (string $email) {
-    expect($email)->not->toBeEmpty();
-})->with([
-    'james' => 'james@laravel.com',
-    'taylor' => 'taylor@laravel.com',
+When you see code passing multiple dependencies through constructors or method parameters, consider using Laravel's service container instead.
+
+**Instead of this (manual dependency passing):**
+```php
+// Verbose - every caller needs to know all dependencies
+$service = new MyService(
+    $taskService,
+    $configService,
+    $runService,
+    $promptBuilder
+);
+```
+
+**Do this (container resolution):**
+```php
+// Clean - container auto-injects registered dependencies
+$service = app(MyService::class);
+
+// Or with runtime parameters mixed in:
+$task = app(WorkAgentTask::class, [
+    'task' => $task,
+    'reviewEnabled' => true,
+    'agentOverride' => 'sonnet',
 ]);
-</code-snippet>
+```
+
+### Key Files
+
+- **`app/Providers/AppServiceProvider.php`** - Register singletons and bindings here
+- **`app/Agents/Tasks/WorkAgentTask.php`** - Example of class designed for `app()` with runtime params
+
+### When to Use Each Pattern
+
+| Scenario | Approach |
+|----------|----------|
+| Singletons (TaskService, ConfigService) | Register in AppServiceProvider, inject via constructor |
+| Transient objects with DI + runtime params | Use `app(Class::class, ['param' => $value])` |
+| Deep code needing occasional service | `app(Service::class)` is acceptable |
+| Domain/business logic | Prefer explicit constructor injection |
+
+### Acceptable Refactoring
+
+If while working on your task you encounter verbose dependency passing that could be simplified with `app()`, it is acceptable to make this refactor as part of your work - provided it doesn't expand scope significantly. Log larger refactoring opportunities with `fuel add "..." --someday`.

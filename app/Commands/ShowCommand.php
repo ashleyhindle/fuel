@@ -165,11 +165,6 @@ class ShowCommand extends Command
                         $this->line('  Consumed at: '.$task->consumed_at);
                     }
 
-                    if (isset($task->consumed_exit_code)) {
-                        $exitColor = $task->consumed_exit_code === 0 ? 'green' : 'red';
-                        $this->line(sprintf('  Exit code: <fg=%s>%s</>', $exitColor, $task->consumed_exit_code));
-                    }
-
                     if (isset($task->consumed_output) && $task->consumed_output !== '') {
                         $this->newLine();
                         $this->line('  <fg=cyan>── Agent Output ──</>');

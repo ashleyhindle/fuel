@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\Artisan;
 class WorkAgentTask extends AbstractAgentTask
 {
     /** @var callable|null Callback for epic completion sound notification */
-    private $epicCompletionCallback = null;
+    private $epicCompletionCallback;
 
     public function __construct(
         Task $task,
@@ -34,6 +34,7 @@ class WorkAgentTask extends AbstractAgentTask
         private readonly TaskPromptBuilder $promptBuilder,
         private readonly ?ReviewServiceInterface $reviewService = null,
         private readonly bool $reviewEnabled = false,
+        private readonly ?string $agentOverride = null,
     ) {
         parent::__construct($task, $taskService);
     }
@@ -53,6 +54,11 @@ class WorkAgentTask extends AbstractAgentTask
      */
     public function getAgentName(ConfigService $configService): ?string
     {
+        // If agent override is set, use it directly
+        if ($this->agentOverride !== null) {
+            return $this->agentOverride;
+        }
+
         $complexity = $this->task->complexity ?? 'simple';
 
         return $configService->getAgentForComplexity($complexity);
@@ -109,6 +115,7 @@ class WorkAgentTask extends AbstractAgentTask
                     // No review agent configured - auto-complete with warning
                     $this->fallbackAutoComplete($taskId, $wasAlreadyDone);
                 }
+
                 // If review was triggered, completion handling happens in checkCompletedReviews()
             } catch (\RuntimeException) {
                 // Review failed to trigger - fall back to auto-complete

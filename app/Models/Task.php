@@ -29,7 +29,6 @@ class Task extends EloquentModel
         'reason',
         'consumed',
         'consumed_at',
-        'consumed_exit_code',
         'consumed_output',
         'consume_pid',
         'last_review_issues',
@@ -41,7 +40,6 @@ class Task extends EloquentModel
         'priority' => 'integer',
         'status' => TaskStatus::class,
         'consumed' => 'boolean',
-        'consumed_exit_code' => 'integer',
         'consume_pid' => 'integer',
         'last_review_issues' => 'array',
     ];

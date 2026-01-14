@@ -7,7 +7,6 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
-use App\Services\ConfigService;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
 use App\Services\TaskService;
@@ -26,8 +25,7 @@ class StatusCommand extends Command
 
     public function handle(
         TaskService $taskService,
-        FuelContext $fuelContext,
-        ConfigService $configService
+        FuelContext $fuelContext
     ): int {
         $tasks = $taskService->all();
 
@@ -74,7 +72,7 @@ class StatusCommand extends Command
         ];
 
         // Try to get runner status
-        $runnerStatus = $this->getRunnerStatus($fuelContext, $configService);
+        $runnerStatus = $this->getRunnerStatus($fuelContext);
 
         if ($this->option('json')) {
             $output = ['board' => $boardState];

@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "playwright-core": "^1.57.0",
     "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.0"
+  },
+  "scripts": {
+    "bundle:browser": "ncc build browser-daemon.js -o browser-daemon-dist --minify"
   }
 }

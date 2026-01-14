@@ -205,17 +205,13 @@ class ConfigService
         }
 
         // Validate port if specified
-        if (isset($config['port'])) {
-            if (! is_int($config['port']) || $config['port'] < 1 || $config['port'] > 65535) {
-                throw new RuntimeException('Config port must be an integer between 1 and 65535');
-            }
+        if (isset($config['port']) && (! is_int($config['port']) || $config['port'] < 1 || $config['port'] > 65535)) {
+            throw new RuntimeException('Config port must be an integer between 1 and 65535');
         }
 
         // Validate global max_concurrent if specified
-        if (isset($config['max_concurrent'])) {
-            if (! is_int($config['max_concurrent']) || $config['max_concurrent'] < 1) {
-                throw new RuntimeException('Config max_concurrent must be a positive integer');
-            }
+        if (isset($config['max_concurrent']) && (! is_int($config['max_concurrent']) || $config['max_concurrent'] < 1)) {
+            throw new RuntimeException('Config max_concurrent must be a positive integer');
         }
     }
 

@@ -10,6 +10,7 @@ use App\Daemon\Helpers\CompletionHandlers;
 use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
+use App\Process\ProcessType;
 use App\Services\ConfigService;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -26,17 +27,17 @@ use App\Services\TaskService;
  * - Track and manage retry attempts
  * - Update run records with completion data
  */
-final class CompletionHandler
+final readonly class CompletionHandler
 {
-    private readonly CompletionHandlers $handlers;
+    private CompletionHandlers $handlers;
 
     public function __construct(
-        private readonly ProcessManager $processManager,
-        private readonly TaskService $taskService,
-        private readonly RunService $runService,
-        private readonly ConfigService $configService,
-        private readonly ?AgentHealthTrackerInterface $healthTracker = null,
-        private readonly ?ReviewServiceInterface $reviewService = null,
+        private ProcessManager $processManager,
+        private TaskService $taskService,
+        private RunService $runService,
+        ConfigService $configService,
+        private ?AgentHealthTrackerInterface $healthTracker = null,
+        ?ReviewServiceInterface $reviewService = null,
     ) {
         $this->handlers = new CompletionHandlers(
             $taskService,
@@ -66,7 +67,7 @@ final class CompletionHandler
         // Update session_id in run service as processes are polled
         // Skip review processes as they don't have run entries
         foreach ($this->processManager->getActiveProcesses() as $process) {
-            if ($process->getProcessType() === \App\Process\ProcessType::Review) {
+            if ($process->getProcessType() === ProcessType::Review) {
                 continue;
             }
 
@@ -99,12 +100,10 @@ final class CompletionHandler
         }
 
         $taskId = $completion->taskId;
-        $agentName = $completion->agentName;
 
         // Get run ID before updating
         $task = $this->taskService->find($taskId);
-        $latestRun = $task ? $this->runService->getLatestRun($taskId) : null;
-        $runId = $latestRun?->short_id;
+        $latestRun = $task instanceof Task ? $this->runService->getLatestRun($taskId) : null;
 
         // Update run entry with completion data
         $runData = [
@@ -133,13 +132,15 @@ final class CompletionHandler
 
         // For Task processes, WorkAgentTask.onSuccess() handles business logic via ProcessManager.poll()
         // We only need to do infra work here (health tracking, retry clearing)
-        if ($completion->processType === \App\Process\ProcessType::Task) {
+        if ($completion->processType === ProcessType::Task) {
             if ($completion->isSuccess() && $this->healthTracker) {
                 $this->healthTracker->recordSuccess($completion->agentName);
             }
+
             if ($completion->isSuccess()) {
                 $this->handlers->clearRetryAttempts($completion->taskId);
             }
+
             // Failure/NetworkError/PermissionBlocked still need handling
             if (! $completion->isSuccess()) {
                 match ($completion->type) {

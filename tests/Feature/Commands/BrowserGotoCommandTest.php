@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
-use DateTimeImmutable;
 use Mockery as m;
 
 describe('browser:goto command', function (): void {

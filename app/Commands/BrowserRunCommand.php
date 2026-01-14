@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Ipc\Commands\BrowserEvalCommand as BrowserEvalIpcCommand;
+use App\Ipc\Commands\BrowserRunCommand as BrowserRunIpcCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\IpcMessage;
 use DateTimeImmutable;
 
-class BrowserEvalCommand extends BrowserCommand
+class BrowserRunCommand extends BrowserCommand
 {
-    protected $signature = 'browser:eval
-        {page_id : Page ID to evaluate expression in}
-        {expression : JavaScript expression to evaluate}
+    protected $signature = 'browser:run
+        {page_id : Page ID to run code in}
+        {code : Playwright code to run (has access to `page` variable)}
         {--json : Output as JSON}';
 
-    protected $description = 'Evaluate JavaScript expression in a browser page via the consume daemon';
+    protected $description = 'Run Playwright code in a browser page via the consume daemon';
 
     private ?string $pageId = null;
 
-    private ?string $expression = null;
+    private ?string $code = null;
 
     /**
      * Prepare command arguments before building IPC command.
@@ -28,22 +28,22 @@ class BrowserEvalCommand extends BrowserCommand
     public function handle(): int
     {
         $this->pageId = $this->argument('page_id');
-        $this->expression = $this->argument('expression');
+        $this->code = $this->argument('code');
 
         return parent::handle();
     }
 
     /**
-     * Build the BrowserEval IPC command.
+     * Build the BrowserRun IPC command.
      */
     protected function buildIpcCommand(
         string $requestId,
         string $instanceId,
         DateTimeImmutable $timestamp
     ): IpcMessage {
-        return new BrowserEvalIpcCommand(
+        return new BrowserRunIpcCommand(
             pageId: $this->pageId,
-            expression: $this->expression,
+            code: $this->code,
             timestamp: $timestamp,
             instanceId: $instanceId,
             requestId: $requestId
@@ -51,7 +51,7 @@ class BrowserEvalCommand extends BrowserCommand
     }
 
     /**
-     * Get response timeout for eval operations.
+     * Get response timeout for run operations.
      */
     protected function getResponseTimeout(): int
     {
@@ -67,11 +67,10 @@ class BrowserEvalCommand extends BrowserCommand
             $this->outputJson([
                 'success' => true,
                 'page_id' => $this->pageId,
-                'expression' => $this->expression,
                 'result' => $response->result,
             ]);
         } else {
-            $this->info(sprintf("Expression evaluated successfully on page '%s'", $this->pageId));
+            $this->info(sprintf("Code executed successfully on page '%s'", $this->pageId));
             if ($response->result !== null) {
                 $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
             }

@@ -64,8 +64,37 @@ let executablePath = null;
 let ctxSeq = 0;
 let pageSeq = 0;
 
-const contexts = new Map(); // contextId -> { context, session }
+const CONTEXT_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+const contexts = new Map(); // contextId -> { context, session, lastActivity }
 const pages = new Map();    // pageId -> { page, contextId }
+
+function touchContext(contextId) {
+  const entry = contexts.get(contextId);
+  if (entry) {
+    entry.lastActivity = Date.now();
+  }
+}
+
+async function closeStaleContexts() {
+  const now = Date.now();
+  for (const [contextId, entry] of contexts.entries()) {
+    if (now - entry.lastActivity > CONTEXT_TTL_MS) {
+      // Close pages in that context
+      for (const [pid, p] of pages.entries()) {
+        if (p.contextId === contextId) {
+          try { await p.page.close({ runBeforeUnload: false }); } catch {}
+          pages.delete(pid);
+        }
+      }
+      try { await entry.context.close(); } catch {}
+      contexts.delete(contextId);
+    }
+  }
+}
+
+// Check for stale contexts every minute
+setInterval(closeStaleContexts, 60 * 1000);
 
 async function ensureBrowser() {
   if (browser) return;
@@ -117,9 +146,10 @@ async function handle(method, params) {
         viewport,
         userAgent,
         timezoneId,
+        ignoreHTTPSErrors: true,
       });
 
-      contexts.set(contextId, { context, session });
+      contexts.set(contextId, { context, session, lastActivity: Date.now() });
       return { ok: true, result: { contextId } };
     }
 
@@ -134,8 +164,9 @@ async function handle(method, params) {
       }
 
       const entry = contexts.get(contextId);
-      if (!entry) throw Object.assign(new Error(`Unknown contextId ${contextId}`), { code: "NO_CONTEXT" });
+      if (!entry) throw Object.assign(new Error(`Unknown contextId ${contextId}. Context may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_CONTEXT" });
 
+      touchContext(contextId);
       const page = await entry.context.newPage();
       pages.set(pageId, { page, contextId });
       return { ok: true, result: { pageId } };
@@ -148,19 +179,24 @@ async function handle(method, params) {
       const timeoutMs = params?.timeoutMs || 30000;
 
       const entry = pages.get(pageId);
-      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}`), { code: "NO_PAGE" });
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
+      touchContext(entry.contextId);
       await entry.page.goto(url, { waitUntil, timeout: timeoutMs });
       return { ok: true, result: { url: entry.page.url() } };
     }
 
-    case "eval": {
+    case "run": {
       const pageId = params?.pageId;
-      const expression = params?.expression; // JS string executed in page context
+      const code = params?.code; // Playwright code with access to `page`
       const entry = pages.get(pageId);
-      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}`), { code: "NO_PAGE" });
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
-      const value = await entry.page.evaluate(expression);
+      touchContext(entry.contextId);
+      // Create async function with page in scope
+      const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+      const fn = new AsyncFunction('page', code);
+      const value = await fn(entry.page);
       return { ok: true, result: { value } };
     }
 
@@ -168,8 +204,9 @@ async function handle(method, params) {
       const pageId = params?.pageId;
       const outPath = params?.path || path.join(os.tmpdir(), `fuel_${pageId}.png`);
       const entry = pages.get(pageId);
-      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}`), { code: "NO_PAGE" });
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
+      touchContext(entry.contextId);
       await entry.page.screenshot({ path: outPath, fullPage: !!params?.fullPage });
       return { ok: true, result: { path: outPath } };
     }

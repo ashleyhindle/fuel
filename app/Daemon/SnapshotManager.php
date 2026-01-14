@@ -38,16 +38,18 @@ final class SnapshotManager
 
     private ?string $lastSnapshotHash = null;
 
+    private ?ConsumeSnapshot $cachedSnapshot = null;
+
     private readonly SnapshotBuilder $builder;
 
     private readonly EventBroadcaster $broadcaster;
 
     public function __construct(
-        private readonly ConsumeIpcServer $ipcServer,
-        private readonly TaskService $taskService,
+        ConsumeIpcServer $ipcServer,
+        TaskService $taskService,
         private readonly ProcessManager $processManager,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
-        private readonly ?LifecycleManager $lifecycleManager = null,
+        ?LifecycleManager $lifecycleManager = null,
     ) {
         $this->builder = new SnapshotBuilder(
             $taskService,
@@ -74,26 +76,49 @@ final class SnapshotManager
     public function broadcastHelloAndSnapshot(): void
     {
         $this->broadcaster->broadcastHello();
-        try {
-            $snapshot = $this->buildSnapshot();
-            $this->broadcaster->broadcastSnapshot($snapshot);
-            $this->lastSnapshotHash = $this->hashSnapshot($snapshot);
-        } catch (\Throwable $e) {
-            throw $e;
-        }
+        // Use cached snapshot for fast response, or build fresh if no cache
+        $snapshot = $this->cachedSnapshot ?? $this->buildAndCacheSnapshot();
+        $this->broadcaster->broadcastSnapshot($snapshot);
     }
 
     public function sendSnapshot(string $clientId): void
     {
-        $snapshot = $this->buildSnapshot();
+        // Use cached snapshot for fast response
+        $snapshot = $this->cachedSnapshot ?? $this->buildAndCacheSnapshot();
         $this->broadcaster->sendSnapshot($clientId, $snapshot);
+    }
+
+    /**
+     * Build a fresh snapshot and cache it.
+     */
+    private function buildAndCacheSnapshot(): ConsumeSnapshot
+    {
+        $this->cachedSnapshot = $this->buildSnapshot();
+        $this->lastSnapshotHash = $this->hashSnapshot($this->cachedSnapshot);
+
+        return $this->cachedSnapshot;
+    }
+
+    /**
+     * Invalidate the cached snapshot (call when data changes).
+     */
+    public function invalidateCache(): void
+    {
+        $this->cachedSnapshot = null;
+    }
+
+    /**
+     * Refresh the cached snapshot (called periodically by daemon loop).
+     */
+    public function refreshCache(): void
+    {
+        $this->buildAndCacheSnapshot();
     }
 
     public function broadcastSnapshot(): void
     {
-        $snapshot = $this->buildSnapshot();
+        $snapshot = $this->buildAndCacheSnapshot();
         $this->broadcaster->broadcastSnapshot($snapshot);
-        $this->lastSnapshotHash = $this->hashSnapshot($snapshot);
     }
 
     public function broadcastSnapshotIfChanged(): void
@@ -103,8 +128,11 @@ final class SnapshotManager
         if ($hash === $this->lastSnapshotHash) {
             return;
         }
-        $this->broadcaster->broadcastSnapshot($snapshot);
+
+        // Cache and broadcast the new snapshot
+        $this->cachedSnapshot = $snapshot;
         $this->lastSnapshotHash = $hash;
+        $this->broadcaster->broadcastSnapshot($snapshot);
     }
 
     public function broadcastTaskSpawned(string $taskId, string $runId, string $agent): void
@@ -127,6 +155,7 @@ final class SnapshotManager
         if (! isset($this->outputRingBuffers[$taskId])) {
             $this->outputRingBuffers[$taskId] = '';
         }
+
         $this->outputRingBuffers[$taskId] .= $chunk;
         if (strlen($this->outputRingBuffers[$taskId]) > self::RING_BUFFER_SIZE) {
             $this->outputRingBuffers[$taskId] = substr($this->outputRingBuffers[$taskId], -self::RING_BUFFER_SIZE);
@@ -178,7 +207,7 @@ final class SnapshotManager
         return false;
     }
 
-    public function setLifecycleManager(LifecycleManager $lifecycleManager): void
+    public function setLifecycleManager(): void
     {
         // Workaround for circular dependencies - will be removed in future refactor
     }

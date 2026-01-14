@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Bundle browser daemon with its dependencies
+echo "Bundling browser daemon..."
+npm run bundle:browser
+
 # Build PHAR with version from git tags or 'dev'
 echo "Building PHAR..."
 php fuel app:build fuel.phar --build-version=$(git describe --tags 2>/dev/null || echo dev)

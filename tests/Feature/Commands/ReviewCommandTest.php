@@ -6,6 +6,7 @@ use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
+use Symfony\Component\Process\Process;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
@@ -82,7 +83,7 @@ test('shows git diff when task has commit', function (): void {
     ]);
 
     // Check if we're in a git repo
-    $gitProcess = new \Symfony\Component\Process\Process(['git', 'rev-parse', 'HEAD']);
+    $gitProcess = new Process(['git', 'rev-parse', 'HEAD']);
     $gitProcess->run();
 
     if ($gitProcess->isSuccessful()) {
@@ -114,7 +115,7 @@ test('shows full diff with --diff option', function (): void {
     ]);
 
     // Check if we're in a git repo
-    $gitProcess = new \Symfony\Component\Process\Process(['git', 'rev-parse', 'HEAD']);
+    $gitProcess = new Process(['git', 'rev-parse', 'HEAD']);
     $gitProcess->run();
 
     if ($gitProcess->isSuccessful()) {
@@ -168,7 +169,7 @@ test('handles partial ID matching', function (): void {
     ]);
 
     // Get partial ID (first 5 chars)
-    $partialId = substr($task->short_id, 0, 5); // f-xxx
+    $partialId = substr((string) $task->short_id, 0, 5); // f-xxx
 
     // Review with partial ID
     $exitCode = Artisan::call('review', ['id' => $partialId]);

@@ -50,6 +50,7 @@ ALLOWED:
 - `fuel add "..."` to LOG discovered work for OTHER agents to do later
 - `fuel done {$taskId}` to mark YOUR task complete
 - `fuel dep:add {$taskId} <other-task>` to add dependencies to YOUR task
+- Minor refactors to use `app(Class::class)` for DI instead of passing dependencies manually (see AGENTS.md)
 
 == WHEN BLOCKED ==
 If you need human input (credentials, decisions, file permissions):
@@ -226,7 +227,7 @@ PROTOCOL;
         $lines = [];
         foreach ($tasks as $task) {
             $commit = $task->commit_hash ?? 'no commit';
-            $lines[] = "- {$task->short_id}: {$task->title} [{$commit}]";
+            $lines[] = sprintf('- %s: %s [%s]', $task->short_id, $task->title, $commit);
         }
 
         return implode("\n", $lines);

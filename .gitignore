@@ -1,5 +1,6 @@
 /vendor
 /node_modules
+/browser-daemon-dist
 /.idea
 /.vscode
 .phpunit.result.cache

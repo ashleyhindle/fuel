@@ -124,14 +124,12 @@ describe('reopen command', function (): void {
         $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => '2026-01-07T10:00:00+00:00',
-            'consumed_exit_code' => 1,
             'consumed_output' => 'Some error output',
         ]);
 
         $closedTask = $this->taskService->find($task->short_id);
         expect($closedTask->consumed)->toBeTrue();
         expect($closedTask->consumed_at)->toBe('2026-01-07T10:00:00+00:00');
-        expect($closedTask->consumed_exit_code)->toBe(1);
         expect($closedTask->consumed_output)->toBe('Some error output');
 
         $this->artisan('reopen', ['ids' => [$task->short_id]])
@@ -141,7 +139,6 @@ describe('reopen command', function (): void {
         expect($reopenedTask->status)->toBe(TaskStatus::Open);
         expect($reopenedTask->consumed)->toBe(false);
         expect($reopenedTask->consumed_at)->toBeNull();
-        expect($reopenedTask->consumed_exit_code)->toBeNull();
         expect($reopenedTask->consumed_output)->toBeNull();
     });
 

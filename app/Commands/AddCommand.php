@@ -113,7 +113,7 @@ class AddCommand extends Command
                 $title = trim($lines[0]);
                 $description = isset($lines[1]) ? trim($lines[1]) : null;
 
-                if (empty($title)) {
+                if ($title === '' || $title === '0') {
                     return $this->outputError('Piped content must have at least one non-empty line for title');
                 }
             } else {

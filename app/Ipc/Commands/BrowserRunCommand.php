@@ -10,13 +10,13 @@ use App\Ipc\IpcMessage;
 use DateTimeImmutable;
 use JsonSerializable;
 
-final class BrowserEvalCommand implements IpcMessage, JsonSerializable
+final class BrowserRunCommand implements IpcMessage, JsonSerializable
 {
     use HasIpcMetadata;
 
     public function __construct(
         public string $pageId,
-        public string $expression,
+        public string $code,
         DateTimeImmutable $timestamp,
         string $instanceId,
         ?string $requestId = null
@@ -30,7 +30,7 @@ final class BrowserEvalCommand implements IpcMessage, JsonSerializable
     {
         return new self(
             pageId: $data['pageId'],
-            expression: $data['expression'],
+            code: $data['code'],
             timestamp: new DateTimeImmutable($data['timestamp'] ?? 'now'),
             instanceId: $data['instance_id'] ?? '',
             requestId: $data['request_id'] ?? null
@@ -39,7 +39,7 @@ final class BrowserEvalCommand implements IpcMessage, JsonSerializable
 
     public function type(): string
     {
-        return ConsumeCommandType::BrowserEval->value;
+        return ConsumeCommandType::BrowserRun->value;
     }
 
     public function jsonSerialize(): array
@@ -50,12 +50,12 @@ final class BrowserEvalCommand implements IpcMessage, JsonSerializable
     public function toArray(): array
     {
         return [
-            'type' => $this->type(),
+            'type' => ConsumeCommandType::BrowserRun->value,
             'timestamp' => $this->timestamp->format('c'),
             'instance_id' => $this->instanceId,
             'request_id' => $this->requestId,
             'pageId' => $this->pageId,
-            'expression' => $this->expression,
+            'code' => $this->code,
         ];
     }
 }

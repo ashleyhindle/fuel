@@ -10,7 +10,6 @@ use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
-use App\Ipc\Commands\SetIntervalCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\Events\ErrorEvent;
 use App\Ipc\Events\HealthChangeEvent;
@@ -20,13 +19,13 @@ use App\Ipc\Events\StatusLineEvent;
 use App\Ipc\Events\TaskCompletedEvent;
 use App\Ipc\Events\TaskSpawnedEvent;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->instanceId = 'test-instance-123';
     $this->timestamp = new DateTimeImmutable('2024-01-01T00:00:00+00:00');
 });
 
-describe('Command DTOs serialize to expected JSON shape', function () {
-    test('AttachCommand toArray includes all properties', function () {
+describe('Command DTOs serialize to expected JSON shape', function (): void {
+    test('AttachCommand toArray includes all properties', function (): void {
         $command = new AttachCommand(
             last_event_id: 12345,
             timestamp: $this->timestamp,
@@ -45,7 +44,7 @@ describe('Command DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('last_event_id', 12345);
     });
 
-    test('DetachCommand toArray includes all properties', function () {
+    test('DetachCommand toArray includes all properties', function (): void {
         $command = new DetachCommand(
             timestamp: $this->timestamp,
             instanceId: $this->instanceId
@@ -61,7 +60,7 @@ describe('Command DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('request_id', null);
     });
 
-    test('PauseCommand toArray includes all properties', function () {
+    test('PauseCommand toArray includes all properties', function (): void {
         $command = new PauseCommand(
             timestamp: $this->timestamp,
             instanceId: $this->instanceId
@@ -77,7 +76,7 @@ describe('Command DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('request_id', null);
     });
 
-    test('ResumeCommand toArray includes all properties', function () {
+    test('ResumeCommand toArray includes all properties', function (): void {
         $command = new ResumeCommand(
             timestamp: $this->timestamp,
             instanceId: $this->instanceId
@@ -93,7 +92,7 @@ describe('Command DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('request_id', null);
     });
 
-    test('StopCommand toArray includes all properties', function () {
+    test('StopCommand toArray includes all properties', function (): void {
         $command = new StopCommand(
             mode: 'graceful',
             timestamp: $this->timestamp,
@@ -112,7 +111,7 @@ describe('Command DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('mode', 'graceful');
     });
 
-    test('ReloadConfigCommand toArray includes all properties', function () {
+    test('ReloadConfigCommand toArray includes all properties', function (): void {
         $command = new ReloadConfigCommand(
             timestamp: $this->timestamp,
             instanceId: $this->instanceId
@@ -128,25 +127,7 @@ describe('Command DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('request_id', null);
     });
 
-    test('SetIntervalCommand toArray includes all properties', function () {
-        $command = new SetIntervalCommand(
-            interval_seconds: 10,
-            timestamp: $this->timestamp,
-            instanceId: $this->instanceId
-        );
-
-        $array = $command->toArray();
-
-        expect($array)
-            ->toBeArray()
-            ->toHaveKey('type', ConsumeCommandType::SetInterval->value)
-            ->toHaveKey('timestamp')
-            ->toHaveKey('instance_id', $this->instanceId)
-            ->toHaveKey('request_id', null)
-            ->toHaveKey('interval_seconds', 10);
-    });
-
-    test('RequestSnapshotCommand toArray includes all properties', function () {
+    test('RequestSnapshotCommand toArray includes all properties', function (): void {
         $command = new RequestSnapshotCommand(
             timestamp: $this->timestamp,
             instanceId: $this->instanceId
@@ -163,8 +144,8 @@ describe('Command DTOs serialize to expected JSON shape', function () {
     });
 });
 
-describe('Event DTOs serialize to expected JSON shape', function () {
-    test('HelloEvent toArray includes all properties', function () {
+describe('Event DTOs serialize to expected JSON shape', function (): void {
+    test('HelloEvent toArray includes all properties', function (): void {
         $event = new HelloEvent(
             version: '1.0.0',
             instanceId: $this->instanceId,
@@ -183,7 +164,7 @@ describe('Event DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('version', '1.0.0');
     });
 
-    test('StatusLineEvent toArray includes all properties', function () {
+    test('StatusLineEvent toArray includes all properties', function (): void {
         $event = new StatusLineEvent(
             level: 'info',
             text: 'Test message',
@@ -203,7 +184,7 @@ describe('Event DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('text', 'Test message');
     });
 
-    test('TaskSpawnedEvent toArray includes all properties', function () {
+    test('TaskSpawnedEvent toArray includes all properties', function (): void {
         $event = new TaskSpawnedEvent(
             taskId: 'f-abc123',
             runId: 'run-1',
@@ -225,7 +206,7 @@ describe('Event DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('agent', 'claude');
     });
 
-    test('TaskCompletedEvent toArray includes all properties', function () {
+    test('TaskCompletedEvent toArray includes all properties', function (): void {
         $event = new TaskCompletedEvent(
             taskId: 'f-abc123',
             runId: 'run-1',
@@ -249,7 +230,7 @@ describe('Event DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('completion_type', 'success');
     });
 
-    test('HealthChangeEvent toArray includes all properties', function () {
+    test('HealthChangeEvent toArray includes all properties', function (): void {
         $event = new HealthChangeEvent(
             agent: 'claude',
             status: 'healthy',
@@ -269,7 +250,7 @@ describe('Event DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('status', 'healthy');
     });
 
-    test('OutputChunkEvent toArray includes all properties', function () {
+    test('OutputChunkEvent toArray includes all properties', function (): void {
         $event = new OutputChunkEvent(
             taskId: 'f-abc123',
             runId: 'run-1',
@@ -293,7 +274,7 @@ describe('Event DTOs serialize to expected JSON shape', function () {
             ->toHaveKey('chunk', 'test output');
     });
 
-    test('ErrorEvent toArray includes all properties', function () {
+    test('ErrorEvent toArray includes all properties', function (): void {
         $event = new ErrorEvent(
             message: 'Test error',
             instanceId: $this->instanceId,
@@ -312,8 +293,8 @@ describe('Event DTOs serialize to expected JSON shape', function () {
     });
 });
 
-describe('fromArray factory methods', function () {
-    test('AttachCommand fromArray creates instance', function () {
+describe('fromArray factory methods', function (): void {
+    test('AttachCommand fromArray creates instance', function (): void {
         $data = [
             'last_event_id' => 12345,
             'timestamp' => '2024-01-01T00:00:00+00:00',
@@ -330,7 +311,7 @@ describe('fromArray factory methods', function () {
         expect($command->requestId())->toBe('req-123');
     });
 
-    test('DetachCommand fromArray creates instance', function () {
+    test('DetachCommand fromArray creates instance', function (): void {
         $data = [
             'timestamp' => '2024-01-01T00:00:00+00:00',
             'instance_id' => $this->instanceId,
@@ -342,7 +323,7 @@ describe('fromArray factory methods', function () {
         expect($command->instanceId())->toBe($this->instanceId);
     });
 
-    test('PauseCommand fromArray creates instance', function () {
+    test('PauseCommand fromArray creates instance', function (): void {
         $data = [
             'timestamp' => '2024-01-01T00:00:00+00:00',
             'instance_id' => $this->instanceId,
@@ -354,7 +335,7 @@ describe('fromArray factory methods', function () {
         expect($command->instanceId())->toBe($this->instanceId);
     });
 
-    test('ResumeCommand fromArray creates instance', function () {
+    test('ResumeCommand fromArray creates instance', function (): void {
         $data = [
             'timestamp' => '2024-01-01T00:00:00+00:00',
             'instance_id' => $this->instanceId,
@@ -366,7 +347,7 @@ describe('fromArray factory methods', function () {
         expect($command->instanceId())->toBe($this->instanceId);
     });
 
-    test('StopCommand fromArray creates instance', function () {
+    test('StopCommand fromArray creates instance', function (): void {
         $data = [
             'mode' => 'graceful',
             'timestamp' => '2024-01-01T00:00:00+00:00',
@@ -382,7 +363,7 @@ describe('fromArray factory methods', function () {
         expect($command->instanceId())->toBe($this->instanceId);
     });
 
-    test('ReloadConfigCommand fromArray creates instance', function () {
+    test('ReloadConfigCommand fromArray creates instance', function (): void {
         $data = [
             'timestamp' => '2024-01-01T00:00:00+00:00',
             'instance_id' => $this->instanceId,
@@ -394,22 +375,7 @@ describe('fromArray factory methods', function () {
         expect($command->instanceId())->toBe($this->instanceId);
     });
 
-    test('SetIntervalCommand fromArray creates instance', function () {
-        $data = [
-            'interval_seconds' => 10,
-            'timestamp' => '2024-01-01T00:00:00+00:00',
-            'instance_id' => $this->instanceId,
-        ];
-
-        $command = SetIntervalCommand::fromArray($data);
-
-        expect($command)
-            ->toBeInstanceOf(SetIntervalCommand::class)
-            ->interval_seconds->toBe(10);
-        expect($command->instanceId())->toBe($this->instanceId);
-    });
-
-    test('RequestSnapshotCommand fromArray creates instance', function () {
+    test('RequestSnapshotCommand fromArray creates instance', function (): void {
         $data = [
             'timestamp' => '2024-01-01T00:00:00+00:00',
             'instance_id' => $this->instanceId,
@@ -422,8 +388,8 @@ describe('fromArray factory methods', function () {
     });
 });
 
-describe('timestamp is ISO 8601 format', function () {
-    it('formats timestamp in ISO 8601 format for commands', function (string $commandClass) {
+describe('timestamp is ISO 8601 format', function (): void {
+    it('formats timestamp in ISO 8601 format for commands', function (string $commandClass): void {
         $reflection = new ReflectionClass($commandClass);
         $constructor = $reflection->getConstructor();
         $params = $constructor->getParameters();
@@ -458,11 +424,10 @@ describe('timestamp is ISO 8601 format', function () {
         ResumeCommand::class,
         StopCommand::class,
         ReloadConfigCommand::class,
-        SetIntervalCommand::class,
         RequestSnapshotCommand::class,
     ]);
 
-    it('formats timestamp in ISO 8601 format for events', function (string $eventClass) {
+    it('formats timestamp in ISO 8601 format for events', function (string $eventClass): void {
         $reflection = new ReflectionClass($eventClass);
         $constructor = $reflection->getConstructor();
         $params = $constructor->getParameters();
@@ -501,8 +466,8 @@ describe('timestamp is ISO 8601 format', function () {
     ]);
 });
 
-describe('type field matches enum value', function () {
-    it('command type matches enum value', function (string $commandClass, ConsumeCommandType $expectedType) {
+describe('type field matches enum value', function (): void {
+    it('command type matches enum value', function (string $commandClass, ConsumeCommandType $expectedType): void {
         $reflection = new ReflectionClass($commandClass);
         $constructor = $reflection->getConstructor();
         $params = $constructor->getParameters();
@@ -534,11 +499,10 @@ describe('type field matches enum value', function () {
         [ResumeCommand::class, ConsumeCommandType::Resume],
         [StopCommand::class, ConsumeCommandType::Stop],
         [ReloadConfigCommand::class, ConsumeCommandType::ReloadConfig],
-        [SetIntervalCommand::class, ConsumeCommandType::SetInterval],
         [RequestSnapshotCommand::class, ConsumeCommandType::RequestSnapshot],
     ]);
 
-    it('event type matches enum value', function (string $eventClass, ConsumeEventType $expectedType) {
+    it('event type matches enum value', function (string $eventClass, ConsumeEventType $expectedType): void {
         $reflection = new ReflectionClass($eventClass);
         $constructor = $reflection->getConstructor();
         $params = $constructor->getParameters();

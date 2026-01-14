@@ -31,6 +31,7 @@ describe('stuck command', function (): void {
         $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
+        $this->runService = $this->app->make(RunService::class);
     });
 
     afterEach(function (): void {
@@ -76,16 +77,16 @@ describe('stuck command', function (): void {
         $this->taskService->update($successTask->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
-            'consumed_exit_code' => 0,
         ]);
+        $this->runService->logRun($successTask->short_id, ['agent' => 'test', 'exit_code' => 0]);
 
         $failedTask = $this->taskService->create(['title' => 'Failed task']);
         $this->taskService->update($failedTask->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
-            'consumed_exit_code' => 1,
             'consumed_output' => 'Error: Something went wrong',
         ]);
+        $this->runService->logRun($failedTask->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         $notConsumedTask = $this->taskService->create(['title' => 'Not consumed task']);
 
@@ -103,9 +104,9 @@ describe('stuck command', function (): void {
         $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
-            'consumed_exit_code' => 42,
             'consumed_output' => 'Error message here',
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 42]);
 
         Artisan::call('stuck', []);
         $output = Artisan::output();
@@ -123,9 +124,9 @@ describe('stuck command', function (): void {
         $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
-            'consumed_exit_code' => 1,
             'consumed_output' => $longOutput,
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         Artisan::call('stuck', []);
         $output = Artisan::output();
@@ -142,8 +143,8 @@ describe('stuck command', function (): void {
         $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
-            'consumed_exit_code' => 0,
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 0]);
 
         Artisan::call('stuck', []);
         $output = Artisan::output();
@@ -155,9 +156,8 @@ describe('stuck command', function (): void {
     it('excludes tasks without consumed flag', function (): void {
 
         $task = $this->taskService->create(['title' => 'Unconsumed task']);
-        $this->taskService->update($task->short_id, [
-            'consumed_exit_code' => 1,
-        ]);
+        // Create a run with exit code but don't mark task as consumed
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         Artisan::call('stuck', []);
         $output = Artisan::output();
@@ -185,9 +185,9 @@ describe('stuck command', function (): void {
         $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
-            'consumed_exit_code' => 1,
             'consumed_output' => 'Error output',
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         Artisan::call('stuck', ['--json' => true]);
         $output = Artisan::output();
@@ -197,7 +197,6 @@ describe('stuck command', function (): void {
         expect($data)->toHaveCount(1);
         expect($data[0]['short_id'])->toBe($task->short_id);
         expect($data[0]['consumed'])->toBeTrue();
-        expect($data[0]['consumed_exit_code'])->toBe(1);
         expect($data[0]['consumed_output'])->toBe('Error output');
     });
 
@@ -217,8 +216,8 @@ describe('stuck command', function (): void {
         $this->taskService->update($task1->short_id, [
             'consumed' => true,
             'consumed_at' => date('c', time() - 100),
-            'consumed_exit_code' => 1,
         ]);
+        $this->runService->logRun($task1->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         sleep(1);
 
@@ -226,8 +225,8 @@ describe('stuck command', function (): void {
         $this->taskService->update($task2->short_id, [
             'consumed' => true,
             'consumed_at' => date('c'),
-            'consumed_exit_code' => 2,
         ]);
+        $this->runService->logRun($task2->short_id, ['agent' => 'test', 'exit_code' => 2]);
 
         Artisan::call('stuck', []);
         $output = Artisan::output();

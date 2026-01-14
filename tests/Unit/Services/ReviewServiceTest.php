@@ -7,7 +7,6 @@ use App\Contracts\ProcessManagerInterface;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\AgentProcess;
-use App\Process\Process;
 use App\Process\ProcessOutput;
 use App\Process\ProcessType;
 use App\Process\SpawnResult;
@@ -89,8 +88,7 @@ it('triggers a review by spawning a process', function (): void {
         null,
         null,
         ProcessType::Review,
-        'review-model',
-        null
+        'review-model'
     );
 
     // Set expectation on process manager to spawn a review process using ReviewAgentTask

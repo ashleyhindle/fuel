@@ -2,11 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Contracts\AgentHealthTrackerInterface;
+use App\Daemon\BrowserCommandHandler;
 use App\Daemon\CompletionHandler;
+use App\Daemon\IpcCommandDispatcher;
 use App\Daemon\LifecycleManager;
+use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
 use App\DTO\ConsumeSnapshot;
 use App\Services\BackoffStrategy;
+use App\Services\BrowserDaemonManager;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcProtocol;
 use App\Services\ConsumeIpcServer;
@@ -16,8 +21,9 @@ use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
+use Illuminate\Support\Collection;
 
-beforeEach(function () {
+beforeEach(function (): void {
     // Use isolated temp directory for tests
     $this->testDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->testDir.'/.fuel', 0755, true);
@@ -44,7 +50,7 @@ beforeEach(function () {
     $this->lifecycleManager = new LifecycleManager($this->fuelContext);
 
     // Mock AgentHealthTrackerInterface for TaskSpawner
-    $this->healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+    $this->healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
 
     // Create real TaskSpawner instance (it's a final class and cannot be mocked)
     $this->taskSpawner = new TaskSpawner(
@@ -62,22 +68,21 @@ beforeEach(function () {
         $this->taskService,
         $this->runService,
         $this->configService,
-        $this->healthTracker,
-        null  // reviewService
+        $this->healthTracker  // reviewService
     );
 
     // Mock BrowserDaemonManager for BrowserCommandHandler
-    $this->browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+    $this->browserManager = Mockery::mock(BrowserDaemonManager::class);
 
     // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-    $this->browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+    $this->browserCommandHandler = new BrowserCommandHandler(
         $this->browserManager,
         $this->ipcServer,
         $this->lifecycleManager
     );
 
     // Create IpcCommandDispatcher
-    $this->ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+    $this->ipcCommandDispatcher = new IpcCommandDispatcher(
         $this->ipcServer,
         $this->lifecycleManager,
         $this->completionHandler,
@@ -86,7 +91,7 @@ beforeEach(function () {
     );
 
     // Create SnapshotManager
-    $this->snapshotManager = new \App\Daemon\SnapshotManager(
+    $this->snapshotManager = new SnapshotManager(
         $this->ipcServer,
         $this->taskService,
         $this->processManager,
@@ -98,31 +103,26 @@ beforeEach(function () {
     $this->runner = new ConsumeRunner(
         $this->ipcServer,
         $this->processManager,
-        $this->protocol,
         $this->taskService,
         $this->configService,
         $this->runService,
-        $this->backoffStrategy,
-        $this->promptBuilder,
-        $this->fuelContext,
         $this->lifecycleManager,
         $this->taskSpawner,
         $this->completionHandler,
         $this->ipcCommandDispatcher,
         $this->snapshotManager,
-        null, // reviewManager
-        $this->healthTracker
+        $this->browserManager,
     );
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Close Mockery
     Mockery::close();
 
     // Stop IPC server if it was started
     try {
         $this->ipcServer->stop();
-    } catch (Exception $e) {
+    } catch (Exception) {
         // Ignore errors from stopping if it wasn't started
     }
 
@@ -142,12 +142,13 @@ afterEach(function () {
                 unlink($file->getPathname());
             }
         }
+
         rmdir($this->testDir);
     }
 });
 
-describe('pause and resume', function () {
-    test('pause() sets paused to true', function () {
+describe('pause and resume', function (): void {
+    test('pause() sets paused to true', function (): void {
         expect($this->runner->isPaused())->toBeTrue();
 
         $this->runner->pause();
@@ -155,13 +156,13 @@ describe('pause and resume', function () {
         expect($this->runner->isPaused())->toBeTrue();
     });
 
-    test('isPaused() returns true after pause', function () {
+    test('isPaused() returns true after pause', function (): void {
         $this->runner->pause();
 
         expect($this->runner->isPaused())->toBeTrue();
     });
 
-    test('resume() sets paused to false', function () {
+    test('resume() sets paused to false', function (): void {
         $this->runner->pause();
         expect($this->runner->isPaused())->toBeTrue();
 
@@ -170,27 +171,27 @@ describe('pause and resume', function () {
         expect($this->runner->isPaused())->toBeFalse();
     });
 
-    test('isPaused() returns false after resume', function () {
+    test('isPaused() returns false after resume', function (): void {
         $this->runner->pause();
         $this->runner->resume();
 
         expect($this->runner->isPaused())->toBeFalse();
     });
 
-    test('isPaused() returns true initially', function () {
+    test('isPaused() returns true initially', function (): void {
         expect($this->runner->isPaused())->toBeTrue();
     });
 });
 
-describe('stop', function () {
-    test('stop(graceful=true) sets shuttingDown to true', function () {
+describe('stop', function (): void {
+    test('stop(graceful=true) sets shuttingDown to true', function (): void {
         expect($this->runner->isShuttingDown())->toBeFalse();
 
         $this->runner->stop(graceful: true);
         expect($this->runner->isShuttingDown())->toBeTrue();
     });
 
-    test('stop(graceful=false) stops and kills processes', function () {
+    test('stop(graceful=false) stops and kills processes', function (): void {
         expect($this->runner->isShuttingDown())->toBeFalse();
 
         // Force shutdown kills processes immediately in stop()
@@ -200,13 +201,13 @@ describe('stop', function () {
         expect($this->runner->isShuttingDown())->toBeTrue();
     });
 
-    test('isShuttingDown() returns false initially', function () {
+    test('isShuttingDown() returns false initially', function (): void {
         expect($this->runner->isShuttingDown())->toBeFalse();
     });
 });
 
-describe('getSnapshot', function () {
-    test('returns ConsumeSnapshot with required keys', function () {
+describe('getSnapshot', function (): void {
+    test('returns ConsumeSnapshot with required keys', function (): void {
         $snapshot = $this->runner->getSnapshot();
 
         expect($snapshot)->toBeInstanceOf(ConsumeSnapshot::class);
@@ -217,7 +218,7 @@ describe('getSnapshot', function () {
         expect($snapshot->config)->toBeArray();
     });
 
-    test('snapshot board_state has all required status keys', function () {
+    test('snapshot board_state has all required status keys', function (): void {
         $snapshot = $this->runner->getSnapshot();
 
         expect($snapshot->boardState)->toHaveKeys([
@@ -230,32 +231,32 @@ describe('getSnapshot', function () {
         ]);
     });
 
-    test('snapshot board_state values are Collections', function () {
+    test('snapshot board_state values are Collections', function (): void {
         $snapshot = $this->runner->getSnapshot();
 
-        expect($snapshot->boardState['ready'])->toBeInstanceOf(\Illuminate\Support\Collection::class);
-        expect($snapshot->boardState['in_progress'])->toBeInstanceOf(\Illuminate\Support\Collection::class);
-        expect($snapshot->boardState['review'])->toBeInstanceOf(\Illuminate\Support\Collection::class);
-        expect($snapshot->boardState['blocked'])->toBeInstanceOf(\Illuminate\Support\Collection::class);
-        expect($snapshot->boardState['human'])->toBeInstanceOf(\Illuminate\Support\Collection::class);
-        expect($snapshot->boardState['done'])->toBeInstanceOf(\Illuminate\Support\Collection::class);
+        expect($snapshot->boardState['ready'])->toBeInstanceOf(Collection::class);
+        expect($snapshot->boardState['in_progress'])->toBeInstanceOf(Collection::class);
+        expect($snapshot->boardState['review'])->toBeInstanceOf(Collection::class);
+        expect($snapshot->boardState['blocked'])->toBeInstanceOf(Collection::class);
+        expect($snapshot->boardState['human'])->toBeInstanceOf(Collection::class);
+        expect($snapshot->boardState['done'])->toBeInstanceOf(Collection::class);
     });
 
-    test('snapshot runner_state includes paused', function () {
+    test('snapshot runner_state includes paused', function (): void {
         $snapshot = $this->runner->getSnapshot();
 
         expect($snapshot->runnerState)->toHaveKey('paused');
         expect($snapshot->runnerState['paused'])->toBeBool();
     });
 
-    test('snapshot runner_state includes instance_id', function () {
+    test('snapshot runner_state includes instance_id', function (): void {
         $snapshot = $this->runner->getSnapshot();
 
         expect($snapshot->runnerState)->toHaveKey('instance_id');
         expect($snapshot->runnerState['instance_id'])->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i');
     });
 
-    test('snapshot runner_state includes started_at', function () {
+    test('snapshot runner_state includes started_at', function (): void {
         $snapshot = $this->runner->getSnapshot();
 
         expect($snapshot->runnerState)->toHaveKey('started_at');
@@ -263,7 +264,7 @@ describe('getSnapshot', function () {
         expect($snapshot->runnerState['started_at'])->toBeGreaterThan(0);
     });
 
-    test('snapshot runner_state reflects current paused state', function () {
+    test('snapshot runner_state reflects current paused state', function (): void {
         // Initially paused (lifecycleManager starts paused)
         $snapshot1 = $this->runner->getSnapshot();
         expect($snapshot1->runnerState['paused'])->toBeTrue();
@@ -280,14 +281,14 @@ describe('getSnapshot', function () {
     });
 });
 
-describe('getInstanceId', function () {
-    test('returns instance ID from lifecycleManager', function () {
+describe('getInstanceId', function (): void {
+    test('returns instance ID from lifecycleManager', function (): void {
         $id = $this->runner->getInstanceId();
         // LifecycleManager generates a UUID on initialization
         expect($id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i');
     });
 
-    test('instance ID is consistent across calls', function () {
+    test('instance ID is consistent across calls', function (): void {
         $id1 = $this->runner->getInstanceId();
         $id2 = $this->runner->getInstanceId();
 

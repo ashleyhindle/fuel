@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 use App\Ipc\Commands\AttachCommand;
 use App\Ipc\Events\HelloEvent;
+use App\Ipc\IpcMessage;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcProtocol;
 use App\Services\ConsumeIpcServer;
 
-beforeEach(function () {
+beforeEach(function (): void {
     // Use a random port in the ephemeral range to avoid conflicts
     $this->testPort = random_int(49152, 65535);
 
@@ -16,21 +17,21 @@ beforeEach(function () {
     $this->configService = Mockery::mock(ConfigService::class);
     $this->configService->shouldReceive('getConsumePort')->andReturn($this->testPort);
 
-    $this->server = new ConsumeIpcServer(null, $this->configService);
+    $this->server = new ConsumeIpcServer(configService: $this->configService);
     $this->protocol = new ConsumeIpcProtocol;
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Stop server and clean up
     $this->server->stop();
 });
 
-describe('start', function () {
-    test('creates TCP socket on configured port', function () {
+describe('start', function (): void {
+    test('creates TCP socket on configured port', function (): void {
         $this->server->start();
 
         // Verify we can connect to the port
-        $socket = @stream_socket_client("tcp://127.0.0.1:{$this->testPort}", $errno, $errstr, 1);
+        $socket = @stream_socket_client('tcp://127.0.0.1:'.$this->testPort, $errno, $errstr, 1);
         expect($socket)->not->toBeFalse();
 
         if (is_resource($socket)) {
@@ -38,32 +39,32 @@ describe('start', function () {
         }
     });
 
-    test('throws exception when port is already in use', function () {
+    test('throws exception when port is already in use', function (): void {
         // Start first server
         $this->server->start();
 
         // Try to start another server on same port
-        $server2 = new ConsumeIpcServer(null, $this->configService);
+        $server2 = new ConsumeIpcServer(configService: $this->configService);
 
         expect(fn () => $server2->start())->toThrow(\RuntimeException::class);
     });
 });
 
-describe('stop', function () {
-    test('closes socket', function () {
+describe('stop', function (): void {
+    test('closes socket', function (): void {
         $this->server->start();
         $this->server->stop();
 
         // Port should no longer be accepting connections
-        $socket = @stream_socket_client("tcp://127.0.0.1:{$this->testPort}", $errno, $errstr, 1);
+        $socket = @stream_socket_client('tcp://127.0.0.1:'.$this->testPort, $errno, $errstr, 1);
         expect($socket)->toBeFalse();
     });
 
-    test('disconnects all clients', function () {
+    test('disconnects all clients', function (): void {
         $this->server->start();
 
         // Connect a client
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         expect($client)->not->toBeFalse();
 
         $this->server->accept();
@@ -80,12 +81,12 @@ describe('stop', function () {
     });
 });
 
-describe('accept', function () {
-    test('accepts new connection in non-blocking mode', function () {
+describe('accept', function (): void {
+    test('accepts new connection in non-blocking mode', function (): void {
         $this->server->start();
 
         // Connect a client
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         expect($client)->not->toBeFalse();
 
         // Accept should be non-blocking
@@ -96,7 +97,7 @@ describe('accept', function () {
         fclose($client);
     });
 
-    test('returns without error when no pending connections', function () {
+    test('returns without error when no pending connections', function (): void {
         $this->server->start();
 
         // Should not throw or block
@@ -105,12 +106,12 @@ describe('accept', function () {
         expect($this->server->getClientCount())->toBe(0);
     });
 
-    test('accepts multiple connections', function () {
+    test('accepts multiple connections', function (): void {
         $this->server->start();
 
         // Connect multiple clients
-        $client1 = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
-        $client2 = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client1 = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
+        $client2 = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
 
         $this->server->accept();
         $this->server->accept();
@@ -122,13 +123,13 @@ describe('accept', function () {
     });
 });
 
-describe('broadcast', function () {
-    test('sends message to all connected clients', function () {
+describe('broadcast', function (): void {
+    test('sends message to all connected clients', function (): void {
         $this->server->start();
 
         // Connect two clients
-        $client1 = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
-        $client2 = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client1 = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
+        $client2 = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
 
         $this->server->accept();
         $this->server->accept();
@@ -155,12 +156,12 @@ describe('broadcast', function () {
     });
 });
 
-describe('sendTo', function () {
-    test('sends message to specific client', function () {
+describe('sendTo', function (): void {
+    test('sends message to specific client', function (): void {
         $this->server->start();
 
         // Connect a client
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         // Get client ID by inspecting poll results (we need a way to get client ID)
@@ -174,12 +175,12 @@ describe('sendTo', function () {
     });
 });
 
-describe('poll', function () {
-    test('reads commands from clients', function () {
+describe('poll', function (): void {
+    test('reads commands from clients', function (): void {
         $this->server->start();
 
         // Connect a client
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         // Send a command from client
@@ -204,12 +205,12 @@ describe('poll', function () {
         // Get first client's messages
         $clientMessages = array_values($commands)[0];
         expect($clientMessages)->toBeArray();
-        expect($clientMessages[0])->toBeInstanceOf(\App\Ipc\IpcMessage::class);
+        expect($clientMessages[0])->toBeInstanceOf(IpcMessage::class);
 
         fclose($client);
     });
 
-    test('returns empty array when no messages', function () {
+    test('returns empty array when no messages', function (): void {
         $this->server->start();
 
         $commands = $this->server->poll();
@@ -218,11 +219,11 @@ describe('poll', function () {
         expect($commands)->toBeEmpty();
     });
 
-    test('handles multiple messages from same client', function () {
+    test('handles multiple messages from same client', function (): void {
         $this->server->start();
 
         // Connect a client
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         // Send multiple commands
@@ -237,8 +238,8 @@ describe('poll', function () {
             instanceId: 'client-instance'
         );
 
-        fwrite($client, $this->protocol->encode($command1));
-        fwrite($client, $this->protocol->encode($command2));
+        fwrite($client, (string) $this->protocol->encode($command1));
+        fwrite($client, (string) $this->protocol->encode($command2));
         fflush($client);
 
         // Give time for data to arrive
@@ -253,11 +254,11 @@ describe('poll', function () {
         fclose($client);
     });
 
-    test('removes disconnected clients', function () {
+    test('removes disconnected clients', function (): void {
         $this->server->start();
 
         // Connect and disconnect a client
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         expect($this->server->getClientCount())->toBe(1);
@@ -272,20 +273,20 @@ describe('poll', function () {
     });
 });
 
-describe('getClientCount', function () {
-    test('returns zero initially', function () {
+describe('getClientCount', function (): void {
+    test('returns zero initially', function (): void {
         expect($this->server->getClientCount())->toBe(0);
     });
 
-    test('returns correct count after connections', function () {
+    test('returns correct count after connections', function (): void {
         $this->server->start();
 
-        $client1 = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client1 = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         expect($this->server->getClientCount())->toBe(1);
 
-        $client2 = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client2 = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         expect($this->server->getClientCount())->toBe(2);
@@ -295,11 +296,11 @@ describe('getClientCount', function () {
     });
 });
 
-describe('disconnectSlowClient', function () {
-    test('removes client from active connections', function () {
+describe('disconnectSlowClient', function (): void {
+    test('removes client from active connections', function (): void {
         $this->server->start();
 
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         expect($this->server->getClientCount())->toBe(1);
@@ -313,11 +314,11 @@ describe('disconnectSlowClient', function () {
     });
 });
 
-describe('buffer overflow protection', function () {
-    test('disconnects client when buffer exceeds limit', function () {
+describe('buffer overflow protection', function (): void {
+    test('disconnects client when buffer exceeds limit', function (): void {
         $this->server->start();
 
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         stream_set_blocking($client, false);
 
         $this->server->accept();
@@ -341,11 +342,11 @@ describe('buffer overflow protection', function () {
     });
 });
 
-describe('JSON line protocol', function () {
-    test('sends and receives JSON lines with newlines', function () {
+describe('JSON line protocol', function (): void {
+    test('sends and receives JSON lines with newlines', function (): void {
         $this->server->start();
 
-        $client = stream_socket_client("tcp://127.0.0.1:{$this->testPort}");
+        $client = stream_socket_client('tcp://127.0.0.1:'.$this->testPort);
         $this->server->accept();
 
         $message = new HelloEvent('1.0.0', 'test-instance');

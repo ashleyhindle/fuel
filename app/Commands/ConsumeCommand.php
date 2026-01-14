@@ -17,7 +17,6 @@ use App\Ipc\Events\TaskCompletedEvent;
 use App\Ipc\Events\TaskSpawnedEvent;
 use App\Ipc\IpcMessage;
 use App\Models\Task;
-use App\Process\ProcessType;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcClient;
@@ -70,9 +69,6 @@ class ConsumeCommand extends Command
 
     /** Whether we've entered alternate screen mode */
     private bool $inAlternateScreen = false;
-
-    /** @var array<string, array{status: string, in_backoff: bool, is_dead: bool}> Track previous health state per agent */
-    private array $previousHealthStates = [];
 
     /** Current terminal width */
     private int $terminalWidth = 120;
@@ -640,63 +636,6 @@ class ConsumeCommand extends Command
 
             usleep($frameDelay);
         }
-    }
-
-    /**
-     * Try to spawn a task if agent capacity allows.
-     * Returns true if spawned, false if at capacity.
-     *
-     * @param  array<string, mixed>  $task
-     * @param  array<string>  $statusLines
-     */
-
-    /**
-     * Poll all running processes.
-     *
-     * @param  array<string>  $statusLines
-     */
-    private function pollAndHandleCompletions(
-        array &$statusLines
-    ): void {
-        // Also update session_id in run service as processes are polled
-        // Skip review processes as they don't have run entries
-        foreach ($this->processManager->getActiveProcesses() as $process) {
-            if ($process->getProcessType() === ProcessType::Review) {
-                continue;
-            }
-
-            if ($process->getSessionId() !== null) {
-                $this->updateLatestRunIfTaskExists($process->getTaskId(), [
-                    'session_id' => $process->getSessionId(),
-                ], $statusLines);
-            }
-        }
-
-        // Poll processes but don't handle completions (handled by runner via IPC)
-        $this->processManager->poll();
-
-        // Keep only last 5 status lines
-        $statusLines = $this->trimStatusLines($statusLines);
-    }
-
-    /**
-     * Update the latest run for a task, skipping if the task no longer exists.
-     *
-     * @param  array<string, mixed>  $data
-     * @param  array<string>  $statusLines
-     */
-    private function updateLatestRunIfTaskExists(
-        string $taskId,
-        array $data,
-        array &$statusLines
-    ): void {
-        if (! $this->taskService->find($taskId) instanceof Task) {
-            $statusLines[] = $this->formatStatus('⚠', sprintf('Skipping run update for missing task %s', $taskId), 'yellow');
-
-            return;
-        }
-
-        $this->runService->updateLatestRun($taskId, $data);
     }
 
     /**
@@ -2371,79 +2310,6 @@ class ConsumeCommand extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Check agent health status changes and add warnings/recovery messages.
-     *
-     * @param  array<string>  $statusLines
-     */
-    private function checkAgentHealthChanges(array &$statusLines): void
-    {
-        if (! $this->healthTracker instanceof AgentHealthTrackerInterface) {
-            return;
-        }
-
-        $agentNames = $this->configService->getAgentNames();
-
-        foreach ($agentNames as $agentName) {
-            $health = $this->healthTracker->getHealthStatus($agentName);
-            $status = $health->getStatus();
-            $backoffSeconds = $health->getBackoffSeconds();
-            $inBackoff = $backoffSeconds > 0;
-            $maxRetries = $this->configService->getAgentMaxRetries($agentName);
-            $isDead = $this->healthTracker->isDead($agentName, $maxRetries);
-
-            // Get previous state (default to healthy if not tracked)
-            $previous = $this->previousHealthStates[$agentName] ?? [
-                'status' => 'healthy',
-                'in_backoff' => false,
-                'is_dead' => false,
-            ];
-
-            // Check for state changes
-            $statusChanged = $previous['status'] !== $status;
-            $backoffChanged = $previous['in_backoff'] !== $inBackoff;
-            $deadChanged = $previous['is_dead'] !== $isDead;
-
-            // Agent entered backoff
-            if ($backoffChanged && $inBackoff && ! $previous['in_backoff']) {
-                $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
-                $statusLines[] = $this->formatStatus('⏳', sprintf('%s entered backoff (%s remaining)', $agentName, $formatted), 'yellow');
-            }
-
-            // Agent exited backoff (recovered)
-            if ($backoffChanged && ! $inBackoff && $previous['in_backoff']) {
-                $statusLines[] = $this->formatStatus('✓', sprintf('%s recovered from backoff', $agentName), 'green');
-            }
-
-            // Agent became dead
-            if ($deadChanged && $isDead && ! $previous['is_dead']) {
-                $statusLines[] = $this->formatStatus('💀', sprintf('%s is dead (%d consecutive failures >= %d)', $agentName, $health->consecutiveFailures, $maxRetries), 'red');
-            }
-
-            // Agent recovered from dead state
-            if ($deadChanged && ! $isDead && $previous['is_dead']) {
-                $statusLines[] = $this->formatStatus('✓', sprintf('%s recovered from dead state', $agentName), 'green');
-            }
-
-            // Agent became unhealthy (but not dead)
-            if ($statusChanged && $status === 'unhealthy' && $previous['status'] !== 'unhealthy' && ! $isDead) {
-                $statusLines[] = $this->formatStatus('⚠', sprintf('%s is unhealthy (%d consecutive failures)', $agentName, $health->consecutiveFailures), 'red');
-            }
-
-            // Agent recovered from unhealthy to healthy/warning/degraded
-            if ($statusChanged && $previous['status'] === 'unhealthy' && $status !== 'unhealthy' && ! $isDead) {
-                $statusLines[] = $this->formatStatus('✓', sprintf('%s recovered to %s status', $agentName, $status), 'green');
-            }
-
-            // Update previous state
-            $this->previousHealthStates[$agentName] = [
-                'status' => $status,
-                'in_backoff' => $inBackoff,
-                'is_dead' => $isDead,
-            ];
-        }
     }
 
     /**

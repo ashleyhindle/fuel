@@ -174,6 +174,7 @@ class RunService
             if ($start !== false && $end !== false) {
                 $data['duration_seconds'] = $end - $start;
             }
+
             // Also update status to completed when ended_at is set
             $data['status'] = self::STATUS_COMPLETED;
         }

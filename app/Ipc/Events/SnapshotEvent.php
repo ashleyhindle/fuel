@@ -39,7 +39,7 @@ final class SnapshotEvent implements IpcMessage, JsonSerializable
     public function toArray(): array
     {
         return [
-            'type' => $this->type(),
+            'type' => ConsumeEventType::Snapshot->value,
             'timestamp' => $this->timestamp->format('c'),
             'instance_id' => $this->instanceId,
             'request_id' => $this->requestId,

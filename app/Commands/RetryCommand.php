@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\ProcessManager;
+use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -24,14 +25,14 @@ class RetryCommand extends Command
 
     protected $description = 'Retry failed tasks by moving them back to open status';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, RunService $runService): int
     {
         $ids = $this->argument('ids') ?: [];
         $dryrun = $this->option('dryrun');
 
         // If --dryrun, just show failed tasks
         if ($dryrun) {
-            return $this->showFailedTasks($taskService);
+            return $this->showFailedTasks($taskService, $runService);
         }
 
         // If no IDs provided, retry all failed tasks
@@ -90,7 +91,7 @@ class RetryCommand extends Command
         return self::SUCCESS;
     }
 
-    private function showFailedTasks(TaskService $taskService): int
+    private function showFailedTasks(TaskService $taskService, RunService $runService): int
     {
         $failedTasks = $taskService->failed();
 
@@ -108,16 +109,17 @@ class RetryCommand extends Command
 
         $this->info('Failed tasks (use fuel retry to retry all):');
         foreach ($failedTasks as $task) {
-            $reason = $this->getFailureReason($task);
+            $reason = $this->getFailureReason($task, $runService);
             $this->line(sprintf('  %s: %s <fg=gray>(%s)</>', $task->short_id, $task->title, $reason));
         }
 
         return self::SUCCESS;
     }
 
-    private function getFailureReason(Task $task): string
+    private function getFailureReason(Task $task, RunService $runService): string
     {
-        $exitCode = $task->consumed_exit_code ?? null;
+        $latestRun = $runService->getLatestRun($task->short_id);
+        $exitCode = $latestRun?->exit_code;
         if ($exitCode !== null && $exitCode !== 0) {
             return 'exit code '.$exitCode;
         }

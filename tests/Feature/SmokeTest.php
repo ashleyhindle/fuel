@@ -215,7 +215,8 @@ it('runs a basic command flow', function (): void {
     ]);
     $status = json_decode(Artisan::output(), true);
 
-    expect($status)->toHaveKeys(['open', 'in_progress', 'review', 'done', 'blocked', 'total']);
+    expect($status)->toHaveKey('board');
+    expect($status['board'])->toHaveKeys(['ready', 'in_progress', 'review', 'done', 'blocked', 'human']);
 
     Artisan::call('add', [
         'title' => 'Defer me',
@@ -355,10 +356,10 @@ it('runs a basic command flow', function (): void {
         'status' => 'in_progress',
         'consumed' => true,
         'consumed_at' => now()->toIso8601String(),
-        'consumed_exit_code' => 1,
         'consumed_output' => 'Smoke retry output',
         'consume_pid' => null,
     ]);
+    $runService->logRun($retryTaskId, ['agent' => 'test', 'exit_code' => 1]);
 
     Artisan::call('retry', [
         'ids' => [$retryTaskId],

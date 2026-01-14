@@ -12,13 +12,11 @@ class BrowserDaemonManager
 {
     private static ?BrowserDaemonManager $instance = null;
 
-    private $daemonProcess = null;
+    private $daemonProcess;
 
     private array $pipes = [];
 
     private int $requestIdSeq = 0;
-
-    private array $pendingRequests = [];
 
     private array $contextPageMap = [];
 
@@ -29,7 +27,7 @@ class BrowserDaemonManager
      */
     public static function getInstance(): self
     {
-        if (self::$instance === null) {
+        if (! self::$instance instanceof \App\Services\BrowserDaemonManager) {
             self::$instance = new self;
         }
 
@@ -45,9 +43,9 @@ class BrowserDaemonManager
             return;
         }
 
-        $daemonPath = base_path('browser-daemon.js');
+        $daemonPath = $this->getDaemonPath();
         if (! file_exists($daemonPath)) {
-            throw new RuntimeException("Browser daemon script not found at: {$daemonPath}");
+            throw new RuntimeException('Browser daemon script not found at: '.$daemonPath);
         }
 
         $descriptorSpec = [
@@ -56,11 +54,14 @@ class BrowserDaemonManager
             2 => ['pipe', 'w'], // stderr
         ];
 
+        // Use daemon's directory as cwd (base_path() is invalid inside PHAR)
+        $cwd = dirname($daemonPath);
+
         $this->daemonProcess = proc_open(
             ['node', $daemonPath],
             $descriptorSpec,
             $this->pipes,
-            base_path(),
+            $cwd,
             null,
             ['bypass_shell' => true]
         );
@@ -85,9 +86,9 @@ class BrowserDaemonManager
             if (! isset($result['status']) || $result['status'] !== 'ok') {
                 throw new RuntimeException('Browser daemon ping failed');
             }
-        } catch (Exception $e) {
+        } catch (Exception $exception) {
             $this->stop();
-            throw new RuntimeException('Failed to verify browser daemon: '.$e->getMessage());
+            throw new RuntimeException('Failed to verify browser daemon: '.$exception->getMessage(), $exception->getCode(), $exception);
         }
     }
 
@@ -104,7 +105,7 @@ class BrowserDaemonManager
         foreach (array_keys($this->contextPageMap) as $contextId) {
             try {
                 $this->closeContext($contextId);
-            } catch (Throwable $e) {
+            } catch (Throwable) {
                 // Ignore errors during shutdown
             }
         }
@@ -131,8 +132,68 @@ class BrowserDaemonManager
 
         $this->daemonProcess = null;
         $this->pipes = [];
-        $this->pendingRequests = [];
         $this->contextPageMap = [];
+    }
+
+    /**
+     * Get the path to the browser daemon script.
+     *
+     * When running from source, returns the local browser-daemon.js.
+     * When running from PHAR/binary, extracts the bundled daemon to ~/.fuel/
+     */
+    private function getDaemonPath(): string
+    {
+        $pharPath = \Phar::running(false);
+
+        // Running from source - use file directly
+        if ($pharPath === '') {
+            return base_path('browser-daemon.js');
+        }
+
+        // Running from PHAR/binary - extract to ~/.fuel/browser-daemon-dist/
+        $fuelDir = (getenv('HOME') ?: getenv('USERPROFILE') ?: sys_get_temp_dir()).'/.fuel';
+        $extractDir = $fuelDir.'/browser-daemon-dist';
+        $extractedPath = $extractDir.'/index.js';
+
+        if (! file_exists($extractedPath)) {
+            $this->extractBrowserDaemon($pharPath, $extractDir);
+        }
+
+        return $extractedPath;
+    }
+
+    /**
+     * Extract the browser daemon directory from PHAR to disk.
+     */
+    private function extractBrowserDaemon(string $pharPath, string $extractDir): void
+    {
+        $pharDir = 'phar://'.$pharPath.'/browser-daemon-dist';
+
+        if (! is_dir($pharDir)) {
+            throw new RuntimeException('Browser daemon not found in PHAR: '.$pharDir);
+        }
+
+        if (! is_dir($extractDir)) {
+            mkdir($extractDir, 0755, true);
+        }
+
+        // Extract all files from the browser-daemon-dist directory
+        $files = ['index.js', 'package.json', 'appIcon.png', 'xdg-open'];
+        foreach ($files as $file) {
+            $source = $pharDir.'/'.$file;
+            $dest = $extractDir.'/'.$file;
+
+            if (is_file($source)) {
+                $content = file_get_contents($source);
+                if ($content !== false) {
+                    file_put_contents($dest, $content);
+                    // Make xdg-open executable
+                    if ($file === 'xdg-open' || $file === 'index.js') {
+                        chmod($dest, 0755);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -171,6 +232,7 @@ class BrowserDaemonManager
         if ($written === false) {
             throw new RuntimeException('Failed to write to daemon stdin');
         }
+
         fflush($this->pipes[0]);
 
         // Read response (with timeout)
@@ -255,6 +317,7 @@ class BrowserDaemonManager
         if (! isset($this->contextPageMap[$contextId])) {
             $this->contextPageMap[$contextId] = [];
         }
+
         $this->contextPageMap[$contextId][] = $pageId;
 
         return $result;
@@ -274,13 +337,13 @@ class BrowserDaemonManager
     }
 
     /**
-     * Evaluate JavaScript in a page
+     * Run Playwright code in a page
      */
-    public function eval(string $pageId, string $expression): array
+    public function run(string $pageId, string $code): array
     {
-        return $this->sendRequest('eval', [
+        return $this->sendRequest('run', [
             'pageId' => $pageId,
-            'expression' => $expression,
+            'code' => $code,
         ]);
     }
 
@@ -335,13 +398,13 @@ class BrowserDaemonManager
             $result['daemonRunning'] = true;
 
             return $result;
-        } catch (Exception $e) {
+        } catch (Exception $exception) {
             return [
                 'browserLaunched' => false,
                 'contexts' => [],
                 'pages' => [],
                 'daemonRunning' => false,
-                'error' => $e->getMessage(),
+                'error' => $exception->getMessage(),
             ];
         }
     }

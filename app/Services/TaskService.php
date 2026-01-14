@@ -234,7 +234,7 @@ class TaskService
         }
 
         // Handle arbitrary fields
-        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_exit_code', 'consumed_output', 'consume_pid', 'last_review_issues'];
+        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_output', 'consume_pid', 'last_review_issues'];
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
                 $updates[$key] = $value;
@@ -340,7 +340,6 @@ class TaskService
             'reason' => null,
             'consumed' => 0,
             'consumed_at' => null,
-            'consumed_exit_code' => null,
             'consumed_output' => null,
         ]);
     }
@@ -367,7 +366,6 @@ class TaskService
             'reason' => null,
             'consumed' => 0,
             'consumed_at' => null,
-            'consumed_exit_code' => null,
             'consumed_output' => null,
             'consume_pid' => null,
         ]);
@@ -476,13 +474,16 @@ class TaskService
     public function isFailed(Task $task, array $excludePids = []): bool
     {
         $consumed = ! empty($task->consumed);
-        $exitCode = $task->consumed_exit_code ?? null;
         $status = $task->status;
         $pid = $task->consume_pid ?? null;
 
-        // Case 1: Explicit failure (consumed with non-zero exit code)
-        if ($consumed && $exitCode !== null && $exitCode !== 0) {
-            return true;
+        // Case 1: Explicit failure (consumed with non-zero exit code from latest run)
+        if ($consumed) {
+            $latestRun = app(RunService::class)->getLatestRun($task->short_id);
+            $exitCode = $latestRun?->exit_code;
+            if ($exitCode !== null && $exitCode !== 0) {
+                return true;
+            }
         }
 
         // Case 2: in_progress + consumed + null PID (spawn failed or PID lost)

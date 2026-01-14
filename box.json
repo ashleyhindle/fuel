@@ -6,7 +6,8 @@
         "config",
         "database",
         "resources",
-        "vendor"
+        "vendor",
+        "browser-daemon-dist"
     ],
     "files": [
         "composer.json"

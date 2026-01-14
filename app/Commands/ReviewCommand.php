@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Process;
 
 class ReviewCommand extends Command
@@ -190,7 +191,7 @@ class ReviewCommand extends Command
                 $this->newLine();
                 $this->line('<fg=cyan>Full Diff:</>');
                 $this->newLine();
-                $this->getOutput()->writeln($gitDiff, \Symfony\Component\Console\Output\OutputInterface::OUTPUT_RAW);
+                $this->getOutput()->writeln($gitDiff, OutputInterface::OUTPUT_RAW);
             }
         } else {
             $this->newLine();

@@ -13,6 +13,7 @@ class BrowserCreateCommand extends BrowserCommand
 {
     protected $signature = 'browser:create
         {context_id : Browser context ID to create}
+        {page_id? : Page ID to create (defaults to {context_id}-tab1)}
         {--viewport= : Viewport size as JSON (e.g., {"width":1280,"height":720})}
         {--user-agent= : Custom user agent string}
         {--json : Output as JSON}';
@@ -20,6 +21,8 @@ class BrowserCreateCommand extends BrowserCommand
     protected $description = 'Create a new browser context via the consume daemon';
 
     private ?string $contextId = null;
+
+    private ?string $pageId = null;
 
     private ?array $viewport = null;
 
@@ -31,6 +34,7 @@ class BrowserCreateCommand extends BrowserCommand
     public function handle(): int
     {
         $this->contextId = $this->argument('context_id');
+        $this->pageId = $this->argument('page_id') ?? $this->contextId.'-tab1';
         $viewportOption = $this->option('viewport');
         $this->userAgent = $this->option('user-agent');
 
@@ -57,6 +61,7 @@ class BrowserCreateCommand extends BrowserCommand
     ): IpcMessage {
         return new BrowserCreateIpcCommand(
             contextId: $this->contextId,
+            pageId: $this->pageId,
             viewport: $this->viewport,
             userAgent: $this->userAgent,
             timestamp: $timestamp,
@@ -74,10 +79,11 @@ class BrowserCreateCommand extends BrowserCommand
             $this->outputJson([
                 'success' => true,
                 'context_id' => $this->contextId,
+                'page_id' => $this->pageId,
                 'result' => $response->result,
             ]);
         } else {
-            $this->info(sprintf("Browser context '%s' created successfully", $this->contextId));
+            $this->info(sprintf("Browser context '%s' created with page '%s'", $this->contextId, $this->pageId));
             if ($response->result !== null) {
                 $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
             }

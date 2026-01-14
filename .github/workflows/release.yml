@@ -40,6 +40,18 @@ jobs:
       - name: Install production dependencies
         run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Bundle browser daemon
+        run: npm run bundle:browser
+
       - name: Build PHAR
         run: php fuel app:build fuel.phar --build-version=${{ github.event.release.tag_name }}
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Ipc\Commands\SetTaskReviewCommand;
+use App\Ipc\Commands\StopCommand;
 use App\Ipc\IpcMessage;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcServer;
@@ -19,14 +21,13 @@ use App\Services\ConsumeIpcServer;
  * - Handle stop command
  * - Handle config reload command
  */
-final class IpcCommandDispatcher
+final readonly class IpcCommandDispatcher
 {
     public function __construct(
-        private readonly ConsumeIpcServer $ipcServer,
-        private readonly LifecycleManager $lifecycleManager,
-        private readonly CompletionHandler $completionHandler,
-        private readonly ConfigService $configService,
-        private readonly BrowserCommandHandler $browserCommandHandler,
+        private ConsumeIpcServer $ipcServer,
+        private LifecycleManager $lifecycleManager,
+        private CompletionHandler $completionHandler,
+        private ConfigService $configService,
     ) {}
 
     /**
@@ -45,7 +46,7 @@ final class IpcCommandDispatcher
      * @param  callable  $onBrowserCreate  Callback when browser create command is received
      * @param  callable  $onBrowserPage  Callback when browser page command is received
      * @param  callable  $onBrowserGoto  Callback when browser goto command is received
-     * @param  callable  $onBrowserEval  Callback when browser eval command is received
+     * @param  callable  $onBrowserRun  Callback when browser run command is received
      * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
      * @param  callable  $onBrowserClose  Callback when browser close command is received
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
@@ -64,7 +65,7 @@ final class IpcCommandDispatcher
         callable $onBrowserCreate,
         callable $onBrowserPage,
         callable $onBrowserGoto,
-        callable $onBrowserEval,
+        callable $onBrowserRun,
         callable $onBrowserScreenshot,
         callable $onBrowserClose,
         callable $onBrowserStatus,
@@ -89,7 +90,7 @@ final class IpcCommandDispatcher
                     onBrowserCreate: $onBrowserCreate,
                     onBrowserPage: $onBrowserPage,
                     onBrowserGoto: $onBrowserGoto,
-                    onBrowserEval: $onBrowserEval,
+                    onBrowserRun: $onBrowserRun,
                     onBrowserScreenshot: $onBrowserScreenshot,
                     onBrowserClose: $onBrowserClose,
                     onBrowserStatus: $onBrowserStatus,
@@ -116,7 +117,7 @@ final class IpcCommandDispatcher
      * @param  callable  $onBrowserCreate  Callback when browser create command is received
      * @param  callable  $onBrowserPage  Callback when browser page command is received
      * @param  callable  $onBrowserGoto  Callback when browser goto command is received
-     * @param  callable  $onBrowserEval  Callback when browser eval command is received
+     * @param  callable  $onBrowserRun  Callback when browser run command is received
      * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
      * @param  callable  $onBrowserClose  Callback when browser close command is received
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
@@ -137,7 +138,7 @@ final class IpcCommandDispatcher
         callable $onBrowserCreate,
         callable $onBrowserPage,
         callable $onBrowserGoto,
-        callable $onBrowserEval,
+        callable $onBrowserRun,
         callable $onBrowserScreenshot,
         callable $onBrowserClose,
         callable $onBrowserStatus,
@@ -160,7 +161,7 @@ final class IpcCommandDispatcher
             'browser_create' => $onBrowserCreate($message),
             'browser_page' => $onBrowserPage($message),
             'browser_goto' => $onBrowserGoto($message),
-            'browser_eval' => $onBrowserEval($message),
+            'browser_run' => $onBrowserRun($message),
             'browser_screenshot' => $onBrowserScreenshot($message),
             'browser_close' => $onBrowserClose($message),
             'browser_status' => $onBrowserStatus($message),
@@ -199,7 +200,7 @@ final class IpcCommandDispatcher
     private function handleSetTaskReviewCommand(IpcMessage $message): void
     {
         // Cast to SetTaskReviewCommand to access enabled property
-        if ($message instanceof \App\Ipc\Commands\SetTaskReviewCommand) {
+        if ($message instanceof SetTaskReviewCommand) {
             $this->completionHandler->setTaskReviewEnabled($message->enabled);
         }
     }
@@ -213,7 +214,7 @@ final class IpcCommandDispatcher
     private function handleStopCommand(IpcMessage $message, callable $onStop): void
     {
         // Cast to StopCommand to access mode property
-        if ($message instanceof \App\Ipc\Commands\StopCommand) {
+        if ($message instanceof StopCommand) {
             $graceful = $message->mode === 'graceful';
             $onStop($graceful);
         } else {

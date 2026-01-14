@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Daemon;
 
 use App\Daemon\Helpers\CommandHandlers;
+use App\Ipc\IpcMessage;
+use App\Models\Task;
 use App\Services\ConsumeIpcServer;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -19,30 +21,24 @@ use App\Services\TaskService;
  * - Coordinate component interactions
  * - Handle IPC command callbacks
  */
-final class DaemonLoop
+final readonly class DaemonLoop
 {
-    private readonly CommandHandlers $commandHandlers;
+    private CommandHandlers $commandHandlers;
 
     public function __construct(
-        private readonly LifecycleManager $lifecycleManager,
-        private readonly TaskSpawner $taskSpawner,
-        private readonly CompletionHandler $completionHandler,
-        private readonly ?ReviewManager $reviewManager,
-        private readonly IpcCommandDispatcher $ipcCommandDispatcher,
-        private readonly SnapshotManager $snapshotManager,
-        private readonly ConsumeIpcServer $ipcServer,
-        private readonly ProcessManager $processManager,
-        private readonly TaskService $taskService,
-        private readonly RunService $runService,
-        private readonly BrowserCommandHandler $browserCommandHandler,
+        private LifecycleManager $lifecycleManager,
+        private TaskSpawner $taskSpawner,
+        private CompletionHandler $completionHandler,
+        private ?ReviewManager $reviewManager,
+        private IpcCommandDispatcher $ipcCommandDispatcher,
+        private SnapshotManager $snapshotManager,
+        private ConsumeIpcServer $ipcServer,
+        private ProcessManager $processManager,
+        private TaskService $taskService,
+        private RunService $runService,
+        private BrowserCommandHandler $browserCommandHandler,
     ) {
-        $this->commandHandlers = new CommandHandlers(
-            $taskService,
-            $taskSpawner,
-            $processManager,
-            $snapshotManager,
-            $lifecycleManager
-        );
+        $this->commandHandlers = app(CommandHandlers::class);
     }
 
     /**
@@ -84,13 +80,18 @@ final class DaemonLoop
             // Run tick to handle spawning, completions, and reviews
             $this->tick();
 
-            // Periodically check for external changes (reopen, done, add, etc.) and broadcast if changed
-            if ($this->ipcServer->getClientCount() > 0 && $this->snapshotManager->shouldBroadcastSnapshot()) {
-                $this->snapshotManager->broadcastSnapshotIfChanged();
+            // Periodically refresh snapshot cache (every 2 seconds)
+            // This ensures new clients get fresh-ish data without waiting for a full rebuild
+            if ($this->snapshotManager->shouldBroadcastSnapshot()) {
+                $this->snapshotManager->refreshCache();
+                // Only broadcast if clients are connected
+                if ($this->ipcServer->getClientCount() > 0) {
+                    $this->snapshotManager->broadcastSnapshotIfChanged();
+                }
             }
 
-            // Sleep for interval (default 100ms for responsiveness)
-            usleep(100000);
+            // Sleep for interval (60ms for responsiveness)
+            usleep(60000);
         }
     }
 
@@ -120,7 +121,7 @@ final class DaemonLoop
 
                 // Try to spawn tasks until we can't spawn any more
                 foreach ($sortedTasks as $task) {
-                    $this->taskSpawner->trySpawnTask($task, null, function (string $taskId, string $runId, string $agentName) {
+                    $this->taskSpawner->trySpawnTask($task, null, function (string $taskId, string $runId, string $agentName): void {
                         // Broadcast TaskSpawnedEvent when task is spawned
                         $this->snapshotManager->broadcastTaskSpawned($taskId, $runId, $agentName);
                     });
@@ -135,7 +136,7 @@ final class DaemonLoop
         foreach ($completions as $completion) {
             if (! $completion->isReview()) {
                 $task = $this->taskService->find($completion->taskId);
-                $latestRun = $task ? $this->runService->getLatestRun($completion->taskId) : null;
+                $latestRun = $task instanceof Task ? $this->runService->getLatestRun($completion->taskId) : null;
                 $runId = $latestRun?->short_id;
 
                 // Broadcast TaskCompletedEvent to IPC clients
@@ -144,12 +145,13 @@ final class DaemonLoop
                 // Clean up ring buffer for this task
                 $this->snapshotManager->cleanupTaskBuffer($completion->taskId);
 
+                // Invalidate task cache so spawner sees new ready tasks
                 $this->taskSpawner->invalidateTaskCache();
             }
         }
 
         // Step 3: Check for completed reviews
-        if ($this->reviewManager !== null) {
+        if ($this->reviewManager instanceof ReviewManager) {
             $this->reviewManager->checkCompletedReviews();
         }
     }
@@ -164,19 +166,19 @@ final class DaemonLoop
             onResume: fn () => $this->snapshotManager->broadcastSnapshot(),
             onStop: fn (bool $graceful) => $this->commandHandlers->handleStop($graceful),
             onSnapshot: fn (string $clientId) => $this->snapshotManager->sendSnapshot($clientId),
-            onTaskStart: fn ($message) => $this->commandHandlers->handleTaskStart($message),
-            onTaskReopen: fn ($message) => $this->commandHandlers->handleTaskReopen($message),
-            onTaskDone: fn ($message) => $this->commandHandlers->handleTaskDone($message),
-            onTaskCreate: fn ($message) => $this->commandHandlers->handleTaskCreate($message, $this->ipcServer),
-            onDependencyAdd: fn ($message) => $this->commandHandlers->handleDependencyAdd($message),
+            onTaskStart: fn (IpcMessage $message) => $this->commandHandlers->handleTaskStart($message),
+            onTaskReopen: fn (IpcMessage $message) => $this->commandHandlers->handleTaskReopen($message),
+            onTaskDone: fn (IpcMessage $message) => $this->commandHandlers->handleTaskDone($message),
+            onTaskCreate: fn (IpcMessage $message) => $this->commandHandlers->handleTaskCreate($message, $this->ipcServer),
+            onDependencyAdd: fn (IpcMessage $message) => $this->commandHandlers->handleDependencyAdd($message),
             onReloadConfig: fn () => $this->snapshotManager->broadcastConfigReloaded(),
-            onBrowserCreate: fn ($message) => $this->browserCommandHandler->handleBrowserCreate($message),
-            onBrowserPage: fn ($message) => $this->browserCommandHandler->handleBrowserPage($message),
-            onBrowserGoto: fn ($message) => $this->browserCommandHandler->handleBrowserGoto($message),
-            onBrowserEval: fn ($message) => $this->browserCommandHandler->handleBrowserEval($message),
-            onBrowserScreenshot: fn ($message) => $this->browserCommandHandler->handleBrowserScreenshot($message),
-            onBrowserClose: fn ($message) => $this->browserCommandHandler->handleBrowserClose($message),
-            onBrowserStatus: fn ($message) => $this->browserCommandHandler->handleBrowserStatus($message),
+            onBrowserCreate: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserCreate($message),
+            onBrowserPage: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserPage($message),
+            onBrowserGoto: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserGoto($message),
+            onBrowserRun: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserRun($message),
+            onBrowserScreenshot: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserScreenshot($message),
+            onBrowserClose: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserClose($message),
+            onBrowserStatus: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserStatus($message),
         );
     }
 }

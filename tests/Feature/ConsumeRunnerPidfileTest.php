@@ -81,6 +81,10 @@ describe('ConsumeRunner PID file handling', function (): void {
         $configService->shouldReceive('getConsumePort')->andReturn($this->testPort);
         $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentConfigs')->andReturn([]);
+
+        // Bind mock to container so app(ConfigService::class) uses it
+        app()->instance(ConfigService::class, $configService);
 
         $ipcServer = new ConsumeIpcServer($protocol, $configService);
 
@@ -211,6 +215,10 @@ describe('ConsumeRunner PID file handling', function (): void {
         $configService->shouldReceive('getConsumePort')->andReturn($this->testPort);
         $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentConfigs')->andReturn([]);
+
+        // Bind mock to container so app(ConfigService::class) uses it
+        app()->instance(ConfigService::class, $configService);
 
         $ipcServer = new ConsumeIpcServer($protocol, $configService);
 
@@ -340,6 +348,10 @@ describe('ConsumeRunner PID file handling', function (): void {
         $configService->shouldReceive('getConsumePort')->andReturn($this->testPort);
         $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentConfigs')->andReturn([]);
+
+        // Bind mock to container so app(ConfigService::class) uses it
+        app()->instance(ConfigService::class, $configService);
 
         $ipcServer = new ConsumeIpcServer($protocol, $configService);
 
@@ -467,6 +479,10 @@ describe('ConsumeRunner PID file handling', function (): void {
         $configService->shouldReceive('getConsumePort')->andReturn($this->testPort);
         $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentConfigs')->andReturn([]);
+
+        // Bind mock to container so app(ConfigService::class) uses it
+        app()->instance(ConfigService::class, $configService);
 
         $ipcServer = new ConsumeIpcServer($protocol, $configService);
 
@@ -599,6 +615,10 @@ describe('ConsumeRunner PID file handling', function (): void {
         $configService->shouldReceive('getConsumePort')->andReturn($this->testPort);
         $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentConfigs')->andReturn([]);
+
+        // Bind mock to container so app(ConfigService::class) uses it
+        app()->instance(ConfigService::class, $configService);
 
         $ipcServer = new ConsumeIpcServer($protocol, $configService);
 
@@ -733,6 +753,10 @@ describe('ConsumeRunner PID file handling', function (): void {
         $configService->shouldReceive('getConsumePort')->andReturn($this->testPort);
         $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentConfigs')->andReturn([]);
+
+        // Bind mock to container so app(ConfigService::class) uses it
+        app()->instance(ConfigService::class, $configService);
 
         $ipcServer = new ConsumeIpcServer($protocol, $configService);
 

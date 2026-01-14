@@ -47,7 +47,7 @@ final class BrowserStatusCommand implements IpcMessage, JsonSerializable
     {
         // Metadata only - just return the base metadata fields
         return [
-            'type' => $this->type(),
+            'type' => ConsumeCommandType::BrowserStatus->value,
             'timestamp' => $this->timestamp->format('c'),
             'instance_id' => $this->instanceId,
             'request_id' => $this->requestId,

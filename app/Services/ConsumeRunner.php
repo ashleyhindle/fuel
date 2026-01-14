@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Contracts\AgentHealthTrackerInterface;
+use App\Daemon\BrowserCommandHandler;
 use App\Daemon\CompletionHandler;
 use App\Daemon\DaemonLoop;
 use App\Daemon\IpcCommandDispatcher;
@@ -14,6 +14,7 @@ use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
 use App\DTO\ConsumeSnapshot;
 use App\Enums\EpicStatus;
+use App\Models\Task;
 
 /**
  * Thin wrapper that manages daemon lifecycle.
@@ -34,13 +35,9 @@ final class ConsumeRunner
     public function __construct(
         private readonly ConsumeIpcServer $ipcServer,
         private readonly ProcessManager $processManager,
-        private readonly ConsumeIpcProtocol $protocol,
         private readonly TaskService $taskService,
         private readonly ConfigService $configService,
         private readonly RunService $runService,
-        private readonly BackoffStrategy $backoffStrategy,
-        private readonly TaskPromptBuilder $promptBuilder,
-        private readonly FuelContext $fuelContext,
         private readonly LifecycleManager $lifecycleManager,
         private readonly TaskSpawner $taskSpawner,
         private readonly CompletionHandler $completionHandler,
@@ -48,7 +45,6 @@ final class ConsumeRunner
         private readonly SnapshotManager $snapshotManager,
         private readonly BrowserDaemonManager $browserDaemonManager,
         private readonly ?ReviewManager $reviewManager = null,
-        private readonly ?AgentHealthTrackerInterface $healthTracker = null,
         private readonly ?EpicService $epicService = null,
         private readonly ?NotificationService $notificationService = null,
     ) {}
@@ -77,9 +73,9 @@ final class ConsumeRunner
         // Start browser daemon (non-critical - log warning if fails but continue)
         try {
             $this->browserDaemonManager->start();
-        } catch (\Throwable $e) {
+        } catch (\Throwable $throwable) {
             // Log warning but continue - browser features become unavailable but daemon still runs
-            logger()->warning('Failed to start browser daemon: '.$e->getMessage());
+            logger()->warning('Failed to start browser daemon: '.$throwable->getMessage());
         }
 
         // Set TaskSpawner's instance ID to match the runner's instance ID
@@ -103,7 +99,7 @@ final class ConsumeRunner
         });
 
         // Create BrowserCommandHandler for DaemonLoop
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             browserManager: $this->browserDaemonManager,
             ipcServer: $this->ipcServer,
             lifecycleManager: $this->lifecycleManager,
@@ -264,12 +260,12 @@ final class ConsumeRunner
     private function checkEpicCompletionNotification(string $taskId): void
     {
         // Skip if services are not available
-        if ($this->epicService === null || $this->notificationService === null) {
+        if (! $this->epicService instanceof EpicService || ! $this->notificationService instanceof NotificationService) {
             return;
         }
 
         $task = $this->taskService->find($taskId);
-        if ($task === null || empty($task->epic_id)) {
+        if (! $task instanceof Task || empty($task->epic_id)) {
             return;
         }
 

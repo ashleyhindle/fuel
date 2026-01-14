@@ -16,6 +16,7 @@ final class BrowserCreateCommand implements IpcMessage, JsonSerializable
 
     public function __construct(
         public string $contextId,
+        public string $pageId,
         public ?array $viewport,
         public ?string $userAgent,
         DateTimeImmutable $timestamp,
@@ -31,6 +32,7 @@ final class BrowserCreateCommand implements IpcMessage, JsonSerializable
     {
         return new self(
             contextId: $data['contextId'],
+            pageId: $data['pageId'] ?? $data['contextId'].'-tab1',
             viewport: $data['viewport'] ?? null,
             userAgent: $data['userAgent'] ?? null,
             timestamp: new DateTimeImmutable($data['timestamp'] ?? 'now'),
@@ -52,11 +54,12 @@ final class BrowserCreateCommand implements IpcMessage, JsonSerializable
     public function toArray(): array
     {
         return [
-            'type' => $this->type(),
+            'type' => ConsumeCommandType::BrowserCreate->value,
             'timestamp' => $this->timestamp->format('c'),
             'instance_id' => $this->instanceId,
             'request_id' => $this->requestId,
             'contextId' => $this->contextId,
+            'pageId' => $this->pageId,
             'viewport' => $this->viewport,
             'userAgent' => $this->userAgent,
         ];

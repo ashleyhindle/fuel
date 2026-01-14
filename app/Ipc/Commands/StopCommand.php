@@ -48,7 +48,7 @@ final class StopCommand implements IpcMessage, JsonSerializable
     public function toArray(): array
     {
         return [
-            'type' => $this->type(),
+            'type' => ConsumeCommandType::Stop->value,
             'timestamp' => $this->timestamp->format('c'),
             'instance_id' => $this->instanceId,
             'request_id' => $this->requestId,

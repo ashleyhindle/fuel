@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\DTO;
 
+use App\Enums\EpicStatus;
+use App\Models\Epic;
+use App\Process\AgentHealth;
+use App\Process\AgentProcess;
 use Illuminate\Support\Collection;
 use JsonSerializable;
 
@@ -36,14 +40,14 @@ final readonly class ConsumeSnapshot implements JsonSerializable
      * Create a snapshot from board data and runtime state.
      *
      * @param  array{ready: Collection, in_progress: Collection, review: Collection, blocked: Collection, human: Collection, done: Collection}  $boardData  Board state from getBoardData()
-     * @param  array<\App\Process\AgentProcess>  $activeProcesses  Active agent processes
-     * @param  array<\App\Process\AgentHealth>  $healthStatuses  Agent health statuses
+     * @param  array<AgentProcess>  $activeProcesses  Active agent processes
+     * @param  array<AgentHealth>  $healthStatuses  Agent health statuses
      * @param  bool  $paused  Whether runner is paused
      * @param  int|null  $startedAt  Runner start timestamp
      * @param  string  $instanceId  Runner instance identifier
      * @param  int  $intervalSeconds  Check interval in seconds
      * @param  array<string, int>  $agentLimits  Max concurrent per agent
-     * @param  array<\App\Models\Epic>  $epics  Epic models to include
+     * @param  array<Epic>  $epics  Epic models to include
      */
     public static function fromBoardData(
         array $boardData,
@@ -97,7 +101,7 @@ final readonly class ConsumeSnapshot implements JsonSerializable
             $epicsData[$epic->short_id] = [
                 'short_id' => $epic->short_id,
                 'title' => $epic->title,
-                'status' => $status instanceof \App\Enums\EpicStatus
+                'status' => $status instanceof EpicStatus
                     ? $status->value
                     : (string) $status,
             ];

@@ -27,6 +27,7 @@ describe('retry command', function (): void {
         $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
+        $this->runService = $this->app->make(RunService::class);
     });
 
     afterEach(function (): void {
@@ -67,9 +68,9 @@ describe('retry command', function (): void {
         $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => '2026-01-07T10:00:00+00:00',
-            'consumed_exit_code' => 1,
             'consumed_output' => 'Some error output',
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         $this->artisan('retry', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('Retried task:')
@@ -79,7 +80,6 @@ describe('retry command', function (): void {
         expect($updated->status)->toBe(TaskStatus::Open);
         expect($updated->consumed)->toBe(false);
         expect($updated->consumed_at)->toBeNull();
-        expect($updated->consumed_exit_code)->toBeNull();
         expect($updated->consumed_output)->toBeNull();
     });
 
@@ -89,8 +89,8 @@ describe('retry command', function (): void {
 
         $this->taskService->update($task->short_id, [
             'consumed' => true,
-            'consumed_exit_code' => 1,
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         $partialId = substr((string) $task->short_id, 2, 3); // Just 3 chars of the hash
 
@@ -108,8 +108,8 @@ describe('retry command', function (): void {
 
         $this->taskService->update($task->short_id, [
             'consumed' => true,
-            'consumed_exit_code' => 1,
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         Artisan::call('retry', [
             'ids' => [$task->short_id],
@@ -131,14 +131,13 @@ describe('retry command', function (): void {
         $this->taskService->update($task->short_id, [
             'consumed' => true,
             'consumed_at' => '2026-01-07T10:00:00+00:00',
-            'consumed_exit_code' => 1,
             'consumed_output' => 'Some error output',
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         $stuckTask = $this->taskService->find($task->short_id);
         expect($stuckTask->consumed)->toBeTrue();
         expect($stuckTask->consumed_at)->toBe('2026-01-07T10:00:00+00:00');
-        expect($stuckTask['consumed_exit_code'])->toBe(1);
         expect($stuckTask['consumed_output'])->toBe('Some error output');
 
         $this->artisan('retry', ['ids' => [$task->short_id]])
@@ -148,7 +147,6 @@ describe('retry command', function (): void {
         expect($retriedTask->status)->toBe(TaskStatus::Open);
         expect($retriedTask->consumed)->toBe(false);
         expect($retriedTask->consumed_at)->toBeNull();
-        expect($retriedTask->consumed_exit_code)->toBeNull();
         expect($retriedTask->consumed_output)->toBeNull();
     });
 
@@ -178,8 +176,8 @@ describe('retry command', function (): void {
         // Agent exited cleanly but task still in_progress = something went wrong
         $this->taskService->update($task->short_id, [
             'consumed' => true,
-            'consumed_exit_code' => 0,
         ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 0]);
 
         $this->artisan('retry', ['ids' => [$task->short_id]])
             ->expectsOutputToContain('Retried task:')
@@ -195,9 +193,12 @@ describe('retry command', function (): void {
         $this->taskService->start($task2->short_id);
         $this->taskService->start($task3->short_id);
 
-        $this->taskService->update($task1->short_id, ['consumed' => true, 'consumed_exit_code' => 1]);
-        $this->taskService->update($task2->short_id, ['consumed' => true, 'consumed_exit_code' => 2]);
-        $this->taskService->update($task3->short_id, ['consumed' => true, 'consumed_exit_code' => 3]);
+        $this->taskService->update($task1->short_id, ['consumed' => true]);
+        $this->taskService->update($task2->short_id, ['consumed' => true]);
+        $this->taskService->update($task3->short_id, ['consumed' => true]);
+        $this->runService->logRun($task1->short_id, ['agent' => 'test', 'exit_code' => 1]);
+        $this->runService->logRun($task2->short_id, ['agent' => 'test', 'exit_code' => 2]);
+        $this->runService->logRun($task3->short_id, ['agent' => 'test', 'exit_code' => 3]);
 
         $this->artisan('retry', [
             'ids' => [$task1->short_id, $task2->short_id, $task3->short_id],
@@ -217,8 +218,10 @@ describe('retry command', function (): void {
         $this->taskService->start($task1->short_id);
         $this->taskService->start($task2->short_id);
 
-        $this->taskService->update($task1->short_id, ['consumed' => true, 'consumed_exit_code' => 1]);
-        $this->taskService->update($task2->short_id, ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task1->short_id, ['consumed' => true]);
+        $this->taskService->update($task2->short_id, ['consumed' => true]);
+        $this->runService->logRun($task1->short_id, ['agent' => 'test', 'exit_code' => 1]);
+        $this->runService->logRun($task2->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         Artisan::call('retry', [
             'ids' => [$task1->short_id, $task2->short_id],
@@ -241,8 +244,10 @@ describe('retry command', function (): void {
         $this->taskService->start($task1->short_id);
         $this->taskService->start($task2->short_id);
 
-        $this->taskService->update($task1->short_id, ['consumed' => true, 'consumed_exit_code' => 1]);
-        $this->taskService->update($task2->short_id, ['consumed' => true, 'consumed_exit_code' => 1]);
+        $this->taskService->update($task1->short_id, ['consumed' => true]);
+        $this->taskService->update($task2->short_id, ['consumed' => true]);
+        $this->runService->logRun($task1->short_id, ['agent' => 'test', 'exit_code' => 1]);
+        $this->runService->logRun($task2->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         $this->artisan('retry', [
             'ids' => [$task1->short_id, 'nonexistent', $task2->short_id],

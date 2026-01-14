@@ -25,7 +25,7 @@ class GradientText
     private float $lastGradientFrame = 0;
 
     /** Frames per gradient shift (controls speed) */
-    private float $framesPerGradientShift;
+    private readonly float $framesPerGradientShift;
 
     /**
      * Create a new gradient text animator.
@@ -67,7 +67,7 @@ class GradientText
         // Build color array - gradient up to middle, then back down
         $up = true;
         $multiplier = 0;
-        foreach ($this->chars as $i => $char) {
+        foreach (array_keys($this->chars) as $i) {
             $this->colors[] = [
                 'r' => (int) round($up ? $baseR + $multiplier * $rStep : ($peakR - $multiplier * $rStep)),
                 'g' => (int) round($up ? $baseG + $multiplier * $gStep : ($peakG - $multiplier * $gStep)),
@@ -160,6 +160,7 @@ class GradientText
             $color = $this->colors[$i] ?? ['r' => 128, 'g' => 128, 'b' => 128];
             $output .= sprintf("\e[38;2;%d;%d;%dm%s", $color['r'], $color['g'], $color['b'], $char);
         }
+
         $output .= "\e[0m"; // Reset color
 
         $this->frameCount++;

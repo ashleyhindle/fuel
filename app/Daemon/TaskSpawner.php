@@ -34,7 +34,8 @@ final class TaskSpawner
     private array $taskCache = ['ready' => null, 'timestamp' => 0];
 
     /** @var string The runner instance ID */
-    private string $instanceId;
+    // Instance ID will be set externally
+    private string $instanceId = '';
 
     /** @var bool Whether the runner is shutting down */
     private bool $shuttingDown = false;
@@ -43,19 +44,9 @@ final class TaskSpawner
     private bool $reviewEnabled = false;
 
     /** @var callable|null Callback for epic completion */
-    private $epicCompletionCallback = null;
+    private $epicCompletionCallback;
 
-    public function __construct(
-        private readonly TaskService $taskService,
-        private readonly ConfigService $configService,
-        private readonly RunService $runService,
-        private readonly ProcessManager $processManager,
-        private readonly FuelContext $fuelContext,
-        private readonly ?AgentHealthTrackerInterface $healthTracker = null,
-    ) {
-        // Instance ID will be set externally
-        $this->instanceId = '';
-    }
+    public function __construct(private readonly TaskService $taskService, private readonly ConfigService $configService, private readonly RunService $runService, private readonly ProcessManager $processManager, private readonly FuelContext $fuelContext, private readonly ?AgentHealthTrackerInterface $healthTracker = null) {}
 
     /**
      * Set the instance ID (for cases where it needs to be synchronized with ConsumeRunner).
@@ -130,12 +121,12 @@ final class TaskSpawner
         }
 
         $this->markTaskConsumed($taskId);
-        $runId = $this->createRunEntry($taskId, $agentName, $agentOverride);
+        $runId = $this->createRunEntry($taskId, $agentName);
 
         // Replace spawnForTask with spawnAgentTask
         $result = $this->processManager->spawnAgentTask($agentTask, $cwd, $runId);
         if (! $result->success) {
-            $this->handleSpawnFailure($taskId, $result->isInBackoff());
+            $this->handleSpawnFailure($taskId);
 
             return false;
         }
@@ -154,10 +145,12 @@ final class TaskSpawner
         if (! $this->processManager->canSpawn($agentName)) {
             return false;
         }
+
         if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
             if (! $this->healthTracker->isAvailable($agentName)) {
                 return false;
             }
+
             $maxRetries = $this->configService->getAgentMaxRetries($agentName);
             if ($this->healthTracker->isDead($agentName, $maxRetries)) {
                 return false;
@@ -174,7 +167,7 @@ final class TaskSpawner
         $this->invalidateTaskCache();
     }
 
-    private function createRunEntry(string $taskId, string $agentName, ?string $agentOverride): string
+    private function createRunEntry(string $taskId, string $agentName): string
     {
         $agentDef = $this->configService->getAgentDefinition($agentName);
 
@@ -186,7 +179,7 @@ final class TaskSpawner
         ]);
     }
 
-    private function handleSpawnFailure(string $taskId, bool $isInBackoff): void
+    private function handleSpawnFailure(string $taskId): void
     {
         $this->taskService->reopen($taskId);
         $this->invalidateTaskCache();

@@ -8,22 +8,30 @@ use App\DTO\ConsumeSnapshot;
 use App\Enums\ConsumeCommandType;
 use App\Enums\ConsumeEventType;
 use App\Ipc\Commands\AttachCommand;
+use App\Ipc\Commands\BrowserCloseCommand;
+use App\Ipc\Commands\BrowserCreateCommand;
+use App\Ipc\Commands\BrowserGotoCommand;
+use App\Ipc\Commands\BrowserPageCommand;
+use App\Ipc\Commands\BrowserRunCommand;
+use App\Ipc\Commands\BrowserScreenshotCommand;
+use App\Ipc\Commands\BrowserStatusCommand;
 use App\Ipc\Commands\DependencyAddCommand;
 use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
-use App\Ipc\Commands\SetIntervalCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\Commands\TaskCreateCommand;
 use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Commands\TaskStartCommand;
+use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\Events\ErrorEvent;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\HelloEvent;
 use App\Ipc\Events\OutputChunkEvent;
+use App\Ipc\Events\ReviewCompletedEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Ipc\Events\StatusLineEvent;
 use App\Ipc\Events\TaskCompletedEvent;
@@ -56,9 +64,9 @@ final class ConsumeIpcProtocol
         // Parse JSON
         try {
             $data = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
+        } catch (JsonException $jsonException) {
             return new ErrorEvent(
-                message: 'Malformed JSON: '.$e->getMessage(),
+                message: 'Malformed JSON: '.$jsonException->getMessage(),
                 instanceId: $instanceId
             );
         }
@@ -117,13 +125,19 @@ final class ConsumeIpcProtocol
                 ConsumeCommandType::Resume => ResumeCommand::fromArray($data),
                 ConsumeCommandType::Stop => StopCommand::fromArray($data),
                 ConsumeCommandType::ReloadConfig => ReloadConfigCommand::fromArray($data),
-                ConsumeCommandType::SetInterval => SetIntervalCommand::fromArray($data),
                 ConsumeCommandType::RequestSnapshot => RequestSnapshotCommand::fromArray($data),
                 ConsumeCommandType::SetTaskReviewEnabled => SetTaskReviewCommand::fromArray($data),
                 ConsumeCommandType::TaskStart => TaskStartCommand::fromArray($data),
                 ConsumeCommandType::TaskReopen => TaskReopenCommand::fromArray($data),
                 ConsumeCommandType::TaskCreate => TaskCreateCommand::fromArray($data),
                 ConsumeCommandType::DependencyAdd => DependencyAddCommand::fromArray($data),
+                ConsumeCommandType::BrowserCreate => BrowserCreateCommand::fromArray($data),
+                ConsumeCommandType::BrowserPage => BrowserPageCommand::fromArray($data),
+                ConsumeCommandType::BrowserGoto => BrowserGotoCommand::fromArray($data),
+                ConsumeCommandType::BrowserRun => BrowserRunCommand::fromArray($data),
+                ConsumeCommandType::BrowserScreenshot => BrowserScreenshotCommand::fromArray($data),
+                ConsumeCommandType::BrowserClose => BrowserCloseCommand::fromArray($data),
+                ConsumeCommandType::BrowserStatus => BrowserStatusCommand::fromArray($data),
             };
         } catch (\ValueError) {
             // Not a command type, try event types
@@ -144,6 +158,7 @@ final class ConsumeIpcProtocol
                 ConsumeEventType::Error => $this->decodeErrorEvent($data),
                 ConsumeEventType::ReviewCompleted => $this->decodeReviewCompletedEvent($data),
                 ConsumeEventType::TaskCreateResponse => $this->decodeTaskCreateResponseEvent($data),
+                ConsumeEventType::BrowserResponse => $this->decodeBrowserResponseEvent($data),
             };
         } catch (\ValueError) {
             // Unknown type
@@ -264,9 +279,9 @@ final class ConsumeIpcProtocol
         );
     }
 
-    private function decodeReviewCompletedEvent(array $data): \App\Ipc\Events\ReviewCompletedEvent
+    private function decodeReviewCompletedEvent(array $data): ReviewCompletedEvent
     {
-        return new \App\Ipc\Events\ReviewCompletedEvent(
+        return new ReviewCompletedEvent(
             taskId: $data['task_id'] ?? '',
             passed: $data['passed'] ?? false,
             issues: $data['issues'] ?? [],
@@ -287,5 +302,10 @@ final class ConsumeIpcProtocol
             instanceId: $data['instance_id'] ?? '',
             requestId: $data['request_id'] ?? null
         );
+    }
+
+    private function decodeBrowserResponseEvent(array $data): BrowserResponseEvent
+    {
+        return BrowserResponseEvent::fromArray($data);
     }
 }

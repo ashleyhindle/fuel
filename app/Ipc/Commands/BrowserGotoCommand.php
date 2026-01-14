@@ -54,7 +54,7 @@ final class BrowserGotoCommand implements IpcMessage, JsonSerializable
     public function toArray(): array
     {
         return [
-            'type' => $this->type(),
+            'type' => ConsumeCommandType::BrowserGoto->value,
             'timestamp' => $this->timestamp->format('c'),
             'instance_id' => $this->instanceId,
             'request_id' => $this->requestId,

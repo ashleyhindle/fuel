@@ -5,9 +5,10 @@ declare(strict_types=1);
 use App\DTO\ConsumeSnapshot;
 use App\Process\AgentHealth;
 use App\Process\AgentProcess;
+use Symfony\Component\Process\Process;
 
-describe('ConsumeSnapshot', function () {
-    it('can be serialized to JSON', function () {
+describe('ConsumeSnapshot', function (): void {
+    it('can be serialized to JSON', function (): void {
         $boardData = [
             'ready' => collect([]),
             'in_progress' => collect([]),
@@ -42,7 +43,7 @@ describe('ConsumeSnapshot', function () {
         expect($decoded)->toHaveKeys(['board_state', 'active_processes', 'health_summary', 'runner_state', 'config']);
     });
 
-    it('creates snapshot from board data', function () {
+    it('creates snapshot from board data', function (): void {
         $boardData = [
             'ready' => collect([]),
             'in_progress' => collect([]),
@@ -53,7 +54,7 @@ describe('ConsumeSnapshot', function () {
         ];
 
         // Create a real AgentProcess (final class can't be mocked)
-        $symfonyProcess = new \Symfony\Component\Process\Process(['echo', 'test']);
+        $symfonyProcess = new Process(['echo', 'test']);
         $agentProcess = new AgentProcess(
             process: $symfonyProcess,
             taskId: 'f-abc123',
@@ -83,7 +84,7 @@ describe('ConsumeSnapshot', function () {
         expect($snapshot->config['interval_seconds'])->toBe(5);
     });
 
-    it('serializes board state with task collections', function () {
+    it('serializes board state with task collections', function (): void {
         $task1 = (object) ['short_id' => 'f-123', 'title' => 'Test Task'];
         $task2 = (object) ['short_id' => 'f-456', 'title' => 'Another Task'];
 
@@ -118,7 +119,7 @@ describe('ConsumeSnapshot', function () {
         expect($decoded['board_state']['in_progress'])->toHaveCount(1);
     });
 
-    it('includes health summary with correct structure', function () {
+    it('includes health summary with correct structure', function (): void {
         $boardData = [
             'ready' => collect([]),
             'in_progress' => collect([]),
@@ -151,7 +152,7 @@ describe('ConsumeSnapshot', function () {
         ]);
     });
 
-    it('includes runner state with correct structure', function () {
+    it('includes runner state with correct structure', function (): void {
         $boardData = [
             'ready' => collect([]),
             'in_progress' => collect([]),
@@ -178,7 +179,7 @@ describe('ConsumeSnapshot', function () {
         expect($snapshot->runnerState['instance_id'])->toBe('runner-123');
     });
 
-    it('includes config with interval and agents', function () {
+    it('includes config with interval and agents', function (): void {
         $boardData = [
             'ready' => collect([]),
             'in_progress' => collect([]),

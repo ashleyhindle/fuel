@@ -29,6 +29,7 @@ afterEach(function (): void {
                 unlink($file->getPathname());
             }
         }
+
         rmdir($this->tempDir);
     }
 });

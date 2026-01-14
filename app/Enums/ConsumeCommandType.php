@@ -12,7 +12,6 @@ enum ConsumeCommandType: string
     case Resume = 'resume';
     case Stop = 'stop';
     case ReloadConfig = 'reload_config';
-    case SetInterval = 'set_interval';
     case RequestSnapshot = 'request_snapshot';
     case SetTaskReviewEnabled = 'set_task_review_enabled';
 
@@ -22,6 +21,15 @@ enum ConsumeCommandType: string
     case TaskDone = 'task_done';
     case TaskCreate = 'task_create';
     case DependencyAdd = 'dependency_add';
+
+    // Browser automation commands
+    case BrowserCreate = 'browser_create';
+    case BrowserPage = 'browser_page';
+    case BrowserGoto = 'browser_goto';
+    case BrowserRun = 'browser_run';
+    case BrowserScreenshot = 'browser_screenshot';
+    case BrowserClose = 'browser_close';
+    case BrowserStatus = 'browser_status';
 
     public static function fromString(string $value): self
     {

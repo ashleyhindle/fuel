@@ -9,22 +9,17 @@ use App\Ipc\IpcMessage;
 final class ConsumeIpcServer
 {
     /** @var resource|null */
-    private $socket = null;
+    private $socket;
 
     /** @var array<string, array{stream: resource, buffer: string}> */
     private array $clients = [];
 
-    private ConsumeIpcProtocol $protocol;
+    private readonly ConfigService $configService;
 
-    private ConfigService $configService;
+    private const MAX_BUFFER_SIZE = 10485760;
 
-    private const MAX_BUFFER_SIZE = 10485760; // 10MB - Allow larger snapshots
-
-    private ?int $tcpPort = null;
-
-    public function __construct(?ConsumeIpcProtocol $protocol = null, ?ConfigService $configService = null)
+    public function __construct(private readonly ConsumeIpcProtocol $protocol = new ConsumeIpcProtocol, ?ConfigService $configService = null)
     {
-        $this->protocol = $protocol ?? new ConsumeIpcProtocol;
         $this->configService = $configService ?? app(ConfigService::class);
     }
 
@@ -43,11 +38,12 @@ final class ConsumeIpcServer
     public function stop(): void
     {
         // Close all client connections
-        foreach ($this->clients as $clientId => $client) {
+        foreach ($this->clients as $client) {
             if (is_resource($client['stream'])) {
                 fclose($client['stream']);
             }
         }
+
         $this->clients = [];
 
         // Close server socket
@@ -96,7 +92,7 @@ final class ConsumeIpcServer
     {
         $encoded = $this->protocol->encode($message);
 
-        foreach ($this->clients as $clientId => $client) {
+        foreach (array_keys($this->clients) as $clientId) {
             $this->writeToClient($clientId, $encoded);
             // Force immediate flush for large messages
             $this->flushClientBuffer($clientId);
@@ -126,9 +122,9 @@ final class ConsumeIpcServer
     {
         $commands = [];
 
-        foreach ($this->clients as $clientId => $client) {
+        foreach (array_keys($this->clients) as $clientId) {
             $messages = $this->readFromClient($clientId);
-            if (! empty($messages)) {
+            if ($messages !== []) {
                 $commands[$clientId] = $messages;
             }
         }
@@ -162,12 +158,12 @@ final class ConsumeIpcServer
     }
 
     /**
-     * Start TCP socket on localhost with specified port.
+     * Start TCP socket on all interfaces with specified port.
      */
     private function startTcpSocket(int $port): void
     {
         $socket = @stream_socket_server(
-            "tcp://127.0.0.1:{$port}",
+            'tcp://0.0.0.0:'.$port,
             $errno,
             $errstr
         );
@@ -175,14 +171,14 @@ final class ConsumeIpcServer
         if ($socket === false) {
             if ($errno === 98 || $errno === 48) { // EADDRINUSE (Linux: 98, macOS: 48)
                 throw new \RuntimeException(
-                    "Port {$port} is already in use. Check for existing runner or change port in config."
+                    sprintf('Port %d is already in use. Check for existing runner or change port in config.', $port)
                 );
             }
-            throw new \RuntimeException("Failed to create TCP socket on port {$port}: $errstr ($errno)");
+
+            throw new \RuntimeException(sprintf('Failed to create TCP socket on port %d: %s (%s)', $port, $errstr, $errno));
         }
 
         $this->socket = $socket;
-        $this->tcpPort = $port;
     }
 
     /**
@@ -201,7 +197,7 @@ final class ConsumeIpcServer
         // Check buffer size limit
         if (strlen($this->clients[$clientId]['buffer']) > self::MAX_BUFFER_SIZE) {
             // Log warning about large buffer before disconnecting
-            error_log("[IPC Server] Client $clientId buffer exceeded ".self::MAX_BUFFER_SIZE.' bytes, disconnecting');
+            error_log(sprintf('[IPC Server] Client %s buffer exceeded ', $clientId).self::MAX_BUFFER_SIZE.' bytes, disconnecting');
             $this->disconnectSlowClient($clientId);
 
             return;
@@ -240,7 +236,7 @@ final class ConsumeIpcServer
 
             if ($written === false) {
                 // Write failed, disconnect client
-                error_log("[IPC Server] Write failed for client $clientId after writing $totalWritten of $totalToWrite bytes");
+                error_log(sprintf('[IPC Server] Write failed for client %s after writing %d of %d bytes', $clientId, $totalWritten, $totalToWrite));
                 $this->disconnectSlowClient($clientId);
 
                 return;
@@ -258,10 +254,7 @@ final class ConsumeIpcServer
         // Remove written bytes from buffer
         $this->clients[$clientId]['buffer'] = substr($buffer, $totalWritten);
 
-        if ($totalWritten > 0 && strlen($this->clients[$clientId]['buffer']) > 0) {
-            // Log if we couldn't write everything
-            error_log("[IPC Server] Partial write for client $clientId: wrote $totalWritten of $totalToWrite bytes, ".strlen($this->clients[$clientId]['buffer']).' bytes remaining in buffer');
-        }
+        // Partial writes are normal for large messages - buffer will be flushed on next tick
     }
 
     /**

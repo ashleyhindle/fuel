@@ -2,12 +2,18 @@
 
 declare(strict_types=1);
 
+use App\Contracts\AgentHealthTrackerInterface;
+use App\Contracts\ReviewServiceInterface;
+use App\Daemon\BrowserCommandHandler;
 use App\Daemon\CompletionHandler;
+use App\Daemon\IpcCommandDispatcher;
 use App\Daemon\LifecycleManager;
+use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
 use App\Ipc\Events\HelloEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Services\BackoffStrategy;
+use App\Services\BrowserDaemonManager;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcProtocol;
 use App\Services\ConsumeIpcServer;
@@ -18,7 +24,7 @@ use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     // Use isolated temp directory for tests
     $this->testDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->testDir.'/.fuel', 0755, true);
@@ -28,7 +34,7 @@ beforeEach(function () {
     chdir($this->testDir);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Close Mockery
     Mockery::close();
 
@@ -48,12 +54,13 @@ afterEach(function () {
                 unlink($file->getPathname());
             }
         }
+
         rmdir($this->testDir);
     }
 });
 
-describe('ConsumeRunner client attach', function () {
-    test('client receives HelloEvent and SnapshotEvent via socket pair', function () {
+describe('ConsumeRunner client attach', function (): void {
+    test('client receives HelloEvent and SnapshotEvent via socket pair', function (): void {
         // Create protocol
         $protocol = new ConsumeIpcProtocol;
 
@@ -84,16 +91,16 @@ describe('ConsumeRunner client attach', function () {
         $fuelContext = new FuelContext($testDir.'/.fuel');
 
         // Create real LifecycleManager instance (it's a final class and cannot be mocked)
-        $lifecycleManager = new \App\Daemon\LifecycleManager($fuelContext);
+        $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true)->byDefault();
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0)->byDefault();
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([])->byDefault();
 
         // Create real TaskSpawner instance (it's a final class and cannot be mocked)
-        $taskSpawner = new \App\Daemon\TaskSpawner(
+        $taskSpawner = new TaskSpawner(
             $taskService,
             $configService,
             $runService,
@@ -103,28 +110,27 @@ describe('ConsumeRunner client attach', function () {
         );
 
         // Create real CompletionHandler instance (it's a final class and cannot be mocked)
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
             $configService,
-            $healthTracker,
-            null  // reviewService
+            $healthTracker  // reviewService
         );
         $ipcServer = new ConsumeIpcServer($protocol);
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -133,7 +139,7 @@ describe('ConsumeRunner client attach', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -145,21 +151,15 @@ describe('ConsumeRunner client attach', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Simulate client connection using stream_socket_pair for testing
@@ -212,7 +212,7 @@ describe('ConsumeRunner client attach', function () {
         fclose($serverSocket);
     });
 
-    test('SnapshotEvent contains board_state', function () {
+    test('SnapshotEvent contains board_state', function (): void {
         // Create protocol and IPC server
         $protocol = new ConsumeIpcProtocol;
         $ipcServer = new ConsumeIpcServer($protocol);
@@ -241,7 +241,7 @@ describe('ConsumeRunner client attach', function () {
         $lifecycleManager = new LifecycleManager($fuelContext);
 
         // Mock health tracker for TaskSpawner
-        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker = Mockery::mock(AgentHealthTrackerInterface::class);
         $healthTracker->shouldReceive('canSpawn')->andReturn(true);
         $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
         $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
@@ -257,9 +257,9 @@ describe('ConsumeRunner client attach', function () {
         );
 
         // Mock review service for CompletionHandler
-        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+        $reviewService = Mockery::mock(ReviewServiceInterface::class);
 
-        $completionHandler = new \App\Daemon\CompletionHandler(
+        $completionHandler = new CompletionHandler(
             $processManager,
             $taskService,
             $runService,
@@ -269,17 +269,17 @@ describe('ConsumeRunner client attach', function () {
         );
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
-        $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager = Mockery::mock(BrowserDaemonManager::class);
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
-        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+        $browserCommandHandler = new BrowserCommandHandler(
             $browserManager,
             $ipcServer,
             $lifecycleManager
         );
 
         // Create IpcCommandDispatcher
-        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $ipcCommandDispatcher = new IpcCommandDispatcher(
             $ipcServer,
             $lifecycleManager,
             $completionHandler,
@@ -288,7 +288,7 @@ describe('ConsumeRunner client attach', function () {
         );
 
         // Create SnapshotManager
-        $snapshotManager = new \App\Daemon\SnapshotManager(
+        $snapshotManager = new SnapshotManager(
             $ipcServer,
             $taskService,
             $processManager,
@@ -300,21 +300,15 @@ describe('ConsumeRunner client attach', function () {
         $runner = new ConsumeRunner(
             $ipcServer,
             $processManager,
-            $protocol,
             $taskService,
             $configService,
             $runService,
-            $backoffStrategy,
-            $promptBuilder,
-            $fuelContext,
             $lifecycleManager,
             $taskSpawner,
             $completionHandler,
             $ipcCommandDispatcher,
             $snapshotManager,
             $browserManager,
-            null, // reviewManager
-            $healthTracker
         );
 
         // Get snapshot and verify structure
@@ -339,7 +333,7 @@ describe('ConsumeRunner client attach', function () {
         ]);
     });
 
-    test('HelloEvent contains instance_id and version', function () {
+    test('HelloEvent contains instance_id and version', function (): void {
         // Create protocol
         $protocol = new ConsumeIpcProtocol;
 

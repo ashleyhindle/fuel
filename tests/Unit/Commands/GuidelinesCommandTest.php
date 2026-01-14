@@ -2,24 +2,26 @@
 
 declare(strict_types=1);
 
-beforeEach(function () {
+use App\Commands\GuidelinesCommand;
+
+beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     if (is_dir($this->tempDir)) {
-        array_map('unlink', glob($this->tempDir.'/*'));
+        array_map(unlink(...), glob($this->tempDir.'/*'));
         rmdir($this->tempDir);
     }
 });
 
-it('outputs guidelines content including browser testing section', function () {
+it('outputs guidelines content including browser testing section', function (): void {
     // Use reflection to access the protected method
-    $command = new \App\Commands\GuidelinesCommand;
+    $command = new GuidelinesCommand;
     $reflection = new ReflectionClass($command);
     $method = $reflection->getMethod('getGuidelinesContent');
-    $method->setAccessible(true);
+
     $content = $method->invoke($command);
 
     expect($content)->toContain('### Testing Visual Changes with Browser');
@@ -29,7 +31,7 @@ it('outputs guidelines content including browser testing section', function () {
     expect($content)->toContain('Common Visual Testing Scenarios');
 });
 
-it('injects guidelines with browser testing section into CLAUDE.md', function () {
+it('injects guidelines with browser testing section into CLAUDE.md', function (): void {
     $claudePath = $this->tempDir.'/CLAUDE.md';
     file_put_contents($claudePath, "# Project Instructions\n\nSome existing content.\n");
 
@@ -47,7 +49,7 @@ it('injects guidelines with browser testing section into CLAUDE.md', function ()
     expect($content)->toContain('Common Visual Testing Scenarios');
 });
 
-it('replaces existing fuel section with updated content', function () {
+it('replaces existing fuel section with updated content', function (): void {
     $claudePath = $this->tempDir.'/CLAUDE.md';
     file_put_contents($claudePath, "# Project\n\n<fuel>\nOld content\n</fuel>\n\nMore content");
 
@@ -63,7 +65,7 @@ it('replaces existing fuel section with updated content', function () {
     expect($content)->toContain('More content'); // Preserves content outside fuel tags
 });
 
-it('creates file with guidelines if it does not exist', function () {
+it('creates file with guidelines if it does not exist', function (): void {
     $agentsPath = $this->tempDir.'/AGENTS.md';
 
     expect(file_exists($agentsPath))->toBeFalse();

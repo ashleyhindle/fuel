@@ -29,6 +29,7 @@ describe('consume --once kanban board', function (): void {
         $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
         $this->taskService = $this->app->make(TaskService::class);
+        $this->runService = $this->app->make(RunService::class);
 
         // Create minimal config file
         $minimalConfig = <<<'YAML'
@@ -143,8 +144,8 @@ YAML;
         $stuckTask = $this->taskService->create(['title' => 'Stuck task']);
         $this->taskService->update($stuckTask->short_id, [
             'consumed' => true,
-            'consumed_exit_code' => 1,
         ]);
+        $this->runService->logRun($stuckTask->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
         expect(runCommand('consume', ['--once' => true]))
             ->toContain('🪫')
@@ -155,8 +156,8 @@ YAML;
         $successTask = $this->taskService->create(['title' => 'Success task']);
         $this->taskService->update($successTask->short_id, [
             'consumed' => true,
-            'consumed_exit_code' => 0,
         ]);
+        $this->runService->logRun($successTask->short_id, ['agent' => 'test', 'exit_code' => 0]);
 
         expect(runCommand('consume', ['--once' => true]))
             ->toContain('Success task')

@@ -44,20 +44,16 @@ class ProcessManager implements ProcessManagerInterface
     /** Number of times SIGTERM/SIGINT has been received */
     private int $shutdownSignalCount = 0;
 
-    /** Flag indicating if this is a runner process (vs client) */
-    private bool $isRunner;
-
     /** Optional callback for output chunks: (taskId, stream, chunk) => void */
-    private $outputCallback = null;
+    private $outputCallback;
 
     public function __construct(
         private readonly ConfigService $configService,
         private readonly FuelContext $fuelContext,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
-        bool $isRunner = true,
-    ) {
-        $this->isRunner = $isRunner;
-    }
+        /** Flag indicating if this is a runner process (vs client) */
+        private readonly bool $isRunner = true
+    ) {}
 
     /**
      * Set callback for output chunks (used by IPC runner to broadcast output).
@@ -607,6 +603,8 @@ class ProcessManager implements ProcessManagerInterface
      * Spawn a new process for a task with ConsumeCommand-compatible signature.
      *
      * This is the method that ConsumeCommand should call.
+     *
+     * @deprecated Use spawnAgentTask() with WorkAgentTask instead
      *
      * @param  Task  $task  The task model
      * @param  string  $fullPrompt  The prompt to send to the agent

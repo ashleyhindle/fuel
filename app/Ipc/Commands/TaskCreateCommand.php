@@ -19,6 +19,10 @@ final class TaskCreateCommand implements IpcMessage, JsonSerializable
         public ?string $description,
         public ?string $labels,
         public ?int $priority,
+        public ?string $type,
+        public ?string $complexity,
+        public ?string $epicId,
+        public ?string $blockedBy,
         DateTimeImmutable $timestamp,
         string $instanceId,
         ?string $requestId = null
@@ -35,6 +39,10 @@ final class TaskCreateCommand implements IpcMessage, JsonSerializable
             description: $data['description'] ?? null,
             labels: $data['labels'] ?? null,
             priority: $data['priority'] ?? null,
+            type: $data['task_type'] ?? null,
+            complexity: $data['complexity'] ?? null,
+            epicId: $data['epic_id'] ?? null,
+            blockedBy: $data['blocked_by'] ?? null,
             timestamp: new DateTimeImmutable($data['timestamp'] ?? 'now'),
             instanceId: $data['instance_id'] ?? '',
             requestId: $data['request_id'] ?? null
@@ -54,7 +62,7 @@ final class TaskCreateCommand implements IpcMessage, JsonSerializable
     public function toArray(): array
     {
         return [
-            'type' => $this->type(),
+            'type' => ConsumeCommandType::TaskCreate->value,
             'timestamp' => $this->timestamp->format('c'),
             'instance_id' => $this->instanceId,
             'request_id' => $this->requestId,
@@ -62,6 +70,10 @@ final class TaskCreateCommand implements IpcMessage, JsonSerializable
             'description' => $this->description,
             'labels' => $this->labels,
             'priority' => $this->priority,
+            'task_type' => $this->type,
+            'complexity' => $this->complexity,
+            'epic_id' => $this->epicId,
+            'blocked_by' => $this->blockedBy,
         ];
     }
 }

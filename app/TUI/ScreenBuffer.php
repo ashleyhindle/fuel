@@ -205,6 +205,7 @@ class ScreenBuffer
                 if ($colIndex >= 0 && $colIndex < $this->width) {
                     $chars[$colIndex] = $char;
                 }
+
                 $colIndex++;
             }
         }

@@ -590,7 +590,7 @@ describe('add command', function (): void {
         $command = sprintf('%s %s add --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
 
         $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
-        $task = json_decode($result['stdout'], true);
+        $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
         expect($task['title'])->toBe('Task title from pipe');
@@ -603,7 +603,7 @@ describe('add command', function (): void {
         $command = sprintf('%s %s add "Title from argument" --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
 
         $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
-        $task = json_decode($result['stdout'], true);
+        $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
         expect($task['title'])->toBe('Title from argument');
@@ -616,7 +616,7 @@ describe('add command', function (): void {
         $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
 
         $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
-        $task = json_decode($result['stdout'], true);
+        $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
         expect($task['title'])->toBe('Task title only');
@@ -629,7 +629,7 @@ describe('add command', function (): void {
         $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
 
         $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
-        $task = json_decode($result['stdout'], true);
+        $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
         expect($task['title'])->toBe('Task Title');
@@ -646,7 +646,7 @@ describe('add command', function (): void {
         );
 
         $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
-        $task = json_decode($result['stdout'], true);
+        $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
         expect($task['title'])->toBe('Piped Task Title');

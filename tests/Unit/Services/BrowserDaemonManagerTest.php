@@ -4,26 +4,26 @@ declare(strict_types=1);
 
 use App\Services\BrowserDaemonManager;
 
-beforeEach(function () {
+beforeEach(function (): void {
     // Clean up any existing daemon before each test
     $manager = BrowserDaemonManager::getInstance();
     $manager->stop();
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Clean up after each test
     $manager = BrowserDaemonManager::getInstance();
     $manager->stop();
 });
 
-it('returns the same singleton instance', function () {
+it('returns the same singleton instance', function (): void {
     $instance1 = BrowserDaemonManager::getInstance();
     $instance2 = BrowserDaemonManager::getInstance();
 
     expect($instance1)->toBe($instance2);
 });
 
-it('can start the daemon', function () {
+it('can start the daemon', function (): void {
     $manager = BrowserDaemonManager::getInstance();
 
     expect($manager->isRunning())->toBeFalse();
@@ -33,17 +33,18 @@ it('can start the daemon', function () {
     expect($manager->isRunning())->toBeTrue();
 });
 
-it('can stop the daemon', function () {
+it('can stop the daemon', function (): void {
     $manager = BrowserDaemonManager::getInstance();
 
     $manager->start();
+
     expect($manager->isRunning())->toBeTrue();
 
     $manager->stop();
     expect($manager->isRunning())->toBeFalse();
 });
 
-it('does not error when stopping already stopped daemon', function () {
+it('does not error when stopping already stopped daemon', function (): void {
     $manager = BrowserDaemonManager::getInstance();
 
     expect($manager->isRunning())->toBeFalse();
@@ -54,10 +55,11 @@ it('does not error when stopping already stopped daemon', function () {
     expect($manager->isRunning())->toBeFalse();
 });
 
-it('does not error when starting already started daemon', function () {
+it('does not error when starting already started daemon', function (): void {
     $manager = BrowserDaemonManager::getInstance();
 
     $manager->start();
+
     expect($manager->isRunning())->toBeTrue();
 
     // Should not throw or restart
@@ -66,7 +68,7 @@ it('does not error when starting already started daemon', function () {
     expect($manager->isRunning())->toBeTrue();
 });
 
-it('can get daemon status when running', function () {
+it('can get daemon status when running', function (): void {
     $manager = BrowserDaemonManager::getInstance();
 
     $manager->start();
@@ -77,7 +79,7 @@ it('can get daemon status when running', function () {
     expect($status['daemonRunning'])->toBeTrue();
 });
 
-it('returns appropriate status when daemon is not running', function () {
+it('returns appropriate status when daemon is not running', function (): void {
     $manager = BrowserDaemonManager::getInstance();
 
     $status = $manager->status();
@@ -89,7 +91,7 @@ it('returns appropriate status when daemon is not running', function () {
     expect($status['pages'])->toBeArray()->toBeEmpty();
 });
 
-it('can create and close contexts', function () {
+it('can create and close contexts', function (): void {
     $manager = BrowserDaemonManager::getInstance();
     $manager->start();
 
@@ -115,7 +117,7 @@ it('can create and close contexts', function () {
     expect($status['contexts'])->not->toContain('test-context');
 });
 
-it('can create pages in contexts', function () {
+it('can create pages in contexts', function (): void {
     $manager = BrowserDaemonManager::getInstance();
     $manager->start();
 
@@ -135,7 +137,7 @@ it('can create pages in contexts', function () {
     $manager->closeContext('test-context');
 });
 
-it('automatically starts daemon when sending requests', function () {
+it('automatically starts daemon when sending requests', function (): void {
     $manager = BrowserDaemonManager::getInstance();
 
     expect($manager->isRunning())->toBeFalse();

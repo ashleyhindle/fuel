@@ -7,6 +7,7 @@ namespace App\Daemon;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\TaskStatus;
 use App\Ipc\Events\ReviewCompletedEvent;
+use App\Models\Review;
 use App\Process\ReviewResult;
 use App\Services\ConsumeIpcServer;
 use App\Services\TaskService;
@@ -23,14 +24,14 @@ use RuntimeException;
  * - Mark tasks complete that pass review
  * - Broadcast review completion events to IPC clients
  */
-final class ReviewManager
+final readonly class ReviewManager
 {
     public function __construct(
-        private readonly ReviewServiceInterface $reviewService,
-        private readonly TaskService $taskService,
-        private readonly TaskSpawner $taskSpawner,
-        private readonly ConsumeIpcServer $ipcServer,
-        private readonly LifecycleManager $lifecycleManager
+        private ReviewServiceInterface $reviewService,
+        private TaskService $taskService,
+        private TaskSpawner $taskSpawner,
+        private ConsumeIpcServer $ipcServer,
+        private LifecycleManager $lifecycleManager
     ) {}
 
     /**
@@ -38,10 +39,6 @@ final class ReviewManager
      */
     public function checkCompletedReviews(): void
     {
-        if (! $this->reviewService instanceof ReviewServiceInterface) {
-            return;
-        }
-
         foreach ($this->reviewService->getPendingReviews() as $taskId) {
             if ($this->reviewService->isReviewComplete($taskId)) {
                 // Get the review's original_status from ReviewService's tracking
@@ -53,7 +50,7 @@ final class ReviewManager
 
                 if ($reviewId !== null) {
                     // Get the Review model to access original_status
-                    $review = \App\Models\Review::where('short_id', $reviewId)->first();
+                    $review = Review::where('short_id', $reviewId)->first();
                     $originalStatus = $review?->original_status;
                     $wasAlreadyDone = $originalStatus === TaskStatus::Done->value;
                 }
@@ -95,7 +92,7 @@ final class ReviewManager
                         // Task was already done but review failed - reopen with issues
                         try {
                             $this->taskService->reopen($taskId);
-                        } catch (RuntimeException $e) {
+                        } catch (RuntimeException) {
                             // Could not reopen - task may have been deleted or modified
                         }
                     } else {

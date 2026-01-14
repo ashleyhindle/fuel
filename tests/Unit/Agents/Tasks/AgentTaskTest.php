@@ -71,6 +71,43 @@ describe('WorkAgentTask', function (): void {
         expect($agentTask->getAgentName($this->configService))->toBe('simple-agent');
     });
 
+    it('uses agent override when provided', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'open', 'complexity' => 'moderate']);
+
+        // ConfigService should NOT be called when agent override is set
+        $this->configService->shouldNotReceive('getAgentForComplexity');
+
+        $agentTask = new WorkAgentTask(
+            $task,
+            $this->taskService,
+            $this->promptBuilder,
+            reviewService: null,
+            reviewEnabled: false,
+            agentOverride: 'sonnet',
+        );
+
+        expect($agentTask->getAgentName($this->configService))->toBe('sonnet');
+    });
+
+    it('uses complexity routing when agent override is null', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'open', 'complexity' => 'moderate']);
+
+        $this->configService->shouldReceive('getAgentForComplexity')
+            ->with('moderate')
+            ->once()
+            ->andReturn('medium-agent');
+
+        $agentTask = new WorkAgentTask(
+            $task,
+            $this->taskService,
+            $this->promptBuilder,
+            reviewService: null,
+            reviewEnabled: false,
+        );
+
+        expect($agentTask->getAgentName($this->configService))->toBe('medium-agent');
+    });
+
     it('builds prompt using TaskPromptBuilder', function (): void {
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'open']);
 

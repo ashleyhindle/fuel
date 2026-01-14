@@ -83,7 +83,7 @@ final readonly class DaemonState
     {
         try {
             $property = $reflection->getProperty($propertyName);
-            $property->setAccessible(true);
+
             return $property->getValue($instance);
         } catch (\ReflectionException) {
             return null;
@@ -145,6 +145,7 @@ final readonly class DaemonState
     {
         $attempts = $this->taskRetryAttempts;
         $attempts[$taskId] = ($attempts[$taskId] ?? 0) + 1;
+
         return $this->withTaskRetryAttempts($attempts);
     }
 
@@ -152,6 +153,7 @@ final readonly class DaemonState
     {
         $attempts = $this->taskRetryAttempts;
         unset($attempts[$taskId]);
+
         return $this->withTaskRetryAttempts($attempts);
     }
 
@@ -164,6 +166,7 @@ final readonly class DaemonState
     {
         $statuses = $this->preReviewTaskStatus;
         $statuses[$taskId] = $status;
+
         return $this->withPreReviewTaskStatus($statuses);
     }
 
@@ -178,10 +181,12 @@ final readonly class DaemonState
         if (! isset($buffers[$taskId])) {
             $buffers[$taskId] = '';
         }
+
         $buffers[$taskId] .= $chunk;
         if (strlen($buffers[$taskId]) > $maxSize) {
             $buffers[$taskId] = substr($buffers[$taskId], -$maxSize);
         }
+
         return $this->withOutputRingBuffers($buffers);
     }
 
@@ -189,10 +194,22 @@ final readonly class DaemonState
     {
         $buffers = $this->outputRingBuffers;
         unset($buffers[$taskId]);
+
         return $this->withOutputRingBuffers($buffers);
     }
 
-    public function getRetryAttempts(string $taskId): int { return $this->taskRetryAttempts[$taskId] ?? 0; }
-    public function getPreReviewStatus(string $taskId): ?string { return $this->preReviewTaskStatus[$taskId] ?? null; }
-    public function getOutputBuffer(string $taskId): string { return $this->outputRingBuffers[$taskId] ?? ''; }
+    public function getRetryAttempts(string $taskId): int
+    {
+        return $this->taskRetryAttempts[$taskId] ?? 0;
+    }
+
+    public function getPreReviewStatus(string $taskId): ?string
+    {
+        return $this->preReviewTaskStatus[$taskId] ?? null;
+    }
+
+    public function getOutputBuffer(string $taskId): string
+    {
+        return $this->outputRingBuffers[$taskId] ?? '';
+    }
 }

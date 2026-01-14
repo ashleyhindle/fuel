@@ -262,21 +262,35 @@ class ConsumeIpcClient
         );
         $this->sendMessage($attachCmd);
 
-        // Wait for HelloEvent
-        $helloEvent = $this->waitForEvent('hello', 5);
-        if (! $helloEvent instanceof IpcMessage) {
+        // Wait for both Hello and Snapshot events
+        $deadline = time() + 5;
+        $gotHello = false;
+        $gotSnapshot = false;
+
+        // Set up blocking reads with short timeout
+        stream_set_blocking($this->socket, true);
+        stream_set_timeout($this->socket, 0, 100000); // 100ms read timeout
+
+        while (time() < $deadline && (! $gotHello || ! $gotSnapshot)) {
+            $event = $this->readEvent();
+            if ($event instanceof IpcMessage) {
+                if ($event->type() === 'hello') {
+                    $gotHello = true;
+                } elseif ($event->type() === 'snapshot') {
+                    $gotSnapshot = true;
+                    if ($event instanceof SnapshotEvent) {
+                        $this->applySnapshotEvent($event);
+                    }
+                }
+            }
+        }
+
+        if (! $gotHello) {
             throw new \RuntimeException('Did not receive HelloEvent from runner');
         }
 
-        // Wait for SnapshotEvent
-        $snapshotEvent = $this->waitForEvent('snapshot', 5);
-        if (! $snapshotEvent instanceof IpcMessage) {
+        if (! $gotSnapshot) {
             throw new \RuntimeException('Did not receive SnapshotEvent from runner');
-        }
-
-        // Apply snapshot to initialize state
-        if ($snapshotEvent instanceof SnapshotEvent) {
-            $this->applySnapshotEvent($snapshotEvent);
         }
 
         $this->connected = true;
@@ -489,6 +503,49 @@ class ConsumeIpcClient
     }
 
     /**
+     * Get runner status in one simple call.
+     *
+     * Handles connect, attach, snapshot, and disconnect internally.
+     * Returns null if daemon is not running or connection fails.
+     *
+     * @return array{state: string, active_processes: int}|null
+     */
+    public static function getStatus(string $pidFilePath): ?array
+    {
+        $client = new self;
+
+        if (! $client->isRunnerAlive($pidFilePath)) {
+            return null;
+        }
+
+        $pidData = json_decode(file_get_contents($pidFilePath) ?: '', true);
+        if (! is_array($pidData) || ! isset($pidData['port'])) {
+            return null;
+        }
+
+        try {
+            $client->connect((int) $pidData['port']);
+            $client->attach();
+
+            $result = [
+                'state' => $client->isPaused() ? 'PAUSED' : 'RUNNING',
+                'active_processes' => count($client->getActiveProcesses()),
+            ];
+
+            $client->disconnect();
+
+            return $result;
+        } catch (\Throwable $e) {
+            try {
+                $client->disconnect();
+            } catch (\Throwable) {
+            }
+
+            return null;
+        }
+    }
+
+    /**
      * Get the instance ID for this client session.
      */
     public function getInstanceId(): string
@@ -606,6 +663,10 @@ class ConsumeIpcClient
             description: $taskData['description'] ?? null,
             labels: $taskData['labels'] ?? null,
             priority: $taskData['priority'] ?? null,
+            type: $taskData['type'] ?? null,
+            complexity: $taskData['complexity'] ?? null,
+            epicId: $taskData['epic_id'] ?? null,
+            blockedBy: $taskData['blocked_by'] ?? null,
             timestamp: new DateTimeImmutable,
             instanceId: $this->instanceId,
             requestId: $requestId
@@ -692,14 +753,14 @@ class ConsumeIpcClient
         // Temporarily set socket to blocking mode for reliable reading during attach
         $wasBlocking = stream_get_meta_data($this->socket)['blocked'] ?? false;
         stream_set_blocking($this->socket, true);
-        stream_set_timeout($this->socket, 1); // 1 second read timeout
+        stream_set_timeout($this->socket, 0, 200000); // 200ms read timeout
 
         try {
             while (time() < $deadline) {
                 // If we have partial data in buffer but no complete message,
                 // wait a bit for more data to arrive
                 if ($this->readBuffer !== '' && ! str_contains($this->readBuffer, "\n")) {
-                    usleep(100000); // 100ms to let more data arrive
+                    usleep(20000); // 20ms to let more data arrive
                 }
 
                 $event = $this->readEvent();
@@ -707,7 +768,7 @@ class ConsumeIpcClient
                     return $event;
                 }
 
-                usleep(50000); // 50ms
+                usleep(10000); // 10ms
             }
 
             return null;

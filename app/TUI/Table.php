@@ -20,7 +20,7 @@ class Table
      */
     public function render(array $headers, array $rows, OutputInterface $output): void
     {
-        if (empty($headers)) {
+        if ($headers === []) {
             return;
         }
 
@@ -39,7 +39,7 @@ class Table
      */
     public function buildTable(array $headers, array $rows): array
     {
-        if (empty($headers)) {
+        if ($headers === []) {
             return [];
         }
 

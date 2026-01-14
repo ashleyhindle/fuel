@@ -11,25 +11,25 @@ use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
-use App\Ipc\Commands\SetIntervalCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\Events\ErrorEvent;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\HelloEvent;
 use App\Ipc\Events\OutputChunkEvent;
+use App\Ipc\Events\ReviewCompletedEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Ipc\Events\StatusLineEvent;
 use App\Ipc\Events\TaskCompletedEvent;
 use App\Ipc\Events\TaskSpawnedEvent;
 use App\Services\ConsumeIpcProtocol;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->protocol = new ConsumeIpcProtocol;
     $this->instanceId = 'test-instance-123';
 });
 
-describe('encode', function () {
-    test('encodes message to JSON line with newline', function () {
+describe('encode', function (): void {
+    test('encodes message to JSON line with newline', function (): void {
         $event = new HelloEvent('1.0.0', $this->instanceId);
         $encoded = $this->protocol->encode($event);
 
@@ -37,7 +37,7 @@ describe('encode', function () {
         expect(json_decode(trim($encoded), true))->toBeArray();
     });
 
-    test('encodes all message fields correctly', function () {
+    test('encodes all message fields correctly', function (): void {
         $event = new HelloEvent('1.0.0', $this->instanceId);
         $encoded = $this->protocol->encode($event);
         $decoded = json_decode(trim($encoded), true);
@@ -50,8 +50,8 @@ describe('encode', function () {
     });
 });
 
-describe('decode', function () {
-    test('decodes valid JSON to IpcMessage', function () {
+describe('decode', function (): void {
+    test('decodes valid JSON to IpcMessage', function (): void {
         $line = json_encode([
             'type' => 'hello',
             'instance_id' => $this->instanceId,
@@ -65,7 +65,7 @@ describe('decode', function () {
         expect($message->type())->toBe(ConsumeEventType::Hello->value);
     });
 
-    test('returns ErrorEvent for malformed JSON', function () {
+    test('returns ErrorEvent for malformed JSON', function (): void {
         $line = 'not valid json {';
         $message = $this->protocol->decode($line, $this->instanceId);
 
@@ -73,7 +73,7 @@ describe('decode', function () {
         expect($message->message())->toContain('Malformed JSON');
     });
 
-    test('returns ErrorEvent for non-object JSON', function () {
+    test('returns ErrorEvent for non-object JSON', function (): void {
         $line = json_encode('string value');
         $message = $this->protocol->decode($line, $this->instanceId);
 
@@ -81,7 +81,7 @@ describe('decode', function () {
         expect($message->message())->toContain('Expected JSON object');
     });
 
-    test('returns ErrorEvent for missing type field', function () {
+    test('returns ErrorEvent for missing type field', function (): void {
         $line = json_encode(['instance_id' => $this->instanceId]);
         $message = $this->protocol->decode($line, $this->instanceId);
 
@@ -89,7 +89,7 @@ describe('decode', function () {
         expect($message->message())->toContain('Missing required field: type');
     });
 
-    test('returns ErrorEvent for unknown type', function () {
+    test('returns ErrorEvent for unknown type', function (): void {
         $line = json_encode(['type' => 'unknown_type', 'instance_id' => $this->instanceId]);
         $message = $this->protocol->decode($line, $this->instanceId);
 
@@ -97,7 +97,7 @@ describe('decode', function () {
         expect($message->message())->toContain('Unknown message type');
     });
 
-    test('strips trailing newlines and whitespace', function () {
+    test('strips trailing newlines and whitespace', function (): void {
         $line = json_encode([
             'type' => 'hello',
             'instance_id' => $this->instanceId,
@@ -110,8 +110,8 @@ describe('decode', function () {
     });
 });
 
-describe('round-trip command types', function () {
-    test('AttachCommand', function () {
+describe('round-trip command types', function (): void {
+    test('AttachCommand', function (): void {
         $original = new AttachCommand(
             last_event_id: 12345,
             timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
@@ -127,7 +127,7 @@ describe('round-trip command types', function () {
         expect($decoded->last_event_id)->toBe(12345);
     });
 
-    test('DetachCommand', function () {
+    test('DetachCommand', function (): void {
         $original = new DetachCommand(
             timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
             instanceId: $this->instanceId
@@ -140,7 +140,7 @@ describe('round-trip command types', function () {
         expect($decoded->type())->toBe(ConsumeCommandType::Detach->value);
     });
 
-    test('PauseCommand', function () {
+    test('PauseCommand', function (): void {
         $original = new PauseCommand(
             timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
             instanceId: $this->instanceId
@@ -153,7 +153,7 @@ describe('round-trip command types', function () {
         expect($decoded->type())->toBe(ConsumeCommandType::Pause->value);
     });
 
-    test('ResumeCommand', function () {
+    test('ResumeCommand', function (): void {
         $original = new ResumeCommand(
             timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
             instanceId: $this->instanceId
@@ -166,7 +166,7 @@ describe('round-trip command types', function () {
         expect($decoded->type())->toBe(ConsumeCommandType::Resume->value);
     });
 
-    test('StopCommand', function () {
+    test('StopCommand', function (): void {
         $original = new StopCommand(
             mode: 'graceful',
             timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
@@ -181,7 +181,7 @@ describe('round-trip command types', function () {
         expect($decoded->mode)->toBe('graceful');
     });
 
-    test('ReloadConfigCommand', function () {
+    test('ReloadConfigCommand', function (): void {
         $original = new ReloadConfigCommand(
             timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
             instanceId: $this->instanceId
@@ -194,22 +194,7 @@ describe('round-trip command types', function () {
         expect($decoded->type())->toBe(ConsumeCommandType::ReloadConfig->value);
     });
 
-    test('SetIntervalCommand', function () {
-        $original = new SetIntervalCommand(
-            interval_seconds: 10,
-            timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
-            instanceId: $this->instanceId
-        );
-
-        $encoded = $this->protocol->encode($original);
-        $decoded = $this->protocol->decode($encoded, $this->instanceId);
-
-        expect($decoded)->toBeInstanceOf(SetIntervalCommand::class);
-        expect($decoded->type())->toBe(ConsumeCommandType::SetInterval->value);
-        expect($decoded->interval_seconds)->toBe(10);
-    });
-
-    test('RequestSnapshotCommand', function () {
+    test('RequestSnapshotCommand', function (): void {
         $original = new RequestSnapshotCommand(
             timestamp: new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
             instanceId: $this->instanceId
@@ -223,8 +208,8 @@ describe('round-trip command types', function () {
     });
 });
 
-describe('round-trip event types', function () {
-    test('HelloEvent', function () {
+describe('round-trip event types', function (): void {
+    test('HelloEvent', function (): void {
         $original = new HelloEvent(
             version: '1.0.0',
             instanceId: $this->instanceId
@@ -238,7 +223,7 @@ describe('round-trip event types', function () {
         expect($decoded->version())->toBe('1.0.0');
     });
 
-    test('SnapshotEvent', function () {
+    test('SnapshotEvent', function (): void {
         $snapshot = new ConsumeSnapshot(
             boardState: [
                 'ready' => collect([]),
@@ -270,7 +255,7 @@ describe('round-trip event types', function () {
         expect($decoded->snapshot()->activeProcesses)->toHaveCount(1);
     });
 
-    test('StatusLineEvent', function () {
+    test('StatusLineEvent', function (): void {
         $original = new StatusLineEvent(
             level: 'info',
             text: 'Test message',
@@ -286,7 +271,7 @@ describe('round-trip event types', function () {
         expect($decoded->text())->toBe('Test message');
     });
 
-    test('TaskSpawnedEvent', function () {
+    test('TaskSpawnedEvent', function (): void {
         $original = new TaskSpawnedEvent(
             taskId: 'f-abc123',
             runId: 'run-1',
@@ -304,7 +289,7 @@ describe('round-trip event types', function () {
         expect($decoded->agent())->toBe('claude');
     });
 
-    test('TaskCompletedEvent', function () {
+    test('TaskCompletedEvent', function (): void {
         $original = new TaskCompletedEvent(
             taskId: 'f-abc123',
             runId: 'run-1',
@@ -323,7 +308,7 @@ describe('round-trip event types', function () {
         expect($decoded->completionType())->toBe('success');
     });
 
-    test('HealthChangeEvent', function () {
+    test('HealthChangeEvent', function (): void {
         $original = new HealthChangeEvent(
             agent: 'claude',
             status: 'healthy',
@@ -339,7 +324,7 @@ describe('round-trip event types', function () {
         expect($decoded->status())->toBe('healthy');
     });
 
-    test('OutputChunkEvent', function () {
+    test('OutputChunkEvent', function (): void {
         $original = new OutputChunkEvent(
             taskId: 'f-abc123',
             runId: 'run-1',
@@ -358,8 +343,8 @@ describe('round-trip event types', function () {
         expect($decoded->chunk())->toBe('test output');
     });
 
-    test('ReviewCompletedEvent', function () {
-        $original = new \App\Ipc\Events\ReviewCompletedEvent(
+    test('ReviewCompletedEvent', function (): void {
+        $original = new ReviewCompletedEvent(
             taskId: 'f-abc123',
             passed: true,
             issues: [],
@@ -370,7 +355,7 @@ describe('round-trip event types', function () {
         $encoded = $this->protocol->encode($original);
         $decoded = $this->protocol->decode($encoded, $this->instanceId);
 
-        expect($decoded)->toBeInstanceOf(\App\Ipc\Events\ReviewCompletedEvent::class);
+        expect($decoded)->toBeInstanceOf(ReviewCompletedEvent::class);
         expect($decoded->type())->toBe(ConsumeEventType::ReviewCompleted->value);
         expect($decoded->taskId())->toBe('f-abc123');
         expect($decoded->passed())->toBeTrue();
@@ -378,7 +363,7 @@ describe('round-trip event types', function () {
         expect($decoded->wasAlreadyDone())->toBeFalse();
     });
 
-    test('ErrorEvent', function () {
+    test('ErrorEvent', function (): void {
         $original = new ErrorEvent(
             message: 'Test error',
             instanceId: $this->instanceId
@@ -393,14 +378,14 @@ describe('round-trip event types', function () {
     });
 });
 
-describe('generateRequestId', function () {
-    test('generates valid UUID v4', function () {
+describe('generateRequestId', function (): void {
+    test('generates valid UUID v4', function (): void {
         $id = $this->protocol->generateRequestId();
 
         expect($id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i');
     });
 
-    test('generates unique IDs', function () {
+    test('generates unique IDs', function (): void {
         $id1 = $this->protocol->generateRequestId();
         $id2 = $this->protocol->generateRequestId();
 
@@ -408,14 +393,14 @@ describe('generateRequestId', function () {
     });
 });
 
-describe('generateInstanceId', function () {
-    test('generates valid UUID v4', function () {
+describe('generateInstanceId', function (): void {
+    test('generates valid UUID v4', function (): void {
         $id = $this->protocol->generateInstanceId();
 
         expect($id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i');
     });
 
-    test('generates unique IDs', function () {
+    test('generates unique IDs', function (): void {
         $id1 = $this->protocol->generateInstanceId();
         $id2 = $this->protocol->generateInstanceId();
 

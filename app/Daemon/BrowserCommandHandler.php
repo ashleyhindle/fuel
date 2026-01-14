@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Ipc\Commands\BrowserCloseCommand;
+use App\Ipc\Commands\BrowserCreateCommand;
+use App\Ipc\Commands\BrowserGotoCommand;
+use App\Ipc\Commands\BrowserPageCommand;
+use App\Ipc\Commands\BrowserRunCommand;
+use App\Ipc\Commands\BrowserScreenshotCommand;
+use App\Ipc\Commands\BrowserStatusCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\IpcMessage;
 use App\Services\BrowserDaemonManager;
@@ -16,19 +23,17 @@ use Throwable;
  * Handles browser automation IPC commands.
  * Processes browser commands and broadcasts response events back to requesting clients.
  */
-final class BrowserCommandHandler
+final readonly class BrowserCommandHandler
 {
     // Error codes for browser operations
     private const ERROR_CODE_BROWSER_START_FAILED = 'BROWSER_START_FAILED';
 
     private const ERROR_CODE_BROWSER_OPERATION_FAILED = 'BROWSER_OPERATION_FAILED';
 
-    private const ERROR_CODE_INVALID_PARAMETERS = 'INVALID_PARAMETERS';
-
     public function __construct(
-        private readonly BrowserDaemonManager $browserManager,
-        private readonly ConsumeIpcServer $ipcServer,
-        private readonly LifecycleManager $lifecycleManager,
+        private BrowserDaemonManager $browserManager,
+        private ConsumeIpcServer $ipcServer,
+        private LifecycleManager $lifecycleManager,
     ) {}
 
     /**
@@ -36,7 +41,7 @@ final class BrowserCommandHandler
      */
     public function handleBrowserCreate(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\BrowserCreateCommand) {
+        if ($message instanceof BrowserCreateCommand) {
             try {
                 // Ensure browser daemon is running
                 $this->ensureBrowserRunning();
@@ -46,15 +51,24 @@ final class BrowserCommandHandler
                 if ($message->viewport !== null) {
                     $options['viewport'] = $message->viewport;
                 }
+
                 if ($message->userAgent !== null) {
                     $options['userAgent'] = $message->userAgent;
                 }
 
                 // Create the browser context
-                $result = $this->browserManager->createContext($message->contextId, $options);
+                $contextResult = $this->browserManager->createContext($message->contextId, $options);
 
-                // Send success response
-                $this->sendSuccessResponse($message->getRequestId(), $result);
+                // Create the initial page
+                $pageResult = $this->browserManager->createPage($message->contextId, $message->pageId);
+
+                // Send success response with both context and page info
+                $this->sendSuccessResponse($message->getRequestId(), [
+                    'contextId' => $message->contextId,
+                    'pageId' => $message->pageId,
+                    'context' => $contextResult,
+                    'page' => $pageResult,
+                ]);
             } catch (Throwable $e) {
                 $this->sendErrorResponse(
                     $message->getRequestId(),
@@ -70,7 +84,7 @@ final class BrowserCommandHandler
      */
     public function handleBrowserPage(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\BrowserPageCommand) {
+        if ($message instanceof BrowserPageCommand) {
             try {
                 // Ensure browser daemon is running
                 $this->ensureBrowserRunning();
@@ -95,7 +109,7 @@ final class BrowserCommandHandler
      */
     public function handleBrowserGoto(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\BrowserGotoCommand) {
+        if ($message instanceof BrowserGotoCommand) {
             try {
                 // Ensure browser daemon is running
                 $this->ensureBrowserRunning();
@@ -105,6 +119,7 @@ final class BrowserCommandHandler
                 if ($message->waitUntil !== null) {
                     $options['waitUntil'] = $message->waitUntil;
                 }
+
                 if ($message->timeout !== null) {
                     $options['timeout'] = $message->timeout;
                 }
@@ -125,17 +140,17 @@ final class BrowserCommandHandler
     }
 
     /**
-     * Handle browser eval command
+     * Handle browser run command
      */
-    public function handleBrowserEval(IpcMessage $message): void
+    public function handleBrowserRun(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\BrowserEvalCommand) {
+        if ($message instanceof BrowserRunCommand) {
             try {
                 // Ensure browser daemon is running
                 $this->ensureBrowserRunning();
 
-                // Evaluate JavaScript expression
-                $result = $this->browserManager->eval($message->pageId, $message->expression);
+                // Run Playwright code
+                $result = $this->browserManager->run($message->pageId, $message->code);
 
                 // Send success response
                 $this->sendSuccessResponse($message->getRequestId(), $result);
@@ -154,7 +169,7 @@ final class BrowserCommandHandler
      */
     public function handleBrowserScreenshot(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\BrowserScreenshotCommand) {
+        if ($message instanceof BrowserScreenshotCommand) {
             try {
                 // Ensure browser daemon is running
                 $this->ensureBrowserRunning();
@@ -183,7 +198,7 @@ final class BrowserCommandHandler
      */
     public function handleBrowserClose(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\BrowserCloseCommand) {
+        if ($message instanceof BrowserCloseCommand) {
             try {
                 // Ensure browser daemon is running (might not be if already stopped)
                 if (! $this->browserManager->isRunning()) {
@@ -213,7 +228,7 @@ final class BrowserCommandHandler
      */
     public function handleBrowserStatus(IpcMessage $message): void
     {
-        if ($message instanceof \App\Ipc\Commands\BrowserStatusCommand) {
+        if ($message instanceof BrowserStatusCommand) {
             try {
                 // Get status (doesn't require daemon to be running)
                 $result = $this->browserManager->status();

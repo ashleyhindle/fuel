@@ -80,7 +80,7 @@ describe('browser:create command', function (): void {
         $output = Artisan::output();
 
         expect($exitCode)->toBe(0);
-        expect($output)->toContain('created successfully');
+        expect($output)->toContain('created with page');
 
         // Cleanup - restore original state
         if ($pidExisted) {
@@ -136,7 +136,7 @@ describe('browser:create command', function (): void {
             'context_id' => 'test-ctx',
             '--viewport' => '{"width":1920,"height":1080}',
         ])
-            ->expectsOutputToContain('created successfully')
+            ->expectsOutputToContain('created with page')
             ->assertExitCode(0);
 
         // Cleanup - restore original state
@@ -259,8 +259,10 @@ describe('browser:create command', function (): void {
         expect($result)->toBeArray();
         expect($result)->toHaveKey('success');
         expect($result)->toHaveKey('context_id');
+        expect($result)->toHaveKey('page_id');
         expect($result['success'])->toBe(true);
         expect($result['context_id'])->toBe('test-ctx');
+        expect($result['page_id'])->toBe('test-ctx-tab1');
 
         // Cleanup - restore original state
         if ($pidExisted) {

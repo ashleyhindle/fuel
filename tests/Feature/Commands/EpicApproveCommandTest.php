@@ -283,7 +283,7 @@ describe('epic:approve command', function (): void {
 
         // Find the commit task
         $allTasks = $taskService->all();
-        $commitTask = $allTasks->first(function ($t) {
+        $commitTask = $allTasks->first(function ($t): bool {
             $labels = $t->labels ?? [];
 
             return is_array($labels) && in_array('epic-commit', $labels, true);
@@ -314,7 +314,7 @@ describe('epic:approve command', function (): void {
 
         // Verify no commit task was created
         $allTasks = $taskService->all();
-        $commitTask = $allTasks->first(function ($t) {
+        $commitTask = $allTasks->first(function ($t): bool {
             $labels = $t->labels ?? [];
 
             return is_array($labels) && in_array('epic-commit', $labels, true);
@@ -339,7 +339,7 @@ describe('epic:approve command', function (): void {
 
         // Verify no commit task was created
         $allTasks = $taskService->all();
-        $commitTask = $allTasks->first(function ($t) {
+        $commitTask = $allTasks->first(function ($t): bool {
             $labels = $t->labels ?? [];
 
             return is_array($labels) && in_array('epic-commit', $labels, true);
@@ -394,7 +394,7 @@ describe('epic:approve command', function (): void {
 
         // Find the commit task
         $allTasks = $taskService->all();
-        $commitTask = $allTasks->first(function ($t) {
+        $commitTask = $allTasks->first(function ($t): bool {
             $labels = $t->labels ?? [];
 
             return is_array($labels) && in_array('epic-commit', $labels, true);

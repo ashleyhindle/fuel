@@ -23,7 +23,7 @@ class RunServicePidCleanupTest extends TestCase
     public function test_cleanup_marks_run_as_failed_when_pid_is_dead(): void
     {
         // Create a task
-        $task = Task::create([
+        Task::create([
             'short_id' => 'f-test01',
             'title' => 'Test task',
             'status' => 'open',
@@ -34,7 +34,7 @@ class RunServicePidCleanupTest extends TestCase
         $deadPid = 999999;
 
         // Create a run with a dead PID and runner_instance_id
-        $runId = $this->runService->createRun('f-test01', [
+        $this->runService->createRun('f-test01', [
             'pid' => $deadPid,
             'runner_instance_id' => 'runner-abc123',
             'agent' => 'test-agent',
@@ -60,7 +60,7 @@ class RunServicePidCleanupTest extends TestCase
     public function test_cleanup_does_not_mark_run_as_failed_when_pid_is_alive(): void
     {
         // Create a task
-        $task = Task::create([
+        Task::create([
             'short_id' => 'f-test02',
             'title' => 'Test task 2',
             'status' => 'open',
@@ -70,10 +70,10 @@ class RunServicePidCleanupTest extends TestCase
         $alivePid = getmypid();
 
         // Verify the PID is actually alive before testing
-        $this->assertTrue(ProcessManager::isProcessAlive($alivePid), "Test PID $alivePid should be alive");
+        $this->assertTrue(ProcessManager::isProcessAlive($alivePid), sprintf('Test PID %s should be alive', $alivePid));
 
         // Create a run with the alive PID and runner_instance_id
-        $runId = $this->runService->createRun('f-test02', [
+        $this->runService->createRun('f-test02', [
             'pid' => $alivePid,
             'runner_instance_id' => 'runner-xyz789',
             'agent' => 'test-agent',
@@ -81,7 +81,7 @@ class RunServicePidCleanupTest extends TestCase
 
         // Verify the run was created with the correct PID
         $run = $this->runService->getLatestRun('f-test02');
-        $this->assertEquals($alivePid, $run->pid, "Run should have PID $alivePid");
+        $this->assertEquals($alivePid, $run->pid, 'Run should have PID '.$alivePid);
 
         // Call cleanupOrphanedRuns
         $cleanedCount = $this->runService->cleanupOrphanedRuns();
@@ -99,14 +99,14 @@ class RunServicePidCleanupTest extends TestCase
     public function test_cleanup_marks_run_as_failed_when_pid_is_null(): void
     {
         // Create a task
-        $task = Task::create([
+        Task::create([
             'short_id' => 'f-test03',
             'title' => 'Test task 3',
             'status' => 'open',
         ]);
 
         // Create a run with no PID (legacy behavior)
-        $runId = $this->runService->createRun('f-test03', [
+        $this->runService->createRun('f-test03', [
             'agent' => 'test-agent',
             // pid and runner_instance_id are not set (null)
         ]);
@@ -128,14 +128,14 @@ class RunServicePidCleanupTest extends TestCase
     public function test_cleanup_only_affects_running_runs(): void
     {
         // Create a task
-        $task = Task::create([
+        Task::create([
             'short_id' => 'f-test04',
             'title' => 'Test task 4',
             'status' => 'open',
         ]);
 
         // Create a run that's already completed
-        $runId = $this->runService->createRun('f-test04', [
+        $this->runService->createRun('f-test04', [
             'pid' => 11111,
             'runner_instance_id' => 'runner-completed',
             'agent' => 'test-agent',

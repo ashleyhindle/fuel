@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
 use App\Services\ProcessManager;
+use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 
@@ -20,7 +21,7 @@ class StuckCommand extends Command
 
     protected $description = 'List failed/stuck tasks (dead processes or non-zero exit codes)';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, RunService $runService): int
     {
         $stuckTasks = $taskService->failed()->sortByDesc('consumed_at')->values();
 
@@ -37,7 +38,8 @@ class StuckCommand extends Command
             $this->newLine();
 
             foreach ($stuckTasks as $task) {
-                $exitCode = $task->consumed_exit_code ?? null;
+                $latestRun = $runService->getLatestRun($task->short_id);
+                $exitCode = $latestRun?->exit_code;
                 $pid = $task->consume_pid ?? null;
                 $output = $task->consumed_output ?? '';
 

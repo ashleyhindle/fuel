@@ -5,10 +5,9 @@ declare(strict_types=1);
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
-use DateTimeImmutable;
 use Mockery as m;
 
-describe('browser:eval command', function (): void {
+describe('browser:run command', function (): void {
     afterEach(function (): void {
         m::close();
     });
@@ -26,12 +25,12 @@ describe('browser:eval command', function (): void {
 
         $this->app->instance(ConsumeIpcClient::class, $mockClient);
 
-        $this->artisan('browser:eval', ['page_id' => 'test-page', 'expression' => 'document.title'])
+        $this->artisan('browser:run', ['page_id' => 'test-page', 'code' => 'return await page.title()'])
             ->expectsOutputToContain('Consume daemon is not running')
             ->assertExitCode(1);
     });
 
-    it('evaluates JavaScript expression successfully', function (): void {
+    it('runs Playwright code successfully', function (): void {
         // Create PID file at the expected location
         $pidFile = app(FuelContext::class)->getPidFilePath();
         $pidDir = dirname($pidFile);
@@ -75,8 +74,8 @@ describe('browser:eval command', function (): void {
 
         $this->app->instance(ConsumeIpcClient::class, $mockClient);
 
-        $this->artisan('browser:eval', ['page_id' => 'test-page', 'expression' => 'document.title'])
-            ->expectsOutputToContain('Expression evaluated successfully')
+        $this->artisan('browser:run', ['page_id' => 'test-page', 'code' => 'return await page.title()'])
+            ->expectsOutputToContain('Code executed successfully')
             ->assertExitCode(0);
 
         // Cleanup
@@ -113,8 +112,8 @@ describe('browser:eval command', function (): void {
                     new BrowserResponseEvent(
                         success: false,
                         result: null,
-                        error: 'JavaScript evaluation failed',
-                        errorCode: 'EVAL_ERROR',
+                        error: 'Code execution failed',
+                        errorCode: 'RUN_ERROR',
                         timestamp: new DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
@@ -129,8 +128,8 @@ describe('browser:eval command', function (): void {
 
         $this->app->instance(ConsumeIpcClient::class, $mockClient);
 
-        $this->artisan('browser:eval', ['page_id' => 'test-page', 'expression' => 'invalid.syntax'])
-            ->expectsOutputToContain('JavaScript evaluation failed')
+        $this->artisan('browser:run', ['page_id' => 'test-page', 'code' => 'throw new Error("test")'])
+            ->expectsOutputToContain('Code execution failed')
             ->assertExitCode(1);
 
         // Cleanup
@@ -183,18 +182,16 @@ describe('browser:eval command', function (): void {
 
         $this->app->instance(ConsumeIpcClient::class, $mockClient);
 
-        Artisan::call('browser:eval', ['page_id' => 'test-page', 'expression' => 'document.title', '--json' => true]);
+        Artisan::call('browser:run', ['page_id' => 'test-page', 'code' => 'return await page.title()', '--json' => true]);
         $output = Artisan::output();
         $result = json_decode($output, true);
 
         expect($result)->toBeArray();
         expect($result)->toHaveKey('success');
         expect($result)->toHaveKey('page_id');
-        expect($result)->toHaveKey('expression');
         expect($result)->toHaveKey('result');
         expect($result['success'])->toBe(true);
         expect($result['page_id'])->toBe('test-page');
-        expect($result['expression'])->toBe('document.title');
         expect($result['result'])->toBe(['value' => 'Example Domain']);
 
         // Cleanup

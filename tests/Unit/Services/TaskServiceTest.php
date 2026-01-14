@@ -614,19 +614,16 @@ it('preserves arbitrary fields when updating a task', function (): void {
     $updated = $this->taskService->update($task->short_id, [
         'consumed' => true,
         'consumed_at' => '2026-01-07T13:51:11+00:00',
-        'consumed_exit_code' => 1,
         'consumed_output' => 'Some agent output here',
     ]);
 
     expect($updated->consumed)->toBeTrue();
     expect($updated->consumed_at)->toBe('2026-01-07T13:51:11+00:00');
-    expect($updated->consumed_exit_code)->toBe(1);
     expect($updated->consumed_output)->toBe('Some agent output here');
 
     // Verify it's persisted
     $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->consumed)->toBeTrue();
-    expect($reloaded->consumed_exit_code)->toBe(1);
     expect($reloaded->consumed_output)->toBe('Some agent output here');
 });
 
@@ -670,21 +667,18 @@ it('persists all consume fields together', function (): void {
     $updated = $this->taskService->update($task->short_id, [
         'consumed' => true,
         'consumed_at' => '2026-01-10T10:00:00+00:00',
-        'consumed_exit_code' => 0,
         'consumed_output' => 'Success output',
         'consume_pid' => 99999,
     ]);
 
     expect($updated->consumed)->toBeTrue();
     expect($updated->consumed_at)->toBe('2026-01-10T10:00:00+00:00');
-    expect($updated->consumed_exit_code)->toBe(0);
     expect($updated->consumed_output)->toBe('Success output');
     expect($updated->consume_pid)->toBe(99999);
 
     $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->consumed)->toBeTrue();
     expect($reloaded->consumed_at)->toBe('2026-01-10T10:00:00+00:00');
-    expect($reloaded->consumed_exit_code)->toBe(0);
     expect($reloaded->consumed_output)->toBe('Success output');
     expect($reloaded->consume_pid)->toBe(99999);
 });

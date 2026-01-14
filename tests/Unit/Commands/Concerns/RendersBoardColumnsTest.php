@@ -4,29 +4,26 @@ declare(strict_types=1);
 
 use App\Commands\Concerns\RendersBoardColumns;
 
-// Test helper class to expose private trait methods
-class RendersBoardColumnsTestable
-{
-    use RendersBoardColumns;
-
-    public function testVisibleLength(string $line): int
-    {
-        return $this->visibleLength($line);
-    }
-
-    public function testTruncate(string $value, int $length): string
-    {
-        return $this->truncate($value, $length);
-    }
-
-    public function testPadLine(string $line, int $width): string
-    {
-        return $this->padLine($line, $width);
-    }
-}
-
 beforeEach(function (): void {
-    $this->renderer = new RendersBoardColumnsTestable;
+    $this->renderer = new class
+    {
+        use RendersBoardColumns;
+
+        public function testVisibleLength(string $line): int
+        {
+            return $this->visibleLength($line);
+        }
+
+        public function testTruncate(string $value, int $length): string
+        {
+            return $this->truncate($value, $length);
+        }
+
+        public function testPadLine(string $line, int $width): string
+        {
+            return $this->padLine($line, $width);
+        }
+    };
 });
 
 describe('visibleLength', function (): void {
