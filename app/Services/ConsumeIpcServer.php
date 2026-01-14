@@ -196,8 +196,6 @@ final class ConsumeIpcServer
 
         // Check buffer size limit
         if (strlen($this->clients[$clientId]['buffer']) > self::MAX_BUFFER_SIZE) {
-            // Log warning about large buffer before disconnecting
-            error_log(sprintf('[IPC Server] Client %s buffer exceeded ', $clientId).self::MAX_BUFFER_SIZE.' bytes, disconnecting');
             $this->disconnectSlowClient($clientId);
 
             return;
@@ -236,7 +234,6 @@ final class ConsumeIpcServer
 
             if ($written === false) {
                 // Write failed, disconnect client
-                error_log(sprintf('[IPC Server] Write failed for client %s after writing %d of %d bytes', $clientId, $totalWritten, $totalToWrite));
                 $this->disconnectSlowClient($clientId);
 
                 return;

@@ -70,11 +70,17 @@ final class ConsumeRunner
         $port = $this->configService->getConsumePort();
         $this->lifecycleManager->start($port);
 
-        // Start browser daemon (non-critical - log warning if fails but continue)
+        // Start IPC server EARLY so clients can connect immediately
+        $this->ipcServer->start();
+
+        // Register signal handlers via ProcessManager
+        $this->processManager->registerSignalHandlers();
+
+        // Start browser daemon (~115ms startup time - negligible)
         try {
             $this->browserDaemonManager->start();
         } catch (\Throwable $throwable) {
-            // Log warning but continue - browser features become unavailable but daemon still runs
+            // Non-critical - browser features unavailable but daemon continues
             logger()->warning('Failed to start browser daemon: '.$throwable->getMessage());
         }
 
@@ -86,12 +92,6 @@ final class ConsumeRunner
         $this->taskSpawner->setEpicCompletionCallback(function (string $taskId): void {
             $this->checkEpicCompletionNotification($taskId);
         });
-
-        // Start IPC server
-        $this->ipcServer->start();
-
-        // Register signal handlers via ProcessManager
-        $this->processManager->registerSignalHandlers();
 
         // Register output callback for broadcasting output chunks to IPC clients
         $this->processManager->setOutputCallback(function (string $taskId, string $stream, string $chunk): void {

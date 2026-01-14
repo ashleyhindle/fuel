@@ -81,6 +81,15 @@ class ConsumeIpcClient
     /** Whether SnapshotEvent has been received during attach */
     private bool $receivedSnapshot = false;
 
+    /** Port number for reconnection */
+    private ?int $port = null;
+
+    /** Last reconnection attempt timestamp */
+    private ?float $lastReconnectAttempt = null;
+
+    /** Reconnection interval in seconds */
+    private const RECONNECT_INTERVAL = 2.0;
+
     public function __construct(/** IP address for TCP connections */
         private readonly string $ip = '127.0.0.1')
     {
@@ -233,6 +242,7 @@ class ConsumeIpcClient
         stream_set_blocking($socket, true);
 
         $this->socket = $socket;
+        $this->port = $port;
     }
 
     /**
@@ -254,6 +264,76 @@ class ConsumeIpcClient
     public function isConnected(): bool
     {
         return $this->connected && $this->socket !== null;
+    }
+
+    /**
+     * Actively check if the connection is still alive.
+     * Uses socket_read with MSG_PEEK to detect closed connections without consuming data.
+     * Updates the connected state and returns the result.
+     */
+    public function checkConnection(): bool
+    {
+        if ($this->socket === null) {
+            $this->connected = false;
+
+            return false;
+        }
+
+        if (stream_get_meta_data($this->socket)['timed_out']) {
+            $this->connected = false;
+
+            return false;
+        }
+
+        // Try to read with MSG_PEEK - this forces the OS to check the connection state
+        // without consuming any actual data from the buffer
+        $socketResource = socket_import_stream($this->socket);
+        if ($socketResource === false) {
+            // Can't import stream, fall back to feof check
+            if (feof($this->socket)) {
+                $this->connected = false;
+
+                return false;
+            }
+
+            return $this->connected;
+        }
+
+        // Set non-blocking for the peek
+        socket_set_nonblock($socketResource);
+
+        // MSG_PEEK (2) + MSG_DONTWAIT (64) = 66
+        $result = @socket_recv($socketResource, $buf, 1, MSG_PEEK | MSG_DONTWAIT);
+
+        // socket_recv returns:
+        // - false on error (connection lost)
+        // - 0 when connection is closed gracefully
+        // - positive number if data is available (connection alive)
+        // - false with EAGAIN/EWOULDBLOCK if no data but connection alive
+        if ($result === false) {
+            $error = socket_last_error($socketResource);
+            socket_clear_error($socketResource);
+
+            // EAGAIN (11) or EWOULDBLOCK (11 on Linux, 35 on macOS) means no data but connection OK
+            if ($error === 11 || $error === 35 || $error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
+                return $this->connected;
+            }
+
+            // Any other error means connection is dead
+            $this->connected = false;
+
+            return false;
+        }
+
+        if ($result === 0) {
+            // Graceful close - peer sent FIN
+            $this->connected = false;
+
+            return false;
+        }
+
+        // Data available, connection is alive
+        return $this->connected;
     }
 
     /**
@@ -427,11 +507,24 @@ class ConsumeIpcClient
 
     /**
      * Poll for all available events (non-blocking).
+     * Also checks for connection loss and attempts reconnection if needed.
      *
      * @return array<IpcMessage> Array of received events
      */
     public function pollEvents(): array
     {
+        // If disconnected, try to reconnect periodically
+        if (! $this->connected || $this->socket === null) {
+            $this->tryReconnect();
+
+            return [];
+        }
+
+        // Actively check if connection is still alive (detects server shutdown)
+        if (! $this->checkConnection()) {
+            return [];
+        }
+
         $events = [];
 
         while (($event = $this->readEvent()) instanceof IpcMessage) {
@@ -439,6 +532,44 @@ class ConsumeIpcClient
         }
 
         return $events;
+    }
+
+    /**
+     * Attempt to reconnect to the runner daemon.
+     * Only tries every RECONNECT_INTERVAL seconds to avoid hammering.
+     */
+    private function tryReconnect(): void
+    {
+        if ($this->port === null) {
+            return;
+        }
+
+        $now = microtime(true);
+        if ($this->lastReconnectAttempt !== null && ($now - $this->lastReconnectAttempt) < self::RECONNECT_INTERVAL) {
+            return;
+        }
+
+        $this->lastReconnectAttempt = $now;
+
+        try {
+            // Clean up old socket if exists
+            if ($this->socket !== null) {
+                @fclose($this->socket);
+                $this->socket = null;
+            }
+
+            // Check if server is ready before attempting connection
+            if (! $this->isServerReady($this->port)) {
+                return;
+            }
+
+            // Try to connect and attach
+            $this->connect($this->port);
+            $this->attach();
+        } catch (\Throwable) {
+            // Silently fail - we'll try again later
+            $this->connected = false;
+        }
     }
 
     /**
@@ -745,6 +876,7 @@ class ConsumeIpcClient
     /**
      * Read one event from socket (non-blocking).
      * Uses buffering to handle partial reads of large messages.
+     * Detects disconnection and updates connected state.
      */
     private function readEvent(): ?IpcMessage
     {
@@ -754,6 +886,11 @@ class ConsumeIpcClient
 
         $line = fgets($this->socket);
         if ($line === false) {
+            // Check if connection is actually closed
+            if (feof($this->socket)) {
+                $this->connected = false;
+            }
+
             return null;
         }
 

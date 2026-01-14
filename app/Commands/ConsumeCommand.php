@@ -86,6 +86,9 @@ class ConsumeCommand extends Command
     /** Flag to force refresh on next loop (e.g., after SIGWINCH) */
     private bool $forceRefresh = false;
 
+    /** Previous connection state for detecting changes */
+    private ?bool $lastConnectionState = null;
+
     /** Scroll offset for blocked modal */
     private int $blockedModalScroll = 0;
 
@@ -232,7 +235,7 @@ class ConsumeCommand extends Command
             if ($this->option('debug')) {
                 $this->debugMode = true;
                 $debugPath = $this->fuelContext->basePath.'/debug.log';
-                $this->debugFile = fopen($debugPath, 'w');
+                $this->debugFile = fopen($debugPath, 'a');
                 $this->debug('Debug logging started - entering alternate screen');
             }
         }
@@ -302,8 +305,17 @@ class ConsumeCommand extends Command
 
                 if ($pid && ProcessManager::isProcessAlive($pid)) {
                     posix_kill($pid, SIGTERM);
-                    // Wait briefly for graceful shutdown
-                    usleep(500000); // 500ms
+                    // Wait for process to actually die (up to 5 seconds)
+                    $waited = 0;
+                    while (ProcessManager::isProcessAlive($pid) && $waited < 50) {
+                        usleep(100000); // 100ms
+                        $waited++;
+                    }
+                    // Force kill if still alive
+                    if (ProcessManager::isProcessAlive($pid)) {
+                        posix_kill($pid, SIGKILL);
+                        usleep(100000); // 100ms for SIGKILL to take effect
+                    }
                 }
 
                 @unlink($pidFilePath);
@@ -412,15 +424,13 @@ class ConsumeCommand extends Command
             $this->toast = new Toast;
 
             // Register SIGWINCH handler for terminal resize
-            if (function_exists('pcntl_signal') && defined('SIGWINCH')) {
-                pcntl_signal(SIGWINCH, function (): void {
-                    $this->forceRefresh = true;
-                    $this->updateTerminalSize();
-                    // Resize screen buffers to match new terminal dimensions
-                    $this->screenBuffer?->resize($this->terminalWidth, $this->terminalHeight);
-                    $this->previousBuffer?->resize($this->terminalWidth, $this->terminalHeight);
-                });
-            }
+            pcntl_signal(SIGWINCH, function (): void {
+                $this->forceRefresh = true;
+                $this->updateTerminalSize();
+                // Resize screen buffers to match new terminal dimensions
+                $this->screenBuffer?->resize($this->terminalWidth, $this->terminalHeight);
+                $this->previousBuffer?->resize($this->terminalWidth, $this->terminalHeight);
+            });
 
             // Enable mouse and focus reporting (stty already set in enterAlternateScreen)
             $this->getOutput()->write("\033[?1003h"); // Enable mouse reporting (any-event mode)
@@ -447,9 +457,17 @@ class ConsumeCommand extends Command
                 }
 
                 // Poll IPC events from runner and update state
+                // (pollEvents handles reconnection internally if disconnected)
                 foreach ($this->ipcClient->pollEvents() as $event) {
                     $this->handleIpcEvent($event, $statusLines);
                 }
+
+                // Check for connection state changes and force refresh if changed
+                $currentConnectionState = $this->ipcClient->isConnected();
+                if ($this->lastConnectionState !== null && $currentConnectionState !== $this->lastConnectionState) {
+                    $this->forceRefresh = true;
+                }
+                $this->lastConnectionState = $currentConnectionState;
 
                 // Sync pause state from runner
                 $paused = $this->ipcClient->isPaused();
@@ -839,6 +857,10 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
+        // Connection status indicator (green = connected, red = disconnected)
+        $isConnected = $this->ipcClient?->isConnected() === true;
+        $connectionIndicator = $isConnected ? '<fg=green>●</>' : '<fg=red>●</>';
+
         // Render status history above footer (positioned from bottom)
         $footerHeight = 2; // status line + key instructions
         $statusLineCount = count($statusLines);
@@ -865,9 +887,12 @@ class ConsumeCommand extends Command
             $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
             $this->screenBuffer->setLine($this->terminalHeight - 1, str_repeat(' ', $statusPadding).$statusLine);
 
-            // Footer line (centered, at bottom)
-            $paddingAmount = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($footerLine)) / 2));
-            $this->screenBuffer->setLine($this->terminalHeight, str_repeat(' ', $paddingAmount).$footerLine.str_repeat(' ', $paddingAmount));
+            // Footer line (centered, at bottom) with connection indicator at far right
+            $footerVisibleLen = $this->visibleLength($footerLine);
+            $indicatorVisibleLen = 1; // The ● character
+            $paddingAmount = max(0, (int) floor(($this->terminalWidth - $footerVisibleLen) / 2));
+            $rightPadding = max(0, $this->terminalWidth - $paddingAmount - $footerVisibleLen - $indicatorVisibleLen - 1);
+            $this->screenBuffer->setLine($this->terminalHeight, str_repeat(' ', $paddingAmount).$footerLine.str_repeat(' ', $rightPadding).$connectionIndicator.' ');
         }
 
         // Render modals on top if active - use lazy-loaded data from IPC client
@@ -1435,6 +1460,10 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
+        // Connection status indicator (green = connected, red = disconnected)
+        $isConnected = $this->ipcClient?->isConnected() ?? false;
+        $connectionIndicator = $isConnected ? '<fg=green>●</>' : '<fg=red>●</>';
+
         // Footer always takes 2 lines: status line + key instructions
         $footerHeight = 2;
 
@@ -1459,9 +1488,12 @@ class ConsumeCommand extends Command
         $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
         $this->getOutput()->write(sprintf("\033[%d;1H%s%s", $this->terminalHeight - 1, str_repeat(' ', $statusPadding), $statusLine));
 
-        // Position footer at bottom of screen
-        $paddingAmount = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($footerLine)) / 2));
-        $this->getOutput()->write(sprintf("\033[%d;1H%s%s%s", $this->terminalHeight, str_repeat(' ', $paddingAmount), $footerLine, str_repeat(' ', $paddingAmount)));
+        // Position footer at bottom of screen with connection indicator at far right
+        $footerVisibleLen = $this->visibleLength($footerLine);
+        $indicatorVisibleLen = 1; // The ● character
+        $paddingAmount = max(0, (int) floor(($this->terminalWidth - $footerVisibleLen) / 2));
+        $rightPadding = max(0, $this->terminalWidth - $paddingAmount - $footerVisibleLen - $indicatorVisibleLen - 1);
+        $this->getOutput()->write(sprintf("\033[%d;1H%s%s%s%s ", $this->terminalHeight, str_repeat(' ', $paddingAmount), $footerLine, str_repeat(' ', $rightPadding), $connectionIndicator));
 
         // Render modals if active - use lazy-loaded data from IPC client
         if ($this->showBlockedModal) {
