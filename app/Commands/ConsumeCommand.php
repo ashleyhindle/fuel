@@ -55,6 +55,7 @@ class ConsumeCommand extends Command
         {--resume : Send resume command to runner and exit}
         {--stop : Send graceful stop command to runner and exit}
         {--force : Send force stop command to runner and exit}
+        {--restart : Restart the runner daemon (stop and start)}
         {--fresh : Kill existing runner and start fresh}
         {--ip=127.0.0.1 : IP address of the runner to connect to}';
 
@@ -3235,11 +3236,15 @@ class ConsumeCommand extends Command
             return true;
         }
 
+        if ($this->option('restart')) {
+            return true;
+        }
+
         return (bool) $this->option('force');
     }
 
     /**
-     * Handle IPC control flags (--status, --pause, --resume, --stop, --force).
+     * Handle IPC control flags (--status, --pause, --resume, --stop, --force, --restart).
      */
     private function handleIpcControl(): int
     {
@@ -3297,6 +3302,10 @@ class ConsumeCommand extends Command
 
                 return self::SUCCESS;
             }
+
+            if ($this->option('restart')) {
+                return $this->handleRestartCommand($pidFilePath, $port);
+            }
         } finally {
             $this->ipcClient->disconnect();
         }
@@ -3339,6 +3348,55 @@ class ConsumeCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Handle --restart command: stop the runner and start it again.
+     */
+    private function handleRestartCommand(string $pidFilePath, int $port): int
+    {
+        // Send stop command to runner
+        $this->ipcClient->sendStop();
+        $this->info('Stopping runner...');
+
+        // Disconnect from the runner
+        $this->ipcClient->disconnect();
+
+        // Wait for runner to stop (check PID file and process)
+        $maxWaitSeconds = 10;
+        $startTime = time();
+        while (time() - $startTime < $maxWaitSeconds) {
+            if (! $this->ipcClient->isRunnerAlive($pidFilePath)) {
+                break;
+            }
+            usleep(200000); // 200ms
+        }
+
+        // Verify runner has stopped
+        if ($this->ipcClient->isRunnerAlive($pidFilePath)) {
+            $this->error('Failed to stop runner within timeout');
+
+            return self::FAILURE;
+        }
+
+        $this->info('Runner stopped successfully');
+
+        // Start the runner again
+        $this->info('Starting runner...');
+        try {
+            $this->ipcClient->startRunner($this->fuelContext->getProjectPath().'/fuel');
+
+            // Wait for server to be ready
+            $this->ipcClient->waitForServer($port, 10);
+
+            $this->info('Runner restarted successfully');
+
+            return self::SUCCESS;
+        } catch (\RuntimeException $runtimeException) {
+            $this->error('Failed to restart runner: '.$runtimeException->getMessage());
+
+            return self::FAILURE;
+        }
     }
 
     /**
