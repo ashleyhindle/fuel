@@ -907,12 +907,11 @@ describe('ConsumeRunner PID file handling', function (): void {
                 // Use reflection to access private method
                 $reflection = new ReflectionClass($lifecycleManager);
                 $method = $reflection->getMethod('writePidFile');
-                $method->setAccessible(true);
                 $method->invoke($lifecycleManager, 9982);
 
                 // Child exits successfully
                 exit(0);
-            } catch (\Exception $e) {
+            } catch (\Exception) {
                 // Child exits with error
                 exit(1);
             }
@@ -928,7 +927,6 @@ describe('ConsumeRunner PID file handling', function (): void {
             try {
                 $reflection = new ReflectionClass($lifecycleManager);
                 $method = $reflection->getMethod('writePidFile');
-                $method->setAccessible(true);
                 $method->invoke($lifecycleManager, 9983);
             } catch (\Exception $e) {
                 $this->fail('Parent failed to write PID file: '.$e->getMessage());

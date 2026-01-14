@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Ipc\Events\ConfigReloadedEvent;
 use App\DTO\ConsumeSnapshot;
 use App\Enums\ConsumeCommandType;
 use App\Enums\ConsumeEventType;
@@ -343,9 +344,9 @@ final class ConsumeIpcProtocol
         );
     }
 
-    private function decodeConfigReloadedEvent(array $data): \App\Ipc\Events\ConfigReloadedEvent
+    private function decodeConfigReloadedEvent(array $data): ConfigReloadedEvent
     {
-        return new \App\Ipc\Events\ConfigReloadedEvent(
+        return new ConfigReloadedEvent(
             instanceId: $data['instance_id'] ?? '',
             timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
             requestId: $data['request_id'] ?? null

@@ -47,7 +47,6 @@ final readonly class SnapshotBuilder
 
         // Track counts for UI footer display
         $blockedCount = $blocked->count();
-        $doneCount = $doneCount;
 
         // Get active processes
         $activeProcesses = $this->processManager->getActiveProcesses();

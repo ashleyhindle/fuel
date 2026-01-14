@@ -3287,8 +3287,8 @@ class ConsumeCommand extends Command
         // Wait for runner to be ready
         try {
             $ipcClient->waitForServer($port, 5);
-        } catch (\RuntimeException $e) {
-            $this->error('Failed to start runner: '.$e->getMessage());
+        } catch (\RuntimeException $runtimeException) {
+            $this->error('Failed to start runner: '.$runtimeException->getMessage());
 
             return self::FAILURE;
         }
@@ -3358,6 +3358,7 @@ class ConsumeCommand extends Command
             if (! $this->ipcClient->isRunnerAlive($pidFilePath)) {
                 break;
             }
+
             usleep(200000); // 200ms
         }
 

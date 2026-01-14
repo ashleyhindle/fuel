@@ -196,6 +196,7 @@ describe('retry command', function (): void {
         $this->taskService->update($task1->short_id, ['consumed' => true]);
         $this->taskService->update($task2->short_id, ['consumed' => true]);
         $this->taskService->update($task3->short_id, ['consumed' => true]);
+
         $this->runService->logRun($task1->short_id, ['agent' => 'test', 'exit_code' => 1]);
         $this->runService->logRun($task2->short_id, ['agent' => 'test', 'exit_code' => 2]);
         $this->runService->logRun($task3->short_id, ['agent' => 'test', 'exit_code' => 3]);
@@ -220,6 +221,7 @@ describe('retry command', function (): void {
 
         $this->taskService->update($task1->short_id, ['consumed' => true]);
         $this->taskService->update($task2->short_id, ['consumed' => true]);
+
         $this->runService->logRun($task1->short_id, ['agent' => 'test', 'exit_code' => 1]);
         $this->runService->logRun($task2->short_id, ['agent' => 'test', 'exit_code' => 1]);
 
@@ -246,6 +248,7 @@ describe('retry command', function (): void {
 
         $this->taskService->update($task1->short_id, ['consumed' => true]);
         $this->taskService->update($task2->short_id, ['consumed' => true]);
+
         $this->runService->logRun($task1->short_id, ['agent' => 'test', 'exit_code' => 1]);
         $this->runService->logRun($task2->short_id, ['agent' => 'test', 'exit_code' => 1]);
 

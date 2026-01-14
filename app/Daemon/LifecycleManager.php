@@ -137,25 +137,25 @@ final class LifecycleManager
         $lockFile = $pidFile.'.lock';
         $lock = fopen($lockFile, 'c');
         if ($lock === false) {
-            throw new \RuntimeException("Failed to open lock file: {$lockFile}");
+            throw new \RuntimeException('Failed to open lock file: ' . $lockFile);
         }
 
         try {
             // Acquire exclusive lock
             if (! flock($lock, LOCK_EX)) {
-                throw new \RuntimeException("Failed to acquire lock for PID file: {$pidFile}");
+                throw new \RuntimeException('Failed to acquire lock for PID file: ' . $pidFile);
             }
 
             // Write PID data atomically
             $tempFile = $pidFile.'.tmp.'.uniqid();
             if (file_put_contents($tempFile, json_encode($pidData, JSON_THROW_ON_ERROR)) === false) {
-                throw new \RuntimeException("Failed to write temporary PID file: {$tempFile}");
+                throw new \RuntimeException('Failed to write temporary PID file: ' . $tempFile);
             }
 
             // Atomic rename to replace the old PID file
             if (! rename($tempFile, $pidFile)) {
                 @unlink($tempFile);
-                throw new \RuntimeException("Failed to rename temporary PID file to: {$pidFile}");
+                throw new \RuntimeException('Failed to rename temporary PID file to: ' . $pidFile);
             }
 
             chmod($pidFile, 0600);
@@ -185,10 +185,8 @@ final class LifecycleManager
 
         try {
             // Acquire exclusive lock
-            if (flock($lock, LOCK_EX)) {
-                if (file_exists($pidFile)) {
-                    unlink($pidFile);
-                }
+            if (flock($lock, LOCK_EX) && file_exists($pidFile)) {
+                unlink($pidFile);
             }
         } finally {
             // Release lock and close lock file

@@ -75,9 +75,6 @@ class ConsumeIpcClient
     /** Whether currently connected to runner */
     private bool $connected = false;
 
-    /** Buffer for incomplete messages */
-    private string $readBuffer = '';
-
     /** Whether HelloEvent has been received during attach */
     private bool $receivedHello = false;
 
@@ -554,7 +551,7 @@ class ConsumeIpcClient
             $client->disconnect();
 
             return $result;
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             try {
                 $client->disconnect();
             } catch (\Throwable) {
@@ -761,41 +758,6 @@ class ConsumeIpcClient
         }
 
         return $this->protocol->decode(trim($line), $this->instanceId);
-    }
-
-    /**
-     * Wait for a specific event type (blocking with timeout).
-     */
-    private function waitForEvent(string $eventType, int $timeoutSeconds): ?IpcMessage
-    {
-        $deadline = time() + $timeoutSeconds;
-
-        // Temporarily set socket to blocking mode for reliable reading during attach
-        $wasBlocking = stream_get_meta_data($this->socket)['blocked'] ?? false;
-        stream_set_blocking($this->socket, true);
-        stream_set_timeout($this->socket, 0, 200000); // 200ms read timeout
-
-        try {
-            while (time() < $deadline) {
-                // If we have partial data in buffer but no complete message,
-                // wait a bit for more data to arrive
-                if ($this->readBuffer !== '' && ! str_contains($this->readBuffer, "\n")) {
-                    usleep(20000); // 20ms to let more data arrive
-                }
-
-                $event = $this->readEvent();
-                if ($event instanceof IpcMessage && $event->type() === $eventType) {
-                    return $event;
-                }
-
-                usleep(10000); // 10ms
-            }
-
-            return null;
-        } finally {
-            // Restore original blocking mode
-            stream_set_blocking($this->socket, $wasBlocking);
-        }
     }
 
     /**

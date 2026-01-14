@@ -79,6 +79,7 @@ class StatusCommand extends Command
             if ($runnerStatus !== null) {
                 $output['runner'] = $runnerStatus;
             }
+
             $this->outputJson($output);
         } else {
             // Display runner status if available

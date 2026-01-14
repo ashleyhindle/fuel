@@ -103,7 +103,9 @@ final readonly class CompletionHandler
 
         // Get run ID before updating
         $task = $this->taskService->find($taskId);
-        $latestRun = $task instanceof Task ? $this->runService->getLatestRun($taskId) : null;
+        if ($task instanceof Task) {
+            $this->runService->getLatestRun($taskId);
+        }
 
         // Update run entry with completion data
         $runData = [
