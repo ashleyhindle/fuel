@@ -53,6 +53,7 @@ class ConsumeCommand extends Command
         {--status : Connect to runner, request snapshot, print summary, exit}
         {--pause : Send pause command to runner and exit}
         {--resume : Send resume command to runner and exit}
+        {--unpause : Send resume command to runner and exit (alias for --resume)}
         {--stop : Send graceful stop command to runner and exit}
         {--force : Send force stop command to runner and exit}
         {--restart : Restart the runner daemon (stop and start)}
@@ -3228,7 +3229,7 @@ class ConsumeCommand extends Command
             return true;
         }
 
-        if ($this->option('resume')) {
+        if ($this->option('resume') || $this->option('unpause')) {
             return true;
         }
 
@@ -3282,7 +3283,7 @@ class ConsumeCommand extends Command
                 return self::SUCCESS;
             }
 
-            if ($this->option('resume')) {
+            if ($this->option('resume') || $this->option('unpause')) {
                 $this->ipcClient->sendResume();
                 $this->info('Resume command sent to runner');
 

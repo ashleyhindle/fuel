@@ -1099,6 +1099,24 @@ describe('consume command restart functionality', function (): void {
     });
 });
 
+describe('consume command options and aliases', function (): void {
+    it('accepts --resume option', function (): void {
+        $command = Artisan::all()['consume'];
+        $definition = $command->getDefinition();
+
+        expect($definition->hasOption('resume'))->toBeTrue();
+    });
+
+    it('accepts --unpause as alias for --resume', function (): void {
+        $command = Artisan::all()['consume'];
+        $definition = $command->getDefinition();
+
+        // Both resume and unpause should be accepted
+        expect($definition->hasOption('resume'))->toBeTrue();
+        expect($definition->hasOption('unpause'))->toBeTrue();
+    });
+});
+
 describe('consume command task card display', function (): void {
     it('shows epic id on task card footer when task has epic', function (): void {
         // Create config
