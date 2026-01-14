@@ -30,16 +30,16 @@ class DebugPathCommand extends Command
         $argv0Realpath = $argv0 !== null ? realpath($argv0) : false;
         $whichResult = null;
 
-        if ($argv0 !== null && ! str_contains($argv0, '/')) {
-            $whichResult = trim((string) shell_exec('which '.escapeshellarg($argv0).' 2>/dev/null'));
+        if ($argv0 !== null && ! str_contains((string) $argv0, '/')) {
+            $whichResult = trim((string) shell_exec('which '.escapeshellarg((string) $argv0).' 2>/dev/null'));
         }
 
         $resolvedPath = null;
         $resolvedError = null;
         try {
             $resolvedPath = $context->getFuelBinaryPath();
-        } catch (\RuntimeException $e) {
-            $resolvedError = $e->getMessage();
+        } catch (\RuntimeException $runtimeException) {
+            $resolvedError = $runtimeException->getMessage();
         }
 
         $data = [
