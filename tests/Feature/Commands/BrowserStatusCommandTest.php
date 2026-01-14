@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
+use App\Services\FuelContext;
 use DateTimeImmutable;
 use Mockery as m;
 
@@ -13,11 +14,14 @@ describe('browser:status command', function (): void {
     });
 
     it('shows error when daemon is not running', function (): void {
+        // Get the PID file path from test context
+        $pidFile = app(FuelContext::class)->getPidFilePath();
+
         // Mock ConsumeIpcClient to report daemon not running
         $mockClient = m::mock(ConsumeIpcClient::class);
         $mockClient->shouldReceive('isRunnerAlive')
             ->once()
-            ->with(base_path('.fuel/consume-runner.pid'))
+            ->with($pidFile)
             ->andReturn(false);
 
         $this->app->instance(ConsumeIpcClient::class, $mockClient);
@@ -29,11 +33,12 @@ describe('browser:status command', function (): void {
 
     it('shows browser status successfully', function (): void {
         // Create PID file at the expected location
-        $pidFile = base_path('.fuel/consume-runner.pid');
+        $pidFile = app(FuelContext::class)->getPidFilePath();
         $pidDir = dirname($pidFile);
         if (! is_dir($pidDir)) {
             mkdir($pidDir, 0755, true);
         }
+
         file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
         // Mock ConsumeIpcClient
@@ -44,10 +49,10 @@ describe('browser:status command', function (): void {
         $mockClient->shouldReceive('connect')->once();
         $mockClient->shouldReceive('attach')->once();
         $mockClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): void {
             $requestIdToMatch = $cmd->requestId();
         });
-        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
             $callCount++;
             if ($callCount === 1) {
                 return [
@@ -89,11 +94,12 @@ describe('browser:status command', function (): void {
 
     it('shows browser not launched status', function (): void {
         // Create PID file at the expected location
-        $pidFile = base_path('.fuel/consume-runner.pid');
+        $pidFile = app(FuelContext::class)->getPidFilePath();
         $pidDir = dirname($pidFile);
         if (! is_dir($pidDir)) {
             mkdir($pidDir, 0755, true);
         }
+
         file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
         // Mock ConsumeIpcClient
@@ -104,10 +110,10 @@ describe('browser:status command', function (): void {
         $mockClient->shouldReceive('connect')->once();
         $mockClient->shouldReceive('attach')->once();
         $mockClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): void {
             $requestIdToMatch = $cmd->requestId();
         });
-        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
             $callCount++;
             if ($callCount === 1) {
                 return [
@@ -148,11 +154,12 @@ describe('browser:status command', function (): void {
 
     it('handles browser operation failure', function (): void {
         // Create PID file at the expected location
-        $pidFile = base_path('.fuel/consume-runner.pid');
+        $pidFile = app(FuelContext::class)->getPidFilePath();
         $pidDir = dirname($pidFile);
         if (! is_dir($pidDir)) {
             mkdir($pidDir, 0755, true);
         }
+
         file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
         // Mock ConsumeIpcClient
@@ -163,10 +170,10 @@ describe('browser:status command', function (): void {
         $mockClient->shouldReceive('connect')->once();
         $mockClient->shouldReceive('attach')->once();
         $mockClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): void {
             $requestIdToMatch = $cmd->requestId();
         });
-        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
             $callCount++;
             if ($callCount === 1) {
                 return [
@@ -201,11 +208,12 @@ describe('browser:status command', function (): void {
 
     it('outputs JSON when --json flag is used', function (): void {
         // Create PID file at the expected location
-        $pidFile = base_path('.fuel/consume-runner.pid');
+        $pidFile = app(FuelContext::class)->getPidFilePath();
         $pidDir = dirname($pidFile);
         if (! is_dir($pidDir)) {
             mkdir($pidDir, 0755, true);
         }
+
         file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
         // Mock ConsumeIpcClient
@@ -216,10 +224,10 @@ describe('browser:status command', function (): void {
         $mockClient->shouldReceive('connect')->once();
         $mockClient->shouldReceive('attach')->once();
         $mockClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+        $mockClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): void {
             $requestIdToMatch = $cmd->requestId();
         });
-        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+        $mockClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
             $callCount++;
             if ($callCount === 1) {
                 return [

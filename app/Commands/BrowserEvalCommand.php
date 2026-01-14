@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Commands\Concerns\HandlesJsonOutput;
 use App\Ipc\Commands\BrowserEvalCommand as BrowserEvalIpcCommand;
 use App\Ipc\Events\BrowserResponseEvent;
-use App\Services\ConsumeIpcClient;
+use App\Ipc\IpcMessage;
 use DateTimeImmutable;
-use LaravelZero\Framework\Commands\Command;
 
-class BrowserEvalCommand extends Command
+class BrowserEvalCommand extends BrowserCommand
 {
-    use HandlesJsonOutput;
-
     protected $signature = 'browser:eval
         {page_id : Page ID to evaluate expression in}
         {expression : JavaScript expression to evaluate}
@@ -22,107 +18,63 @@ class BrowserEvalCommand extends Command
 
     protected $description = 'Evaluate JavaScript expression in a browser page via the consume daemon';
 
+    private ?string $pageId = null;
+
+    private ?string $expression = null;
+
+    /**
+     * Prepare command arguments before building IPC command.
+     */
     public function handle(): int
     {
-        $pageId = $this->argument('page_id');
-        $expression = $this->argument('expression');
+        $this->pageId = $this->argument('page_id');
+        $this->expression = $this->argument('expression');
 
-        // Connect to daemon
-        $client = app(ConsumeIpcClient::class);
-
-        // Check if daemon is running
-        $pidFilePath = base_path('.fuel/consume-runner.pid');
-        if (! $client->isRunnerAlive($pidFilePath)) {
-            return $this->outputError('Consume daemon is not running. Start it with: fuel consume');
-        }
-
-        try {
-            // Read port from PID file
-            $pidData = json_decode(file_get_contents($pidFilePath), true);
-            $port = $pidData['port'] ?? 0;
-
-            if ($port === 0) {
-                return $this->outputError('Invalid port in PID file');
-            }
-
-            // Connect and attach
-            $client->connect($port);
-            $client->attach();
-
-            // Send BrowserEval command with request ID
-            $protocol = new \App\Services\ConsumeIpcProtocol;
-            $requestId = $protocol->generateRequestId();
-
-            $command = new BrowserEvalIpcCommand(
-                pageId: $pageId,
-                expression: $expression,
-                timestamp: new DateTimeImmutable,
-                instanceId: $client->getInstanceId(),
-                requestId: $requestId
-            );
-
-            $client->sendCommand($command);
-
-            // Wait for BrowserResponseEvent with matching requestId
-            $response = $this->waitForBrowserResponse($client, $requestId, 30);
-
-            $client->detach();
-            $client->disconnect();
-
-            if ($response === null) {
-                return $this->outputError('Timeout waiting for browser response');
-            }
-
-            if (! $response->success) {
-                return $this->outputError($response->error ?? 'Browser operation failed');
-            }
-
-            // Output success
-            if ($this->option('json')) {
-                $this->outputJson([
-                    'success' => true,
-                    'page_id' => $pageId,
-                    'expression' => $expression,
-                    'result' => $response->result,
-                ]);
-            } else {
-                $this->info("Expression evaluated successfully on page '{$pageId}'");
-                if ($response->result !== null) {
-                    $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
-                }
-            }
-
-            return self::SUCCESS;
-
-        } catch (\Throwable $e) {
-            return $this->outputError('Failed to communicate with daemon: '.$e->getMessage());
-        }
+        return parent::handle();
     }
 
     /**
-     * Wait for a BrowserResponseEvent with matching request ID.
+     * Build the BrowserEval IPC command.
      */
-    private function waitForBrowserResponse(ConsumeIpcClient $client, string $requestId, int $timeoutSeconds): ?BrowserResponseEvent
+    protected function buildIpcCommand(
+        string $requestId,
+        string $instanceId,
+        DateTimeImmutable $timestamp
+    ): IpcMessage {
+        return new BrowserEvalIpcCommand(
+            pageId: $this->pageId,
+            expression: $this->expression,
+            timestamp: $timestamp,
+            instanceId: $instanceId,
+            requestId: $requestId
+        );
+    }
+
+    /**
+     * Get response timeout for eval operations.
+     */
+    protected function getResponseTimeout(): int
     {
-        $deadline = time() + $timeoutSeconds;
+        return 30;
+    }
 
-        while (time() < $deadline) {
-            $events = $client->pollEvents();
-
-            foreach ($events as $event) {
-                if ($event instanceof BrowserResponseEvent && $event->requestId() === $requestId) {
-                    return $event;
-                }
-
-                // Apply other events to maintain state
-                if (! $event instanceof BrowserResponseEvent) {
-                    $client->applyEvent($event);
-                }
+    /**
+     * Handle the successful response from the browser daemon.
+     */
+    protected function handleSuccess(BrowserResponseEvent $response): void
+    {
+        if ($this->option('json')) {
+            $this->outputJson([
+                'success' => true,
+                'page_id' => $this->pageId,
+                'expression' => $this->expression,
+                'result' => $response->result,
+            ]);
+        } else {
+            $this->info(sprintf("Expression evaluated successfully on page '%s'", $this->pageId));
+            if ($response->result !== null) {
+                $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
             }
-
-            usleep(50000); // 50ms
         }
-
-        return null;
     }
 }

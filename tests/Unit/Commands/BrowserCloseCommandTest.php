@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir);
     mkdir($this->tempDir.'/.fuel');
 });
 
-afterEach(function () {
+afterEach(function (): void {
     if (is_dir($this->tempDir)) {
-        array_map('unlink', glob($this->tempDir.'/.fuel/*'));
-        array_map('unlink', glob($this->tempDir.'/*'));
+        array_map(unlink(...), glob($this->tempDir.'/.fuel/*'));
+        array_map(unlink(...), glob($this->tempDir.'/*'));
         rmdir($this->tempDir.'/.fuel');
         rmdir($this->tempDir);
     }
 });
 
-it('fails when daemon is not running', function () {
-    $pidFilePath = $this->tempDir.'/.fuel/consume-runner.pid';
+it('fails when daemon is not running', function (): void {
+    $pidFilePath = $this->tempDir.'/.fuel/consume.pid';
 
     // Mock the base_path function to return our temp dir
     $this->app->bind('path.base', fn () => $this->tempDir);
@@ -28,8 +28,8 @@ it('fails when daemon is not running', function () {
     ])->assertExitCode(1);
 });
 
-it('fails when PID file has invalid port', function () {
-    $pidFilePath = $this->tempDir.'/.fuel/consume-runner.pid';
+it('fails when PID file has invalid port', function (): void {
+    $pidFilePath = $this->tempDir.'/.fuel/consume.pid';
 
     // Create PID file with valid PID but invalid port
     file_put_contents($pidFilePath, json_encode([
@@ -44,8 +44,8 @@ it('fails when PID file has invalid port', function () {
     ])->assertExitCode(1);
 });
 
-it('outputs JSON error when daemon not running and --json flag provided', function () {
-    $pidFilePath = $this->tempDir.'/.fuel/consume-runner.pid';
+it('outputs JSON error when daemon not running and --json flag provided', function (): void {
+    $pidFilePath = $this->tempDir.'/.fuel/consume.pid';
 
     $this->app->bind('path.base', fn () => $this->tempDir);
 
