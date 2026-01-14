@@ -278,9 +278,9 @@ it('creates default config file', function (): void {
     expect($config['agents']['claude-opus']['driver'])->toBe('claude');
 
     // Verify complexity references valid agents
-    expect($config['complexity']['trivial'])->toBe('opencode-minimax');
-    expect($config['complexity']['simple'])->toBe('cursor-composer');
-    expect($config['complexity']['moderate'])->toBe('amp-smart');
+    expect($config['complexity']['trivial'])->toBe('claude-sonnet');
+    expect($config['complexity']['simple'])->toBe('claude-sonnet');
+    expect($config['complexity']['moderate'])->toBe('claude-opus');
     expect($config['complexity']['complex'])->toBe('claude-opus');
 });
 

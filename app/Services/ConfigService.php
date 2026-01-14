@@ -597,9 +597,9 @@ review: claude-opus
 
 # Map complexity levels to agents
 complexity:
-  trivial: opencode-minimax
-  simple: cursor-composer
-  moderate: amp-smart
+  trivial: claude-sonnet
+  simple: claude-sonnet
+  moderate: claude-opus
   complex: claude-opus
 
 agents:
