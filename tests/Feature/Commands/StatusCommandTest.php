@@ -118,7 +118,7 @@ describe('status command', function (): void {
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result['blocked'])->toBe(0);
+        expect($result['board']['blocked'])->toBe(0);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
@@ -135,12 +135,13 @@ describe('status command', function (): void {
         $result = json_decode($output, true);
 
         expect($result)->toBeArray();
-        expect($result)->toHaveKeys(['ready', 'in_progress', 'review', 'blocked', 'human', 'done']);
-        expect($result['ready'])->toBe(1);
-        expect($result['in_progress'])->toBe(1);
-        expect($result['done'])->toBe(1);
-        expect($result['blocked'])->toBe(0);
-        expect($result['human'])->toBe(0);
+        expect($result)->toHaveKey('board');
+        expect($result['board'])->toHaveKeys(['ready', 'in_progress', 'review', 'blocked', 'human', 'done']);
+        expect($result['board']['ready'])->toBe(1);
+        expect($result['board']['in_progress'])->toBe(1);
+        expect($result['board']['done'])->toBe(1);
+        expect($result['board']['blocked'])->toBe(0);
+        expect($result['board']['human'])->toBe(0);
     });
 
     it('shows correct ready count for open tasks', function (): void {
@@ -152,9 +153,9 @@ describe('status command', function (): void {
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result['ready'])->toBe(3);
-        expect($result['in_progress'])->toBe(0);
-        expect($result['done'])->toBe(0);
+        expect($result['board']['ready'])->toBe(3);
+        expect($result['board']['in_progress'])->toBe(0);
+        expect($result['board']['done'])->toBe(0);
     });
 
     it('handles empty state with JSON output', function (): void {
@@ -164,12 +165,12 @@ describe('status command', function (): void {
         $result = json_decode($output, true);
 
         expect($result)->toBeArray();
-        expect($result['ready'])->toBe(0);
-        expect($result['in_progress'])->toBe(0);
-        expect($result['review'])->toBe(0);
-        expect($result['done'])->toBe(0);
-        expect($result['blocked'])->toBe(0);
-        expect($result['human'])->toBe(0);
+        expect($result['board']['ready'])->toBe(0);
+        expect($result['board']['in_progress'])->toBe(0);
+        expect($result['board']['review'])->toBe(0);
+        expect($result['board']['done'])->toBe(0);
+        expect($result['board']['blocked'])->toBe(0);
+        expect($result['board']['human'])->toBe(0);
     });
 
     it('counts only open tasks as blocked', function (): void {
@@ -189,7 +190,7 @@ describe('status command', function (): void {
         $result = json_decode($output, true);
 
         // Only open tasks should be counted as blocked
-        expect($result['blocked'])->toBe(1);
+        expect($result['board']['blocked'])->toBe(1);
     });
 
     it('categorizes needs-human tasks correctly', function (): void {
@@ -200,8 +201,8 @@ describe('status command', function (): void {
         $output = Artisan::output();
         $result = json_decode($output, true);
 
-        expect($result['ready'])->toBe(1);
-        expect($result['human'])->toBe(1);
-        expect($result['blocked'])->toBe(0);
+        expect($result['board']['ready'])->toBe(1);
+        expect($result['board']['human'])->toBe(1);
+        expect($result['board']['blocked'])->toBe(0);
     });
 });

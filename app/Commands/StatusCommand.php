@@ -7,6 +7,9 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
+use App\Services\ConfigService;
+use App\Services\ConsumeIpcClient;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
@@ -21,8 +24,11 @@ class StatusCommand extends Command
 
     protected $description = 'Show task statistics overview';
 
-    public function handle(TaskService $taskService): int
-    {
+    public function handle(
+        TaskService $taskService,
+        FuelContext $fuelContext,
+        ConfigService $configService
+    ): int {
         $tasks = $taskService->all();
 
         // Calculate board state matching consume --status format
@@ -67,9 +73,33 @@ class StatusCommand extends Command
             'done' => $done->count(),
         ];
 
+        // Try to get runner status
+        $runnerStatus = $this->getRunnerStatus($fuelContext, $configService);
+
         if ($this->option('json')) {
-            $this->outputJson($boardState);
+            $output = ['board' => $boardState];
+            if ($runnerStatus !== null) {
+                $output['runner'] = $runnerStatus;
+            }
+            $this->outputJson($output);
         } else {
+            // Display runner status if available
+            if ($runnerStatus !== null) {
+                $this->line('<fg=white;options=bold>Runner Status</>');
+                $this->newLine();
+
+                $runnerTable = new Table;
+                $runnerTable->render(
+                    ['Metric', 'Value'],
+                    [
+                        ['State', $runnerStatus['state']],
+                        ['Active processes', (string) $runnerStatus['active_processes']],
+                    ],
+                    $this->output
+                );
+                $this->newLine();
+            }
+
             $this->line('<fg=white;options=bold>Board Summary</>');
             $this->newLine();
 
@@ -89,5 +119,15 @@ class StatusCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Get runner status if daemon is running.
+     *
+     * @return array{state: string, active_processes: int}|null
+     */
+    private function getRunnerStatus(FuelContext $fuelContext): ?array
+    {
+        return ConsumeIpcClient::getStatus($fuelContext->getPidFilePath());
     }
 }
