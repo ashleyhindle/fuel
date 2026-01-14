@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -195,7 +196,8 @@ class EpicReviewCommand extends Command
                 ];
             }, $tasks);
 
-            $this->table($headers, $rows);
+            $table = new Table;
+            $table->render($headers, $rows, $this->output);
         }
 
         // Git information
