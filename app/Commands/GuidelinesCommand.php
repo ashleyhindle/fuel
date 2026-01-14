@@ -317,6 +317,68 @@ Primary agent coordinates - subagents do NOT pick tasks:
 6. Check `fuel ready` for newly unblocked work
 
 When parallel tasks share an interface, define it in a parent task's description. Avoid parallel work on tasks touching same files - use dependencies instead.
+
+### Testing Visual Changes with Browser
+
+This project includes a browser daemon for testing visual output (e.g., CLI output rendering, board displays, console formatting):
+
+**Browser Daemon Setup:**
+- Uses Playwright with headless Chrome/Chromium
+- Managed via `BrowserDaemonManager` service
+- Automatically starts when needed, stops on shutdown
+
+**Testing Visual Output:**
+
+1. **For CLI command output** - capture and verify visual rendering:
+```php
+use App\Services\BrowserDaemonManager;
+
+test('board command renders correctly', function () {
+    $browser = BrowserDaemonManager::getInstance();
+    $browser->start();
+
+    // Create context and page
+    $browser->createContext('test-ctx', ['viewport' => ['width' => 1280, 'height' => 720]]);
+    $browser->createPage('test-ctx', 'test-page');
+
+    // Navigate to test HTML (e.g., terminal output rendered as HTML)
+    $browser->goto('test-page', 'file:///path/to/output.html');
+
+    // Take screenshot for visual comparison
+    $result = $browser->screenshot('test-page', '/tmp/board-output.png', true);
+
+    // Verify layout with JavaScript
+    $check = $browser->eval('test-page', 'document.querySelector(".board-column").offsetWidth');
+    expect($check['value'])->toBeGreaterThan(200);
+
+    $browser->closeContext('test-ctx');
+});
+```
+
+2. **For terminal output formatting** - verify alignment and spacing:
+```php
+// When testing commands with complex visual output (boards, trees, tables)
+// 1. Capture the output
+// 2. Convert ANSI to HTML or take terminal screenshot
+// 3. Use browser daemon to verify visual properties
+// 4. Check alignment, column widths, emoji rendering, etc.
+```
+
+**Common Visual Testing Scenarios:**
+- Board column alignment with emojis (emojis are 2-chars wide in terminals)
+- Tree structure indentation and connecting lines
+- Table formatting and cell padding
+- ANSI color rendering
+- Multi-byte character handling (e.g., Japanese text)
+
+**Environment Variables:**
+- `FUEL_BROWSER_EXECUTABLE`: Override browser path if Chrome not in standard location
+
+**Tips:**
+- Visual tests should be marked appropriately: `@group visual`
+- Screenshots are saved to `/tmp` by default, specify custom paths as needed
+- Browser daemon auto-manages lifecycle, no manual cleanup needed
+- Use `$browser->status()` to debug daemon state
 MARKDOWN;
     }
 }
