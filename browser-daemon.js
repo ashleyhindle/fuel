@@ -178,13 +178,19 @@ async function handle(method, params) {
       const url = params?.url;
       const waitUntil = params?.waitUntil || "load"; // "domcontentloaded" | "load" | "networkidle"
       const timeoutMs = params?.timeoutMs || 30000;
+      const returnHtml = params?.html || false;
 
       const entry = pages.get(pageId);
       if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
       touchContext(entry.contextId);
       await entry.page.goto(url, { waitUntil, timeout: timeoutMs });
-      return { ok: true, result: { url: entry.page.url() } };
+
+      const result = { url: entry.page.url() };
+      if (returnHtml) {
+        result.html = await entry.page.content();
+      }
+      return { ok: true, result };
     }
 
     case "run": {

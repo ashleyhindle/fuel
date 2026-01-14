@@ -21,7 +21,8 @@ final class BrowserGotoCommand implements IpcMessage, JsonSerializable
         public ?int $timeout,
         DateTimeImmutable $timestamp,
         string $instanceId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        public bool $html = false
     ) {
         $this->setTimestamp($timestamp);
         $this->setInstanceId($instanceId);
@@ -37,7 +38,8 @@ final class BrowserGotoCommand implements IpcMessage, JsonSerializable
             timeout: $data['timeout'] ?? null,
             timestamp: new DateTimeImmutable($data['timestamp'] ?? 'now'),
             instanceId: $data['instance_id'] ?? '',
-            requestId: $data['request_id'] ?? null
+            requestId: $data['request_id'] ?? null,
+            html: $data['html'] ?? false
         );
     }
 
@@ -62,6 +64,7 @@ final class BrowserGotoCommand implements IpcMessage, JsonSerializable
             'url' => $this->url,
             'waitUntil' => $this->waitUntil,
             'timeout' => $this->timeout,
+            'html' => $this->html,
         ];
     }
 }

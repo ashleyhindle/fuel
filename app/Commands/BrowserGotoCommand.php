@@ -16,6 +16,7 @@ class BrowserGotoCommand extends BrowserCommand
         {url : URL to navigate to}
         {--wait-until=load : Wait until this event (load, domcontentloaded, networkidle)}
         {--timeout=30000 : Navigation timeout in milliseconds}
+        {--html : Return rendered HTML/DOM after navigation}
         {--json : Output as JSON}';
 
     protected $description = 'Navigate a browser page to a URL via the consume daemon';
@@ -28,6 +29,8 @@ class BrowserGotoCommand extends BrowserCommand
 
     private int $timeout = 30000;
 
+    private bool $html = false;
+
     /**
      * Prepare command arguments before building IPC command.
      */
@@ -37,6 +40,7 @@ class BrowserGotoCommand extends BrowserCommand
         $this->url = $this->argument('url');
         $this->waitUntil = $this->option('wait-until');
         $this->timeout = (int) $this->option('timeout');
+        $this->html = (bool) $this->option('html');
 
         return parent::handle();
     }
@@ -54,6 +58,7 @@ class BrowserGotoCommand extends BrowserCommand
             url: $this->url,
             waitUntil: $this->waitUntil,
             timeout: $this->timeout,
+            html: $this->html,
             timestamp: $timestamp,
             instanceId: $instanceId,
             requestId: $requestId
@@ -75,15 +80,21 @@ class BrowserGotoCommand extends BrowserCommand
     protected function handleSuccess(BrowserResponseEvent $response): void
     {
         if ($this->option('json')) {
-            $this->outputJson([
+            $output = [
                 'success' => true,
                 'page_id' => $this->pageId,
                 'url' => $this->url,
                 'result' => $response->result,
-            ]);
+            ];
+            if ($this->html && isset($response->result['html'])) {
+                $output['html'] = $response->result['html'];
+            }
+            $this->outputJson($output);
         } else {
             $this->info(sprintf("Page '%s' navigated to '%s' successfully", $this->pageId, $this->url));
-            if ($response->result !== null) {
+            if ($this->html && isset($response->result['html'])) {
+                $this->line($response->result['html']);
+            } elseif ($response->result !== null) {
                 $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
             }
         }
