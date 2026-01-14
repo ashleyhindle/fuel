@@ -13,6 +13,7 @@ use App\Daemon\ReviewManager;
 use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
 use App\DTO\ConsumeSnapshot;
+use App\Enums\EpicStatus;
 
 /**
  * Thin wrapper that manages daemon lifecycle.
@@ -26,6 +27,9 @@ use App\DTO\ConsumeSnapshot;
 final class ConsumeRunner
 {
     private ?DaemonLoop $daemonLoop = null;
+
+    /** @var array<string, bool> Track epics we've already notified for */
+    private array $notifiedEpics = [];
 
     public function __construct(
         private readonly ConsumeIpcServer $ipcServer,
@@ -42,8 +46,11 @@ final class ConsumeRunner
         private readonly CompletionHandler $completionHandler,
         private readonly IpcCommandDispatcher $ipcCommandDispatcher,
         private readonly SnapshotManager $snapshotManager,
+        private readonly BrowserDaemonManager $browserDaemonManager,
         private readonly ?ReviewManager $reviewManager = null,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
+        private readonly ?EpicService $epicService = null,
+        private readonly ?NotificationService $notificationService = null,
     ) {}
 
     /**
@@ -67,8 +74,22 @@ final class ConsumeRunner
         $port = $this->configService->getConsumePort();
         $this->lifecycleManager->start($port);
 
+        // Start browser daemon (non-critical - log warning if fails but continue)
+        try {
+            $this->browserDaemonManager->start();
+        } catch (\Throwable $e) {
+            // Log warning but continue - browser features become unavailable but daemon still runs
+            logger()->warning('Failed to start browser daemon: '.$e->getMessage());
+        }
+
         // Set TaskSpawner's instance ID to match the runner's instance ID
         $this->taskSpawner->setInstanceId($this->lifecycleManager->getInstanceId());
+
+        // Wire TaskSpawner's runtime config
+        $this->taskSpawner->setReviewEnabled($taskReviewEnabled);
+        $this->taskSpawner->setEpicCompletionCallback(function (string $taskId): void {
+            $this->checkEpicCompletionNotification($taskId);
+        });
 
         // Start IPC server
         $this->ipcServer->start();
@@ -80,6 +101,13 @@ final class ConsumeRunner
         $this->processManager->setOutputCallback(function (string $taskId, string $stream, string $chunk): void {
             $this->snapshotManager->handleOutputChunk($taskId, $stream, $chunk);
         });
+
+        // Create BrowserCommandHandler for DaemonLoop
+        $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
+            browserManager: $this->browserDaemonManager,
+            ipcServer: $this->ipcServer,
+            lifecycleManager: $this->lifecycleManager,
+        );
 
         // Create and run DaemonLoop
         $this->daemonLoop = new DaemonLoop(
@@ -93,6 +121,7 @@ final class ConsumeRunner
             processManager: $this->processManager,
             taskService: $this->taskService,
             runService: $this->runService,
+            browserCommandHandler: $browserCommandHandler,
         );
         $this->daemonLoop->run();
 
@@ -141,6 +170,9 @@ final class ConsumeRunner
      */
     private function cleanup(): void
     {
+        // Stop browser daemon before other cleanup
+        $this->browserDaemonManager->stop();
+
         // Shutdown processes if graceful mode
         if ($this->lifecycleManager->isGracefulShutdown()) {
             $this->processManager->shutdown();
@@ -223,5 +255,48 @@ final class ConsumeRunner
                 'agents' => [],
             ]
         );
+    }
+
+    /**
+     * Check if a completed task's epic is now review pending and send notification.
+     * Only notifies once per epic.
+     */
+    private function checkEpicCompletionNotification(string $taskId): void
+    {
+        // Skip if services are not available
+        if ($this->epicService === null || $this->notificationService === null) {
+            return;
+        }
+
+        $task = $this->taskService->find($taskId);
+        if ($task === null || empty($task->epic_id)) {
+            return;
+        }
+
+        $epicId = (string) $task->epic_id;
+
+        // Already notified for this epic
+        if (isset($this->notifiedEpics[$epicId])) {
+            return;
+        }
+
+        // Check if epic is now review pending (all tasks done)
+        try {
+            $epic = $this->epicService->getEpic($epicId);
+            $epicStatus = $this->epicService->getEpicStatus($epicId);
+            if ($epicStatus === EpicStatus::ReviewPending) {
+                // Mark as notified so we don't notify again
+                $this->notifiedEpics[$epicId] = true;
+
+                // Send notification with sound and desktop alert
+                $epicTitle = $epic?->title ?? $epicId;
+                $this->notificationService->alert(
+                    'Epic ready for review: '.$epicTitle,
+                    'Fuel: Epic Complete'
+                );
+            }
+        } catch (\RuntimeException) {
+            // Epic not found, ignore
+        }
     }
 }
