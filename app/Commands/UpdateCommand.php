@@ -13,6 +13,8 @@ class UpdateCommand extends Command
 {
     use HandlesJsonOutput;
 
+    protected $aliases = ['edit'];
+
     protected $signature = 'update
         {id : The task ID (supports partial matching)}
         {--cwd= : Working directory (defaults to current directory)}

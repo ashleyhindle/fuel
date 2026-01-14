@@ -80,14 +80,10 @@ final readonly class DaemonLoop
             // Run tick to handle spawning, completions, and reviews
             $this->tick();
 
-            // Periodically refresh snapshot cache (every 2 seconds)
-            // This ensures new clients get fresh-ish data without waiting for a full rebuild
-            if ($this->snapshotManager->shouldBroadcastSnapshot()) {
-                $this->snapshotManager->refreshCache();
-                // Only broadcast if clients are connected
-                if ($this->ipcServer->getClientCount() > 0) {
-                    $this->snapshotManager->broadcastSnapshotIfChanged();
-                }
+            // Periodically check for changes and broadcast (every 2 seconds)
+            // This detects external changes (e.g., tasks added via `fuel add`)
+            if ($this->snapshotManager->shouldBroadcastSnapshot() && $this->ipcServer->getClientCount() > 0) {
+                $this->snapshotManager->broadcastSnapshotIfChanged();
             }
 
             // Sleep for interval (60ms for responsiveness)
