@@ -50,6 +50,8 @@ final readonly class IpcCommandDispatcher
      * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
      * @param  callable  $onBrowserClose  Callback when browser close command is received
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
+     * @param  callable  $onRequestDoneTasks  Callback when done tasks are requested
+     * @param  callable  $onRequestBlockedTasks  Callback when blocked tasks are requested
      */
     public function pollIpcCommands(
         callable $onPause,
@@ -69,6 +71,8 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserScreenshot,
         callable $onBrowserClose,
         callable $onBrowserStatus,
+        callable $onRequestDoneTasks,
+        callable $onRequestBlockedTasks,
     ): void {
         $commands = $this->ipcServer->poll();
 
@@ -94,6 +98,8 @@ final readonly class IpcCommandDispatcher
                     onBrowserScreenshot: $onBrowserScreenshot,
                     onBrowserClose: $onBrowserClose,
                     onBrowserStatus: $onBrowserStatus,
+                    onRequestDoneTasks: $onRequestDoneTasks,
+                    onRequestBlockedTasks: $onRequestBlockedTasks,
                 );
             }
         }
@@ -121,6 +127,8 @@ final readonly class IpcCommandDispatcher
      * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
      * @param  callable  $onBrowserClose  Callback when browser close command is received
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
+     * @param  callable  $onRequestDoneTasks  Callback when done tasks are requested
+     * @param  callable  $onRequestBlockedTasks  Callback when blocked tasks are requested
      */
     private function handleIpcCommand(
         string $clientId,
@@ -142,6 +150,8 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserScreenshot,
         callable $onBrowserClose,
         callable $onBrowserStatus,
+        callable $onRequestDoneTasks,
+        callable $onRequestBlockedTasks,
     ): void {
         // Handle commands based on message type
         match ($message->type()) {
@@ -165,6 +175,9 @@ final readonly class IpcCommandDispatcher
             'browser_screenshot' => $onBrowserScreenshot($message),
             'browser_close' => $onBrowserClose($message),
             'browser_status' => $onBrowserStatus($message),
+            // Lazy-loaded data requests (send to requesting client only)
+            'request_done_tasks' => $onRequestDoneTasks($clientId),
+            'request_blocked_tasks' => $onRequestBlockedTasks($clientId),
             // attach/detach handled implicitly via accept() detecting new connections
             default => null,
         };

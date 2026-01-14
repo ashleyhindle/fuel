@@ -25,10 +25,9 @@ it('outputs guidelines content including browser testing section', function (): 
     $content = $method->invoke($command);
 
     expect($content)->toContain('### Testing Visual Changes with Browser');
-    expect($content)->toContain('BrowserDaemonManager');
-    expect($content)->toContain('Playwright');
-    expect($content)->toContain('screenshot');
-    expect($content)->toContain('Common Visual Testing Scenarios');
+    expect($content)->toContain('fuel browser testing skill');
+    expect($content)->toContain('Screenshots are saved to `/tmp`');
+    expect($content)->toContain('Browser daemon auto-manages lifecycle');
 });
 
 it('injects guidelines with browser testing section into CLAUDE.md', function (): void {
@@ -45,8 +44,8 @@ it('injects guidelines with browser testing section into CLAUDE.md', function ()
     expect($content)->toContain('<fuel>');
     expect($content)->toContain('</fuel>');
     expect($content)->toContain('### Testing Visual Changes with Browser');
-    expect($content)->toContain('BrowserDaemonManager');
-    expect($content)->toContain('Common Visual Testing Scenarios');
+    expect($content)->toContain('fuel browser testing skill');
+    expect($content)->toContain('Browser daemon auto-manages lifecycle');
 });
 
 it('replaces existing fuel section with updated content', function (): void {

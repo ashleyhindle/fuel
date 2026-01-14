@@ -19,6 +19,10 @@ enum ConsumeEventType: string
     case BrowserResponse = 'browser_response';
     case ConfigReloaded = 'config_reloaded';
 
+    // Lazy-loaded data responses
+    case DoneTasks = 'done_tasks';
+    case BlockedTasks = 'blocked_tasks';
+
     public static function fromString(string $value): self
     {
         return self::from($value);

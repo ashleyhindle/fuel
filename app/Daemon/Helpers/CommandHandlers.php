@@ -7,11 +7,14 @@ namespace App\Daemon\Helpers;
 use App\Daemon\LifecycleManager;
 use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
+use App\Enums\TaskStatus;
 use App\Ipc\Commands\DependencyAddCommand;
 use App\Ipc\Commands\TaskCreateCommand;
 use App\Ipc\Commands\TaskDoneCommand;
 use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Commands\TaskStartCommand;
+use App\Ipc\Events\BlockedTasksEvent;
+use App\Ipc\Events\DoneTasksEvent;
 use App\Ipc\Events\TaskCreateResponseEvent;
 use App\Ipc\IpcMessage;
 use App\Models\Task;
@@ -168,5 +171,68 @@ final readonly class CommandHandlers
                 // Dependency add failed - ignore
             }
         }
+    }
+
+    /**
+     * Handle request for done tasks - sends only to the requesting client.
+     */
+    public function handleRequestDoneTasks(string $clientId, ConsumeIpcServer $ipcServer): void
+    {
+        $allTasks = $this->taskService->all();
+        $doneTasks = $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Done)
+            ->sortByDesc('updated_at')
+            ->values();
+
+        // Serialize tasks for IPC transfer
+        $tasksArray = $doneTasks->map(function ($task) {
+            if (method_exists($task, 'attributesToArray')) {
+                $data = $task->attributesToArray();
+                if (method_exists($task, 'relationLoaded') && $task->relationLoaded('epic') && $task->epic) {
+                    $data['epic_short_id'] = $task->epic->short_id;
+                }
+
+                return $data;
+            }
+
+            return $task->toArray();
+        })->toArray();
+
+        $event = new DoneTasksEvent(
+            tasks: $tasksArray,
+            total: count($tasksArray),
+            instanceId: $this->lifecycleManager->getInstanceId()
+        );
+
+        $ipcServer->sendTo($clientId, $event);
+    }
+
+    /**
+     * Handle request for blocked tasks - sends only to the requesting client.
+     */
+    public function handleRequestBlockedTasks(string $clientId, ConsumeIpcServer $ipcServer): void
+    {
+        $blockedTasks = $this->taskService->blocked();
+
+        // Serialize tasks for IPC transfer
+        $tasksArray = $blockedTasks->map(function ($task) {
+            if (method_exists($task, 'attributesToArray')) {
+                $data = $task->attributesToArray();
+                if (method_exists($task, 'relationLoaded') && $task->relationLoaded('epic') && $task->epic) {
+                    $data['epic_short_id'] = $task->epic->short_id;
+                }
+
+                return $data;
+            }
+
+            return $task->toArray();
+        })->toArray();
+
+        $event = new BlockedTasksEvent(
+            tasks: $tasksArray,
+            total: count($tasksArray),
+            instanceId: $this->lifecycleManager->getInstanceId()
+        );
+
+        $ipcServer->sendTo($clientId, $event);
     }
 }

@@ -22,6 +22,10 @@ enum ConsumeCommandType: string
     case TaskCreate = 'task_create';
     case DependencyAdd = 'dependency_add';
 
+    // Lazy-loaded data requests
+    case RequestDoneTasks = 'request_done_tasks';
+    case RequestBlockedTasks = 'request_blocked_tasks';
+
     // Browser automation commands
     case BrowserCreate = 'browser_create';
     case BrowserPage = 'browser_page';

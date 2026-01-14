@@ -55,6 +55,7 @@ class ConsumeCommand extends Command
         {--unpause : Send resume command to runner and exit (alias for --resume)}
         {--stop : Send graceful stop command to runner and exit}
         {--force : Send force stop command to runner and exit}
+        {--start : Start the runner daemon in the background and exit}
         {--restart : Restart the runner daemon (stop and start)}
         {--fresh : Kill existing runner and start fresh}
         {--ip=127.0.0.1 : IP address of the runner to connect to}';
@@ -203,6 +204,11 @@ class ConsumeCommand extends Command
         // Handle IPC control flags (--status, --pause, --resume, --stop, --force)
         if ($this->hasIpcControlFlag()) {
             return $this->handleIpcControl();
+        }
+
+        // Handle --start flag: start runner daemon in background and exit
+        if ($this->option('start')) {
+            return $this->handleStartDaemon();
         }
 
         // Handle --once flag: show board once and exit (no spawning)
@@ -820,11 +826,13 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Build footer
+        // Build footer - use counts from IPC client (lazy-loaded data)
+        $blockedCount = $this->ipcClient?->getBlockedCount() ?? $blockedTasks->count();
+        $doneCount = $this->ipcClient?->getDoneCount() ?? $doneTasks->count();
         $footerParts = [];
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
-        $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
-        $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
+        $footerParts[] = '<fg=gray>b: blocked ('.$blockedCount.')</>';
+        $footerParts[] = '<fg=gray>d: done ('.$doneCount.')</>';
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
@@ -859,11 +867,21 @@ class ConsumeCommand extends Command
             $this->screenBuffer->setLine($this->terminalHeight, str_repeat(' ', $paddingAmount).$footerLine.str_repeat(' ', $paddingAmount));
         }
 
-        // Render modals on top if active
+        // Render modals on top if active - use lazy-loaded data from IPC client
         if ($this->showBlockedModal) {
-            $this->captureModal('Blocked Tasks', $blockedTasks->all(), 'blocked', $this->blockedModalScroll);
+            $blockedData = $this->ipcClient?->getBlockedTasks();
+            if ($blockedData === null) {
+                $this->captureLoadingModal('Blocked Tasks');
+            } else {
+                $this->captureModal('Blocked Tasks', $this->hydrateTasksForModal($blockedData), 'blocked', $this->blockedModalScroll);
+            }
         } elseif ($this->showDoneModal) {
-            $this->captureModal('Done Tasks', $doneTasks->all(), 'done', $this->doneModalScroll);
+            $doneData = $this->ipcClient?->getDoneTasks();
+            if ($doneData === null) {
+                $this->captureLoadingModal('Done Tasks');
+            } else {
+                $this->captureModal('Done Tasks', $this->hydrateTasksForModal($doneData), 'done', $this->doneModalScroll);
+            }
         }
 
         return $this->screenBuffer->getLines();
@@ -915,6 +933,48 @@ class ConsumeCommand extends Command
         }
 
         return $prefix.'<fg=gray>None</>';
+    }
+
+    /**
+     * Hydrate task arrays from IPC into Task model objects for modal rendering.
+     *
+     * @param  array<array>  $tasksData  Raw task data from IPC
+     * @return array<int, Task>
+     */
+    private function hydrateTasksForModal(array $tasksData): array
+    {
+        return Task::hydrate($tasksData)->all();
+    }
+
+    /**
+     * Capture a loading modal as an overlay layer.
+     */
+    private function captureLoadingModal(string $title): void
+    {
+        if (! $this->screenBuffer instanceof ScreenBuffer) {
+            return;
+        }
+
+        // Modal dimensions (centered, 60% width)
+        $modalWidth = min((int) ($this->terminalWidth * 0.6), $this->terminalWidth - 8);
+        $startCol = (int) (($this->terminalWidth - $modalWidth) / 2) + 1;
+        $startRow = 3;
+
+        // Build loading modal content
+        $modalLines = [];
+        $modalLines[] = '<fg=cyan>╭'.str_repeat('─', $modalWidth - 2).'╮</>';
+        $modalLines[] = '<fg=cyan>│</> <fg=white;options=bold>'.$this->truncate($title, $modalWidth - 6).'</>'.str_repeat(' ', max(0, $modalWidth - $this->visibleLength($title) - 3)).'<fg=cyan>│</>';
+        $modalLines[] = '<fg=cyan>├'.str_repeat('─', $modalWidth - 2).'┤</>';
+
+        // Loading message
+        $loadingMsg = '⏳ Loading...';
+        $padding = max(0, $modalWidth - strlen($loadingMsg) - 3);
+        $modalLines[] = '<fg=cyan>│</> <fg=yellow>'.$loadingMsg.'</>'.str_repeat(' ', $padding).'<fg=cyan>│</>';
+
+        $modalLines[] = '<fg=cyan>╰'.str_repeat('─', $modalWidth - 2).'╯</>';
+
+        // Store modal as an overlay layer
+        $this->screenBuffer->setOverlay(1, $startRow, $startCol, $modalLines);
     }
 
     /**
@@ -1362,11 +1422,13 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Build footer (key instructions only)
+        // Build footer (key instructions only) - use counts from IPC client when available
+        $blockedCount = $this->ipcClient?->getBlockedCount() ?? $blockedTasks->count();
+        $doneCount = $this->ipcClient?->getDoneCount() ?? $doneTasks->count();
         $footerParts = [];
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
-        $footerParts[] = '<fg=gray>b: blocked ('.$blockedTasks->count().')</>';
-        $footerParts[] = '<fg=gray>d: done ('.$doneTasks->count().')</>';
+        $footerParts[] = '<fg=gray>b: blocked ('.$blockedCount.')</>';
+        $footerParts[] = '<fg=gray>d: done ('.$doneCount.')</>';
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
@@ -1398,11 +1460,23 @@ class ConsumeCommand extends Command
         $paddingAmount = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($footerLine)) / 2));
         $this->getOutput()->write(sprintf("\033[%d;1H%s%s%s", $this->terminalHeight, str_repeat(' ', $paddingAmount), $footerLine, str_repeat(' ', $paddingAmount)));
 
-        // Render modals if active
+        // Render modals if active - use lazy-loaded data from IPC client
         if ($this->showBlockedModal) {
-            $this->renderModal('Blocked Tasks', $blockedTasks->all(), 'blocked', $this->blockedModalScroll);
+            $blockedData = $this->ipcClient?->getBlockedTasks();
+            if ($blockedData === null) {
+                // Still loading - show placeholder
+                $this->info('Loading blocked tasks...');
+            } else {
+                $this->renderModal('Blocked Tasks', $this->hydrateTasksForModal($blockedData), 'blocked', $this->blockedModalScroll);
+            }
         } elseif ($this->showDoneModal) {
-            $this->renderModal('Done Tasks', $doneTasks->all(), 'done', $this->doneModalScroll);
+            $doneData = $this->ipcClient?->getDoneTasks();
+            if ($doneData === null) {
+                // Still loading - show placeholder
+                $this->info('Loading done tasks...');
+            } else {
+                $this->renderModal('Done Tasks', $this->hydrateTasksForModal($doneData), 'done', $this->doneModalScroll);
+            }
         }
     }
 
@@ -2162,6 +2236,10 @@ class ConsumeCommand extends Command
                     $this->showDoneModal = false;
                     $this->doneModalScroll = 0;
                     $this->blockedModalScroll = 0;
+                    // Request blocked tasks if not already loaded
+                    if ($this->ipcClient?->isConnected() && ! $this->ipcClient->hasBlockedTasks()) {
+                        $this->ipcClient->requestBlockedTasks();
+                    }
                 } else {
                     $this->blockedModalScroll = 0;
                 }
@@ -2177,6 +2255,10 @@ class ConsumeCommand extends Command
                     $this->showBlockedModal = false;
                     $this->blockedModalScroll = 0;
                     $this->doneModalScroll = 0;
+                    // Request done tasks if not already loaded
+                    if ($this->ipcClient?->isConnected() && ! $this->ipcClient->hasDoneTasks()) {
+                        $this->ipcClient->requestDoneTasks();
+                    }
                 } else {
                     $this->doneModalScroll = 0;
                 }
@@ -3176,6 +3258,46 @@ class ConsumeCommand extends Command
         } finally {
             $this->ipcClient->disconnect();
         }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Handle --start flag: start runner daemon in background and exit.
+     */
+    private function handleStartDaemon(): int
+    {
+        $ipcClient = new ConsumeIpcClient($this->option('ip'));
+        $pidFilePath = $this->fuelContext->getPidFilePath();
+        $port = $this->configService->getConsumePort();
+
+        // Check if already running
+        if ($ipcClient->isRunnerAlive($pidFilePath)) {
+            $pidData = json_decode(@file_get_contents($pidFilePath), true);
+            $pid = $pidData['pid'] ?? 'unknown';
+            $this->info(sprintf('Runner is already running (PID: %s)', $pid));
+
+            return self::SUCCESS;
+        }
+
+        // Start runner in background
+        $this->info('Starting runner daemon...');
+        $ipcClient->startRunner($this->fuelContext->getProjectPath().'/fuel');
+
+        // Wait for runner to be ready
+        try {
+            $ipcClient->waitForServer($port, 5);
+        } catch (\RuntimeException $e) {
+            $this->error('Failed to start runner: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        // Read PID from file
+        $pidData = json_decode(@file_get_contents($pidFilePath), true);
+        $pid = $pidData['pid'] ?? 'unknown';
+
+        $this->info(sprintf('Runner daemon started (PID: %s)', $pid));
 
         return self::SUCCESS;
     }

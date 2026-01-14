@@ -29,19 +29,25 @@ final readonly class SnapshotBuilder
     public function buildSnapshot(): ConsumeSnapshot
     {
         // Get board data from task service
+        // Done and blocked are lazy-loaded on demand to reduce snapshot size
         $allTasks = $this->taskService->all();
+        $blocked = $this->taskService->blocked();
+        $doneCount = $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Done)->count();
+
         $boardData = [
             'ready' => $this->taskService->ready(),
             'in_progress' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::InProgress),
             'review' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Review)
                 ->sortByDesc('updated_at')
                 ->values(),
-            'blocked' => $this->taskService->blocked(),
+            'blocked' => collect(), // Lazy-loaded on demand
             'human' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Open && is_array($t->labels) && in_array('needs-human', $t->labels, true)),
-            'done' => $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Done)
-                ->sortByDesc('updated_at')
-                ->values(),
+            'done' => collect(), // Lazy-loaded on demand
         ];
+
+        // Track counts for UI footer display
+        $blockedCount = $blocked->count();
+        $doneCount = $doneCount;
 
         // Get active processes
         $activeProcesses = $this->processManager->getActiveProcesses();
@@ -74,7 +80,9 @@ final readonly class SnapshotBuilder
             instanceId: $instanceId,
             intervalSeconds: 5, // Default interval
             agentLimits: $agentLimits,
-            epics: $epics
+            epics: $epics,
+            doneCount: $doneCount,
+            blockedCount: $blockedCount
         );
     }
 

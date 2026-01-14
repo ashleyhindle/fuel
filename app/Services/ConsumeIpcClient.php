@@ -8,12 +8,16 @@ use App\Ipc\Commands\AttachCommand;
 use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
+use App\Ipc\Commands\RequestBlockedTasksCommand;
+use App\Ipc\Commands\RequestDoneTasksCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\Commands\TaskCreateCommand;
 use App\Ipc\Commands\TaskDoneCommand;
+use App\Ipc\Events\BlockedTasksEvent;
+use App\Ipc\Events\DoneTasksEvent;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Ipc\Events\TaskCompletedEvent;
@@ -49,6 +53,18 @@ class ConsumeIpcClient
 
     /** Agent health summary from latest snapshot */
     private array $healthSummary = [];
+
+    /** Done tasks (lazy-loaded on demand) */
+    private ?array $doneTasks = null;
+
+    /** Blocked tasks (lazy-loaded on demand) */
+    private ?array $blockedTasks = null;
+
+    /** Count of done tasks from snapshot (for footer display) */
+    private int $doneCount = 0;
+
+    /** Count of blocked tasks from snapshot (for footer display) */
+    private int $blockedCount = 0;
 
     /** Runner state (paused, started_at, instance_id) */
     private array $runnerState = [];
@@ -442,6 +458,8 @@ class ConsumeIpcClient
             'health_change' => $this->handleHealthChangeEvent($event),
             'hello' => null, // Already handled in attach
             'error' => null, // Handle errors separately
+            'done_tasks' => $this->handleDoneTasksEvent($event),
+            'blocked_tasks' => $this->handleBlockedTasksEvent($event),
             default => null,
         };
     }
@@ -508,7 +526,7 @@ class ConsumeIpcClient
      * Handles connect, attach, snapshot, and disconnect internally.
      * Returns null if daemon is not running or connection fails.
      *
-     * @return array{state: string, active_processes: int}|null
+     * @return array{state: string, active_processes: int, pid: int}|null
      */
     public static function getStatus(string $pidFilePath): ?array
     {
@@ -530,6 +548,7 @@ class ConsumeIpcClient
             $result = [
                 'state' => $client->isPaused() ? 'PAUSED' : 'RUNNING',
                 'active_processes' => count($client->getActiveProcesses()),
+                'pid' => (int) ($pidData['pid'] ?? 0),
             ];
 
             $client->disconnect();
@@ -580,9 +599,10 @@ class ConsumeIpcClient
     /**
      * Send stop command to runner.
      */
-    public function sendStop(): void
+    public function sendStop(string $mode = 'graceful'): void
     {
         $cmd = new StopCommand(
+            mode: $mode,
             timestamp: new DateTimeImmutable,
             instanceId: $this->instanceId
         );
@@ -795,6 +815,14 @@ class ConsumeIpcClient
         $this->healthSummary = $snapshot->healthSummary ?? [];
         $this->runnerState = $snapshot->runnerState ?? [];
         $this->epics = $snapshot->epics ?? [];
+
+        // Update counts from snapshot (for footer display)
+        $this->doneCount = $snapshot->doneCount;
+        $this->blockedCount = $snapshot->blockedCount;
+
+        // Clear cached lazy-loaded data (snapshot changed, cache may be stale)
+        $this->doneTasks = null;
+        $this->blockedTasks = null;
     }
 
     /**
@@ -858,5 +886,121 @@ class ConsumeIpcClient
         $this->healthSummary[$event->agent()] = [
             'status' => $event->status(),
         ];
+    }
+
+    /**
+     * Handle done tasks event - store lazy-loaded done tasks.
+     */
+    private function handleDoneTasksEvent(IpcMessage $event): void
+    {
+        if (! $event instanceof DoneTasksEvent) {
+            return;
+        }
+
+        $this->doneTasks = $event->tasks();
+        $this->doneCount = $event->total();
+    }
+
+    /**
+     * Handle blocked tasks event - store lazy-loaded blocked tasks.
+     */
+    private function handleBlockedTasksEvent(IpcMessage $event): void
+    {
+        if (! $event instanceof BlockedTasksEvent) {
+            return;
+        }
+
+        $this->blockedTasks = $event->tasks();
+        $this->blockedCount = $event->total();
+    }
+
+    /**
+     * Request done tasks from runner.
+     */
+    public function requestDoneTasks(): void
+    {
+        $cmd = new RequestDoneTasksCommand(
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
+     * Request blocked tasks from runner.
+     */
+    public function requestBlockedTasks(): void
+    {
+        $cmd = new RequestBlockedTasksCommand(
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
+     * Get done tasks (lazy-loaded).
+     * Returns null if not yet loaded, array of tasks if loaded.
+     */
+    public function getDoneTasks(): ?array
+    {
+        return $this->doneTasks;
+    }
+
+    /**
+     * Get blocked tasks (lazy-loaded).
+     * Returns null if not yet loaded, array of tasks if loaded.
+     */
+    public function getBlockedTasks(): ?array
+    {
+        return $this->blockedTasks;
+    }
+
+    /**
+     * Get done task count from snapshot (for footer display).
+     */
+    public function getDoneCount(): int
+    {
+        return $this->doneCount;
+    }
+
+    /**
+     * Get blocked task count from snapshot (for footer display).
+     */
+    public function getBlockedCount(): int
+    {
+        return $this->blockedCount;
+    }
+
+    /**
+     * Check if done tasks have been loaded.
+     */
+    public function hasDoneTasks(): bool
+    {
+        return $this->doneTasks !== null;
+    }
+
+    /**
+     * Check if blocked tasks have been loaded.
+     */
+    public function hasBlockedTasks(): bool
+    {
+        return $this->blockedTasks !== null;
+    }
+
+    /**
+     * Clear cached done tasks (e.g., when snapshot changes).
+     */
+    public function clearDoneTasks(): void
+    {
+        $this->doneTasks = null;
+    }
+
+    /**
+     * Clear cached blocked tasks (e.g., when snapshot changes).
+     */
+    public function clearBlockedTasks(): void
+    {
+        $this->blockedTasks = null;
     }
 }

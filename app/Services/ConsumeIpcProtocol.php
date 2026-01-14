@@ -19,6 +19,8 @@ use App\Ipc\Commands\DependencyAddCommand;
 use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
+use App\Ipc\Commands\RequestBlockedTasksCommand;
+use App\Ipc\Commands\RequestDoneTasksCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
@@ -26,7 +28,9 @@ use App\Ipc\Commands\StopCommand;
 use App\Ipc\Commands\TaskCreateCommand;
 use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Commands\TaskStartCommand;
+use App\Ipc\Events\BlockedTasksEvent;
 use App\Ipc\Events\BrowserResponseEvent;
+use App\Ipc\Events\DoneTasksEvent;
 use App\Ipc\Events\ErrorEvent;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\HelloEvent;
@@ -138,6 +142,8 @@ final class ConsumeIpcProtocol
                 ConsumeCommandType::BrowserScreenshot => BrowserScreenshotCommand::fromArray($data),
                 ConsumeCommandType::BrowserClose => BrowserCloseCommand::fromArray($data),
                 ConsumeCommandType::BrowserStatus => BrowserStatusCommand::fromArray($data),
+                ConsumeCommandType::RequestDoneTasks => RequestDoneTasksCommand::fromArray($data),
+                ConsumeCommandType::RequestBlockedTasks => RequestBlockedTasksCommand::fromArray($data),
             };
         } catch (\ValueError) {
             // Not a command type, try event types
@@ -159,6 +165,9 @@ final class ConsumeIpcProtocol
                 ConsumeEventType::ReviewCompleted => $this->decodeReviewCompletedEvent($data),
                 ConsumeEventType::TaskCreateResponse => $this->decodeTaskCreateResponseEvent($data),
                 ConsumeEventType::BrowserResponse => $this->decodeBrowserResponseEvent($data),
+                ConsumeEventType::DoneTasks => $this->decodeDoneTasksEvent($data),
+                ConsumeEventType::BlockedTasks => $this->decodeBlockedTasksEvent($data),
+                ConsumeEventType::ConfigReloaded => $this->decodeConfigReloadedEvent($data),
             };
         } catch (\ValueError) {
             // Unknown type
@@ -198,7 +207,10 @@ final class ConsumeIpcProtocol
             activeProcesses: $snapshotData['active_processes'] ?? [],
             healthSummary: $snapshotData['health_summary'] ?? [],
             runnerState: $snapshotData['runner_state'] ?? ['paused' => false, 'started_at' => null, 'instance_id' => ''],
-            config: $snapshotData['config'] ?? ['interval_seconds' => 5, 'agents' => []]
+            config: $snapshotData['config'] ?? ['interval_seconds' => 5, 'agents' => []],
+            epics: $snapshotData['epics'] ?? [],
+            doneCount: $snapshotData['done_count'] ?? 0,
+            blockedCount: $snapshotData['blocked_count'] ?? 0
         );
 
         return new SnapshotEvent(
@@ -307,5 +319,36 @@ final class ConsumeIpcProtocol
     private function decodeBrowserResponseEvent(array $data): BrowserResponseEvent
     {
         return BrowserResponseEvent::fromArray($data);
+    }
+
+    private function decodeDoneTasksEvent(array $data): DoneTasksEvent
+    {
+        return new DoneTasksEvent(
+            tasks: $data['tasks'] ?? [],
+            total: $data['total'] ?? 0,
+            instanceId: $data['instance_id'] ?? '',
+            timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
+            requestId: $data['request_id'] ?? null
+        );
+    }
+
+    private function decodeBlockedTasksEvent(array $data): BlockedTasksEvent
+    {
+        return new BlockedTasksEvent(
+            tasks: $data['tasks'] ?? [],
+            total: $data['total'] ?? 0,
+            instanceId: $data['instance_id'] ?? '',
+            timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
+            requestId: $data['request_id'] ?? null
+        );
+    }
+
+    private function decodeConfigReloadedEvent(array $data): \App\Ipc\Events\ConfigReloadedEvent
+    {
+        return new \App\Ipc\Events\ConfigReloadedEvent(
+            instanceId: $data['instance_id'] ?? '',
+            timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
+            requestId: $data['request_id'] ?? null
+        );
     }
 }

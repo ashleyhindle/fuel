@@ -179,6 +179,8 @@ final readonly class DaemonLoop
             onBrowserScreenshot: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserScreenshot($message),
             onBrowserClose: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserClose($message),
             onBrowserStatus: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserStatus($message),
+            onRequestDoneTasks: fn (string $clientId) => $this->commandHandlers->handleRequestDoneTasks($clientId, $this->ipcServer),
+            onRequestBlockedTasks: fn (string $clientId) => $this->commandHandlers->handleRequestBlockedTasks($clientId, $this->ipcServer),
         );
     }
 }

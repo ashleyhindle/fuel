@@ -26,6 +26,8 @@ final readonly class ConsumeSnapshot implements JsonSerializable
      * @param  array{paused: bool, started_at: int|null, instance_id: string}  $runnerState  Runner process state
      * @param  array{interval_seconds: int, agents: array<string, array{max_concurrent: int}>}  $config  Runtime configuration
      * @param  array<string, array{short_id: string, title: string, status: string}>  $epics  Epic data keyed by short_id
+     * @param  int  $doneCount  Count of done tasks (for footer display, tasks lazy-loaded on demand)
+     * @param  int  $blockedCount  Count of blocked tasks (for footer display, tasks lazy-loaded on demand)
      */
     public function __construct(
         public array $boardState,
@@ -34,6 +36,8 @@ final readonly class ConsumeSnapshot implements JsonSerializable
         public array $runnerState,
         public array $config,
         public array $epics = [],
+        public int $doneCount = 0,
+        public int $blockedCount = 0,
     ) {}
 
     /**
@@ -48,6 +52,8 @@ final readonly class ConsumeSnapshot implements JsonSerializable
      * @param  int  $intervalSeconds  Check interval in seconds
      * @param  array<string, int>  $agentLimits  Max concurrent per agent
      * @param  array<Epic>  $epics  Epic models to include
+     * @param  int  $doneCount  Count of done tasks for footer display
+     * @param  int  $blockedCount  Count of blocked tasks for footer display
      */
     public static function fromBoardData(
         array $boardData,
@@ -59,6 +65,8 @@ final readonly class ConsumeSnapshot implements JsonSerializable
         int $intervalSeconds,
         array $agentLimits,
         array $epics = [],
+        int $doneCount = 0,
+        int $blockedCount = 0,
     ): self {
         // Convert active processes to serializable format (keyed by task_id)
         $processesData = [];
@@ -121,6 +129,8 @@ final readonly class ConsumeSnapshot implements JsonSerializable
                 'agents' => $agentsConfig,
             ],
             epics: $epicsData,
+            doneCount: $doneCount,
+            blockedCount: $blockedCount,
         );
     }
 
@@ -145,6 +155,8 @@ final readonly class ConsumeSnapshot implements JsonSerializable
             'runner_state' => $this->runnerState,
             'config' => $this->config,
             'epics' => $this->epics,
+            'done_count' => $this->doneCount,
+            'blocked_count' => $this->blockedCount,
         ];
     }
 

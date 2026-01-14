@@ -90,6 +90,7 @@ class StatusCommand extends Command
                 $runnerTable->render(
                     ['Metric', 'Value'],
                     [
+                        ['PID', (string) $runnerStatus['pid']],
                         ['State', $runnerStatus['state']],
                         ['Active processes', (string) $runnerStatus['active_processes']],
                     ],
