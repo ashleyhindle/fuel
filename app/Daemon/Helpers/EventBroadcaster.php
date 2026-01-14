@@ -105,4 +105,13 @@ final class EventBroadcaster
         );
         $this->ipcServer->broadcast($event);
     }
+
+    public function broadcastConfigReloaded(): void
+    {
+        $instanceId = $this->lifecycleManager?->getInstanceId() ?? 'unknown';
+        $event = new \App\Ipc\Events\ConfigReloadedEvent(
+            instanceId: $instanceId
+        );
+        $this->ipcServer->broadcast($event);
+    }
 }

@@ -16,6 +16,8 @@ enum ConsumeEventType: string
     case Error = 'error';
     case ReviewCompleted = 'review_completed';
     case TaskCreateResponse = 'task_create_response';
+    case BrowserResponse = 'browser_response';
+    case ConfigReloaded = 'config_reloaded';
 
     public static function fromString(string $value): self
     {

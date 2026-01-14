@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Daemon;
 
 use App\Ipc\IpcMessage;
+use App\Services\ConfigService;
 use App\Services\ConsumeIpcServer;
 
 /**
@@ -16,6 +17,7 @@ use App\Services\ConsumeIpcServer;
  * - Handle pause/resume commands
  * - Handle set task review command
  * - Handle stop command
+ * - Handle config reload command
  */
 final class IpcCommandDispatcher
 {
@@ -23,6 +25,7 @@ final class IpcCommandDispatcher
         private readonly ConsumeIpcServer $ipcServer,
         private readonly LifecycleManager $lifecycleManager,
         private readonly CompletionHandler $completionHandler,
+        private readonly ConfigService $configService,
     ) {}
 
     /**
@@ -37,6 +40,7 @@ final class IpcCommandDispatcher
      * @param  callable  $onTaskDone  Callback when task done command is received
      * @param  callable  $onTaskCreate  Callback when task create command is received
      * @param  callable  $onDependencyAdd  Callback when dependency add command is received
+     * @param  callable  $onReloadConfig  Callback when config reload command is received
      */
     public function pollIpcCommands(
         callable $onPause,
@@ -48,6 +52,7 @@ final class IpcCommandDispatcher
         callable $onTaskDone,
         callable $onTaskCreate,
         callable $onDependencyAdd,
+        callable $onReloadConfig,
     ): void {
         $commands = $this->ipcServer->poll();
 
@@ -65,6 +70,7 @@ final class IpcCommandDispatcher
                     onTaskDone: $onTaskDone,
                     onTaskCreate: $onTaskCreate,
                     onDependencyAdd: $onDependencyAdd,
+                    onReloadConfig: $onReloadConfig,
                 );
             }
         }
@@ -84,6 +90,7 @@ final class IpcCommandDispatcher
      * @param  callable  $onTaskDone  Callback when task done command is received
      * @param  callable  $onTaskCreate  Callback when task create command is received
      * @param  callable  $onDependencyAdd  Callback when dependency add command is received
+     * @param  callable  $onReloadConfig  Callback when config reload command is received
      */
     private function handleIpcCommand(
         string $clientId,
@@ -97,6 +104,7 @@ final class IpcCommandDispatcher
         callable $onTaskDone,
         callable $onTaskCreate,
         callable $onDependencyAdd,
+        callable $onReloadConfig,
     ): void {
         // Handle commands based on message type
         match ($message->type()) {
@@ -105,13 +113,14 @@ final class IpcCommandDispatcher
             'stop' => $this->handleStopCommand($message, $onStop),
             'request_snapshot' => $onSnapshot($clientId),
             'set_task_review_enabled' => $this->handleSetTaskReviewCommand($message),
+            'reload_config' => $this->handleReloadConfigCommand($onReloadConfig),
             // Task mutation commands
             'task_start' => $onTaskStart($message),
             'task_reopen' => $onTaskReopen($message),
             'task_done' => $onTaskDone($message),
             'task_create' => $onTaskCreate($message),
             'dependency_add' => $onDependencyAdd($message),
-            // Other commands (attach, detach, reload_config, set_interval) are handled in future tasks
+            // attach/detach handled implicitly via accept() detecting new connections
             default => null,
         };
     }
@@ -167,5 +176,16 @@ final class IpcCommandDispatcher
             // Default to graceful stop
             $onStop(true);
         }
+    }
+
+    /**
+     * Handle reload config command - reload config and invoke callback.
+     *
+     * @param  callable  $onReloadConfig  Callback to invoke after reloading config
+     */
+    private function handleReloadConfigCommand(callable $onReloadConfig): void
+    {
+        $this->configService->reload();
+        $onReloadConfig();
     }
 }

@@ -27,14 +27,19 @@ use App\Services\TaskService;
 final class SnapshotManager
 {
     private const RING_BUFFER_SIZE = 4096;
+
     private const SNAPSHOT_BROADCAST_INTERVAL = 2;
 
     private array $outputRingBuffers = [];
+
     private array $previousHealthStatus = [];
+
     private int $lastSnapshotBroadcast = 0;
+
     private ?string $lastSnapshotHash = null;
 
     private readonly SnapshotBuilder $builder;
+
     private readonly EventBroadcaster $broadcaster;
 
     public function __construct(
@@ -112,6 +117,11 @@ final class SnapshotManager
         $this->broadcaster->broadcastTaskCompleted($taskId, $runId, $exitCode, $completionType);
     }
 
+    public function broadcastConfigReloaded(): void
+    {
+        $this->broadcaster->broadcastConfigReloaded();
+    }
+
     public function handleOutputChunk(string $taskId, string $stream, string $chunk): void
     {
         if (! isset($this->outputRingBuffers[$taskId])) {
@@ -161,8 +171,10 @@ final class SnapshotManager
         $now = time();
         if (($now - $this->lastSnapshotBroadcast) >= self::SNAPSHOT_BROADCAST_INTERVAL) {
             $this->lastSnapshotBroadcast = $now;
+
             return true;
         }
+
         return false;
     }
 

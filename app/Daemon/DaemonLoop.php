@@ -168,6 +168,7 @@ final class DaemonLoop
             onTaskDone: fn ($message) => $this->commandHandlers->handleTaskDone($message),
             onTaskCreate: fn ($message) => $this->commandHandlers->handleTaskCreate($message, $this->ipcServer),
             onDependencyAdd: fn ($message) => $this->commandHandlers->handleDependencyAdd($message),
+            onReloadConfig: fn () => $this->snapshotManager->broadcastConfigReloaded(),
         );
     }
 }
