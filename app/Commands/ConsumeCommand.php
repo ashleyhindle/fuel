@@ -4,20 +4,13 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Agents\Tasks\WorkAgentTask;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\EpicStatus;
-use App\Enums\FailureType;
 use App\Enums\TaskStatus;
-use App\Ipc\Commands\DependencyAddCommand;
-use App\Ipc\Commands\TaskReopenCommand;
-use App\Ipc\Commands\TaskStartCommand;
 use App\Models\Task;
-use App\Process\CompletionResult;
-use App\Process\CompletionType;
 use App\Process\ProcessType;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
@@ -32,7 +25,6 @@ use App\Services\TaskService;
 use App\TUI\GradientText;
 use App\TUI\ScreenBuffer;
 use App\TUI\Toast;
-use DateTimeImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
@@ -62,12 +54,6 @@ class ConsumeCommand extends Command
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
-    /** Cache TTL for task data in seconds */
-    private const TASK_CACHE_TTL = 2;
-
-    /** @var array{tasks: Collection|null, ready: Collection|null, failed: Collection|null, timestamp: int} */
-    private array $taskCache = ['tasks' => null, 'ready' => null, 'failed' => null, 'timestamp' => 0];
-
     /** IPC client for runner communication (null in standalone mode) */
     private ?ConsumeIpcClient $ipcClient = null;
 
@@ -76,9 +62,6 @@ class ConsumeCommand extends Command
 
     /** Whether we've entered alternate screen mode */
     private bool $inAlternateScreen = false;
-
-    /** @var array<string, int> Track retry attempts per task */
-    private array $taskRetryAttempts = [];
 
     /** @var array<string, array{status: string, in_backoff: bool, is_dead: bool}> Track previous health state per agent */
     private array $previousHealthStates = [];
@@ -641,146 +624,9 @@ class ConsumeCommand extends Command
      * @param  array<string, mixed>  $task
      * @param  array<string>  $statusLines
      */
-    private function trySpawnTask(
-        Task $task,
-        ?string $agentOverride,
-        array &$statusLines
-    ): bool {
-        // Don't spawn new tasks if shutting down
-        if ($this->processManager->isShuttingDown()) {
-            return false;
-        }
-
-        $taskId = $task->short_id;
-        $taskTitle = $task->title;
-        $shortTitle = mb_strlen((string) $taskTitle) > 40 ? mb_substr((string) $taskTitle, 0, 37).'...' : $taskTitle;
-
-        // Get working directory
-        $cwd = $this->fuelContext->getProjectPath();
-
-        // Create WorkAgentTask abstraction
-        $reviewEnabled = (bool) $this->option('review');
-        $agentTask = new WorkAgentTask(
-            $task,
-            $this->taskService,
-            $this->promptBuilder,
-            $this->reviewService,
-            $reviewEnabled
-        );
-
-        // Wire up epic completion callback
-        $agentTask->setEpicCompletionCallback($this->checkEpicCompletionSound(...));
-
-        // Determine agent name for capacity check
-        $agentName = $agentOverride;
-        if ($agentName === null) {
-            try {
-                $agentName = $agentTask->getAgentName($this->configService);
-            } catch (\RuntimeException $e) {
-                $this->error('Failed to get agent: '.$e->getMessage());
-                $this->line('Use --agent to override or ensure .fuel/config.yaml exists');
-
-                return false;
-            }
-        }
-
-        // Check capacity
-        if (! $this->processManager->canSpawn($agentName)) {
-            return false; // At capacity, can't spawn
-        }
-
-        // Check agent health / backoff before attempting to spawn
-        if ($this->healthTracker instanceof AgentHealthTrackerInterface && ! $this->healthTracker->isAvailable($agentName)) {
-            $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
-            $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
-
-            // Only show message once per backoff period (check if already shown recently)
-            $statusLines[] = $this->formatStatus('⏳', sprintf('%s waiting - %s in backoff (%s)', $taskId, $agentName, $formatted), 'gray');
-
-            return false; // Agent in backoff, don't spawn
-        }
-
-        // Check if agent is dead (exceeded max_retries consecutive failures)
-        if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
-            $maxRetries = $this->configService->getAgentMaxRetries($agentName);
-            if ($this->healthTracker->isDead($agentName, $maxRetries)) {
-                $statusLines[] = $this->formatStatus('💀', sprintf('%s skipped - %s is dead (>= %d consecutive failures)', $taskId, $agentName, $maxRetries), 'red');
-
-                return false; // Agent is dead, don't assign work
-            }
-        }
-
-        // If connected to IPC runner, delegate spawning to runner
-        if ($this->ipcClient?->isConnected()) {
-            // Send TaskStart command to runner
-            $cmd = new TaskStartCommand(
-                taskId: $taskId,
-                agentOverride: $agentOverride,
-                timestamp: new DateTimeImmutable,
-                instanceId: 'client' // Client instance ID
-            );
-            $this->ipcClient->sendCommand($cmd);
-
-            $statusLines[] = $this->formatStatus('📨', sprintf('Sent spawn request for %s: %s', $taskId, $shortTitle), 'yellow');
-        } else {
-            // Standalone mode: handle spawning directly (legacy path)
-            // Mark task as in_progress and flag as consumed before spawning agent
-            $this->taskService->start($taskId);
-            $this->taskService->update($taskId, [
-                'consumed' => true,
-            ]);
-            $this->invalidateTaskCache();
-
-            // Determine agent and model for run entry
-            $complexity = $task->complexity ?? 'simple';
-            $runAgentName = $agentOverride ?? $this->configService->getAgentForComplexity($complexity);
-            $agentDef = $this->configService->getAgentDefinition($runAgentName);
-            $runModel = $agentDef['model'] ?? null;
-
-            // Create run entry before spawning to get run ID for process directory
-            $runId = $this->runService->createRun($taskId, [
-                'agent' => $runAgentName,
-                'model' => $runModel,
-                'started_at' => date('c'),
-            ]);
-
-            // Spawn via ProcessManager using WorkAgentTask abstraction
-            $result = $this->processManager->spawnAgentTask($agentTask, $cwd, $runId);
-
-            if (! $result->success) {
-                // Agent in backoff should already be caught above, but handle just in case
-                if ($result->isInBackoff()) {
-                    $this->taskService->reopen($taskId);
-                    $this->invalidateTaskCache();
-
-                    return false;
-                }
-
-                $this->error($result->error ?? 'Unknown spawn error');
-
-                // Revert task state
-                $this->taskService->reopen($taskId);
-                $this->invalidateTaskCache();
-
-                return false;
-            }
-
-            $process = $result->process;
-            $pid = $process->getPid();
-
-            // Store the process PID in the task
-            $this->taskService->update($taskId, [
-                'consume_pid' => $pid,
-            ]);
-
-            $statusLines[] = $this->formatStatus('🚀', sprintf('Spawning %s for %s: %s', $process->getAgentName(), $taskId, $shortTitle), 'yellow');
-        }
-
-        return true;
-    }
 
     /**
-     * Poll all running processes and handle completions.
+     * Poll all running processes.
      *
      * @param  array<string>  $statusLines
      */
@@ -801,112 +647,11 @@ class ConsumeCommand extends Command
             }
         }
 
-        $completions = $this->processManager->poll();
-
-        foreach ($completions as $completion) {
-            $this->handleCompletion($completion, $statusLines);
-        }
+        // Poll processes but don't handle completions (handled by runner via IPC)
+        $this->processManager->poll();
 
         // Keep only last 5 status lines
         $statusLines = $this->trimStatusLines($statusLines);
-    }
-
-    /**
-     * Handle a completed process result.
-     *
-     * @param  array<string>  $statusLines
-     */
-    private function handleCompletion(
-        CompletionResult $completion,
-        array &$statusLines
-    ): void {
-        // Review completions are handled separately by checkCompletedReviews()
-        if ($completion->isReview()) {
-            return;
-        }
-
-        $taskId = $completion->taskId;
-        $agentName = $completion->agentName;
-        $durationStr = $completion->getFormattedDuration();
-
-        // Update run entry with completion data
-        $runData = [
-            'ended_at' => date('c'),
-            'exit_code' => $completion->exitCode,
-            'output' => $completion->output,
-        ];
-        if ($completion->sessionId !== null) {
-            $runData['session_id'] = $completion->sessionId;
-        }
-
-        if ($completion->costUsd !== null) {
-            $runData['cost_usd'] = $completion->costUsd;
-        }
-
-        if ($completion->model !== null) {
-            $runData['model'] = $completion->model;
-        }
-
-        $this->updateLatestRunIfTaskExists($taskId, $runData, $statusLines);
-
-        // Clear PID from task (if task still exists - it may have been deleted)
-        $task = $this->taskService->find($taskId);
-        if (! $task instanceof Task) {
-            $statusLines[] = $this->formatStatus('⚠', sprintf('%s completed but task was deleted', $taskId), 'yellow');
-            $this->invalidateTaskCache();
-
-            return;
-        }
-
-        $this->taskService->update($taskId, [
-            'consume_pid' => null,
-        ]);
-
-        // Handle by completion type
-        match ($completion->type) {
-            CompletionType::Success => $this->handleSuccess($completion, $statusLines, $durationStr),
-            CompletionType::Failed => $this->handleFailure($completion, $statusLines, $durationStr),
-            CompletionType::NetworkError => $this->handleNetworkError($completion, $statusLines, $durationStr),
-            CompletionType::PermissionBlocked => $this->handlePermissionBlocked($completion, $statusLines, $agentName),
-        };
-
-        $this->invalidateTaskCache();
-    }
-
-    /**
-     * @param  array<string>  $statusLines
-     */
-    private function handleSuccess(
-        CompletionResult $completion,
-        array &$statusLines,
-        string $durationStr
-    ): void {
-        $taskId = $completion->taskId;
-
-        // Record success with health tracker
-        if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
-            $this->healthTracker->recordSuccess($completion->agentName);
-        }
-
-        // Clear retry attempts on success
-        unset($this->taskRetryAttempts[$taskId]);
-
-        // Check task status to determine what happened
-        // Note: WorkAgentTask.onSuccess() has already handled review triggering or task completion
-        $task = $this->taskService->find($taskId);
-        if (! $task instanceof Task) {
-            // Task was deleted?
-            $statusLines[] = $this->formatStatus('?', sprintf('%s completed but task not found (%s)', $taskId, $durationStr), 'yellow');
-
-            return;
-        }
-
-        // Display appropriate status message based on what WorkAgentTask.onSuccess() did
-        match ($task->status) {
-            TaskStatus::InReview => $statusLines[] = $this->formatStatus('🔍', sprintf('%s completed, triggering review... (%s)', $taskId, $durationStr), 'cyan'),
-            TaskStatus::Done => $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green'),
-            default => $statusLines[] = $this->formatStatus('✓', sprintf('%s completed (%s)', $taskId, $durationStr), 'green'),
-        };
     }
 
     /**
@@ -927,217 +672,6 @@ class ConsumeCommand extends Command
         }
 
         $this->runService->updateLatestRun($taskId, $data);
-    }
-
-    /**
-     * @param  array<string>  $statusLines
-     */
-    private function handleFailure(
-        CompletionResult $completion,
-        array &$statusLines,
-        string $durationStr
-    ): void {
-        $taskId = $completion->taskId;
-        $agentName = $completion->agentName;
-
-        // Record failure with health tracker
-        $failureType = $completion->toFailureType();
-        if ($this->healthTracker instanceof AgentHealthTrackerInterface && $failureType instanceof FailureType) {
-            $this->healthTracker->recordFailure($agentName, $failureType);
-        }
-
-        // Check if we should retry (crash errors are retryable with limit)
-        $retryAttempts = $this->taskRetryAttempts[$taskId] ?? 0;
-        $maxAttempts = $this->configService->getAgentMaxAttempts($agentName);
-
-        // Crash errors are retryable but limited by max_attempts
-        if ($completion->isRetryable() && $retryAttempts < $maxAttempts - 1) {
-            // Increment retry counter
-            $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
-
-            // Reopen task so it can be retried
-            if ($this->ipcClient?->isConnected()) {
-                // Send via IPC when connected to runner
-                $reopenCmd = new TaskReopenCommand(
-                    taskId: $taskId,
-                    timestamp: new DateTimeImmutable('now'),
-                    instanceId: $this->ipcClient->getInstanceId()
-                );
-                $this->ipcClient->sendCommand($reopenCmd);
-            } else {
-                // Fall back to direct service call when not connected
-                $this->taskService->reopen($taskId);
-            }
-
-            // Get backoff time if health tracker is available
-            $backoffInfo = '';
-            if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
-                $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
-                if ($backoffSeconds > 0) {
-                    $backoffInfo = sprintf(', backoff %s', $this->backoffStrategy->formatBackoffTime($backoffSeconds));
-                }
-            }
-
-            $statusLines[] = $this->formatStatus('🔄', sprintf(
-                '%s failed (exit %d, %s), retry %d/%d%s',
-                $taskId,
-                $completion->exitCode,
-                $durationStr,
-                $retryAttempts + 1,
-                $maxAttempts - 1,
-                $backoffInfo
-            ), 'yellow');
-        } else {
-            // Max retries reached or not retryable
-            $statusLines[] = $this->formatStatus('✗', sprintf('%s failed (exit %d, %s)', $taskId, $completion->exitCode, $durationStr), 'red');
-        }
-    }
-
-    /**
-     * @param  array<string>  $statusLines
-     */
-    private function handleNetworkError(
-        CompletionResult $completion,
-        array &$statusLines,
-        string $durationStr
-    ): void {
-        $taskId = $completion->taskId;
-        $agentName = $completion->agentName;
-
-        // Record failure with health tracker (network errors trigger backoff)
-        $failureType = $completion->toFailureType();
-        if ($this->healthTracker instanceof AgentHealthTrackerInterface && $failureType instanceof FailureType) {
-            $this->healthTracker->recordFailure($agentName, $failureType);
-        }
-
-        // Check retry attempts
-        $retryAttempts = $this->taskRetryAttempts[$taskId] ?? 0;
-        $maxAttempts = $this->configService->getAgentMaxAttempts($agentName);
-
-        if ($retryAttempts < $maxAttempts - 1) {
-            // Increment retry counter
-            $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
-
-            // Reopen task so it can be retried on next cycle
-            if ($this->ipcClient?->isConnected()) {
-                // Send via IPC when connected to runner
-                $reopenCmd = new TaskReopenCommand(
-                    taskId: $taskId,
-                    timestamp: new DateTimeImmutable('now'),
-                    instanceId: $this->ipcClient->getInstanceId()
-                );
-                $this->ipcClient->sendCommand($reopenCmd);
-            } else {
-                // Fall back to direct service call when not connected
-                $this->taskService->reopen($taskId);
-            }
-
-            // Get backoff time info
-            $backoffInfo = '';
-            if ($this->healthTracker instanceof AgentHealthTrackerInterface) {
-                $backoffSeconds = $this->healthTracker->getBackoffSeconds($agentName);
-                if ($backoffSeconds > 0) {
-                    $backoffInfo = sprintf(', backoff %s', $this->backoffStrategy->formatBackoffTime($backoffSeconds));
-                }
-            }
-
-            $statusLines[] = $this->formatStatus('🔄', sprintf(
-                '%s network error, retry %d/%d%s',
-                $taskId,
-                $retryAttempts + 1,
-                $maxAttempts - 1,
-                $backoffInfo
-            ), 'yellow');
-        } else {
-            // Max retries reached
-            $statusLines[] = $this->formatStatus('✗', sprintf('%s network error, max retries reached (%s)', $taskId, $durationStr), 'red');
-        }
-    }
-
-    /**
-     * @param  array<string>  $statusLines
-     */
-    private function handlePermissionBlocked(
-        CompletionResult $completion,
-        array &$statusLines,
-        string $agentName
-    ): void {
-        $taskId = $completion->taskId;
-
-        // Record failure with health tracker (permission errors don't trigger backoff)
-        $failureType = $completion->toFailureType();
-        if ($this->healthTracker instanceof AgentHealthTrackerInterface && $failureType instanceof FailureType) {
-            $this->healthTracker->recordFailure($agentName, $failureType);
-        }
-
-        // Clear retry attempts - permission errors need human intervention
-        unset($this->taskRetryAttempts[$taskId]);
-
-        // Create a needs-human task for permission configuration
-        if ($this->ipcClient?->isConnected()) {
-            // Use IPC protocol with response mechanism to create task
-            $taskData = [
-                'title' => 'Configure agent permissions for '.$agentName,
-                'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
-                    "To fix, either:\n".
-                    "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
-                    "2. Or add autonomous flags to .fuel/config.yaml agent definition:\n".
-                    "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
-                    "   - cursor-agent: args: [\"--force\"]\n".
-                    "   - opencode: env: {OPENCODE_PERMISSION: '{\"permission\":\"allow\"}'}\n\n".
-                    "See README.md 'Agent Permissions' section for details.",
-                'labels' => 'needs-human',
-                'priority' => 1,
-            ];
-
-            $humanTaskId = $this->ipcClient->createTaskWithResponse($taskData);
-
-            if ($humanTaskId === null) {
-                // Fallback to direct service call if IPC response failed
-                $humanTask = $this->taskService->create($taskData);
-                $humanTaskId = $humanTask->short_id;
-            }
-
-            // Add dependency and reopen task via IPC
-            $depCmd = new DependencyAddCommand(
-                taskId: $taskId,
-                blockerTaskId: $humanTaskId,
-                timestamp: new DateTimeImmutable('now'),
-                instanceId: $this->ipcClient->getInstanceId()
-            );
-            $this->ipcClient->sendCommand($depCmd);
-
-            // Reopen the task
-            $reopenCmd = new TaskReopenCommand(
-                taskId: $taskId,
-                timestamp: new DateTimeImmutable('now'),
-                instanceId: $this->ipcClient->getInstanceId()
-            );
-            $this->ipcClient->sendCommand($reopenCmd);
-        } else {
-            // Fall back to direct service calls when not connected
-            $humanTask = $this->taskService->create([
-                'title' => 'Configure agent permissions for '.$agentName,
-                'description' => "Agent {$agentName} was blocked from running commands while working on {$taskId}.\n\n".
-                    "To fix, either:\n".
-                    "1. Run the agent interactively and select 'Always allow' for tool permissions\n".
-                    "2. Or add autonomous flags to .fuel/config.yaml agent definition:\n".
-                    "   - Claude: args: [\"--dangerously-skip-permissions\"]\n".
-                    "   - cursor-agent: args: [\"--force\"]\n".
-                    "   - opencode: env: {OPENCODE_PERMISSION: '{\"permission\":\"allow\"}'}\n\n".
-                    "See README.md 'Agent Permissions' section for details.",
-                'labels' => ['needs-human'],
-                'priority' => 1,
-            ]);
-
-            // Block the original task until permissions are configured
-            $this->taskService->addDependency($taskId, $humanTask->short_id);
-            $this->taskService->reopen($taskId);
-
-            $humanTaskId = $humanTask->short_id;
-        }
-
-        $statusLines[] = $this->formatStatus('🔒', sprintf('%s blocked - %s needs permissions (created %s)', $taskId, $agentName, $humanTaskId), 'yellow');
     }
 
     /**
@@ -2719,30 +2253,6 @@ class ConsumeCommand extends Command
     }
 
     /**
-     * Get cached ready tasks (refreshes if cache expired or after task mutations).
-     *
-     * @return Collection<int, Task>
-     */
-    private function getCachedReadyTasks(): Collection
-    {
-        $now = time();
-        if ($this->taskCache['ready'] === null || ($now - $this->taskCache['timestamp']) >= self::TASK_CACHE_TTL) {
-            $this->taskCache['ready'] = $this->taskService->ready();
-            $this->taskCache['timestamp'] = $now;
-        }
-
-        return $this->taskCache['ready'];
-    }
-
-    /**
-     * Invalidate task cache (call after mutations like start, update, done).
-     */
-    private function invalidateTaskCache(): void
-    {
-        $this->taskCache = ['tasks' => null, 'ready' => null, 'failed' => null, 'timestamp' => 0];
-    }
-
-    /**
      * Trim status lines to prevent unbounded growth.
      *
      * @param  array<string>  $statusLines
@@ -3630,7 +3140,6 @@ class ConsumeCommand extends Command
 
             // Execute
             $this->ipcClient?->sendTaskDone($taskIdInput);
-            $this->invalidateTaskCache();
             $this->checkEpicCompletionSound($taskIdInput);
             $this->toast?->show('Closed: '.$task->short_id, 'success');
             $this->deactivateCommandPalette();

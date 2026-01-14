@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Daemon\CompletionHandler;
+use App\Daemon\LifecycleManager;
+use App\Daemon\TaskSpawner;
 use App\Ipc\Events\HelloEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Services\BackoffStrategy;
@@ -57,6 +60,7 @@ describe('ConsumeRunner client attach', function () {
         // Create mock dependencies (not starting runner, just testing IPC protocol)
         $processManager = Mockery::mock(ProcessManager::class);
         $processManager->shouldReceive('getActiveProcesses')->andReturn([]);
+        $processManager->shouldReceive('getAgentCount')->andReturn(0);
 
         $taskService = Mockery::mock(TaskService::class);
         $taskService->shouldReceive('ready')->andReturn(collect());
@@ -66,12 +70,65 @@ describe('ConsumeRunner client attach', function () {
 
         $configService = Mockery::mock(ConfigService::class);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
 
         $runService = Mockery::mock(RunService::class);
         $backoffStrategy = Mockery::mock(BackoffStrategy::class);
         $promptBuilder = Mockery::mock(TaskPromptBuilder::class);
-        $fuelContext = Mockery::mock(FuelContext::class);
+
+        // Use isolated temp directory for tests
+        $testDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
+        mkdir($testDir.'/.fuel', 0755, true);
+
+        // Create real FuelContext instance for LifecycleManager
+        $fuelContext = new FuelContext($testDir.'/.fuel');
+
+        // Create real LifecycleManager instance (it's a final class and cannot be mocked)
+        $lifecycleManager = new \App\Daemon\LifecycleManager($fuelContext);
+
+        // Mock health tracker for TaskSpawner
+        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker->shouldReceive('canSpawn')->andReturn(true)->byDefault();
+        $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0)->byDefault();
+        $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([])->byDefault();
+
+        // Create real TaskSpawner instance (it's a final class and cannot be mocked)
+        $taskSpawner = new \App\Daemon\TaskSpawner(
+            $taskService,
+            $configService,
+            $runService,
+            $processManager,
+            $promptBuilder,
+            $fuelContext,
+            $healthTracker
+        );
+
+        // Create real CompletionHandler instance (it's a final class and cannot be mocked)
+        $completionHandler = new \App\Daemon\CompletionHandler(
+            $processManager,
+            $taskService,
+            $runService,
+            $configService,
+            $healthTracker,
+            null  // reviewService
+        );
         $ipcServer = new ConsumeIpcServer($protocol);
+
+        // Create IpcCommandDispatcher
+        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+            $ipcServer,
+            $lifecycleManager,
+            $completionHandler
+        );
+
+        // Create SnapshotManager
+        $snapshotManager = new \App\Daemon\SnapshotManager(
+            $ipcServer,
+            $taskService,
+            $processManager,
+            $healthTracker,
+            $lifecycleManager
+        );
 
         // Create ConsumeRunner (we won't start it, just use it for snapshot)
         $runner = new ConsumeRunner(
@@ -83,7 +140,14 @@ describe('ConsumeRunner client attach', function () {
             $runService,
             $backoffStrategy,
             $promptBuilder,
-            $fuelContext
+            $fuelContext,
+            $lifecycleManager,
+            $taskSpawner,
+            $completionHandler,
+            $ipcCommandDispatcher,
+            $snapshotManager,
+            null, // reviewManager
+            $healthTracker
         );
 
         // Simulate client connection using stream_socket_pair for testing
@@ -144,6 +208,7 @@ describe('ConsumeRunner client attach', function () {
         // Mock dependencies with expected board data
         $processManager = Mockery::mock(ProcessManager::class);
         $processManager->shouldReceive('getActiveProcesses')->andReturn([]);
+        $processManager->shouldReceive('getAgentCount')->andReturn(0);
 
         $taskService = Mockery::mock(TaskService::class);
         $taskService->shouldReceive('ready')->andReturn(collect());
@@ -153,11 +218,60 @@ describe('ConsumeRunner client attach', function () {
 
         $configService = Mockery::mock(ConfigService::class);
         $configService->shouldReceive('getAgentLimits')->andReturn([]);
+        $configService->shouldReceive('getAgentMaxAttempts')->andReturn(3);
 
         $runService = Mockery::mock(RunService::class);
         $backoffStrategy = Mockery::mock(BackoffStrategy::class);
         $promptBuilder = Mockery::mock(TaskPromptBuilder::class);
-        $fuelContext = Mockery::mock(FuelContext::class);
+
+        // Use real FuelContext and LifecycleManager since LifecycleManager is final
+        $fuelContext = new FuelContext($this->testDir.'/.fuel');
+        $lifecycleManager = new LifecycleManager($fuelContext);
+
+        // Mock health tracker for TaskSpawner
+        $healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+        $healthTracker->shouldReceive('canSpawn')->andReturn(true);
+        $healthTracker->shouldReceive('getCurrentUsage')->andReturn(0.0);
+        $healthTracker->shouldReceive('getAllHealthStatus')->andReturn([]);
+
+        // Create real TaskSpawner instance (it's a final class and cannot be mocked)
+        $taskSpawner = new TaskSpawner(
+            $taskService,
+            $configService,
+            $runService,
+            $processManager,
+            $promptBuilder,
+            $fuelContext,
+            $healthTracker
+        );
+
+        // Mock review service for CompletionHandler
+        $reviewService = Mockery::mock(\App\Contracts\ReviewServiceInterface::class);
+
+        $completionHandler = new \App\Daemon\CompletionHandler(
+            $processManager,
+            $taskService,
+            $runService,
+            $configService,
+            $healthTracker,
+            $reviewService
+        );
+
+        // Create IpcCommandDispatcher
+        $ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+            $ipcServer,
+            $lifecycleManager,
+            $completionHandler
+        );
+
+        // Create SnapshotManager
+        $snapshotManager = new \App\Daemon\SnapshotManager(
+            $ipcServer,
+            $taskService,
+            $processManager,
+            $healthTracker,
+            $lifecycleManager
+        );
 
         // Create ConsumeRunner
         $runner = new ConsumeRunner(
@@ -169,7 +283,14 @@ describe('ConsumeRunner client attach', function () {
             $runService,
             $backoffStrategy,
             $promptBuilder,
-            $fuelContext
+            $fuelContext,
+            $lifecycleManager,
+            $taskSpawner,
+            $completionHandler,
+            $ipcCommandDispatcher,
+            $snapshotManager,
+            null, // reviewManager
+            $healthTracker
         );
 
         // Get snapshot and verify structure

@@ -8,6 +8,12 @@ use App\Agents\AgentDriverRegistry;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
 use App\Contracts\ReviewServiceInterface;
+use App\Daemon\CompletionHandler;
+use App\Daemon\IpcCommandDispatcher;
+use App\Daemon\LifecycleManager;
+use App\Daemon\ReviewManager;
+use App\Daemon\SnapshotManager;
+use App\Daemon\TaskSpawner;
 use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
 use App\Services\ConfigService;
@@ -17,6 +23,7 @@ use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\ReviewService;
 use App\Services\RunService;
+use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\DB;
@@ -139,6 +146,72 @@ class AppServiceProvider extends ServiceProvider
             reviewPrompt: new ReviewPrompt,
             runService: $app->make(RunService::class),
             fuelContext: $app->make(FuelContext::class),
+        ));
+
+        $this->app->singleton(TaskPromptBuilder::class);
+
+        $this->app->singleton(LifecycleManager::class, fn (Application $app): LifecycleManager => new LifecycleManager(
+            fuelContext: $app->make(FuelContext::class),
+        ));
+
+        $this->app->singleton(TaskSpawner::class, fn (Application $app): TaskSpawner => new TaskSpawner(
+            taskService: $app->make(TaskService::class),
+            configService: $app->make(ConfigService::class),
+            runService: $app->make(RunService::class),
+            processManager: $app->make(ProcessManagerInterface::class),
+            promptBuilder: $app->make(TaskPromptBuilder::class),
+            fuelContext: $app->make(FuelContext::class),
+            healthTracker: $app->make(AgentHealthTrackerInterface::class),
+        ));
+
+        $this->app->singleton(ReviewManager::class, fn (Application $app): ReviewManager => new ReviewManager(
+            reviewService: $app->make(ReviewServiceInterface::class),
+            taskService: $app->make(TaskService::class),
+            taskSpawner: $app->make(TaskSpawner::class),
+            ipcServer: $app->make(\App\Services\ConsumeIpcServer::class),
+            lifecycleManager: $app->make(LifecycleManager::class),
+        ));
+
+        $this->app->singleton(CompletionHandler::class, fn (Application $app): CompletionHandler => new CompletionHandler(
+            processManager: $app->make(ProcessManagerInterface::class),
+            taskService: $app->make(TaskService::class),
+            runService: $app->make(RunService::class),
+            configService: $app->make(ConfigService::class),
+            healthTracker: $app->make(AgentHealthTrackerInterface::class),
+            reviewService: $app->make(ReviewServiceInterface::class),
+        ));
+
+        $this->app->singleton(IpcCommandDispatcher::class, fn (Application $app): IpcCommandDispatcher => new IpcCommandDispatcher(
+            ipcServer: $app->make(\App\Services\ConsumeIpcServer::class),
+            lifecycleManager: $app->make(LifecycleManager::class),
+            completionHandler: $app->make(CompletionHandler::class),
+        ));
+
+        $this->app->singleton(SnapshotManager::class, fn (Application $app): SnapshotManager => new SnapshotManager(
+            ipcServer: $app->make(\App\Services\ConsumeIpcServer::class),
+            taskService: $app->make(TaskService::class),
+            processManager: $app->make(ProcessManager::class),
+            healthTracker: $app->make(AgentHealthTrackerInterface::class),
+            lifecycleManager: $app->make(LifecycleManager::class),
+        ));
+
+        $this->app->singleton(\App\Services\ConsumeRunner::class, fn (Application $app): \App\Services\ConsumeRunner => new \App\Services\ConsumeRunner(
+            ipcServer: $app->make(\App\Services\ConsumeIpcServer::class),
+            processManager: $app->make(ProcessManager::class),
+            protocol: $app->make(\App\Services\ConsumeIpcProtocol::class),
+            taskService: $app->make(TaskService::class),
+            configService: $app->make(ConfigService::class),
+            runService: $app->make(RunService::class),
+            backoffStrategy: $app->make(\App\Services\BackoffStrategy::class),
+            promptBuilder: $app->make(TaskPromptBuilder::class),
+            fuelContext: $app->make(FuelContext::class),
+            lifecycleManager: $app->make(LifecycleManager::class),
+            taskSpawner: $app->make(TaskSpawner::class),
+            completionHandler: $app->make(CompletionHandler::class),
+            ipcCommandDispatcher: $app->make(IpcCommandDispatcher::class),
+            snapshotManager: $app->make(SnapshotManager::class),
+            reviewManager: $app->make(ReviewManager::class),
+            healthTracker: $app->make(AgentHealthTrackerInterface::class),
         ));
     }
 }

@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Daemon\CompletionHandler;
+use App\Daemon\LifecycleManager;
+use App\Daemon\TaskSpawner;
 use App\DTO\ConsumeSnapshot;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
@@ -34,7 +37,51 @@ beforeEach(function () {
     $this->runService = Mockery::mock(RunService::class);
     $this->backoffStrategy = Mockery::mock(BackoffStrategy::class);
     $this->promptBuilder = Mockery::mock(TaskPromptBuilder::class);
-    $this->fuelContext = Mockery::mock(FuelContext::class);
+    // Create real FuelContext instance for LifecycleManager
+    $this->fuelContext = new FuelContext($this->testDir.'/.fuel');
+
+    // Create real LifecycleManager instance (it's a final class and cannot be mocked)
+    $this->lifecycleManager = new LifecycleManager($this->fuelContext);
+
+    // Mock AgentHealthTrackerInterface for TaskSpawner
+    $this->healthTracker = Mockery::mock(\App\Contracts\AgentHealthTrackerInterface::class);
+
+    // Create real TaskSpawner instance (it's a final class and cannot be mocked)
+    $this->taskSpawner = new TaskSpawner(
+        $this->taskService,
+        $this->configService,
+        $this->runService,
+        $this->processManager,
+        $this->promptBuilder,
+        $this->fuelContext,
+        $this->healthTracker
+    );
+
+    // Create real CompletionHandler instance (it's a final class and cannot be mocked)
+    $this->completionHandler = new CompletionHandler(
+        $this->processManager,
+        $this->taskService,
+        $this->runService,
+        $this->configService,
+        $this->healthTracker,
+        null  // reviewService
+    );
+
+    // Create IpcCommandDispatcher
+    $this->ipcCommandDispatcher = new \App\Daemon\IpcCommandDispatcher(
+        $this->ipcServer,
+        $this->lifecycleManager,
+        $this->completionHandler
+    );
+
+    // Create SnapshotManager
+    $this->snapshotManager = new \App\Daemon\SnapshotManager(
+        $this->ipcServer,
+        $this->taskService,
+        $this->processManager,
+        $this->healthTracker,
+        $this->lifecycleManager
+    );
 
     // Create ConsumeRunner with all dependencies
     $this->runner = new ConsumeRunner(
@@ -46,7 +93,14 @@ beforeEach(function () {
         $this->runService,
         $this->backoffStrategy,
         $this->promptBuilder,
-        $this->fuelContext
+        $this->fuelContext,
+        $this->lifecycleManager,
+        $this->taskSpawner,
+        $this->completionHandler,
+        $this->ipcCommandDispatcher,
+        $this->snapshotManager,
+        null, // reviewManager
+        $this->healthTracker
     );
 });
 
@@ -121,21 +175,17 @@ describe('stop', function () {
     test('stop(graceful=true) sets shuttingDown to true', function () {
         expect($this->runner->isShuttingDown())->toBeFalse();
 
-        // stop() should only set the flag, not call shutdown (that happens in cleanup())
         $this->runner->stop(graceful: true);
-
         expect($this->runner->isShuttingDown())->toBeTrue();
     });
 
-    test('stop(graceful=false) sets shuttingDown to true and kills processes', function () {
+    test('stop(graceful=false) stops and kills processes', function () {
         expect($this->runner->isShuttingDown())->toBeFalse();
 
-        // Mock ProcessManager expectations for force shutdown
         // Force shutdown kills processes immediately in stop()
         $this->processManager->shouldReceive('getActiveProcesses')->once()->andReturn([]);
 
         $this->runner->stop(graceful: false);
-
         expect($this->runner->isShuttingDown())->toBeTrue();
     });
 
@@ -203,7 +253,7 @@ describe('getSnapshot', function () {
     });
 
     test('snapshot runner_state reflects current paused state', function () {
-        // Initially paused (runner starts paused)
+        // Initially paused (lifecycleManager starts paused)
         $snapshot1 = $this->runner->getSnapshot();
         expect($snapshot1->runnerState['paused'])->toBeTrue();
 
@@ -220,9 +270,9 @@ describe('getSnapshot', function () {
 });
 
 describe('getInstanceId', function () {
-    test('returns instance ID in UUID format', function () {
+    test('returns instance ID from lifecycleManager', function () {
         $id = $this->runner->getInstanceId();
-
+        // LifecycleManager generates a UUID on initialization
         expect($id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i');
     });
 

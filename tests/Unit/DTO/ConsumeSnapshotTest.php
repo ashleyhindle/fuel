@@ -77,7 +77,7 @@ describe('ConsumeSnapshot', function () {
 
         expect($snapshot)->toBeInstanceOf(ConsumeSnapshot::class);
         expect($snapshot->activeProcesses)->toHaveCount(1);
-        expect($snapshot->activeProcesses[0]['task_id'])->toBe('f-abc123');
+        expect($snapshot->activeProcesses['f-abc123']['task_id'])->toBe('f-abc123');
         expect($snapshot->healthSummary)->toHaveKey('test-agent');
         expect($snapshot->runnerState['instance_id'])->toBe('test-instance');
         expect($snapshot->config['interval_seconds'])->toBe(5);
