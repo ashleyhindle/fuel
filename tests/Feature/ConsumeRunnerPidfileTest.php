@@ -130,6 +130,8 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
         $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager->shouldReceive('start')->once();
+        $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
         $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
@@ -264,6 +266,8 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
         $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager->shouldReceive('start')->once();
+        $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
         $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
@@ -398,6 +402,8 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
         $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager->shouldReceive('start')->once();
+        $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
         $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
@@ -528,6 +534,8 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
         $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager->shouldReceive('start')->once();
+        $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
         $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
@@ -664,6 +672,8 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
         $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager->shouldReceive('start')->once();
+        $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
         $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
@@ -800,6 +810,8 @@ describe('ConsumeRunner PID file handling', function () {
 
         // Mock BrowserDaemonManager for BrowserCommandHandler
         $browserManager = Mockery::mock(\App\Services\BrowserDaemonManager::class);
+        $browserManager->shouldReceive('start')->once();
+        $browserManager->shouldReceive('stop')->zeroOrMoreTimes();
 
         // Create real BrowserCommandHandler instance (it's a final class and cannot be mocked)
         $browserCommandHandler = new \App\Daemon\BrowserCommandHandler(
