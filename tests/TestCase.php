@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Contracts\ProcessManagerInterface;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
+use App\Services\ProcessManager;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Testing\TestCase as BaseTestCase;
@@ -52,9 +54,15 @@ YAML;
         $this->app->forgetInstance(FuelContext::class);
         $this->app->instance(FuelContext::class, $this->testContext);
 
-        // Rebind ConfigService to use the test FuelContext
-        // This must be done AFTER FuelContext is bound to ensure it gets the correct instance
-        $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($this->testContext));
+        // Clear any cached services that depend on FuelContext to ensure they get the test context
+        // These services cache FuelContext internally, so we need to clear them before rebinding
+        $this->app->forgetInstance(ConfigService::class);
+        $this->app->forgetInstance(ProcessManager::class);
+        $this->app->forgetInstance(ProcessManagerInterface::class);
+
+        // Rebind ConfigService with an explicit instance to ensure it uses test FuelContext
+        $configService = new ConfigService($this->testContext);
+        $this->app->instance(ConfigService::class, $configService);
 
         // Run migrations to create tables
         Artisan::call('migrate', ['--force' => true]);

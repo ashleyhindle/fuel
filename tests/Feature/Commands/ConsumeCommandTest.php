@@ -5,78 +5,17 @@ use App\Process\CompletionResult;
 use App\Process\CompletionType;
 use App\Process\ReviewResult;
 use App\Services\ConfigService;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
-use App\Services\RunService;
 use App\Services\TaskService;
+use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    // Create FuelContext pointing to test directory
-    $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-    // Store config path for tests that need to write config files
-    $this->configPath = $context->getConfigPath();
-
-    // Bind test services
-    $context->configureDatabase();
-    $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-    Artisan::call('migrate', ['--force' => true]);
-
-    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
-
-    $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
-    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
-
-    $this->app->singleton(EpicService::class, function (): EpicService {
-        $taskService = $this->app->make(TaskService::class);
-
-        return makeEpicService($taskService);
-    });
-
+    // Use TestCase's infrastructure - just get the services and config path we need
+    $this->configPath = $this->testContext->getConfigPath();
     $this->taskService = $this->app->make(TaskService::class);
     $this->configService = $this->app->make(ConfigService::class);
-    $this->runService = $this->app->make(RunService::class);
-
-    // Initialize storage
-});
-
-afterEach(function (): void {
-    // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir): void {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $items = scandir($dir);
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-
-            if ($item === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $deleteDir($path);
-            } else {
-                unlink($path);
-            }
-        }
-
-        rmdir($dir);
-    };
-
-    $deleteDir($this->tempDir);
+    $this->runService = makeRunService();
 });
 
 describe('consume command parallel execution logic', function (): void {
@@ -279,7 +218,7 @@ describe('consume command permission-blocked detection', function (): void {
         // We'll simulate the handleProcessCompletion logic by directly testing the side effects
 
         // Create a script that outputs permission error
-        $scriptPath = $this->tempDir.'/test_blocked_agent.sh';
+        $scriptPath = $this->testDir.'/test_blocked_agent.sh';
         file_put_contents($scriptPath, "#!/bin/bash\necho 'Error: commands are being rejected by the user'\nexit 0");
         chmod($scriptPath, 0755);
 
@@ -349,7 +288,7 @@ describe('consume command permission-blocked detection', function (): void {
         $this->taskService->start($taskId);
 
         // Create script with different permission error pattern
-        $scriptPath = $this->tempDir.'/test_blocked_terminal.sh';
+        $scriptPath = $this->testDir.'/test_blocked_terminal.sh';
         file_put_contents($scriptPath, "#!/bin/bash\necho 'Error: terminal commands are being rejected'\nexit 0");
         chmod($scriptPath, 0755);
 
@@ -393,7 +332,7 @@ describe('consume command permission-blocked detection', function (): void {
         $this->taskService->start($taskId);
 
         // Create script with manual completion message
-        $scriptPath = $this->tempDir.'/test_manual_complete.sh';
+        $scriptPath = $this->testDir.'/test_manual_complete.sh';
         file_put_contents($scriptPath, "#!/bin/bash\necho 'I cannot proceed. Please manually complete this task.'\nexit 0");
         chmod($scriptPath, 0755);
 
@@ -436,7 +375,7 @@ describe('consume command permission-blocked detection', function (): void {
         $this->taskService->start($taskId);
 
         // Create script with normal output
-        $scriptPath = $this->tempDir.'/test_normal.sh';
+        $scriptPath = $this->testDir.'/test_normal.sh';
         file_put_contents($scriptPath, "#!/bin/bash\necho 'Task completed successfully'\nexit 0");
         chmod($scriptPath, 0755);
 
