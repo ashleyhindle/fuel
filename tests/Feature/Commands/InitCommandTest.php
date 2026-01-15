@@ -121,4 +121,24 @@ describe('init command', function (): void {
         expect($content)->toContain('<fuel>');
         expect($content)->toContain('</fuel>');
     });
+
+    it('fails with helpful message when orphaned WAL files exist', function (): void {
+        $tempDir = sys_get_temp_dir().'/fuel-wal-test-'.uniqid();
+        mkdir($tempDir.'/.fuel', 0755, true);
+
+        $dbPath = $tempDir.'/.fuel/agent.db';
+
+        // Create orphaned WAL file without main database
+        file_put_contents($dbPath.'-wal', 'orphaned');
+
+        $context = new FuelContext($tempDir.'/.fuel');
+
+        expect(fn () => $context->configureDatabase())
+            ->toThrow(RuntimeException::class, 'Orphaned SQLite WAL files');
+
+        // Cleanup
+        @unlink($dbPath.'-wal');
+        @rmdir($tempDir.'/.fuel');
+        @rmdir($tempDir);
+    });
 });

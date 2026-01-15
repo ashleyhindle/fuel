@@ -93,6 +93,14 @@ class FuelContext
         $dbPath = $this->getDatabasePath();
 
         if (! is_file($dbPath)) {
+            // Check for orphaned WAL files (main db deleted but WAL files remain)
+            if (is_file($dbPath.'-wal') || is_file($dbPath.'-shm')) {
+                throw new \RuntimeException(
+                    "Orphaned SQLite WAL files found without main database.\n".
+                    "Delete them to start fresh: rm {$dbPath}*"
+                );
+            }
+
             return;
         }
 
