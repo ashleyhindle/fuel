@@ -462,6 +462,9 @@ class ConsumeCommand extends Command
                     $this->handleIpcEvent($event, $statusLines);
                 }
 
+                // Trim status lines to prevent unbounded growth from agent notifications
+                $statusLines = $this->trimStatusLines($statusLines);
+
                 // Check for connection state changes and force refresh if changed
                 $currentConnectionState = $this->ipcClient->isConnected();
                 if ($this->lastConnectionState !== null && $currentConnectionState !== $this->lastConnectionState) {
