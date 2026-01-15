@@ -136,7 +136,7 @@ final class TaskSpawner
             return false;
         }
 
-        $this->storePid($taskId, $runId, $result->process->getPid());
+        $this->storePid($runId, $result->process->getPid());
 
         if ($onTaskSpawned !== null) {
             $onTaskSpawned($taskId, $runId, $agentName);
@@ -190,10 +190,9 @@ final class TaskSpawner
         $this->invalidateTaskCache();
     }
 
-    private function storePid(string $taskId, string $runId, int $pid): void
+    private function storePid(string $runId, int $pid): void
     {
         $this->runService->updateRun($runId, ['pid' => $pid]);
-        $this->taskService->update($taskId, ['consume_pid' => $pid]);
     }
 
     /**

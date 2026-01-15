@@ -141,10 +141,10 @@ class RunCommand extends Command
 
         $this->line('<fg=gray>PID: '.$pid.'</>');
 
-        // Store the process PID in the task
+        // Store the process PID in the run and mark task as consumed
+        $this->runService->updateRun($runId, ['pid' => $pid]);
         $this->taskService->update($taskId, [
             'consumed' => true,
-            'consume_pid' => $pid,
         ]);
 
         // Stream output while process runs
@@ -230,11 +230,6 @@ class RunCommand extends Command
         }
 
         $this->runService->updateLatestRun($taskId, $runData);
-
-        // Clear PID from task
-        $this->taskService->update($taskId, [
-            'consume_pid' => null,
-        ]);
 
         // Handle completion
         if ($exitCode === 0) {

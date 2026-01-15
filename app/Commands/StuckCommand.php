@@ -40,7 +40,7 @@ class StuckCommand extends Command
             foreach ($stuckTasks as $task) {
                 $latestRun = $runService->getLatestRun($task->short_id);
                 $exitCode = $latestRun?->exit_code;
-                $pid = $task->consume_pid ?? null;
+                $pid = $latestRun?->pid;
                 $output = $task->consumed_output ?? '';
 
                 $this->line(sprintf('<info>%s</info> - %s', $task->short_id, $task->title));

@@ -100,8 +100,10 @@ describe('consume --once kanban board', function (): void {
         $stuckTask = $this->taskService->create(['title' => 'Stuck PID task']);
         $this->taskService->update($stuckTask->short_id, [
             'status' => 'in_progress',
-            'consume_pid' => 99999, // Non-existent PID
+            'consumed' => true,
         ]);
+        // Create a run with a dead PID
+        $this->runService->createRun($stuckTask->short_id, ['agent' => 'test', 'pid' => 99999]);
 
         expect(runCommand('consume', ['--once' => true]))
             ->toContain('🪫')
@@ -114,8 +116,10 @@ describe('consume --once kanban board', function (): void {
         $currentPid = getmypid();
         $this->taskService->update($runningTask->short_id, [
             'status' => 'in_progress',
-            'consume_pid' => $currentPid,
+            'consumed' => true,
         ]);
+        // Create a run with the current (live) process PID
+        $this->runService->createRun($runningTask->short_id, ['agent' => 'test', 'pid' => $currentPid]);
 
         expect(runCommand('consume', ['--once' => true]))
             ->toContain('Running task')
