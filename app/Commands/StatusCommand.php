@@ -85,7 +85,6 @@ class StatusCommand extends Command
             // Display runner status if available
             if ($runnerStatus !== null) {
                 $this->line('<fg=white;options=bold>Runner Status</>');
-                $this->newLine();
 
                 $runnerTable = new Table;
                 $runnerTable->render(
@@ -101,7 +100,6 @@ class StatusCommand extends Command
             }
 
             $this->line('<fg=white;options=bold>Board Summary</>');
-            $this->newLine();
 
             $table = new Table;
             $table->render(
