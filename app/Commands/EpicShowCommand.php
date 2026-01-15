@@ -98,9 +98,7 @@ class EpicShowCommand extends Command
                 $this->line('  <fg=yellow>No tasks linked to this epic.</>');
             } else {
                 $this->line(sprintf('  Linked Tasks (%d):', count($sortedTasks)));
-                $this->newLine();
-
-                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Run ID', 'Exit Code'];
+                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Run ID', 'Exit Code', 'Commit'];
                 $rows = array_map(function (Task $task) use ($blockedIds, $runService): array {
                     $isBlocked = in_array($task->short_id, $blockedIds, true);
 
@@ -122,6 +120,7 @@ class EpicShowCommand extends Command
                         isset($task->priority) ? (string) $task->priority : '',
                         $runId,
                         $exitCode,
+                        $task->commit_hash ?? '',
                     ];
                 }, $sortedTasks);
 
