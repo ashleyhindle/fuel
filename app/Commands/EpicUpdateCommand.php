@@ -6,6 +6,9 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\EpicService;
+use App\Services\FuelContext;
+use App\Services\TaskService;
+use Illuminate\Support\Str;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -24,7 +27,7 @@ class EpicUpdateCommand extends Command
 
     protected $description = 'Update epic fields';
 
-    public function handle(EpicService $epicService): int
+    public function handle(EpicService $epicService, TaskService $taskService, FuelContext $context): int
     {
         $updateData = [];
 
@@ -52,7 +55,43 @@ class EpicUpdateCommand extends Command
         }
 
         try {
+            // Get current state before update to detect transitions
+            $existingEpic = $epicService->getEpic($this->argument('id'));
+            $wasAlreadySelfGuided = $existingEpic?->self_guided ?? false;
+
             $epic = $epicService->updateEpic($this->argument('id'), $updateData);
+
+            // Handle transition to self-guided mode
+            $selfGuidedTaskId = null;
+            $planPath = null;
+            if ($this->option('selfguided') && ! $wasAlreadySelfGuided) {
+                // Check if selfguided task already exists
+                $existingTasks = $epicService->getTasksForEpic($epic->short_id);
+                $hasSelfguidedTask = false;
+                foreach ($existingTasks as $task) {
+                    if ($task->agent === 'selfguided') {
+                        $hasSelfguidedTask = true;
+                        $selfGuidedTaskId = $task->short_id;
+                        break;
+                    }
+                }
+
+                // Create selfguided task if not exists
+                if (! $hasSelfguidedTask) {
+                    $task = $taskService->create([
+                        'title' => 'Implement: '.$epic->title,
+                        'description' => 'Self-guided implementation. See epic plan for acceptance criteria.',
+                        'epic_id' => $epic->short_id,
+                        'agent' => 'selfguided',
+                        'complexity' => 'complex',
+                        'type' => 'feature',
+                    ]);
+                    $selfGuidedTaskId = $task->short_id;
+                }
+
+                // Update plan file with selfguided sections
+                $planPath = $this->ensureSelfguidedPlanSections($context, $epic->title, $epic->short_id);
+            }
 
             if ($this->option('json')) {
                 $this->outputJson($epic->toArray());
@@ -66,11 +105,137 @@ class EpicUpdateCommand extends Command
                     $status = $epic->self_guided ? 'enabled' : 'disabled';
                     $this->line('  Self-guided: '.$status);
                 }
+                if ($selfGuidedTaskId !== null) {
+                    $this->line('  Created self-guided task: '.$selfGuidedTaskId);
+                }
+                if ($planPath !== null) {
+                    $this->line('  Plan: '.$planPath);
+                }
             }
 
             return self::SUCCESS;
         } catch (RuntimeException $runtimeException) {
             return $this->outputError($runtimeException->getMessage());
         }
+    }
+
+    /**
+     * Ensure the plan file has the required sections for self-guided mode.
+     * If sections are missing, add them. Returns the plan path.
+     */
+    private function ensureSelfguidedPlanSections(FuelContext $context, string $title, string $epicId): string
+    {
+        $plansDir = $context->getPlansPath();
+        $filename = Str::kebab($title).'-'.$epicId.'.md';
+        $planPath = $plansDir.'/'.$filename;
+
+        // Check if plan file exists
+        if (! file_exists($planPath)) {
+            // Create new plan file with selfguided template
+            if (! is_dir($plansDir)) {
+                mkdir($plansDir, 0755, true);
+            }
+
+            $content = <<<MARKDOWN
+# Epic: {$title} ({$epicId})
+
+## Plan
+
+<!-- Add implementation plan here -->
+
+## Acceptance Criteria
+
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+## Progress Log
+
+<!-- Self-guided task appends progress entries here -->
+
+## Implementation Notes
+<!-- Tasks: append discoveries, decisions, gotchas here -->
+
+## Interfaces Created
+<!-- Tasks: document interfaces/contracts created -->
+MARKDOWN;
+            file_put_contents($planPath, $content);
+
+            return '.fuel/plans/'.$filename;
+        }
+
+        // Read existing plan
+        $content = file_get_contents($planPath);
+
+        // Add missing sections
+        $modified = false;
+
+        // Check for Acceptance Criteria section
+        if (stripos($content, '## Acceptance Criteria') === false) {
+            // Find Implementation Notes section to insert before it
+            $insertPoint = stripos($content, '## Implementation Notes');
+            if ($insertPoint !== false) {
+                $acceptanceCriteria = <<<'MARKDOWN'
+
+## Acceptance Criteria
+
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+## Progress Log
+
+<!-- Self-guided task appends progress entries here -->
+
+MARKDOWN;
+                $content = substr($content, 0, $insertPoint).$acceptanceCriteria.substr($content, $insertPoint);
+                $modified = true;
+            } else {
+                // Append at end
+                $content .= <<<'MARKDOWN'
+
+
+## Acceptance Criteria
+
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+## Progress Log
+
+<!-- Self-guided task appends progress entries here -->
+MARKDOWN;
+                $modified = true;
+            }
+        } elseif (stripos($content, '## Progress Log') === false) {
+            // Has Acceptance Criteria but missing Progress Log
+            $insertPoint = stripos($content, '## Implementation Notes');
+            if ($insertPoint !== false) {
+                $progressLog = <<<'MARKDOWN'
+
+## Progress Log
+
+<!-- Self-guided task appends progress entries here -->
+
+MARKDOWN;
+                $content = substr($content, 0, $insertPoint).$progressLog.substr($content, $insertPoint);
+                $modified = true;
+            } else {
+                $content .= <<<'MARKDOWN'
+
+
+## Progress Log
+
+<!-- Self-guided task appends progress entries here -->
+MARKDOWN;
+                $modified = true;
+            }
+        }
+
+        if ($modified) {
+            file_put_contents($planPath, $content);
+        }
+
+        return '.fuel/plans/'.$filename;
     }
 }
