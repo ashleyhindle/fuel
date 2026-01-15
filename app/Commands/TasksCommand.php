@@ -21,6 +21,7 @@ class TasksCommand extends Command
         {--type= : Filter by type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Filter by priority (0-4)}
         {--labels= : Filter by labels (comma-separated)}
+        {--selfguided : Filter tasks that went through selfguided loop}
         {--limit= : Limit number of results}';
 
     protected $description = 'List tasks with optional filters';
@@ -54,6 +55,10 @@ class TasksCommand extends Command
                 // Task must have at least one of the filter labels
                 return array_intersect($filterLabels, $taskLabels) !== [];
             });
+        }
+
+        if ($this->option('selfguided')) {
+            $tasks = $tasks->filter(fn (Task $t): bool => ($t->selfguided_iteration ?? 0) > 0);
         }
 
         // Sort by created_at

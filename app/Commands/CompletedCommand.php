@@ -19,6 +19,7 @@ class CompletedCommand extends Command
     protected $signature = 'completed
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
+        {--selfguided : Filter tasks that went through selfguided loop}
         {--limit=15 : Number of completed tasks to show}';
 
     protected $description = 'Show a list of recently completed tasks';
@@ -31,8 +32,13 @@ class CompletedCommand extends Command
         }
 
         $tasks = $taskService->all()
-            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Done)
-            ->sortByDesc('updated_at')
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Done);
+
+        if ($this->option('selfguided')) {
+            $tasks = $tasks->filter(fn (Task $t): bool => ($t->selfguided_iteration ?? 0) > 0);
+        }
+
+        $tasks = $tasks->sortByDesc('updated_at')
             ->take($limit)
             ->values();
 
