@@ -291,6 +291,12 @@ class PlanCommand extends Command
             'Read' => true,
             'Grep' => true,
             'Glob' => true,
+            'Write' => function ($params) {
+                // Only allow writing to .fuel/plans/*.md files
+                $filePath = $params['file_path'] ?? '';
+
+                return str_contains($filePath, '.fuel/plans/') && str_ends_with($filePath, '.md');
+            },
             'Bash' => function ($params) {
                 // Only fuel commands are allowed
                 $command = $params['command'] ?? '';
@@ -309,14 +315,22 @@ class PlanCommand extends Command
         // Check specific constraints for the tool
         if (is_callable($allowedTools[$toolName])) {
             if (! $allowedTools[$toolName]($params)) {
-                $this->warn("⚠️  Command not allowed in planning mode. Only 'fuel' commands permitted.");
+                if ($toolName === 'Write') {
+                    $this->warn("⚠️  Can only write to .fuel/plans/*.md files in planning mode.");
+                } else {
+                    $this->warn("⚠️  Command not allowed in planning mode. Only 'fuel' commands permitted.");
+                }
 
                 return;
             }
         }
 
         // Tool is allowed - show what Claude is doing
-        $this->info("→ Claude is using: {$toolName}");
+        if ($toolName === 'Write' && isset($params['file_path'])) {
+            $this->info("→ Updating plan file: " . basename($params['file_path']));
+        } else {
+            $this->info("→ Claude is using: {$toolName}");
+        }
     }
 
     /**
@@ -471,9 +485,11 @@ STRICT CONSTRAINTS - YOU MUST FOLLOW THESE:
    - Read: To understand the codebase (READ-ONLY)
    - Bash: ONLY for `fuel` commands (epic:add, add, etc.) - NO other commands allowed
    - Grep/Glob: To search the codebase (READ-ONLY)
+   - Write: ONLY for `.fuel/plans/*.md` files - plan documentation only
 
 2. You may NOT use these tools:
-   - Write, Edit, NotebookEdit: NO file modifications allowed during planning
+   - Edit, NotebookEdit: NO code file modifications allowed
+   - Write for anything except `.fuel/plans/*.md` files
    - Bash for anything except fuel commands: NO running tests, NO executing code
    - ExitPlanMode, EnterPlanMode: You're already in planning mode
    - TodoWrite: Planning doesn't need session todos
