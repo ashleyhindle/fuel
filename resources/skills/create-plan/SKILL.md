@@ -14,10 +14,24 @@ Invoke this skill when:
 - Creating an epic or spec
 - Designing an implementation approach
 - You need architectural context before planning
+- Requirements are unclear and you need to interview the user
 
 **After plan approval**, use the `fuel-make-plan-actionable` skill to convert to tasks.
 
 ## Workflow
+
+### 0. Interview (Optional)
+
+If the user's request is unclear or missing key details, use the AskUserQuestion tool to gather requirements. Ask about:
+
+- **Goal** - What should this feature achieve? What problem does it solve?
+- **Scope** - What's in scope vs out of scope? What's the MVP?
+- **User Impact** - Who uses this? What's their workflow?
+- **Constraints** - Performance requirements, compatibility needs, deadlines?
+- **Integration** - What existing features/services does this interact with?
+- **Success Criteria** - How will we know this is complete and working?
+
+Keep questions focused and specific. Aim for 1-4 questions per round. Use the gathered answers to inform your planning.
 
 ### 1. Read Reality for Context
 
@@ -95,6 +109,7 @@ After the first epic completes, reality.md will be populated.
 
 ## Example Planning Session
 
+### Example 1: Clear Requirements
 1. User asks: "Add user notification preferences"
 2. Read `.fuel/reality.md` - find existing UserPreference model, NotificationService
 3. Explore `app/Services/NotificationService.php` - understand current flow
@@ -103,6 +118,21 @@ After the first epic completes, reality.md will be populated.
 6. Write plan to `.fuel/plans/user-notification-preferences-e-xxxx.md`
 7. Exit plan mode, await approval
 8. On approval, invoke `fuel-make-plan-actionable` to create tasks
+
+### Example 2: Unclear Requirements (Interview First)
+1. User asks: "Make the app faster"
+2. Interview: Ask questions to clarify scope
+   - "Which part of the app feels slow? API responses, page loads, or background jobs?"
+   - "What's the current performance baseline and target?"
+   - "Are there specific user workflows affected?"
+3. User responds: "API responses take 2-3 seconds, target is <500ms, affects dashboard load"
+4. Read `.fuel/reality.md` - find API architecture, caching strategy
+5. Profile: Explore dashboard API endpoints, check for N+1 queries
+6. Design: add query optimization, implement response caching, add indexes
+7. Create epic: `fuel epic:add "Optimize dashboard API performance"`
+8. Write plan to `.fuel/plans/optimize-dashboard-api-performance-e-xxxx.md`
+9. Exit plan mode, await approval
+10. On approval, invoke `fuel-make-plan-actionable` to create tasks
 
 ## Next: Convert to Tasks
 
