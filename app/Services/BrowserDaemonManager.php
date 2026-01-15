@@ -575,6 +575,30 @@ class BrowserDaemonManager
     }
 
     /**
+     * Wait for a condition (selector, URL, or text) on a page
+     */
+    public function wait(string $pageId, ?string $selector, ?string $url, ?string $text, string $state = 'visible', int $timeout = 30000): array
+    {
+        $params = [
+            'pageId' => $pageId,
+            'state' => $state,
+            'timeout' => $timeout,
+        ];
+
+        if ($selector !== null) {
+            $params['selector'] = $selector;
+        }
+        if ($url !== null) {
+            $params['url'] = $url;
+        }
+        if ($text !== null) {
+            $params['text'] = $text;
+        }
+
+        return $this->sendRequest('wait', $params);
+    }
+
+    /**
      * Close a browser context and all its pages
      */
     public function closeContext(string $contextId): array

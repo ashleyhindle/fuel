@@ -213,6 +213,7 @@ final class DaemonLoop
             onBrowserType: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserType($message),
             onBrowserText: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserText($message),
             onBrowserHtml: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserHtml($message),
+            onBrowserWait: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserWait($message),
             onBrowserClose: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserClose($message),
             onBrowserStatus: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserStatus($message),
             onRequestDoneTasks: fn (string $clientId) => $this->commandHandlers->handleRequestDoneTasks($clientId, $this->ipcServer),

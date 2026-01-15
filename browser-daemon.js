@@ -505,6 +505,61 @@ async function handle(method, params) {
       return { ok: true, result: { html } };
     }
 
+    case "wait": {
+      const pageId = params?.pageId;
+      const selector = params?.selector;
+      const url = params?.url;
+      const text = params?.text;
+      const state = params?.state || "visible"; // visible|hidden|attached|detached
+      const timeout = params?.timeout || 30000;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      // Validate that exactly one wait condition is provided
+      const conditions = [selector, url, text].filter(Boolean).length;
+      if (conditions !== 1) {
+        throw Object.assign(new Error(`Must provide exactly one of: selector, url, or text`), { code: "BAD_PARAMS" });
+      }
+
+      let result = { waited: true };
+
+      try {
+        if (selector) {
+          // Wait for selector with specified state
+          await entry.page.waitForSelector(selector, { state, timeout });
+          result.type = "selector";
+          result.selector = selector;
+        } else if (url) {
+          // Wait for navigation to URL (can be partial match or regex)
+          await entry.page.waitForURL(url, { timeout });
+          result.type = "url";
+          result.url = entry.page.url();
+        } else if (text) {
+          // Wait for text to appear on page
+          await entry.page.waitForFunction(
+            (searchText) => {
+              const body = document.body;
+              return body && body.innerText && body.innerText.includes(searchText);
+            },
+            text,
+            { timeout }
+          );
+          result.type = "text";
+          result.text = text;
+        }
+      } catch (error) {
+        if (error.name === 'TimeoutError') {
+          throw Object.assign(new Error(`Wait timeout after ${timeout}ms`), { code: "TIMEOUT" });
+        }
+        throw error;
+      }
+
+      return { ok: true, result };
+    }
+
     case "status": {
       return {
         ok: true,
