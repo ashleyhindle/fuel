@@ -33,7 +33,6 @@ class Task extends EloquentModel
         'consumed',
         'consumed_at',
         'consumed_output',
-        'consume_pid',
         'last_review_issues',
     ];
 
@@ -43,7 +42,6 @@ class Task extends EloquentModel
         'priority' => 'integer',
         'status' => TaskStatus::class,
         'consumed' => 'boolean',
-        'consume_pid' => 'integer',
         'last_review_issues' => 'array',
         'selfguided_iteration' => 'integer',
         'selfguided_stuck_count' => 'integer',
@@ -59,6 +57,11 @@ class Task extends EloquentModel
     {
         return $query
             ->where('status', TaskStatus::Open->value)
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('type')
+                    ->orWhere('type', '!=', 'reality');
+            })
             ->where(function (Builder $query): void {
                 $query
                     ->whereNull('blocked_by')
@@ -81,6 +84,11 @@ class Task extends EloquentModel
     {
         return $query
             ->where('status', TaskStatus::Open->value)
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('type')
+                    ->orWhere('type', '!=', 'reality');
+            })
             ->where(function (Builder $query): void {
                 $query
                     ->whereNotNull('blocked_by')

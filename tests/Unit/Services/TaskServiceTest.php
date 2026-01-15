@@ -284,6 +284,21 @@ it('returns only open tasks from ready()', function (): void {
     expect($ready->first()->title)->toBe('Open task');
 });
 
+it('excludes reality tasks from ready()', function (): void {
+    $open = $this->taskService->create(['title' => 'Open task']);
+    $reality = $this->taskService->create([
+        'title' => 'Reality update',
+        'type' => 'reality',
+        'status' => TaskStatus::Open->value,
+    ]);
+
+    $ready = $this->taskService->ready();
+    $readyIds = $ready->pluck('short_id')->toArray();
+
+    expect($readyIds)->toContain($open->short_id);
+    expect($readyIds)->not->toContain($reality->short_id);
+});
+
 it('generates unique IDs', function (): void {
     $ids = [];
     for ($i = 0; $i < 10; $i++) {
@@ -653,19 +668,6 @@ it('throws exception when deleting non-existent task', function (): void {
 // Consume Fields Persistence Tests
 // =============================================================================
 
-it('persists consume_pid field correctly', function (): void {
-    $task = $this->taskService->create(['title' => 'Task with PID']);
-
-    $updated = $this->taskService->update($task->short_id, [
-        'consume_pid' => 12345,
-    ]);
-
-    expect($updated->consume_pid)->toBe(12345);
-
-    $reloaded = $this->taskService->find($task->short_id);
-    expect($reloaded->consume_pid)->toBe(12345);
-});
-
 it('persists all consume fields together', function (): void {
     $task = $this->taskService->create(['title' => 'Task with consume fields']);
 
@@ -673,19 +675,16 @@ it('persists all consume fields together', function (): void {
         'consumed' => true,
         'consumed_at' => '2026-01-10T10:00:00+00:00',
         'consumed_output' => 'Success output',
-        'consume_pid' => 99999,
     ]);
 
     expect($updated->consumed)->toBeTrue();
     expect($updated->consumed_at)->toBe('2026-01-10T10:00:00+00:00');
     expect($updated->consumed_output)->toBe('Success output');
-    expect($updated->consume_pid)->toBe(99999);
 
     $reloaded = $this->taskService->find($task->short_id);
     expect($reloaded->consumed)->toBeTrue();
     expect($reloaded->consumed_at)->toBe('2026-01-10T10:00:00+00:00');
     expect($reloaded->consumed_output)->toBe('Success output');
-    expect($reloaded->consume_pid)->toBe(99999);
 });
 
 // =============================================================================

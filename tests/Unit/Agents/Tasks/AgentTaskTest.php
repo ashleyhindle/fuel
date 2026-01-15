@@ -376,7 +376,7 @@ describe('ReviewAgentTask', function (): void {
 });
 
 describe('UpdateRealityAgentTask', function (): void {
-    it('returns prefixed task ID for solo task', function (): void {
+    it('returns task ID for solo task', function (): void {
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
 
         $agentTask = new UpdateRealityAgentTask(
@@ -386,10 +386,10 @@ describe('UpdateRealityAgentTask', function (): void {
             '/test/cwd',
         );
 
-        expect($agentTask->getTaskId())->toBe('reality-f-abc123');
+        expect($agentTask->getTaskId())->toBe('f-abc123');
     });
 
-    it('returns prefixed task ID for epic', function (): void {
+    it('returns task ID for epic', function (): void {
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
         $epic = new Epic(['short_id' => 'e-xyz789', 'title' => 'Test Epic', 'description' => 'Epic desc']);
 
@@ -401,7 +401,7 @@ describe('UpdateRealityAgentTask', function (): void {
             $epic,
         );
 
-        expect($agentTask->getTaskId())->toBe('reality-e-xyz789');
+        expect($agentTask->getTaskId())->toBe('f-abc123');
     });
 
     it('gets reality agent from config', function (): void {
@@ -497,10 +497,14 @@ describe('UpdateRealityAgentTask', function (): void {
 
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
 
+        $this->taskService->shouldReceive('create')
+            ->once()
+            ->andReturn(new Task(['short_id' => 'f-def456', 'title' => 'Update reality: Test Task', 'type' => 'reality', 'status' => 'in_progress']));
+
         $agentTask = UpdateRealityAgentTask::fromTask($task, '/test/cwd');
 
-        expect($agentTask->getTaskId())->toBe('reality-f-abc123');
-        expect($agentTask->getTask())->toBe($task);
+        expect($agentTask->getTaskId())->toBe('f-def456');
+        expect($agentTask->getTask()->type)->toBe('reality');
     });
 
     it('creates from epic using static factory', function (): void {
@@ -510,13 +514,22 @@ describe('UpdateRealityAgentTask', function (): void {
 
         $epic = new Epic(['short_id' => 'e-xyz789', 'title' => 'Test Epic', 'description' => 'Epic desc']);
 
+        $this->taskService->shouldReceive('create')
+            ->once()
+            ->andReturn(new Task(['short_id' => 'f-ghi789', 'title' => 'Update reality: Test Epic', 'type' => 'reality', 'status' => 'in_progress']));
+
         $agentTask = UpdateRealityAgentTask::fromEpic($epic, '/test/cwd');
 
-        expect($agentTask->getTaskId())->toBe('reality-e-xyz789');
+        expect($agentTask->getTaskId())->toBe('f-ghi789');
+        expect($agentTask->getTask()->type)->toBe('reality');
     });
 
     it('onSuccess is fire-and-forget (no exception)', function (): void {
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $this->taskService->shouldReceive('done')
+            ->with('f-abc123', 'Auto-completed reality update')
+            ->once();
 
         $agentTask = new UpdateRealityAgentTask(
             $task,
@@ -526,7 +539,7 @@ describe('UpdateRealityAgentTask', function (): void {
         );
 
         $completion = new CompletionResult(
-            taskId: 'reality-f-abc123',
+            taskId: 'f-abc123',
             agentName: 'reality-agent',
             exitCode: 0,
             duration: 60,
@@ -544,6 +557,10 @@ describe('UpdateRealityAgentTask', function (): void {
     it('onFailure is fire-and-forget (no exception)', function (): void {
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
 
+        $this->taskService->shouldReceive('delete')
+            ->with('f-abc123')
+            ->once();
+
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
@@ -552,7 +569,7 @@ describe('UpdateRealityAgentTask', function (): void {
         );
 
         $completion = new CompletionResult(
-            taskId: 'reality-f-abc123',
+            taskId: 'f-abc123',
             agentName: 'reality-agent',
             exitCode: 1,
             duration: 60,

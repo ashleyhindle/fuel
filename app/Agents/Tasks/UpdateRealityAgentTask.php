@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Agents\Tasks;
 
+use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Process\CompletionResult;
@@ -24,15 +25,19 @@ class UpdateRealityAgentTask extends AbstractAgentTask
 {
     private ?Epic $epic = null;
 
+    private ?Task $contextTask = null;
+
     public function __construct(
         Task $task,
         TaskService $taskService,
         private readonly PromptService $promptService,
         private readonly string $cwd,
         ?Epic $epic = null,
+        ?Task $contextTask = null,
     ) {
         parent::__construct($task, $taskService);
         $this->epic = $epic;
+        $this->contextTask = $contextTask;
     }
 
     /**
@@ -40,11 +45,21 @@ class UpdateRealityAgentTask extends AbstractAgentTask
      */
     public static function fromTask(Task $task, string $cwd): self
     {
+        $taskService = app(TaskService::class);
+        $realityTask = $taskService->create([
+            'title' => 'Update reality: '.$task->title,
+            'description' => $task->description,
+            'type' => 'reality',
+            'status' => TaskStatus::InProgress->value,
+        ]);
+
         return new self(
-            $task,
-            app(TaskService::class),
+            $realityTask,
+            $taskService,
             app(PromptService::class),
             $cwd,
+            null,
+            $task,
         );
     }
 
@@ -53,29 +68,21 @@ class UpdateRealityAgentTask extends AbstractAgentTask
      */
     public static function fromEpic(Epic $epic, string $cwd): self
     {
-        // Use a dummy task for the abstract class requirement
-        // The epic context provides the real update context
-        $task = new Task([
-            'short_id' => 'reality-'.$epic->short_id,
-            'title' => 'Update reality for epic: '.$epic->title,
+        $taskService = app(TaskService::class);
+        $realityTask = $taskService->create([
+            'title' => 'Update reality: '.$epic->title,
             'description' => $epic->description,
+            'type' => 'reality',
+            'status' => TaskStatus::InProgress->value,
         ]);
 
         return new self(
-            $task,
-            app(TaskService::class),
+            $realityTask,
+            $taskService,
             app(PromptService::class),
             $cwd,
             $epic,
         );
-    }
-
-    /**
-     * Get the task ID for tracking purposes.
-     */
-    public function getTaskId(): string
-    {
-        return 'reality-'.($this->epic?->short_id ?? $this->task->short_id);
     }
 
     /**
@@ -122,11 +129,12 @@ Tasks completed:
 CONTEXT;
         }
 
-        $description = $this->task->description ?: '(no description)';
+        $task = $this->contextTask ?? $this->task;
+        $description = $task->description ?: '(no description)';
 
         return <<<CONTEXT
-Task: {$this->task->title} ({$this->task->short_id})
-Type: {$this->task->type}
+Task: {$task->title} ({$task->short_id})
+Type: {$task->type}
 Description: {$description}
 CONTEXT;
     }
@@ -141,8 +149,11 @@ CONTEXT;
      */
     public function onSuccess(CompletionResult $result): void
     {
-        // Reality updates are fire-and-forget
-        // No task state to update
+        try {
+            $this->taskService->done($this->task->short_id, 'Auto-completed reality update');
+        } catch (\RuntimeException) {
+            // Fire-and-forget: ignore task completion failures
+        }
     }
 
     /**
@@ -150,7 +161,10 @@ CONTEXT;
      */
     public function onFailure(CompletionResult $result): void
     {
-        // Reality updates are fire-and-forget
-        // Failures are logged but don't block anything
+        try {
+            $this->taskService->delete($this->task->short_id);
+        } catch (\RuntimeException) {
+            // Fire-and-forget: ignore task failure handling errors
+        }
     }
 }

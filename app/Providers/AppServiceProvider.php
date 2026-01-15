@@ -160,6 +160,7 @@ class AppServiceProvider extends ServiceProvider
             configService: $app->make(ConfigService::class),
             fuelContext: $app->make(FuelContext::class),
             processManager: $app->make(ProcessManagerInterface::class),
+            runService: $app->make(RunService::class),
         ));
 
         $this->app->singleton(NotificationService::class);

@@ -21,6 +21,7 @@ class UpdateRealityService
         private readonly ConfigService $configService,
         private readonly FuelContext $fuelContext,
         private readonly ProcessManagerInterface $processManager,
+        private readonly RunService $runService,
     ) {}
 
     /**
@@ -54,8 +55,50 @@ class UpdateRealityService
             $agentTask = UpdateRealityAgentTask::fromTask($task, $cwd);
         }
 
+        $realityTaskId = $agentTask->getTaskId();
+        $agentName = $agentTask->getAgentName($this->configService);
+        if ($agentName === null) {
+            return;
+        }
+
+        $model = null;
+        try {
+            $agentDef = $this->configService->getAgentDefinition($agentName);
+            $model = $agentDef['model'] ?? null;
+        } catch (\RuntimeException) {
+            $model = null;
+        }
+
+        $runId = $this->runService->createRun($realityTaskId, [
+            'agent' => $agentName,
+            'model' => $model,
+            'started_at' => date('c'),
+        ]);
+
         // Fire-and-forget spawn - we don't track the result
-        // The UpdateRealityAgentTask handles its own lifecycle (onSuccess/onFailure are no-ops)
-        $this->processManager->spawnAgentTask($agentTask, $cwd);
+        // The UpdateRealityAgentTask handles its own lifecycle
+        $result = $this->processManager->spawnAgentTask($agentTask, $cwd, $runId);
+
+        if ($result->success && $result->process) {
+            $pid = $result->process->getPid();
+            if ($pid !== null) {
+                $this->runService->updateRun($runId, ['pid' => $pid]);
+            }
+
+            app(TaskService::class)->update($realityTaskId, [
+                'consumed' => true,
+                'consumed_at' => now()->toIso8601String(),
+            ]);
+
+            return;
+        }
+
+        // Spawn failed: cancel the reality task and close the run entry
+        app(TaskService::class)->delete($realityTaskId);
+        $this->runService->updateRun($runId, [
+            'ended_at' => date('c'),
+            'exit_code' => -1,
+            'output' => '[Reality update spawn failed]',
+        ]);
     }
 }

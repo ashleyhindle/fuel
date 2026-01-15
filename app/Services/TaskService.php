@@ -12,7 +12,7 @@ use RuntimeException;
 
 class TaskService
 {
-    private const VALID_TYPES = ['bug', 'fix', 'feature', 'task', 'epic', 'chore', 'docs', 'test', 'refactor'];
+    private const VALID_TYPES = ['bug', 'fix', 'feature', 'task', 'epic', 'chore', 'docs', 'test', 'refactor', 'reality'];
 
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
 
@@ -239,7 +239,7 @@ class TaskService
         }
 
         // Handle arbitrary fields
-        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_output', 'consume_pid', 'last_review_issues', 'agent', 'selfguided_iteration', 'selfguided_stuck_count'];
+        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_output', 'last_review_issues', 'agent', 'selfguided_iteration', 'selfguided_stuck_count'];
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
                 $updates[$key] = $value;
@@ -418,7 +418,6 @@ class TaskService
             'consumed' => 0,
             'consumed_at' => null,
             'consumed_output' => null,
-            'consume_pid' => null,
         ]);
     }
 
@@ -454,6 +453,7 @@ class TaskService
 
         return $tasks
             ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
+            ->filter(fn (Task $t): bool => $t->type !== 'reality')
             ->filter(fn (Task $t): bool => ! in_array($t->short_id, $blockedIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
@@ -482,6 +482,7 @@ class TaskService
 
         return $tasks
             ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
+            ->filter(fn (Task $t): bool => $t->type !== 'reality')
             ->filter(fn (Task $t): bool => in_array($t->short_id, $blockedIds, true))
             ->sortBy([
                 ['priority', 'asc'],
@@ -526,11 +527,13 @@ class TaskService
     {
         $consumed = ! empty($task->consumed);
         $status = $task->status;
-        $pid = $task->consume_pid ?? null;
+
+        // Get latest run info for PID and exit code checks
+        $latestRun = app(RunService::class)->getLatestRun($task->short_id);
+        $pid = $latestRun?->pid;
 
         // Case 1: Explicit failure (consumed with non-zero exit code from latest run)
         if ($consumed) {
-            $latestRun = app(RunService::class)->getLatestRun($task->short_id);
             $exitCode = $latestRun?->exit_code;
             if ($exitCode !== null && $exitCode !== 0) {
                 return true;

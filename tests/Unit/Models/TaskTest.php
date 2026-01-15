@@ -404,12 +404,21 @@ test('ready scope returns tasks that are open and not blocked', function (): voi
         'priority' => 1,
     ]);
 
+    $realityTask = Task::create([
+        'short_id' => 'f-reality01',
+        'title' => 'Reality Task',
+        'status' => TaskStatus::Open->value,
+        'type' => 'reality',
+        'priority' => 1,
+    ]);
+
     $readyTasks = Task::ready()->get();
     $readyIds = $readyTasks->pluck('short_id')->toArray();
 
     expect($readyIds)->toContain('f-ready01');
     expect($readyIds)->not->toContain('f-blocked01');
     expect($readyIds)->not->toContain('f-closed01');
+    expect($readyIds)->not->toContain($realityTask->short_id);
 });
 
 test('blocked scope returns tasks that are blocked', function (): void {
