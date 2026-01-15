@@ -16,6 +16,10 @@ class NotificationService
     /** Default volume (0.0 - 1.0) */
     private const DEFAULT_VOLUME = 0.6;
 
+    public function __construct(
+        private readonly ConfigService $configService
+    ) {}
+
     /**
      * Play a notification sound (non-blocking).
      * Currently supports macOS only, Linux support planned.
@@ -83,6 +87,10 @@ class NotificationService
      */
     public function desktopNotify(string $message, ?string $title = null): void
     {
+        if (! $this->configService->getDesktopNotifications()) {
+            return;
+        }
+
         $title ??= 'Fuel';
 
         if ($this->isMacOS()) {

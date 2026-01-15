@@ -587,6 +587,9 @@ port: 9981
 # Global maximum concurrent agents (total cap regardless of per-agent limits)
 max_concurrent: 5
 
+# Desktop notifications when tasks complete (default: true)
+desktop_notifications: true
+
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
 review: claude-opus
@@ -680,5 +683,21 @@ YAML;
         $config = $this->loadConfig();
 
         return $config['max_concurrent'] ?? self::DEFAULT_GLOBAL_MAX_CONCURRENT;
+    }
+
+    /**
+     * Get desktop notifications setting.
+     * Returns true if not set (default enabled) or explicitly set to true.
+     * Returns false if set to anything other than true.
+     */
+    public function getDesktopNotifications(): bool
+    {
+        $config = $this->loadConfig();
+
+        if (! isset($config['desktop_notifications'])) {
+            return true; // Default to enabled
+        }
+
+        return $config['desktop_notifications'] === true;
     }
 }

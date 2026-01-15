@@ -353,15 +353,7 @@ class TaskService
         }
         $message = sprintf('✓ %s (%s)', $title, $task->short_id);
 
-        if (function_exists('app')) {
-            $notificationService = app(NotificationService::class);
-            $notificationService->playSound(self::COMPLETION_SOUND);
-            $notificationService->desktopNotify($message, 'Fuel: Task Complete');
-
-            return;
-        }
-
-        $notificationService = new NotificationService;
+        $notificationService = app(NotificationService::class);
         $notificationService->playSound(self::COMPLETION_SOUND);
         $notificationService->desktopNotify($message, 'Fuel: Task Complete');
     }
