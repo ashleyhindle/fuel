@@ -13,6 +13,7 @@ handoff.md
 .fuel
 *.md
 !resources/**/*.md
+!.claude/skills/fuel-release/**
 /database/database.sqlite
 .fuel/*.lock
 .fuel/*.log
