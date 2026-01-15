@@ -3042,6 +3042,7 @@ class ConsumeCommand extends Command
         'close' => 'Mark a task as done',
         'pause' => 'Pause task consumption',
         'reload' => 'Reload configuration',
+        'reopen' => 'Reopen a closed or failed task',
         'resume' => 'Resume task consumption',
     ];
 

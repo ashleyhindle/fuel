@@ -84,15 +84,19 @@ After creating the epic, ask the user how they want it executed:
 - Allows cheaper models on simpler tasks
 - Tasks run concurrently
 
-**Self-guided**: Add --selfguided flag to epic:add
+**Self-guided**: Add --selfguided flag to epic:add or epic:update
 - Best when: Exploratory work, requirements may evolve, need to learn as you go
 - Single task iterates until all acceptance criteria met
 - Always uses capable model (more expensive)
 - Cannot parallelize
 
-Example:
+Examples:
 ```bash
+# Create epic with selfguided from start
 fuel epic:add 'Feature' --selfguided --description='Criteria: 1)... 2)...'
+
+# Or toggle selfguided on existing epic
+fuel epic:update e-xxxx --selfguided
 ```
 
 ### 6. Document the Plan

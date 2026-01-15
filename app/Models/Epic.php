@@ -39,6 +39,7 @@ class Epic extends Model
 
     protected $casts = [
         'status' => EpicStatus::class,
+        'self_guided' => 'boolean',
         'reviewed_at' => 'datetime',
         'approved_at' => 'datetime',
         'changes_requested_at' => 'datetime',

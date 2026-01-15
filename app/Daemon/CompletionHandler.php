@@ -127,11 +127,6 @@ final readonly class CompletionHandler
 
         $this->updateLatestRunIfTaskExists($taskId, $runData);
 
-        // Clear PID from task
-        $this->taskService->update($taskId, [
-            'consume_pid' => null,
-        ]);
-
         // For Task processes, WorkAgentTask.onSuccess() handles business logic via ProcessManager.poll()
         // We only need to do infra work here (health tracking, retry clearing)
         if ($completion->processType === ProcessType::Task) {

@@ -20,7 +20,7 @@ class ConfigService
 
     private const DEFAULT_CONSUME_PORT = 9981;
 
-    private const DEFAULT_GLOBAL_MAX_CONCURRENT = 5;
+    private const DEFAULT_GLOBAL_MAX_CONCURRENT = 50;
 
     /** @var array<string, mixed>|null */
     private ?array $config = null;

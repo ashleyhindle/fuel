@@ -17,6 +17,7 @@ use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\Commands\TaskCreateCommand;
 use App\Ipc\Commands\TaskDoneCommand;
+use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Events\BlockedTasksEvent;
 use App\Ipc\Events\CompletedTasksEvent;
 use App\Ipc\Events\DoneTasksEvent;
@@ -732,6 +733,19 @@ class ConsumeIpcClient
             taskId: $taskId,
             reason: $reason,
             commitHash: $commitHash,
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
+     * Send task reopen command to runner.
+     */
+    public function sendTaskReopen(string $taskId): void
+    {
+        $cmd = new TaskReopenCommand(
+            taskId: $taskId,
             timestamp: new DateTimeImmutable,
             instanceId: $this->instanceId
         );

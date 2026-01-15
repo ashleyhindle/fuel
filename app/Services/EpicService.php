@@ -110,6 +110,11 @@ class EpicService
             $updates['description'] = $data['description'];
         }
 
+        // Toggle self_guided if requested
+        if (isset($data['toggle_selfguided']) && $data['toggle_selfguided']) {
+            $updates['self_guided'] = ! $epic->self_guided;
+        }
+
         $epic->update($updates);
         $epic->refresh();
         $epic->status = $this->getEpicStatus($epic->short_id);
