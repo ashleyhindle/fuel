@@ -11,6 +11,7 @@ use App\Ipc\Commands\BrowserFillCommand;
 use App\Ipc\Commands\BrowserGotoCommand;
 use App\Ipc\Commands\BrowserHtmlCommand;
 use App\Ipc\Commands\BrowserPageCommand;
+use App\Ipc\Commands\BrowserWaitCommand;
 use App\Ipc\Commands\BrowserRunCommand;
 use App\Ipc\Commands\BrowserScreenshotCommand;
 use App\Ipc\Commands\BrowserSnapshotCommand;
@@ -417,6 +418,35 @@ final readonly class BrowserCommandHandler
                     $message->inner
                 );
 
+                // Send success response
+                $this->sendSuccessResponse($message->getRequestId(), $result);
+            } catch (Throwable $e) {
+                $this->sendErrorResponse(
+                    $message->getRequestId(),
+                    $e->getMessage(),
+                    $this->getErrorCode($e)
+                );
+            }
+        }
+    }
+
+    /**
+     * Handle browser wait command
+     */
+    public function handleBrowserWait(IpcMessage $message): void
+    {
+        if ($message instanceof BrowserWaitCommand) {
+            try {
+                $this->ensureBrowserRunning();
+                // Wait for condition
+                $result = $this->browserManager->wait(
+                    $message->pageId,
+                    $message->selector,
+                    $message->url,
+                    $message->text,
+                    $message->state,
+                    $message->timeout
+                );
                 // Send success response
                 $this->sendSuccessResponse($message->getRequestId(), $result);
             } catch (Throwable $e) {

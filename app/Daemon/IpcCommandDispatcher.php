@@ -77,6 +77,7 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserType,
         callable $onBrowserText,
         callable $onBrowserHtml,
+        callable $onBrowserWait,
         callable $onBrowserClose,
         callable $onBrowserStatus,
         callable $onRequestDoneTasks,
@@ -172,6 +173,7 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserType,
         callable $onBrowserText,
         callable $onBrowserHtml,
+        callable $onBrowserWait,
         callable $onBrowserClose,
         callable $onBrowserStatus,
         callable $onRequestDoneTasks,
@@ -212,6 +214,7 @@ final readonly class IpcCommandDispatcher
             'browser_type' => $onBrowserType($message),
             'browser_text' => $onBrowserText($message),
             'browser_html' => $onBrowserHtml($message),
+            'browser_wait' => $onBrowserWait($message),
             'browser_close' => $onBrowserClose($message),
             'browser_status' => $onBrowserStatus($message),
             // Lazy-loaded data requests (send to requesting client only)
