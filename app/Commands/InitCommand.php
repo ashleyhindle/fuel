@@ -138,7 +138,7 @@ REALITY;
                 'title' => 'Initialize .fuel/reality.md with codebase architecture',
                 'type' => 'task',
                 'priority' => 1,
-                'complexity' => 'moderate',
+                'complexity' => 'complex',
                 'description' => 'Explore the codebase and populate .fuel/reality.md with: Architecture overview, key modules (table with Module|Purpose|Entry Point), main entry points, coding patterns/conventions, quality gates (table with Tool|Command|Purpose - thoroughly detect all linters, formatters, type checkers, and test runners actually in use), and leave Recent Changes empty. Be concise - this is a quick reference, not documentation.',
             ]);
 
