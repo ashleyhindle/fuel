@@ -1,6 +1,6 @@
 ---
 name: fuel-create-plan
-description: Plan features using codebase context from reality.md. Use when building something across multiple tasks, designing implementations, entering plan mode, or exiting plan mode. This must be used when planning.
+description: Create a detailed implementation plan for new features. Use when building something across multiple files/tasks, designing implementations, entering plan mode, exiting plan mode, or when explicitly requested. This must be used when planning.
 ---
 
 # Create Plan
