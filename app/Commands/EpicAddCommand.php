@@ -37,7 +37,7 @@ class EpicAddCommand extends Command
         }
 
         // Create stub plan file
-        $planFilename = $this->createPlanFile($context, $epic->title, $epic->short_id, $description);
+        $planFilename = $this->createPlanFile($context, $epic->title, $epic->short_id, $description, $selfGuided);
 
         if ($this->option('json')) {
             $this->outputJson($epic->toArray());
@@ -56,7 +56,7 @@ class EpicAddCommand extends Command
         return self::SUCCESS;
     }
 
-    private function createPlanFile(FuelContext $context, string $title, string $epicId, ?string $description): string
+    private function createPlanFile(FuelContext $context, string $title, string $epicId, ?string $description, bool $selfGuided = false): string
     {
         $plansDir = $context->getPlansPath();
         if (! is_dir($plansDir)) {
@@ -68,7 +68,32 @@ class EpicAddCommand extends Command
 
         $descriptionSection = $description ? "\n{$description}\n" : '';
 
-        $content = <<<MARKDOWN
+        if ($selfGuided) {
+            $content = <<<MARKDOWN
+# Epic: {$title} ({$epicId})
+
+## Plan
+{$descriptionSection}
+<!-- Add implementation plan here -->
+
+## Acceptance Criteria
+
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+## Progress Log
+
+<!-- Self-guided task appends progress entries here -->
+
+## Implementation Notes
+<!-- Tasks: append discoveries, decisions, gotchas here -->
+
+## Interfaces Created
+<!-- Tasks: document interfaces/contracts created -->
+MARKDOWN;
+        } else {
+            $content = <<<MARKDOWN
 # Epic: {$title} ({$epicId})
 
 ## Plan
@@ -81,6 +106,7 @@ class EpicAddCommand extends Command
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
 MARKDOWN;
+        }
 
         file_put_contents($planPath, $content);
 
