@@ -89,17 +89,17 @@ describe('init command', function (): void {
         // Verify database was created with a starter task
         expect(file_exists($this->dbPath))->toBeTrue();
         $tasks = $this->taskService->all();
-        expect($tasks->pluck('title')->filter(fn ($t): bool => str_contains($t, 'README'))->count())->toBe(1);
+        expect($tasks->pluck('title')->filter(fn ($t): bool => str_contains($t, 'reality.md'))->count())->toBe(1);
     });
 
     it('does not create duplicate starter tasks when run multiple times', function (): void {
         // First init
         Artisan::call('init');
-        $firstTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t): bool => str_contains($t, 'README'))->count();
+        $firstTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t): bool => str_contains($t, 'reality.md'))->count();
 
         // Second init
         Artisan::call('init');
-        $secondTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t): bool => str_contains($t, 'README'))->count();
+        $secondTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t): bool => str_contains($t, 'reality.md'))->count();
 
         // Should have same number of starter tasks
         expect($secondTaskCount)->toBe($firstTaskCount);

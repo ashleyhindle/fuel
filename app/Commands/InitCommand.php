@@ -132,9 +132,11 @@ REALITY;
         // Add starter task only if no tasks exist
         if ($taskService->all()->isEmpty()) {
             $task = $taskService->create([
-                'title' => 'Update README to very briefly mention this project uses Fuel for task management from https://github.com/ashleyhindle/fuel',
+                'title' => 'Initialize .fuel/reality.md with codebase architecture',
                 'type' => 'task',
-                'priority' => 2,
+                'priority' => 1,
+                'complexity' => 'moderate',
+                'description' => 'Explore the codebase and populate .fuel/reality.md with: Architecture overview, key modules (table with Module|Purpose|Entry Point), main entry points, coding patterns/conventions, and leave Recent Changes empty. Be concise - this is a quick reference, not documentation.',
             ]);
 
             $this->info('Created starter task: '.$task->short_id);

@@ -96,7 +96,7 @@ describe('init command', function (): void {
 
         $tasks = $taskService->all();
         expect($tasks)->toHaveCount(1);
-        expect($tasks->first()->title)->toContain('Update README to ');
+        expect($tasks->first()->title)->toContain('reality.md');
         expect($tasks->first()->short_id)->toStartWith('f-');
     });
 
