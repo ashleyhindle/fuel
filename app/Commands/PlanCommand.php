@@ -29,8 +29,7 @@ class PlanCommand extends Command
         $epicId = $this->argument('epic-id');
 
         if ($epicId) {
-            $this->info("Resuming planning session for epic: {$epicId}");
-            // TODO: Resume existing epic planning
+            return $this->resumeEpicPlanning($epicId);
         } else {
             $this->info('Starting new planning session with Claude Opus 4.5...');
             $this->info("Type 'exit' or press Ctrl+C to end the planning session.\n");
@@ -43,9 +42,47 @@ class PlanCommand extends Command
     }
 
     /**
+     * Resume planning session for an existing epic
+     */
+    private function resumeEpicPlanning(string $epicId): int
+    {
+        // Validate epic exists and is paused
+        $epicService = app(\App\Services\EpicService::class);
+        $epic = $epicService->getEpic($epicId);
+
+        if (! $epic) {
+            $this->error("Epic {$epicId} not found.");
+
+            return self::FAILURE;
+        }
+
+        if ($epic->status->value !== 'paused') {
+            $this->error("Epic {$epicId} is not paused (status: {$epic->status->value}).");
+            $this->info('Only paused epics can be resumed for planning.');
+
+            return self::FAILURE;
+        }
+
+        $this->info("Resuming planning session for epic: {$epicId}");
+        $this->info("Epic: {$epic->title}");
+
+        // Don't actually run in testing mode
+        if (app()->environment() === 'testing') {
+            return self::SUCCESS;
+        }
+
+        $this->info("Type 'exit' or press Ctrl+C to end the planning session.\n");
+
+        // Start planning session with existing epic context
+        $this->startPlanningSession($epicId);
+
+        return self::SUCCESS;
+    }
+
+    /**
      * Start an interactive planning session with Claude
      */
-    private function startPlanningSession(): void
+    private function startPlanningSession(?string $existingEpicId = null): void
     {
         // Don't actually run in testing mode
         if (app()->environment() === 'testing') {
@@ -88,12 +125,28 @@ class PlanCommand extends Command
 
             // Send initial system prompt with planning constraints
             $systemPrompt = $this->getPlanningSystemPrompt();
+
+            // Prepare initial message based on whether we're resuming
+            if ($existingEpicId) {
+                $epicService = app(\App\Services\EpicService::class);
+                $epic = $epicService->getEpic($existingEpicId);
+                $existingPlan = $this->loadExistingPlan($existingEpicId, $epic->title);
+
+                $initialText = $systemPrompt . "\n\n" .
+                    "You are resuming planning for epic {$existingEpicId}: {$epic->title}\n\n" .
+                    "Here's the current plan:\n\n{$existingPlan}\n\n" .
+                    "What would you like to refine or add to this plan?";
+            } else {
+                $initialText = $systemPrompt . "\n\n" .
+                    "What would you like to build? Describe your feature idea, and I'll help you plan it thoroughly before we start implementation.";
+            }
+
             $initialMessage = [
                 'type' => 'message',
                 'content' => [
                     [
                         'type' => 'text',
-                        'text' => $systemPrompt."\n\nWhat would you like to build? Describe your feature idea, and I'll help you plan it thoroughly before we start implementation.",
+                        'text' => $initialText,
                     ],
                 ],
             ];
@@ -102,7 +155,7 @@ class PlanCommand extends Command
             $process->getInput()->flush();
 
             // Main interaction loop
-            $this->runInteractionLoop($process);
+            $this->runInteractionLoop($process, $existingEpicId);
 
         } catch (\Exception $e) {
             $this->error('Failed to start planning session: '.$e->getMessage());
@@ -116,15 +169,16 @@ class PlanCommand extends Command
     /**
      * Run the main interaction loop with Claude
      */
-    private function runInteractionLoop(Process $process): void
+    private function runInteractionLoop(Process $process, ?string $existingEpicId = null): void
     {
         $outputBuffer = '';
         $waitingForInput = false;
-        $conversationState = 'initial'; // Track state: initial, planning, refining, ready_to_create
+        // If resuming, start in refining state
+        $conversationState = $existingEpicId ? 'refining' : 'initial';
         $turnCount = 0;
         $lastClaudeResponse = '';
-        $epicCreated = false;
-        $epicId = null;
+        $epicCreated = (bool) $existingEpicId; // Already created if resuming
+        $epicId = $existingEpicId;
 
         while ($process->isRunning()) {
             // Check for Claude's output
@@ -160,8 +214,8 @@ class PlanCommand extends Command
             if ($waitingForInput && ! $this->hasMoreOutput($process)) {
                 $turnCount++;
 
-                // If epic was just created, ask for explicit transition confirmation
-                if ($epicCreated && $conversationState !== 'transition_confirmed') {
+                // If epic was just created (and not resuming), ask for explicit transition confirmation
+                if ($epicCreated && !$existingEpicId && $conversationState !== 'transition_confirmed') {
                     $this->showTransitionPrompt($epicId);
                     $conversationState = 'awaiting_transition';
                 }
@@ -537,6 +591,23 @@ class PlanCommand extends Command
         $border = str_repeat('─', $length);
 
         return "<{$style}>┌{$border}┐\n│ {$text} │\n└{$border}┘</{$style}>";
+    }
+
+    /**
+     * Load existing plan file for an epic
+     */
+    private function loadExistingPlan(string $epicId, string $epicTitle): string
+    {
+        // Convert title to kebab case for filename
+        $kebabTitle = str_replace(' ', '-', strtolower(preg_replace('/[^A-Za-z0-9\s]/', '', $epicTitle)));
+        $planFile = ".fuel/plans/{$kebabTitle}-{$epicId}.md";
+
+        if (! file_exists($planFile)) {
+            // Return a default structure if plan file doesn't exist yet
+            return "# Epic: {$epicTitle} ({$epicId})\n\n## Plan\n[Plan not yet written]\n\n## Acceptance Criteria\n- [ ] To be defined";
+        }
+
+        return file_get_contents($planFile);
     }
 
     /**

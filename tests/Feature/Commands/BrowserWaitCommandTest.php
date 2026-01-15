@@ -2,16 +2,14 @@
 
 declare(strict_types=1);
 
-use App\Events\BrowserResponseEvent;
+use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
-use App\Services\ProcessManager;
 use DateTimeImmutable;
-use Mockery\MockInterface;
-use function Pest\Laravel\artisan;
+use Mockery;
 
 it('sends wait command with selector to daemon', function () {
     // Create mock IPC client
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (MockInterface $mock) {
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (Mockery\MockInterface $mock) {
         $mock->shouldReceive('isDaemonRunning')->andReturn(true);
         $mock->shouldReceive('sendCommandAndWait')->andReturnUsing(function ($command) {
             expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
@@ -41,7 +39,7 @@ it('sends wait command with selector to daemon', function () {
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     // Execute command
-    artisan('browser:wait', [
+    $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         '--selector' => '.submit-button',
     ])
@@ -53,7 +51,7 @@ it('sends wait command with selector to daemon', function () {
 
 it('sends wait command with URL to daemon', function () {
     // Create mock IPC client
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (MockInterface $mock) {
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (Mockery\MockInterface $mock) {
         $mock->shouldReceive('isDaemonRunning')->andReturn(true);
         $mock->shouldReceive('sendCommandAndWait')->andReturnUsing(function ($command) {
             expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
@@ -81,7 +79,7 @@ it('sends wait command with URL to daemon', function () {
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     // Execute command
-    artisan('browser:wait', [
+    $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         '--url' => 'https://example.com/success',
     ])
@@ -93,7 +91,7 @@ it('sends wait command with URL to daemon', function () {
 
 it('sends wait command with text to daemon', function () {
     // Create mock IPC client
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (MockInterface $mock) {
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (Mockery\MockInterface $mock) {
         $mock->shouldReceive('isDaemonRunning')->andReturn(true);
         $mock->shouldReceive('sendCommandAndWait')->andReturnUsing(function ($command) {
             expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
@@ -123,7 +121,7 @@ it('sends wait command with text to daemon', function () {
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     // Execute command with custom timeout
-    artisan('browser:wait', [
+    $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         '--text' => 'Welcome to the site',
         '--timeout' => '5000',
@@ -135,7 +133,7 @@ it('sends wait command with text to daemon', function () {
 });
 
 it('fails when no wait condition is provided', function () {
-    artisan('browser:wait', [
+    $this->artisan('browser:wait', [
         'page_id' => 'test-page',
     ])
         ->expectsOutputToContain('Must provide exactly one of: --selector, --url, or --text')
@@ -143,7 +141,7 @@ it('fails when no wait condition is provided', function () {
 });
 
 it('fails when multiple wait conditions are provided', function () {
-    artisan('browser:wait', [
+    $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         '--selector' => '.button',
         '--url' => 'https://example.com',
@@ -154,7 +152,7 @@ it('fails when multiple wait conditions are provided', function () {
 
 it('outputs JSON when --json flag is provided', function () {
     // Create mock IPC client
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (MockInterface $mock) {
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (Mockery\MockInterface $mock) {
         $mock->shouldReceive('isDaemonRunning')->andReturn(true);
         $mock->shouldReceive('sendCommandAndWait')->andReturn(
             new BrowserResponseEvent(
@@ -176,7 +174,7 @@ it('outputs JSON when --json flag is provided', function () {
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     // Execute command with JSON output
-    artisan('browser:wait', [
+    $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         '--selector' => '.submit-button',
         '--json' => true,
@@ -195,7 +193,7 @@ it('outputs JSON when --json flag is provided', function () {
 
 it('handles timeout errors gracefully', function () {
     // Create mock IPC client
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (MockInterface $mock) {
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (Mockery\MockInterface $mock) {
         $mock->shouldReceive('isDaemonRunning')->andReturn(true);
         $mock->shouldReceive('sendCommandAndWait')->andReturn(
             new BrowserResponseEvent(
@@ -213,7 +211,7 @@ it('handles timeout errors gracefully', function () {
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     // Execute command that times out
-    artisan('browser:wait', [
+    $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         '--selector' => '.not-found',
         '--timeout' => '5000',
