@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Enums\TaskStatus;
+use App\Models\Run;
 use App\Models\Task;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
@@ -80,6 +81,7 @@ class StatusCommand extends Command
             $output = [
                 'board' => $boardState,
                 'runner' => $runnerStatus ?? ['state' => 'NOT_RUNNING', 'pid' => null, 'active_processes' => 0],
+                'in_progress_tasks' => $this->getInProgressTasksData($inProgress),
             ];
 
             $this->outputJson($output);
@@ -108,6 +110,12 @@ class StatusCommand extends Command
             $this->line('<fg=white;options=bold>Board Summary</>');
             foreach ($boardLines as $line) {
                 $this->output->writeln($line);
+            }
+
+            // Show in-progress tasks even if runner is not active
+            if ($inProgress->isNotEmpty()) {
+                $this->newLine();
+                $this->renderInProgressTasks($inProgress);
             }
 
             return self::SUCCESS;
@@ -148,6 +156,12 @@ class StatusCommand extends Command
             foreach ($boardLines as $line) {
                 $this->output->writeln($line);
             }
+        }
+
+        // Show in-progress tasks
+        if ($inProgress->isNotEmpty()) {
+            $this->newLine();
+            $this->renderInProgressTasks($inProgress);
         }
 
         return self::SUCCESS;
@@ -211,5 +225,161 @@ class StatusCommand extends Command
         }
 
         return $status;
+    }
+
+    /**
+     * Render in-progress tasks with details.
+     */
+    private function renderInProgressTasks(\Illuminate\Support\Collection $inProgress): void
+    {
+        $this->line('<fg=white;options=bold>In Progress Tasks ('.$inProgress->count().')</>');
+
+        $headers = ['ID', 'Title', 'Agent', 'Running', 'Complexity', 'Epic'];
+        $terminalWidth = $this->getTerminalWidth();
+
+        // Calculate max title width: terminal - ID(10) - Agent(8) - Running(10) - Complexity(12) - Epic(10) - borders(20)
+        $fixedColumnsWidth = 10 + 8 + 10 + 12 + 10 + 20;
+        $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth);
+
+        $rows = $inProgress->map(function (Task $task) use ($maxTitleWidth) {
+            $activeRun = $this->getActiveRun($task);
+            $agent = $activeRun?->agent ?? 'unknown';
+            $runningTime = $this->getRunningTime($activeRun);
+            $complexity = $this->getComplexityDisplay($task);
+            $epicId = $task->epic_id ?? '';
+
+            // Add icons to title like in consume command
+            $icons = $this->getTaskIcons($task);
+            $titleWithIcons = $task->title.$icons;
+
+            return [
+                $task->short_id,
+                $this->truncate($titleWithIcons, $maxTitleWidth),
+                $agent,
+                $runningTime,
+                $complexity,
+                $epicId,
+            ];
+        })->toArray();
+
+        $table = new Table;
+        $table->render($headers, $rows, $this->output);
+    }
+
+    /**
+     * Get active run for a task.
+     */
+    private function getActiveRun(Task $task): ?Run
+    {
+        return Run::where('task_id', $task->id)
+            ->where('status', 'running')
+            ->whereNull('ended_at')
+            ->orderByDesc('started_at')
+            ->first();
+    }
+
+    /**
+     * Get running time for a run.
+     */
+    private function getRunningTime(?Run $run): string
+    {
+        if ($run === null || $run->started_at === null) {
+            return '-';
+        }
+
+        $seconds = (int) now()->diffInSeconds($run->started_at, false);
+
+        return $this->formatDuration(abs($seconds));
+    }
+
+    /**
+     * Format duration in human-readable format.
+     */
+    private function formatDuration(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return $seconds.'s';
+        }
+
+        if ($seconds < 3600) {
+            $minutes = (int) ($seconds / 60);
+            $secs = $seconds % 60;
+
+            return sprintf('%dm %ds', $minutes, $secs);
+        }
+
+        $hours = (int) ($seconds / 3600);
+        $minutes = (int) (($seconds % 3600) / 60);
+
+        return sprintf('%dh %dm', $hours, $minutes);
+    }
+
+    /**
+     * Get complexity display with icon.
+     */
+    private function getComplexityDisplay(Task $task): string
+    {
+        $complexity = $task->complexity ?? 'simple';
+        $char = match ($complexity) {
+            'trivial' => 't',
+            'simple' => 's',
+            'moderate' => 'm',
+            'complex' => 'c',
+            default => 's',
+        };
+
+        return $complexity.' ('.$char.')';
+    }
+
+    /**
+     * Get task icons (consume, failed, selfguided).
+     */
+    private function getTaskIcons(Task $task): string
+    {
+        $icons = [];
+
+        if (! empty($task->consumed)) {
+            $icons[] = '⚡';
+        }
+
+        $taskService = app(TaskService::class);
+        if ($taskService->isFailed($task)) {
+            $icons[] = '🪫';
+        }
+
+        if ($task->agent === 'selfguided') {
+            $icons[] = '◉';
+        }
+
+        return $icons !== [] ? ' '.implode(' ', $icons) : '';
+    }
+
+    /**
+     * Get in-progress tasks data for JSON output.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getInProgressTasksData(\Illuminate\Support\Collection $inProgress): array
+    {
+        return $inProgress->map(function (Task $task) {
+            $activeRun = $this->getActiveRun($task);
+            $runningSeconds = null;
+
+            if ($activeRun && $activeRun->started_at) {
+                $runningSeconds = abs((int) now()->diffInSeconds($activeRun->started_at, false));
+            }
+
+            return [
+                'id' => $task->short_id,
+                'title' => $task->title,
+                'agent' => $activeRun?->agent ?? 'unknown',
+                'running_seconds' => $runningSeconds,
+                'complexity' => $task->complexity ?? 'simple',
+                'epic_id' => $task->epic_id,
+                'consumed' => ! empty($task->consumed),
+                'failed' => app(TaskService::class)->isFailed($task),
+                'selfguided' => $task->agent === 'selfguided',
+            ];
+        })->toArray();
     }
 }
