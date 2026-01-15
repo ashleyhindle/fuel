@@ -9,7 +9,6 @@ use App\Models\Task;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
-use Symfony\Component\Console\Input\InputOption;
 
 class RemoveCommand extends Command
 {
@@ -21,12 +20,6 @@ class RemoveCommand extends Command
         {--json : Output as JSON}';
 
     protected $description = 'Delete a task';
-
-    protected function configure(): void
-    {
-        parent::configure();
-        $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip confirmation prompt');
-    }
 
     public function handle(TaskService $taskService): int
     {
@@ -42,13 +35,6 @@ class RemoveCommand extends Command
 
             $resolvedId = $task->short_id;
             $title = $task->title ?? '';
-
-            // Confirm deletion unless --force is set, --json is set, non-interactive shell, or piped output
-            if (! $this->option('force') && ! $this->option('json') && $this->input->isInteractive() && stream_isatty(STDOUT) && ! $this->confirm(sprintf("Are you sure you want to delete task '%s' (%s)?", $resolvedId, $title))) {
-                $this->line('Deletion cancelled.');
-
-                return self::SUCCESS;
-            }
 
             // Delete the task
             $deletedTask = $taskService->delete($resolvedId);

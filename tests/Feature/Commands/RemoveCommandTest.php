@@ -66,10 +66,10 @@ describe('remove command', function (): void {
         $deleteDir($this->tempDir);
     });
 
-    it('deletes a task with --force flag', function (): void {
+    it('deletes a task', function (): void {
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
-        Artisan::call('remove', ['id' => $task->short_id, '--force' => true]);
+        Artisan::call('remove', ['id' => $task->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted task:');
@@ -85,7 +85,6 @@ describe('remove command', function (): void {
         Artisan::call('remove', [
             'id' => $task->short_id,
             '--json' => true,
-            '--force' => true,
         ]);
         $output = Artisan::output();
         $result = json_decode($output, true);
@@ -123,7 +122,7 @@ describe('remove command', function (): void {
     });
 
     it('returns error when task not found', function (): void {
-        $this->artisan('remove', ['id' => 'f-nonexistent', '--force' => true])
+        $this->artisan('remove', ['id' => 'f-nonexistent'])
             ->expectsOutputToContain("Task 'f-nonexistent' not found")
             ->assertExitCode(1);
     });
@@ -134,7 +133,7 @@ describe('remove command', function (): void {
         // Use partial ID (first 5 chars after f-)
         $partialId = substr((string) $task->short_id, 2, 5);
 
-        $this->artisan('remove', ['id' => $partialId, '--force' => true])
+        $this->artisan('remove', ['id' => $partialId])
             ->expectsOutputToContain('Deleted task:')
             ->assertExitCode(0);
 
