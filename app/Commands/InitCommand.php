@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Services\ConfigService;
-use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\PromptService;
 use App\Services\SkillService;
@@ -25,7 +24,7 @@ class InitCommand extends Command
 
     protected $description = 'Initialize Fuel in the current project';
 
-    public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService, SkillService $skillService, PromptService $promptService): int
+    public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, SkillService $skillService, PromptService $promptService): int
     {
         try {
             return $this->doInit($context, $taskService, $configService, $skillService, $promptService);
@@ -140,7 +139,7 @@ REALITY;
                 'type' => 'task',
                 'priority' => 1,
                 'complexity' => 'moderate',
-                'description' => 'Explore the codebase and populate .fuel/reality.md with: Architecture overview, key modules (table with Module|Purpose|Entry Point), main entry points, coding patterns/conventions, quality gates (table with Tool|Command|Purpose - detect from composer.json scripts/require-dev, package.json scripts/devDependencies for linters, formatters, test runners like pest/phpunit/pint/rector/eslint/prettier/vitest/jest), and leave Recent Changes empty. Be concise - this is a quick reference, not documentation.',
+                'description' => 'Explore the codebase and populate .fuel/reality.md with: Architecture overview, key modules (table with Module|Purpose|Entry Point), main entry points, coding patterns/conventions, quality gates (table with Tool|Command|Purpose - thoroughly detect all linters, formatters, type checkers, and test runners actually in use), and leave Recent Changes empty. Be concise - this is a quick reference, not documentation.',
             ]);
 
             $this->info('Created starter task: '.$task->short_id);
