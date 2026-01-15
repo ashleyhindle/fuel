@@ -124,6 +124,7 @@ class PlanCommand extends Command
         $turnCount = 0;
         $lastClaudeResponse = '';
         $epicCreated = false;
+        $epicId = null;
 
         while ($process->isRunning()) {
             // Check for Claude's output
@@ -141,6 +142,9 @@ class PlanCommand extends Command
                         $waitingForInput = $result['waiting'];
                         if ($result['epicCreated']) {
                             $epicCreated = true;
+                            if (isset($result['epicId'])) {
+                                $epicId = $result['epicId'];
+                            }
                         }
                     }
                 }
@@ -156,6 +160,12 @@ class PlanCommand extends Command
             if ($waitingForInput && ! $this->hasMoreOutput($process)) {
                 $turnCount++;
 
+                // If epic was just created, ask for explicit transition confirmation
+                if ($epicCreated && $conversationState !== 'transition_confirmed') {
+                    $this->showTransitionPrompt($epicId);
+                    $conversationState = 'awaiting_transition';
+                }
+
                 // Update state based on conversation progress
                 $this->updateConversationState($conversationState, $lastClaudeResponse, $turnCount, $epicCreated);
 
@@ -164,10 +174,31 @@ class PlanCommand extends Command
 
                 $userInput = $this->ask('You');
 
+                // Handle transition decision
+                if ($conversationState === 'awaiting_transition') {
+                    if (in_array(strtolower($userInput), ['yes', 'y', 'execute', 'start'])) {
+                        $conversationState = 'transition_confirmed';
+                        $this->info("\n✅ Great! Transitioning to execution mode.");
+                        $this->info("Run 'fuel consume' to begin working on the tasks.");
+                        break;
+                    } elseif (in_array(strtolower($userInput), ['no', 'n', 'continue', 'refine'])) {
+                        $this->info("\n📝 Continuing planning session. You can refine the plan or add more details.");
+                        $conversationState = 'refining_after_epic';
+                        // Continue the conversation
+                    } else {
+                        $this->warn("Please answer 'yes' to execute or 'no' to continue planning.");
+
+                        continue;
+                    }
+                }
+
                 if (strtolower($userInput) === 'exit') {
                     $this->info("\n👋 Ending planning session...");
                     if (! $epicCreated) {
                         $this->warn("Note: No epic was created. Run 'fuel plan' again to start fresh.");
+                    } elseif ($conversationState !== 'transition_confirmed') {
+                        $this->info('Epic created but not yet transitioned to execution.');
+                        $this->info("Run 'fuel consume' when you're ready to begin working on the tasks.");
                     }
                     break;
                 }
@@ -186,9 +217,12 @@ class PlanCommand extends Command
         }
 
         $this->info("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        if ($epicCreated) {
-            $this->info('✅ Planning session ended successfully!');
+        if ($epicCreated && $conversationState === 'transition_confirmed') {
+            $this->info('✅ Planning complete and ready for execution!');
             $this->info("Run 'fuel consume' to begin working on the tasks.");
+        } elseif ($epicCreated) {
+            $this->info('✅ Epic created successfully.');
+            $this->info("Run 'fuel consume' when ready to begin execution.");
         } else {
             $this->info('Planning session ended.');
         }
@@ -201,17 +235,18 @@ class PlanCommand extends Command
     /**
      * Process a line of output from Claude
      *
-     * @return array ['waiting' => bool, 'epicCreated' => bool]
+     * @return array ['waiting' => bool, 'epicCreated' => bool, 'epicId' => string|null]
      */
     private function processClaudeOutput(string $line, string &$lastClaudeResponse, bool $epicCreated): array
     {
         $data = json_decode($line, true);
         if (! $data) {
             // Not JSON, skip it
-            return ['waiting' => false, 'epicCreated' => false];
+            return ['waiting' => false, 'epicCreated' => false, 'epicId' => null];
         }
 
         $newEpicCreated = false;
+        $epicId = null;
 
         // Handle different message types from Claude
         switch ($data['type'] ?? '') {
@@ -237,7 +272,7 @@ class PlanCommand extends Command
                     $lastClaudeResponse = $text;
 
                     // After Claude responds, we're waiting for input
-                    return ['waiting' => true, 'epicCreated' => false];
+                    return ['waiting' => true, 'epicCreated' => false, 'epicId' => null];
                 }
                 break;
 
@@ -253,6 +288,7 @@ class PlanCommand extends Command
                             $command = $params['command'];
                             if (str_contains($command, 'fuel epic:add')) {
                                 $newEpicCreated = true;
+                                // Try to extract epic ID from response later
                                 // Detect if --selfguided flag is present
                                 if (str_contains($command, '--selfguided')) {
                                     $this->info('→ Creating self-guided epic (iterative execution)');
@@ -266,7 +302,14 @@ class PlanCommand extends Command
                 break;
 
             case 'tool_result':
-                // Don't show tool results in planning mode to keep output clean
+                // Check if this is the result of an epic:add command
+                if (isset($data['content']) && is_array($data['content'])) {
+                    foreach ($data['content'] as $content) {
+                        if (isset($content['text']) && preg_match('/Epic created: (e-[a-f0-9]{6})/', $content['text'], $matches)) {
+                            $epicId = $matches[1];
+                        }
+                    }
+                }
                 break;
 
             case 'error':
@@ -278,7 +321,7 @@ class PlanCommand extends Command
                 break;
         }
 
-        return ['waiting' => false, 'epicCreated' => $newEpicCreated];
+        return ['waiting' => false, 'epicCreated' => $newEpicCreated, 'epicId' => $epicId];
     }
 
     /**
@@ -441,7 +484,7 @@ class PlanCommand extends Command
      */
     private function showStateHint(string $state, bool $epicCreated): void
     {
-        if ($epicCreated) {
+        if ($epicCreated && $state !== 'awaiting_transition' && $state !== 'refining_after_epic') {
             return;
         }
 
@@ -461,7 +504,28 @@ class PlanCommand extends Command
             case 'ready_to_create':
                 $this->line($this->wrapInBox('🎯 Claude is ready to create the epic and tasks. Confirm to proceed.', 'dim'));
                 break;
+            case 'awaiting_transition':
+                // Transition prompt is shown separately
+                break;
+            case 'refining_after_epic':
+                $this->line($this->wrapInBox('📝 Continue refining the plan. Type "exit" when done.', 'dim'));
+                break;
         }
+    }
+
+    /**
+     * Show the transition prompt after epic creation
+     */
+    private function showTransitionPrompt(?string $epicId): void
+    {
+        $this->info("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        $this->info('🎉 Epic '.($epicId ?? 'has been').' created successfully!');
+        $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        $this->question('Ready to transition from planning to execution?');
+        $this->line('');
+        $this->line('  <fg=green>YES</> - End planning and move to execution mode');
+        $this->line('  <fg=yellow>NO</>  - Continue refining the plan');
+        $this->line('');
     }
 
     /**
