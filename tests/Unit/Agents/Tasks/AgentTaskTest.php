@@ -15,6 +15,7 @@ use App\Process\CompletionType;
 use App\Process\ProcessType;
 use App\Prompts\ReviewPrompt;
 use App\Services\ConfigService;
+use App\Services\PromptService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 
@@ -23,6 +24,7 @@ beforeEach(function (): void {
     $this->taskService = Mockery::mock(TaskService::class);
     $this->configService = Mockery::mock(ConfigService::class);
     $this->promptBuilder = Mockery::mock(TaskPromptBuilder::class);
+    $this->promptService = Mockery::mock(PromptService::class);
     $this->reviewPrompt = Mockery::mock(ReviewPrompt::class);
     $this->reviewService = Mockery::mock(ReviewServiceInterface::class);
 });
@@ -380,6 +382,7 @@ describe('UpdateRealityAgentTask', function (): void {
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
         );
 
@@ -393,6 +396,7 @@ describe('UpdateRealityAgentTask', function (): void {
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
             $epic,
         );
@@ -410,6 +414,7 @@ describe('UpdateRealityAgentTask', function (): void {
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
         );
 
@@ -426,6 +431,7 @@ describe('UpdateRealityAgentTask', function (): void {
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
         );
 
@@ -441,9 +447,23 @@ describe('UpdateRealityAgentTask', function (): void {
             'status' => 'done',
         ]);
 
+        $this->promptService->shouldReceive('loadTemplate')
+            ->with('reality')
+            ->once()
+            ->andReturn('UPDATE REALITY INDEX {{ context.reality_path }} {{ context.completed_work }}');
+
+        $this->promptService->shouldReceive('render')
+            ->once()
+            ->andReturnUsing(fn ($template, $vars) => str_replace(
+                ['{{ context.reality_path }}', '{{ context.completed_work }}'],
+                [$vars['context']['reality_path'], $vars['context']['completed_work']],
+                $template
+            ));
+
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
         );
 
@@ -463,6 +483,7 @@ describe('UpdateRealityAgentTask', function (): void {
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
         );
 
@@ -470,8 +491,9 @@ describe('UpdateRealityAgentTask', function (): void {
     });
 
     it('creates from task using static factory', function (): void {
-        // Bind TaskService mock to container
+        // Bind mocks to container
         app()->instance(TaskService::class, $this->taskService);
+        app()->instance(PromptService::class, $this->promptService);
 
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
 
@@ -482,8 +504,9 @@ describe('UpdateRealityAgentTask', function (): void {
     });
 
     it('creates from epic using static factory', function (): void {
-        // Bind TaskService mock to container
+        // Bind mocks to container
         app()->instance(TaskService::class, $this->taskService);
+        app()->instance(PromptService::class, $this->promptService);
 
         $epic = new Epic(['short_id' => 'e-xyz789', 'title' => 'Test Epic', 'description' => 'Epic desc']);
 
@@ -498,6 +521,7 @@ describe('UpdateRealityAgentTask', function (): void {
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
         );
 
@@ -523,6 +547,7 @@ describe('UpdateRealityAgentTask', function (): void {
         $agentTask = new UpdateRealityAgentTask(
             $task,
             $this->taskService,
+            $this->promptService,
             '/test/cwd',
         );
 

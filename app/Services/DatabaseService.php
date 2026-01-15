@@ -24,16 +24,15 @@ class DatabaseService
 
     /**
      * Configure Laravel's database connection to use this path.
-     * Creates the database file if it doesn't exist.
      */
     private function configureDatabase(): void
     {
-        // Create database file if it doesn't exist (Laravel's SQLite connector requires this)
-        if (! file_exists($this->dbPath)) {
-            $dir = dirname($this->dbPath);
-            if (is_dir($dir)) {
-                touch($this->dbPath);
-            }
+        // Empty files are not valid SQLite databases - likely from interrupted init
+        if (file_exists($this->dbPath) && filesize($this->dbPath) === 0) {
+            throw new RuntimeException(
+                "Database file exists but is empty (likely from interrupted init).\n".
+                "Delete it manually to start fresh: rm {$this->dbPath}"
+            );
         }
 
         config(['database.connections.sqlite.database' => $this->dbPath]);

@@ -90,12 +90,29 @@ class FuelContext
 
     private function ensureMigrationCompatibility(): void
     {
-        if (! is_file($this->getDatabasePath())) {
+        $dbPath = $this->getDatabasePath();
+
+        if (! is_file($dbPath)) {
             return;
         }
 
-        if (! Schema::hasTable('schema_version')) {
-            return;
+        // Empty files are not valid SQLite databases - likely from interrupted init
+        if (filesize($dbPath) === 0) {
+            throw new \RuntimeException(
+                "Database file exists but is empty (likely from interrupted init).\n".
+                "Delete it manually to start fresh: rm {$dbPath}"
+            );
+        }
+
+        try {
+            if (! Schema::hasTable('schema_version')) {
+                return;
+            }
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(
+                "Database file exists but appears corrupt: {$e->getMessage()}\n".
+                "Delete it manually to start fresh: rm {$dbPath}"
+            );
         }
 
         $version = (int) (DB::table('schema_version')->value('version') ?? 0);

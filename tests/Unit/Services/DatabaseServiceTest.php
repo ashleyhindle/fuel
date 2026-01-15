@@ -159,7 +159,7 @@ it('creates epics table with correct schema', function (): void {
 
     $columns = $this->service->fetchAll('PRAGMA table_info(epics)');
 
-    expect($columns)->toHaveCount(11);
+    expect($columns)->toHaveCount(12);
     expect(array_column($columns, 'name'))->toBe([
         'id',
         'short_id',
@@ -172,6 +172,7 @@ it('creates epics table with correct schema', function (): void {
         'changes_requested_at',
         'created_at',
         'updated_at',
+        'self_guided',
     ]);
 });
 

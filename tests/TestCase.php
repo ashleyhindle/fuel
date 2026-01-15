@@ -42,6 +42,7 @@ complexity:
   complex: test-agent
 agents:
   test-agent:
+    driver: claude
     command: echo
 YAML;
         file_put_contents($this->testDir.'/.fuel/config.yaml', $minimalConfig);
