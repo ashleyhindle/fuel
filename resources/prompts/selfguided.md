@@ -1,4 +1,4 @@
-<fuel-prompt version="1" />
+<fuel-prompt version="1">
 
 == SELF-GUIDED EPIC EXECUTION ==
 Iteration {{ iteration }} of {{ max_iterations }}
@@ -45,22 +45,22 @@ Edit `{{ epic_plan_filename }}` to:
 
 **All acceptance criteria complete?**
 ```bash
-./fuel done {{ task.short_id }} --commit=[hash from step 3]
+fuel done {{ task.short_id }} --commit=[hash from step 3]
 ```
 
 **More work to do?**
 ```bash
-./fuel selfguided:continue {{ task.short_id }} --notes='Completed X, next is Y'
+fuel selfguided:continue {{ task.short_id }} --notes='Completed X, next is Y'
 ```
 
 **Stuck or need human input?**
 ```bash
-./fuel selfguided:blocked {{ task.short_id }} --reason='Why you are blocked'
+fuel selfguided:blocked {{ task.short_id }} --reason='Why you are blocked'
 ```
 
 == QUALITY GATES ==
 Before marking any criterion complete:
-- [ ] Code compiles/runs without errors
+- [ ] Code compileruns without errors
 - [ ] Relevant tests pass
 - [ ] No debug statements left (dd, var_dump, console.log)
 - [ ] Changes committed with descriptive message
