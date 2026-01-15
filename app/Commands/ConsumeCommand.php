@@ -879,7 +879,7 @@ class ConsumeCommand extends Command
             if ($paused) {
                 $statusLine = '<fg=yellow>PAUSED</>';
             } else {
-                $spinner = self::SPINNER_CHARS[$this->spinnerFrame % count(self::SPINNER_CHARS)];
+                $spinner = self::CONNECTING_SPINNER[$this->spinnerFrame % count(self::CONNECTING_SPINNER)];
                 $this->spinnerFrame++;
                 $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
             }
@@ -1480,7 +1480,7 @@ class ConsumeCommand extends Command
         if ($paused) {
             $statusLine = '<fg=yellow>PAUSED</>';
         } else {
-            $spinner = self::SPINNER_CHARS[$this->spinnerFrame % count(self::SPINNER_CHARS)];
+            $spinner = self::CONNECTING_SPINNER[$this->spinnerFrame % count(self::CONNECTING_SPINNER)];
             $this->spinnerFrame++;
             $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
         }
