@@ -36,78 +36,6 @@ class TaskPromptBuilder
     }
 
     /**
-     * Build a prompt for the epic commit task.
-     *
-     * @param  array<int, Task>  $completedTasks
-     */
-    public function buildCommitPrompt(Task $commitTask, Epic $epic, array $completedTasks, string $cwd): string
-    {
-        $taskId = $commitTask->short_id;
-        $epicId = $epic->short_id;
-        $taskSummary = $this->formatTaskSummaryForCommit($completedTasks);
-
-        return <<<PROMPT
-IMPORTANT: You are being orchestrated. Trust the system.
-
-== YOUR ASSIGNMENT ==
-You are assigned the COMMIT task: {$taskId}
-Your job is to organize and commit the staged changes for epic {$epicId}.
-
-== EPIC CONTEXT ==
-Epic: {$epicId}
-Title: {$epic->title}
-Description: {$epic->description}
-
-== COMPLETED TASKS ==
-{$taskSummary}
-
-== YOUR INSTRUCTIONS ==
-
-1. REVIEW STAGED CHANGES
-   Run `git status` and `git diff --cached` to see what's staged.
-
-   If NO changes are staged:
-   - Check for unstaged changes with `git diff`
-   - If there are unstaged changes, stage them with `git add`
-   - If there are NO changes at all, run `./fuel done {$taskId} --reason="No changes to commit"` and exit
-
-2. ORGANIZE INTO COMMITS
-   Review the staged changes and organize them into meaningful conventional commits.
-
-   Consider:
-   - Group related changes together
-   - Each commit should be atomic and self-contained
-   - Use conventional commit messages: feat:, fix:, refactor:, docs:, test:, chore:
-   - Reference the epic in commit messages where appropriate
-
-   Create commits:
-   ```bash
-   git commit -m "feat: description of feature changes"
-   git commit -m "fix: description of bug fixes"
-   # etc.
-   ```
-
-3. VERIFY
-   - Run tests to ensure nothing is broken: `./vendor/bin/pest --parallel --compact`
-   - Run linter: `./vendor/bin/pint`
-   - If tests fail, fix issues and amend commits as needed
-
-4. COMPLETE
-   Run: `./fuel done {$taskId} --commit=<last-commit-hash>`
-
-== FORBIDDEN ==
-- DO NOT start any other tasks
-- DO NOT modify code beyond what's needed to fix test failures
-- DO NOT push to remote (that's a separate step)
-
-== CONTEXT ==
-Working directory: {$cwd}
-Task ID: {$taskId}
-Epic ID: {$epicId}
-PROMPT;
-    }
-
-    /**
      * Build the closing protocol (same for all tasks - each task commits).
      */
     private function buildClosingProtocol(string $taskId): string
@@ -120,8 +48,8 @@ Before exiting, you MUST:
 3. Run `git add <files>` for each file YOU modified (not files from other agents)
 4. VERIFY: `git diff --cached --stat` shows all YOUR changes are staged
 5. git commit -m "feat/fix: description"
-6. ./fuel done {$taskId} --commit=<hash>
-7. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
+6. fuel done {$taskId} --commit=<hash>
+7. fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
 
 CRITICAL: If you skip git add, your work will be lost. Verify YOUR files are staged before commit.
 
