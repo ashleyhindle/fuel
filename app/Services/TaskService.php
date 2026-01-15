@@ -679,7 +679,7 @@ class TaskService
     }
 
     /**
-     * Delete a task.
+     * Delete a task (soft delete - sets status to cancelled).
      */
     public function delete(string $id): Task
     {
@@ -688,7 +688,8 @@ class TaskService
             throw new RuntimeException(sprintf("Task '%s' not found", $id));
         }
 
-        $task->delete();
+        $task->status = TaskStatus::Cancelled;
+        $task->save();
 
         return $task;
     }

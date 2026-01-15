@@ -631,13 +631,18 @@ it('preserves arbitrary fields when updating a task', function (): void {
 // Delete Method Tests
 // =============================================================================
 
-it('deletes a task', function (): void {
+it('soft deletes a task by setting status to cancelled', function (): void {
     $task = $this->taskService->create(['title' => 'Task to delete']);
 
     $deleted = $this->taskService->delete($task->short_id);
 
     expect($deleted->short_id)->toBe($task->short_id);
-    expect($this->taskService->find($task->short_id))->toBeNull();
+    expect($deleted->status)->toBe(TaskStatus::Cancelled);
+
+    // Task should still exist but with cancelled status
+    $found = $this->taskService->find($task->short_id);
+    expect($found)->not->toBeNull();
+    expect($found->status)->toBe(TaskStatus::Cancelled);
 });
 
 it('throws exception when deleting non-existent task', function (): void {

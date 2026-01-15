@@ -1,6 +1,7 @@
 <?php
 
 use App\Commands\RemoveCommand;
+use App\Enums\TaskStatus;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -66,7 +67,7 @@ describe('remove command', function (): void {
         $deleteDir($this->tempDir);
     });
 
-    it('deletes a task', function (): void {
+    it('soft deletes a task by setting status to cancelled', function (): void {
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
         Artisan::call('remove', ['id' => $task->short_id]);
@@ -75,8 +76,10 @@ describe('remove command', function (): void {
         expect($output)->toContain('Deleted task:');
         expect($output)->toContain($task->short_id);
 
-        // Verify task is deleted
-        expect($this->taskService->find($task->short_id))->toBeNull();
+        // Verify task still exists but is cancelled (soft delete)
+        $deletedTask = $this->taskService->find($task->short_id);
+        expect($deletedTask)->not->toBeNull();
+        expect($deletedTask->status)->toBe(TaskStatus::Cancelled);
     });
 
     it('outputs JSON when --json flag is used for task deletion', function (): void {
@@ -95,7 +98,7 @@ describe('remove command', function (): void {
         expect($result['deleted']['short_id'])->toBe($task->short_id);
     });
 
-    it('skips confirmation for task deletion in non-interactive mode', function (): void {
+    it('soft deletes in non-interactive mode', function (): void {
         $task = $this->taskService->create(['title' => 'Task to delete']);
 
         // Create command instance and set input to non-interactive
@@ -117,8 +120,10 @@ describe('remove command', function (): void {
         );
 
         expect($exitCode)->toBe(0);
-        // Verify task was deleted (should not exist anymore)
-        expect($this->taskService->find($task->short_id))->toBeNull();
+        // Verify task still exists but is cancelled (soft delete)
+        $deletedTask = $this->taskService->find($task->short_id);
+        expect($deletedTask)->not->toBeNull();
+        expect($deletedTask->status)->toBe(TaskStatus::Cancelled);
     });
 
     it('returns error when task not found', function (): void {
@@ -137,7 +142,9 @@ describe('remove command', function (): void {
             ->expectsOutputToContain('Deleted task:')
             ->assertExitCode(0);
 
-        // Verify task is deleted
-        expect($this->taskService->find($task->short_id))->toBeNull();
+        // Verify task still exists but is cancelled (soft delete)
+        $deletedTask = $this->taskService->find($task->short_id);
+        expect($deletedTask)->not->toBeNull();
+        expect($deletedTask->status)->toBe(TaskStatus::Cancelled);
     });
 });
