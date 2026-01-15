@@ -62,8 +62,11 @@ fuel selfguided:blocked {{ task.short_id }} --reason='Why you are blocked'
 
 == QUALITY GATES ==
 Before marking any criterion complete:
-- [ ] Code compileruns without errors
+- [ ] Code has no errors
 - [ ] Relevant tests pass
+- [ ] Formatters ran
+- [ ] Style checkers ran
+- [ ] Browser tests verified (if web page)
 - [ ] No debug statements left (dd, var_dump, console.log)
 - [ ] Changes committed with descriptive message
 
