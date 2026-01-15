@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Daemon\DaemonLogger;
 use Exception;
 use RuntimeException;
 use Throwable;
@@ -196,7 +197,7 @@ class BrowserDaemonManager
     }
 
     /**
-     * Check if the daemon is running
+     * Check if the daemon process is running
      */
     public function isRunning(): bool
     {
@@ -207,6 +208,102 @@ class BrowserDaemonManager
         $status = proc_get_status($this->daemonProcess);
 
         return $status['running'] ?? false;
+    }
+
+    /**
+     * Check if the daemon is healthy (running AND responsive).
+     * Uses a quick ping with short timeout to verify responsiveness.
+     */
+    public function isHealthy(): bool
+    {
+        if (! $this->isRunning()) {
+            return false;
+        }
+
+        try {
+            $result = $this->ping(3); // 3 second timeout for health check
+
+            return $result['status'] === 'ok';
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Send a ping to the daemon to verify it's responsive.
+     *
+     * @param  int  $timeout  Timeout in seconds (default 5)
+     * @return array{status: string} Ping result
+     *
+     * @throws RuntimeException If ping fails or times out
+     */
+    public function ping(int $timeout = 5): array
+    {
+        if (! $this->isRunning()) {
+            throw new RuntimeException('Browser daemon is not running');
+        }
+
+        $requestId = ++$this->requestIdSeq;
+        $request = [
+            'id' => $requestId,
+            'method' => 'ping',
+            'params' => [],
+        ];
+
+        // Write request
+        $json = json_encode($request)."\n";
+        $written = fwrite($this->pipes[0], $json);
+        if ($written === false) {
+            throw new RuntimeException('Failed to write to daemon stdin');
+        }
+
+        fflush($this->pipes[0]);
+
+        // Read response with short timeout
+        $startTime = time();
+        $buffer = '';
+
+        while (time() - $startTime < $timeout) {
+            $chunk = fread($this->pipes[1], 8192);
+            if ($chunk !== false && $chunk !== '') {
+                $buffer .= $chunk;
+
+                // Check for complete JSON lines
+                while (($pos = strpos($buffer, "\n")) !== false) {
+                    $line = substr($buffer, 0, $pos);
+                    $buffer = substr($buffer, $pos + 1);
+
+                    if (trim($line) === '') {
+                        continue;
+                    }
+
+                    $data = json_decode($line, true);
+                    if ($data === null) {
+                        continue; // Skip malformed lines
+                    }
+
+                    if (isset($data['id']) && $data['id'] === $requestId && ($data['ok'] ?? false)) {
+                        return $data['result'] ?? ['status' => 'ok'];
+                    }
+                }
+            }
+
+            usleep(10000); // 10ms
+        }
+
+        throw new RuntimeException('Ping timeout - browser daemon unresponsive');
+    }
+
+    /**
+     * Restart the browser daemon.
+     * Stops the current daemon (if running) and starts a new one.
+     *
+     * @throws RuntimeException If restart fails
+     */
+    public function restart(): void
+    {
+        $this->stop();
+        $this->start();
     }
 
     /**

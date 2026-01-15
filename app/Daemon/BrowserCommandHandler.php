@@ -41,10 +41,32 @@ final readonly class BrowserCommandHandler
      */
     public function handleBrowserCreate(IpcMessage $message): void
     {
+        // Debug: Log what we received
+        @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+            "[%s] handleBrowserCreate called - message type: %s, class: %s\n",
+            date('H:i:s'),
+            $message->type(),
+            get_class($message)
+        ), FILE_APPEND);
+
         if ($message instanceof BrowserCreateCommand) {
+            @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                "[%s] instanceof check PASSED - contextId: %s\n",
+                date('H:i:s'),
+                $message->contextId
+            ), FILE_APPEND);
+
             try {
                 // Ensure browser daemon is running
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] Calling ensureBrowserRunning...\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
                 $this->ensureBrowserRunning();
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] ensureBrowserRunning completed\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
 
                 // Build options array for createContext
                 $options = [];
@@ -56,20 +78,53 @@ final readonly class BrowserCommandHandler
                     $options['userAgent'] = $message->userAgent;
                 }
 
+                if ($message->colorScheme !== null) {
+                    $options['colorScheme'] = $message->colorScheme;
+                }
+
                 // Create the browser context
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] Calling createContext...\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
                 $contextResult = $this->browserManager->createContext($message->contextId, $options);
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] createContext completed\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
 
                 // Create the initial page
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] Calling createPage...\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
                 $pageResult = $this->browserManager->createPage($message->contextId, $message->pageId);
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] createPage completed\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
 
                 // Send success response with both context and page info
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] Sending success response...\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
                 $this->sendSuccessResponse($message->getRequestId(), [
                     'contextId' => $message->contextId,
                     'pageId' => $message->pageId,
                     'context' => $contextResult,
                     'page' => $pageResult,
                 ]);
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] Success response sent\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
             } catch (Throwable $e) {
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] EXCEPTION: %s\n",
+                    date('H:i:s'),
+                    $e->getMessage()
+                ), FILE_APPEND);
                 $this->sendErrorResponse(
                     $message->getRequestId(),
                     $e->getMessage(),
@@ -246,16 +301,37 @@ final readonly class BrowserCommandHandler
     }
 
     /**
-     * Ensure the browser daemon is running, attempt to start if not
+     * Ensure the browser daemon is running and healthy, restart if needed.
      *
      * @throws RuntimeException if browser cannot be started
      */
     private function ensureBrowserRunning(): void
     {
+        @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+            "[%s] ensureBrowserRunning: checking isRunning()...\n",
+            date('H:i:s')
+        ), FILE_APPEND);
+
+        // If not running, start it
         if (! $this->browserManager->isRunning()) {
+            @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                "[%s] ensureBrowserRunning: NOT running, starting...\n",
+                date('H:i:s')
+            ), FILE_APPEND);
             try {
                 $this->browserManager->start();
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] ensureBrowserRunning: started successfully\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
+
+                return;
             } catch (Throwable $e) {
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] ensureBrowserRunning: start FAILED: %s\n",
+                    date('H:i:s'),
+                    $e->getMessage()
+                ), FILE_APPEND);
                 throw new RuntimeException(
                     'Failed to start browser daemon: '.$e->getMessage(),
                     0,
@@ -263,6 +339,42 @@ final readonly class BrowserCommandHandler
                 );
             }
         }
+
+        @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+            "[%s] ensureBrowserRunning: IS running, checking isHealthy()...\n",
+            date('H:i:s')
+        ), FILE_APPEND);
+
+        // If running but unhealthy (unresponsive), restart it
+        if (! $this->browserManager->isHealthy()) {
+            @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                "[%s] ensureBrowserRunning: NOT healthy, restarting...\n",
+                date('H:i:s')
+            ), FILE_APPEND);
+            try {
+                $this->browserManager->restart();
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] ensureBrowserRunning: restarted successfully\n",
+                    date('H:i:s')
+                ), FILE_APPEND);
+            } catch (Throwable $e) {
+                @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+                    "[%s] ensureBrowserRunning: restart FAILED: %s\n",
+                    date('H:i:s'),
+                    $e->getMessage()
+                ), FILE_APPEND);
+                throw new RuntimeException(
+                    'Failed to restart browser daemon: '.$e->getMessage(),
+                    0,
+                    $e
+                );
+            }
+        }
+
+        @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+            "[%s] ensureBrowserRunning: all checks passed\n",
+            date('H:i:s')
+        ), FILE_APPEND);
     }
 
     /**

@@ -11,7 +11,7 @@ final class ConsumeIpcServer
     /** @var resource|null */
     private $socket;
 
-    /** @var array<string, array{stream: resource, buffer: string}> */
+    /** @var array<string, array{stream: resource, buffer: string, readBuffer: string}> */
     private array $clients = [];
 
     private readonly ConfigService $configService;
@@ -75,10 +75,11 @@ final class ConsumeIpcServer
         // Generate unique client ID
         $clientId = uniqid('client_', true);
 
-        // Store client with empty buffer
+        // Store client with empty buffers (write buffer and read buffer)
         $this->clients[$clientId] = [
             'stream' => $clientStream,
             'buffer' => '',
+            'readBuffer' => '',
         ];
 
         // Set client stream to non-blocking
@@ -256,6 +257,7 @@ final class ConsumeIpcServer
 
     /**
      * Read available data from a client and parse into messages.
+     * Uses read buffer to handle partial messages split across reads.
      * Returns array of decoded IpcMessage objects.
      *
      * @return array<IpcMessage>
@@ -266,8 +268,7 @@ final class ConsumeIpcServer
             return [];
         }
 
-        $client = $this->clients[$clientId];
-        $stream = $client['stream'];
+        $stream = $this->clients[$clientId]['stream'];
 
         // Read available data
         $data = @fread($stream, 8192);
@@ -281,20 +282,34 @@ final class ConsumeIpcServer
             return [];
         }
 
-        // Split by newlines to get complete messages
-        $lines = explode("\n", $data);
-        $messages = [];
+        // Append to read buffer
+        $this->clients[$clientId]['readBuffer'] .= $data;
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
+        // Check read buffer size limit
+        if (strlen($this->clients[$clientId]['readBuffer']) > self::MAX_BUFFER_SIZE) {
+            $this->disconnectSlowClient($clientId);
 
-            // Decode the message
-            $message = $this->protocol->decode($line, $clientId);
-            $messages[] = $message;
+            return [];
         }
+
+        // Extract complete messages (delimited by newlines)
+        $messages = [];
+        $buffer = $this->clients[$clientId]['readBuffer'];
+
+        while (($pos = strpos($buffer, "\n")) !== false) {
+            $line = substr($buffer, 0, $pos);
+            $buffer = substr($buffer, $pos + 1);
+
+            $line = trim($line);
+            if ($line !== '') {
+                // Decode the message
+                $message = $this->protocol->decode($line, $clientId);
+                $messages[] = $message;
+            }
+        }
+
+        // Store remaining partial data back in read buffer
+        $this->clients[$clientId]['readBuffer'] = $buffer;
 
         return $messages;
     }

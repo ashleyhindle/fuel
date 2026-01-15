@@ -4,17 +4,30 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\HandlesJsonOutput;
+use App\Ipc\Commands\BrowserCloseCommand as BrowserCloseIpcCommand;
+use App\Ipc\Commands\BrowserCreateCommand as BrowserCreateIpcCommand;
+use App\Ipc\Commands\BrowserGotoCommand as BrowserGotoIpcCommand;
 use App\Ipc\Commands\BrowserScreenshotCommand as BrowserScreenshotIpcCommand;
 use App\Ipc\Events\BrowserResponseEvent;
-use App\Ipc\IpcMessage;
+use App\Services\ConsumeIpcClient;
+use App\Services\ConsumeIpcProtocol;
+use App\Services\FuelContext;
 use DateTimeImmutable;
+use LaravelZero\Framework\Commands\Command;
 
-class BrowserScreenshotCommand extends BrowserCommand
+class BrowserScreenshotCommand extends Command
 {
+    use HandlesJsonOutput;
+
     protected $signature = 'browser:screenshot
-        {page_id : Page ID to screenshot}
+        {page_id? : Page ID to screenshot (optional if --url provided)}
+        {--url= : URL to screenshot (creates temporary context, takes screenshot, closes)}
         {--path= : Path to save the screenshot (optional, returns base64 if omitted)}
         {--full-page : Capture full scrollable page}
+        {--width=1280 : Viewport width (only with --url)}
+        {--height=720 : Viewport height (only with --url)}
+        {--dark : Use dark color scheme (only with --url)}
         {--json : Output as JSON}';
 
     protected $description = 'Take a screenshot of a browser page via the consume daemon';
@@ -25,66 +38,270 @@ class BrowserScreenshotCommand extends BrowserCommand
 
     private bool $fullPage = false;
 
+    private ?string $url = null;
+
+    private int $width = 1280;
+
+    private int $height = 720;
+
+    private ?string $colorScheme = null;
+
     /**
-     * Prepare command arguments before building IPC command.
+     * Handle the command - either quick screenshot with URL or existing page screenshot.
      */
     public function handle(): int
     {
         $this->pageId = $this->argument('page_id');
         $this->path = $this->option('path');
-        $this->fullPage = $this->option('full-page');
+        $this->fullPage = (bool) $this->option('full-page');
+        $this->url = $this->option('url');
+        $this->width = (int) $this->option('width');
+        $this->height = (int) $this->option('height');
+        $this->colorScheme = $this->option('dark') ? 'dark' : 'light';
 
-        return parent::handle();
+        // If URL provided without page_id, do quick screenshot flow
+        if ($this->url !== null && $this->pageId === null) {
+            return $this->handleQuickScreenshot();
+        }
+
+        // Otherwise, require page_id for existing page screenshot
+        if ($this->pageId === null) {
+            return $this->outputError('Either page_id or --url is required');
+        }
+
+        return $this->handleExistingPageScreenshot();
     }
 
     /**
-     * Build the BrowserScreenshot IPC command.
+     * Handle quick screenshot: create context, goto URL, screenshot, close.
      */
-    protected function buildIpcCommand(
-        string $requestId,
-        string $instanceId,
-        DateTimeImmutable $timestamp
-    ): IpcMessage {
-        return new BrowserScreenshotIpcCommand(
-            pageId: $this->pageId,
-            path: $this->path,
-            fullPage: $this->fullPage,
-            timestamp: $timestamp,
-            instanceId: $instanceId,
-            requestId: $requestId
-        );
-    }
-
-    /**
-     * Get response timeout for screenshot operations.
-     */
-    protected function getResponseTimeout(): int
+    private function handleQuickScreenshot(): int
     {
-        return 30;
+        $client = app(ConsumeIpcClient::class);
+        $protocol = new ConsumeIpcProtocol;
+
+        // Check if daemon is running
+        $pidFilePath = app(FuelContext::class)->getPidFilePath();
+        if (! $client->isRunnerAlive($pidFilePath)) {
+            return $this->outputError('Consume daemon is not running. Start it with: fuel consume');
+        }
+
+        try {
+            // Read port and connect
+            $pidData = json_decode(file_get_contents($pidFilePath), true);
+            $port = $pidData['port'] ?? 0;
+            if ($port === 0) {
+                return $this->outputError('Invalid port in PID file');
+            }
+
+            $client->connect($port);
+            $client->attach();
+
+            // Generate unique context/page IDs for this quick screenshot
+            $contextId = 'quick-'.substr(md5(uniqid()), 0, 8);
+            $pageId = $contextId.'-page';
+
+            // Step 1: Create context with viewport and color scheme
+            $requestId = $protocol->generateRequestId();
+            $client->sendCommand(new BrowserCreateIpcCommand(
+                contextId: $contextId,
+                pageId: $pageId,
+                viewport: ['width' => $this->width, 'height' => $this->height],
+                userAgent: null,
+                colorScheme: $this->colorScheme,
+                timestamp: new DateTimeImmutable,
+                instanceId: $client->getInstanceId(),
+                requestId: $requestId
+            ));
+
+            $response = $this->waitForResponse($client, $requestId, 10);
+            if (! $response instanceof BrowserResponseEvent || ! $response->success) {
+                $client->disconnect();
+
+                return $this->outputError('Failed to create browser context: '.($response->error ?? 'timeout'));
+            }
+
+            // Step 2: Navigate to URL
+            $requestId = $protocol->generateRequestId();
+            $client->sendCommand(new BrowserGotoIpcCommand(
+                pageId: $pageId,
+                url: $this->url,
+                waitUntil: 'load',
+                timeout: null,
+                timestamp: new DateTimeImmutable,
+                instanceId: $client->getInstanceId(),
+                requestId: $requestId
+            ));
+
+            $response = $this->waitForResponse($client, $requestId, 30);
+            if (! $response instanceof BrowserResponseEvent || ! $response->success) {
+                // Try to clean up context even if goto failed
+                $this->closeContext($client, $protocol, $contextId);
+                $client->disconnect();
+
+                return $this->outputError('Failed to navigate to URL: '.($response->error ?? 'timeout'));
+            }
+
+            // Step 3: Take screenshot
+            $requestId = $protocol->generateRequestId();
+            $client->sendCommand(new BrowserScreenshotIpcCommand(
+                pageId: $pageId,
+                path: $this->path,
+                fullPage: $this->fullPage,
+                timestamp: new DateTimeImmutable,
+                instanceId: $client->getInstanceId(),
+                requestId: $requestId
+            ));
+
+            $response = $this->waitForResponse($client, $requestId, 30);
+            $screenshotResult = $response;
+
+            // Step 4: Close context (always try to clean up)
+            $this->closeContext($client, $protocol, $contextId);
+
+            $client->detach();
+            $client->disconnect();
+
+            if (! $screenshotResult instanceof BrowserResponseEvent || ! $screenshotResult->success) {
+                return $this->outputError('Failed to take screenshot: '.($screenshotResult->error ?? 'timeout'));
+            }
+
+            // Output success
+            $this->outputScreenshotSuccess($screenshotResult, $pageId);
+
+            return self::SUCCESS;
+
+        } catch (\Throwable $e) {
+            return $this->outputError('Failed to communicate with daemon: '.$e->getMessage());
+        }
     }
 
     /**
-     * Handle the successful response from the browser daemon.
+     * Handle screenshot of an existing page.
      */
-    protected function handleSuccess(BrowserResponseEvent $response): void
+    private function handleExistingPageScreenshot(): int
+    {
+        $client = app(ConsumeIpcClient::class);
+        $protocol = new ConsumeIpcProtocol;
+
+        // Check if daemon is running
+        $pidFilePath = app(FuelContext::class)->getPidFilePath();
+        if (! $client->isRunnerAlive($pidFilePath)) {
+            return $this->outputError('Consume daemon is not running. Start it with: fuel consume');
+        }
+
+        try {
+            $pidData = json_decode(file_get_contents($pidFilePath), true);
+            $port = $pidData['port'] ?? 0;
+            if ($port === 0) {
+                return $this->outputError('Invalid port in PID file');
+            }
+
+            $client->connect($port);
+            $client->attach();
+
+            $requestId = $protocol->generateRequestId();
+            $client->sendCommand(new BrowserScreenshotIpcCommand(
+                pageId: $this->pageId,
+                path: $this->path,
+                fullPage: $this->fullPage,
+                timestamp: new DateTimeImmutable,
+                instanceId: $client->getInstanceId(),
+                requestId: $requestId
+            ));
+
+            $response = $this->waitForResponse($client, $requestId, 30);
+
+            $client->detach();
+            $client->disconnect();
+
+            if (! $response instanceof BrowserResponseEvent) {
+                return $this->outputError('Timeout waiting for browser response');
+            }
+
+            if (! $response->success) {
+                return $this->outputError($response->error ?? 'Screenshot failed');
+            }
+
+            $this->outputScreenshotSuccess($response, $this->pageId);
+
+            return self::SUCCESS;
+
+        } catch (\Throwable $e) {
+            return $this->outputError('Failed to communicate with daemon: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Wait for a BrowserResponseEvent with matching request ID.
+     */
+    private function waitForResponse(ConsumeIpcClient $client, string $requestId, int $timeout): ?BrowserResponseEvent
+    {
+        $deadline = time() + $timeout;
+
+        while (time() < $deadline) {
+            $events = $client->pollEvents();
+
+            foreach ($events as $event) {
+                if ($event instanceof BrowserResponseEvent && $event->requestId() === $requestId) {
+                    return $event;
+                }
+
+                if (! $event instanceof BrowserResponseEvent) {
+                    $client->applyEvent($event);
+                }
+            }
+
+            usleep(50000); // 50ms
+        }
+
+        return null;
+    }
+
+    /**
+     * Close a browser context (best effort, ignores errors).
+     */
+    private function closeContext(ConsumeIpcClient $client, ConsumeIpcProtocol $protocol, string $contextId): void
+    {
+        try {
+            $requestId = $protocol->generateRequestId();
+            $client->sendCommand(new BrowserCloseIpcCommand(
+                contextId: $contextId,
+                timestamp: new DateTimeImmutable,
+                instanceId: $client->getInstanceId(),
+                requestId: $requestId
+            ));
+
+            // Wait briefly for close to complete
+            $this->waitForResponse($client, $requestId, 5);
+        } catch (\Throwable) {
+            // Ignore cleanup errors
+        }
+    }
+
+    /**
+     * Output screenshot success message.
+     */
+    private function outputScreenshotSuccess(BrowserResponseEvent $response, string $pageId): void
     {
         if ($this->option('json')) {
             $this->outputJson([
                 'success' => true,
-                'page_id' => $this->pageId,
+                'url' => $this->url,
+                'page_id' => $pageId,
                 'path' => $this->path,
                 'full_page' => $this->fullPage,
                 'result' => $response->result,
             ]);
         } else {
             if ($this->path !== null) {
-                $this->info(sprintf("Screenshot of page '%s' saved to '%s'", $this->pageId, $this->path));
+                $savedPath = $response->result['path'] ?? $this->path;
+                $this->info(sprintf('Screenshot saved to %s', $savedPath));
             } else {
-                $this->info(sprintf("Screenshot of page '%s' captured successfully", $this->pageId));
-            }
-
-            if ($response->result !== null) {
-                $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
+                $this->info('Screenshot captured successfully');
+                if ($response->result !== null) {
+                    $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
+                }
             }
         }
     }

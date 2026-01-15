@@ -276,6 +276,9 @@ class ConsumeIpcClient
      * Actively check if the connection is still alive.
      * Uses stream_get_meta_data() to detect EOF without discarding buffered data.
      * Updates the connected state and returns the result.
+     *
+     * Note: Read timeouts (timed_out) are NOT treated as connection failures -
+     * they're normal for non-blocking reads with no data available.
      */
     public function checkConnection(): bool
     {
@@ -285,16 +288,8 @@ class ConsumeIpcClient
             return false;
         }
 
-        $meta = stream_get_meta_data($this->socket);
-
-        // Check for timeout
-        if ($meta['timed_out']) {
-            $this->connected = false;
-
-            return false;
-        }
-
         // Check for EOF - this detects closed connections without consuming buffered data
+        $meta = stream_get_meta_data($this->socket);
         if ($meta['eof'] || feof($this->socket)) {
             $this->connected = false;
 
@@ -353,6 +348,9 @@ class ConsumeIpcClient
         if (! $gotSnapshot) {
             throw new \RuntimeException('Did not receive SnapshotEvent from runner');
         }
+
+        // Switch to non-blocking mode for subsequent polling
+        stream_set_blocking($this->socket, false);
 
         $this->connected = true;
     }

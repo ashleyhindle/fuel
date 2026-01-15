@@ -150,11 +150,13 @@ async function handle(method, params) {
       const viewport = params?.viewport || { width: 1280, height: 720 };
       const userAgent = params?.userAgent;
       const timezoneId = params?.timezoneId; // optional, e.g. "Europe/London"
+      const colorScheme = params?.colorScheme; // optional: "dark" or "light"
 
       const context = await browser.newContext({
         viewport,
         userAgent,
         timezoneId,
+        colorScheme,
         ignoreHTTPSErrors: true,
       });
 

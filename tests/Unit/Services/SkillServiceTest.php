@@ -29,7 +29,7 @@ it('lists available skills', function (): void {
     $skills = $this->skillService->getAvailableSkills();
 
     expect($skills)->toBeArray();
-    expect($skills)->toContain('fuel-browser-testing');
+    expect($skills)->toContain('fuel-browser');
     expect($skills)->toContain('fuel-make-plan-actionable');
     expect($skills)->toContain('fuel-create-plan');
 });
@@ -37,11 +37,11 @@ it('lists available skills', function (): void {
 it('installs skills to claude skills directory', function (): void {
     $installed = $this->skillService->installSkills($this->tempDir);
 
-    expect($installed)->toHaveKey('fuel-browser-testing');
+    expect($installed)->toHaveKey('fuel-browser');
     expect($installed)->toHaveKey('fuel-make-plan-actionable');
 
     // Check .claude/skills
-    $claudeSkillPath = $this->tempDir.'/.claude/skills/fuel-browser-testing/SKILL.md';
+    $claudeSkillPath = $this->tempDir.'/.claude/skills/fuel-browser/SKILL.md';
     expect(File::exists($claudeSkillPath))->toBeTrue();
 
     $content = File::get($claudeSkillPath);
@@ -52,7 +52,7 @@ it('installs skills to codex skills directory', function (): void {
     $installed = $this->skillService->installSkills($this->tempDir);
 
     // Check .codex/skills
-    $codexSkillPath = $this->tempDir.'/.codex/skills/fuel-browser-testing/SKILL.md';
+    $codexSkillPath = $this->tempDir.'/.codex/skills/fuel-browser/SKILL.md';
     expect(File::exists($codexSkillPath))->toBeTrue();
 
     $content = File::get($codexSkillPath);
@@ -63,7 +63,7 @@ it('uses skill directory name directly without modification', function (): void 
     $this->skillService->installSkills($this->tempDir);
 
     // Skill directories are named fuel-* in source and installed as-is
-    expect(is_dir($this->tempDir.'/.claude/skills/fuel-browser-testing'))->toBeTrue();
+    expect(is_dir($this->tempDir.'/.claude/skills/fuel-browser'))->toBeTrue();
     expect(is_dir($this->tempDir.'/.claude/skills/fuel-make-plan-actionable'))->toBeTrue();
     expect(is_dir($this->tempDir.'/.claude/skills/fuel-create-plan'))->toBeTrue();
 });
@@ -81,11 +81,11 @@ it('creates target directories if they do not exist', function (): void {
 });
 
 it('installs single skill', function (): void {
-    $paths = $this->skillService->installSkill('fuel-browser-testing', $this->tempDir);
+    $paths = $this->skillService->installSkill('fuel-browser', $this->tempDir);
 
     expect($paths)->toHaveCount(2);
-    expect($paths[0])->toContain('.claude/skills/fuel-browser-testing/SKILL.md');
-    expect($paths[1])->toContain('.codex/skills/fuel-browser-testing/SKILL.md');
+    expect($paths[0])->toContain('.claude/skills/fuel-browser/SKILL.md');
+    expect($paths[1])->toContain('.codex/skills/fuel-browser/SKILL.md');
 });
 
 it('returns empty array for non-existent skill', function (): void {
@@ -113,7 +113,7 @@ it('overwrites existing skill files', function (): void {
     // Install once
     $this->skillService->installSkills($this->tempDir);
 
-    $skillPath = $this->tempDir.'/.claude/skills/fuel-browser-testing/SKILL.md';
+    $skillPath = $this->tempDir.'/.claude/skills/fuel-browser/SKILL.md';
     $originalContent = File::get($skillPath);
 
     // Modify the file

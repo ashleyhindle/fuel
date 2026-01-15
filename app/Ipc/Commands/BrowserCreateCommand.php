@@ -19,6 +19,7 @@ final class BrowserCreateCommand implements IpcMessage, JsonSerializable
         public string $pageId,
         public ?array $viewport,
         public ?string $userAgent,
+        public ?string $colorScheme,
         DateTimeImmutable $timestamp,
         string $instanceId,
         ?string $requestId = null
@@ -35,6 +36,7 @@ final class BrowserCreateCommand implements IpcMessage, JsonSerializable
             pageId: $data['pageId'] ?? $data['contextId'].'-tab1',
             viewport: $data['viewport'] ?? null,
             userAgent: $data['userAgent'] ?? null,
+            colorScheme: $data['colorScheme'] ?? null,
             timestamp: new DateTimeImmutable($data['timestamp'] ?? 'now'),
             instanceId: $data['instance_id'] ?? '',
             requestId: $data['request_id'] ?? null
@@ -62,6 +64,7 @@ final class BrowserCreateCommand implements IpcMessage, JsonSerializable
             'pageId' => $this->pageId,
             'viewport' => $this->viewport,
             'userAgent' => $this->userAgent,
+            'colorScheme' => $this->colorScheme,
         ];
     }
 }

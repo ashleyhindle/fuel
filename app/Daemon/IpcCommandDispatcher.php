@@ -158,6 +158,14 @@ final readonly class IpcCommandDispatcher
         callable $onRequestBlockedTasks,
         callable $onRequestCompletedTasks,
     ): void {
+        // Debug: Log incoming command
+        @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+            "[%s] IpcCommandDispatcher received: type=%s, class=%s\n",
+            date('H:i:s'),
+            $message->type(),
+            get_class($message)
+        ), FILE_APPEND);
+
         // Handle commands based on message type
         match ($message->type()) {
             'pause' => $this->handlePauseCommand($onPause),

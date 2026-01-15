@@ -1,18 +1,32 @@
 ---
-name: fuel-browser-testing
-description: Test frontend code changes using a headless browser. Use when testing web pages, visual output, interacting with web pages, verifying UI changes, checking rendered HTML, or taking screenshots of web pages.
+name: fuel-browser
+description: Control a headless browser for testing, screenshots, and web automation. Use when testing web pages, taking screenshots, interacting with web pages, verifying UI changes, or scraping rendered HTML.
 user-invocable: false
 ---
 
-# Test changes in a headless browser
+# Headless Browser
+
+## Quick Screenshot
+
+Take a screenshot of any URL in one command - no setup needed:
+
+```bash
+fuel browser:screenshot --url="http://localhost:3000" [--path=/tmp/mobile.png] [--width=375] [--height=812] [--dark] [--full-page]
+```
+
+This creates a temporary browser context, navigates, screenshots, and cleans up automatically.
+
+## Manual Context Management
+
+For multiple operations on the same page, create a context:
 
 ```bash
 # Create browser context with a new tab with a page name (mytest-page)
 fuel browser:create mytest mytest-page
 
 # Navigate and screenshot
-fuel browser:goto mytest-page "http://localhost:3000"
-fuel browser:screenshot mytest-page --path=/tmp/screenshot.png 
+fuel browser:goto mytest-page "http://localhost:3000" [--html]
+fuel browser:screenshot mytest-page --path=/tmp/screenshot.png
 
 # Clean up
 fuel browser:close mytest
@@ -29,6 +43,7 @@ Creates a browser context and initial page. Page defaults to `{context_id}-tab1`
 Options:
 - `--viewport='{"width":1280,"height":720}'` - Set viewport size
 - `--user-agent="..."` - Custom user agent
+- `--dark` - Use dark color scheme
 - `--json` - JSON output
 
 **Re-use contexts**: You can navigate the same page to different URLs without recreating the context.
@@ -46,12 +61,19 @@ Options:
 
 ### Take Screenshot
 ```bash
+# Quick screenshot (recommended) - no setup needed
+fuel browser:screenshot --url=<url> --path=<file.png>
+
+# Screenshot existing page
 fuel browser:screenshot <page_id> --path=<file.png>
 ```
 Capture the page as an image.
 
 Options:
 - `--full-page` - Capture entire scrollable page, it will scroll for you
+- `--width=1280` - Viewport width (only with --url, default: 1280)
+- `--height=720` - Viewport height (only with --url, default: 720)
+- `--dark` - Use dark color scheme (only with --url)
 
 ### Run Playwright Code
 ```bash
@@ -88,3 +110,9 @@ return await page.title()
 fuel browser:page <context_id> <page_id>
 ```
 Create additional pages/tabs in an existing context. Useful for testing multi-tab scenarios.
+
+### Close Context
+```bash
+fuel browser:close <context_id>
+```
+Close a browser context and all its pages.

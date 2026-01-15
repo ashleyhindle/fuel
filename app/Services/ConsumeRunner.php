@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Daemon\BrowserCommandHandler;
 use App\Daemon\CompletionHandler;
+use App\Daemon\DaemonLogger;
 use App\Daemon\DaemonLoop;
 use App\Daemon\IpcCommandDispatcher;
 use App\Daemon\LifecycleManager;
@@ -64,24 +65,31 @@ final class ConsumeRunner
      */
     public function start(bool $taskReviewEnabled = false): void
     {
+        $log = DaemonLogger::getInstance();
+        $log->info('Daemon starting', ['review_enabled' => $taskReviewEnabled]);
+
         $this->completionHandler->setTaskReviewEnabled($taskReviewEnabled);
 
         // Start lifecycle manager (checks stale PID, writes PID file)
         $port = $this->configService->getConsumePort();
         $this->lifecycleManager->start($port);
+        $log->info('Lifecycle manager started', ['port' => $port]);
 
         // Start IPC server EARLY so clients can connect immediately
         $this->ipcServer->start();
+        $log->info('IPC server started');
 
         // Register signal handlers via ProcessManager
         $this->processManager->registerSignalHandlers();
+        $log->debug('Signal handlers registered');
 
         // Start browser daemon (~115ms startup time - negligible)
         try {
             $this->browserDaemonManager->start();
+            $log->info('Browser daemon started');
         } catch (\Throwable $throwable) {
             // Non-critical - browser features unavailable but daemon continues
-            logger()->warning('Failed to start browser daemon: '.$throwable->getMessage());
+            $log->warning('Failed to start browser daemon', ['error' => $throwable->getMessage()]);
         }
 
         // Set TaskSpawner's instance ID to match the runner's instance ID

@@ -16,6 +16,7 @@ class BrowserCreateCommand extends BrowserCommand
         {page_id? : Page ID to create (defaults to {context_id}-tab1)}
         {--viewport= : Viewport size as JSON (e.g., {"width":1280,"height":720})}
         {--user-agent= : Custom user agent string}
+        {--dark : Use dark color scheme}
         {--json : Output as JSON}';
 
     protected $description = 'Create a new browser context via the consume daemon';
@@ -28,6 +29,8 @@ class BrowserCreateCommand extends BrowserCommand
 
     private ?string $userAgent = null;
 
+    private string $colorScheme = 'light';
+
     /**
      * Prepare command arguments before building IPC command.
      */
@@ -37,6 +40,7 @@ class BrowserCreateCommand extends BrowserCommand
         $this->pageId = $this->argument('page_id') ?? $this->contextId.'-tab1';
         $viewportOption = $this->option('viewport');
         $this->userAgent = $this->option('user-agent');
+        $this->colorScheme = $this->option('dark') ? 'dark' : 'light';
 
         // Parse viewport JSON if provided
         if ($viewportOption !== null) {
@@ -64,6 +68,7 @@ class BrowserCreateCommand extends BrowserCommand
             pageId: $this->pageId,
             viewport: $this->viewport,
             userAgent: $this->userAgent,
+            colorScheme: $this->colorScheme,
             timestamp: $timestamp,
             instanceId: $instanceId,
             requestId: $requestId
