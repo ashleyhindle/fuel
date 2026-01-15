@@ -22,6 +22,9 @@ class Task extends EloquentModel
         'type',
         'priority',
         'complexity',
+        'agent',
+        'selfguided_iteration',
+        'selfguided_stuck_count',
         'labels',
         'blocked_by',
         'epic_id',
@@ -42,6 +45,8 @@ class Task extends EloquentModel
         'consumed' => 'boolean',
         'consume_pid' => 'integer',
         'last_review_issues' => 'array',
+        'selfguided_iteration' => 'integer',
+        'selfguided_stuck_count' => 'integer',
     ];
 
     // Hide the integer primary key 'id' from array/JSON output
