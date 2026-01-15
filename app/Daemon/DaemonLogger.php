@@ -109,7 +109,7 @@ final class DaemonLogger
         $timestamp = date('Y-m-d H:i:s.v');
         $levelUpper = strtoupper($level);
 
-        $line = sprintf("[%s] [%s] %s", $timestamp, $levelUpper, $message);
+        $line = sprintf('[%s] [%s] %s', $timestamp, $levelUpper, $message);
 
         if ($context !== []) {
             $line .= ' '.json_encode($context, JSON_UNESCAPED_SLASHES);

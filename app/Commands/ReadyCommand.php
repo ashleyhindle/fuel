@@ -36,6 +36,9 @@ class ReadyCommand extends Command
             $this->info(sprintf('Open tasks (%d):', $tasks->count()));
             $this->newLine();
 
+            // Detect terminal width
+            $terminalWidth = $this->getTerminalWidth();
+
             $table = new Table;
             $table->render(
                 ['ID', 'Title', 'Complexity', 'Epic', 'Created'],
@@ -46,7 +49,8 @@ class ReadyCommand extends Command
                     $t->epic?->title ?? '-',
                     $this->formatDate((string) $t->created_at),
                 ])->toArray(),
-                $this->output
+                $this->output,
+                $terminalWidth
             );
         }
 
@@ -84,5 +88,18 @@ class ReadyCommand extends Command
         } catch (\Exception) {
             return $dateString;
         }
+    }
+
+    private function getTerminalWidth(): int
+    {
+        // Try to get terminal width using tput
+        $width = (int) shell_exec('tput cols 2>/dev/null');
+
+        // Fallback to environment variable or default
+        if ($width <= 0) {
+            $width = (int) ($_ENV['COLUMNS'] ?? 80);
+        }
+
+        return max(40, $width); // Ensure minimum width
     }
 }

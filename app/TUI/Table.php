@@ -17,14 +17,15 @@ class Table
      * @param  array<string>  $headers  Column headers
      * @param  array<array<string>>  $rows  Table rows (each row is an array of cell values)
      * @param  OutputInterface  $output  Output interface to write to
+     * @param  int|null  $maxWidth  Maximum table width (defaults to terminal width)
      */
-    public function render(array $headers, array $rows, OutputInterface $output): void
+    public function render(array $headers, array $rows, OutputInterface $output, ?int $maxWidth = null): void
     {
         if ($headers === []) {
             return;
         }
 
-        $lines = $this->buildTable($headers, $rows);
+        $lines = $this->buildTable($headers, $rows, $maxWidth);
         foreach ($lines as $line) {
             $output->writeln($line);
         }
@@ -35,9 +36,10 @@ class Table
      *
      * @param  array<string>  $headers  Column headers
      * @param  array<array<string>>  $rows  Table rows
+     * @param  int|null  $maxWidth  Maximum table width (defaults to terminal width)
      * @return array<string> Array of table lines ready to render
      */
-    public function buildTable(array $headers, array $rows): array
+    public function buildTable(array $headers, array $rows, ?int $maxWidth = null): array
     {
         if ($headers === []) {
             return [];
@@ -45,6 +47,11 @@ class Table
 
         $numColumns = count($headers);
         $columnWidths = $this->calculateColumnWidths($headers, $rows, $numColumns);
+
+        // Apply terminal width constraints if needed
+        if ($maxWidth !== null) {
+            $columnWidths = $this->fitToWidth($headers, $rows, $columnWidths, $maxWidth);
+        }
 
         $lines = [];
 
@@ -104,6 +111,70 @@ class Table
         }
 
         return $widths;
+    }
+
+    /**
+     * Fit column widths to terminal width by truncating as needed.
+     * Truncates Epic column first, then Title column.
+     *
+     * @param  array<string>  $headers  Column headers
+     * @param  array<array<string>>  $rows  Table rows
+     * @param  array<int>  $columnWidths  Initial column widths
+     * @param  int  $maxWidth  Maximum table width
+     * @return array<int> Adjusted column widths
+     */
+    private function fitToWidth(array $headers, array $rows, array $columnWidths, int $maxWidth): array
+    {
+        $numColumns = count($columnWidths);
+
+        // Calculate total table width including borders and padding
+        // Each column: width + 2 (padding) + 1 (border after)
+        // Plus 1 for the left border
+        $tableWidth = 1; // Left border
+        foreach ($columnWidths as $width) {
+            $tableWidth += $width + 2 + 1; // content + padding + right border
+        }
+
+        // If we fit, return as-is
+        if ($tableWidth <= $maxWidth) {
+            return $columnWidths;
+        }
+
+        // Find Epic and Title column indices
+        $epicIndex = array_search('Epic', $headers, true);
+        $titleIndex = array_search('Title', $headers, true);
+
+        $overflow = $tableWidth - $maxWidth;
+        $minColumnWidth = 10; // Minimum width for truncated columns
+
+        // Try truncating Epic column first
+        if ($epicIndex !== false && $columnWidths[$epicIndex] > $minColumnWidth) {
+            $canReduce = $columnWidths[$epicIndex] - $minColumnWidth;
+            $reduction = min($canReduce, $overflow);
+            $columnWidths[$epicIndex] -= $reduction;
+            $overflow -= $reduction;
+        }
+
+        // If still overflowing, truncate Title column
+        if ($overflow > 0 && $titleIndex !== false && $columnWidths[$titleIndex] > $minColumnWidth) {
+            $canReduce = $columnWidths[$titleIndex] - $minColumnWidth;
+            $reduction = min($canReduce, $overflow);
+            $columnWidths[$titleIndex] -= $reduction;
+            $overflow -= $reduction;
+        }
+
+        // If still overflowing, reduce both proportionally
+        if ($overflow > 0) {
+            if ($epicIndex !== false && $titleIndex !== false) {
+                $epicReduction = (int) ceil($overflow / 2);
+                $titleReduction = $overflow - $epicReduction;
+
+                $columnWidths[$epicIndex] = max(5, $columnWidths[$epicIndex] - $epicReduction);
+                $columnWidths[$titleIndex] = max(5, $columnWidths[$titleIndex] - $titleReduction);
+            }
+        }
+
+        return $columnWidths;
     }
 
     /**
@@ -185,6 +256,10 @@ class Table
         for ($i = 0; $i < $numColumns; $i++) {
             $cellValue = (string) ($row[$i] ?? '');
             $width = $columnWidths[$i];
+
+            // Truncate if needed
+            $cellValue = $this->truncate($cellValue, $width);
+
             $padding = $width - $this->visibleLength($cellValue);
             $line .= ' '.$cellValue.str_repeat(' ', $padding).' │';
         }
@@ -226,6 +301,52 @@ class Table
 
         // mb_strwidth correctly handles East Asian width and emoji display width
         return mb_strwidth($plainText);
+    }
+
+    /**
+     * Truncate text to fit within a specified width, adding ellipsis if needed.
+     *
+     * @param  string  $text  Text to truncate
+     * @param  int  $maxWidth  Maximum width
+     * @return string Truncated text
+     */
+    private function truncate(string $text, int $maxWidth): string
+    {
+        $currentWidth = $this->visibleLength($text);
+
+        if ($currentWidth <= $maxWidth) {
+            return $text;
+        }
+
+        // We need to truncate - account for ellipsis (…)
+        $ellipsis = '…';
+        $ellipsisWidth = 1;
+        $targetWidth = $maxWidth - $ellipsisWidth;
+
+        if ($targetWidth <= 0) {
+            return $ellipsis;
+        }
+
+        // Strip ANSI for accurate measurement
+        $plainText = $this->stripAnsi($text);
+
+        // Truncate character by character until we fit
+        $truncated = '';
+        $width = 0;
+
+        for ($i = 0; $i < mb_strlen($plainText); $i++) {
+            $char = mb_substr($plainText, $i, 1);
+            $charWidth = mb_strwidth($char);
+
+            if ($width + $charWidth > $targetWidth) {
+                break;
+            }
+
+            $truncated .= $char;
+            $width += $charWidth;
+        }
+
+        return $truncated.$ellipsis;
     }
 
     /**
