@@ -16,10 +16,23 @@ use App\Services\TaskService;
  */
 abstract class AbstractAgentTask implements AgentTaskInterface
 {
+    /** @var callable|null Callback for epic completion sound notification */
+    protected $epicCompletionCallback;
+
     public function __construct(
         protected readonly Task $task,
         protected readonly TaskService $taskService,
     ) {}
+
+    /**
+     * Set callback for epic completion sound notification.
+     *
+     * @param  callable  $callback  Function that takes taskId and checks/plays epic completion sound
+     */
+    public function setEpicCompletionCallback(callable $callback): void
+    {
+        $this->epicCompletionCallback = $callback;
+    }
 
     public function getTaskId(): string
     {

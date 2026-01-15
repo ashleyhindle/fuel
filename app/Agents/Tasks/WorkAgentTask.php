@@ -26,9 +26,6 @@ use Illuminate\Support\Facades\Artisan;
  */
 class WorkAgentTask extends AbstractAgentTask
 {
-    /** @var callable|null Callback for epic completion sound notification */
-    private $epicCompletionCallback;
-
     public function __construct(
         Task $task,
         TaskService $taskService,
@@ -38,16 +35,6 @@ class WorkAgentTask extends AbstractAgentTask
         private readonly ?string $agentOverride = null,
     ) {
         parent::__construct($task, $taskService);
-    }
-
-    /**
-     * Set callback for epic completion sound notification.
-     *
-     * @param  callable  $callback  Function that takes taskId and checks/plays epic completion sound
-     */
-    public function setEpicCompletionCallback(callable $callback): void
-    {
-        $this->epicCompletionCallback = $callback;
     }
 
     /**
