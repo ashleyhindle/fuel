@@ -43,6 +43,11 @@ class FuelContext
         return $this->basePath.'/config.yaml';
     }
 
+    public function getPlansPath(): string
+    {
+        return $this->basePath.'/plans';
+    }
+
     /**
      * Get the project root directory (parent of .fuel).
      */

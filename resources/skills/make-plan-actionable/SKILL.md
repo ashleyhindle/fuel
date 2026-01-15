@@ -12,12 +12,28 @@ Invoke this skill immediately after exiting plan mode, when you have an approved
 
 ## Workflow
 
-### 1. Create an Epic
+### 1. Create an Epic and Save Plan
 Every multi-task plan needs an epic to group related work:
 ```bash
 fuel epic:add "Feature name" --description="What this achieves and why"
 ```
 Note the epic ID (e.g., `e-abc123`) for linking tasks.
+
+**Save the plan file** to `.fuel/plans/{title-kebab}-{epic-id}.md`:
+```markdown
+# Epic: Feature Name (e-abc123)
+
+## Plan
+[Your approved plan goes here]
+
+## Implementation Notes
+<!-- Tasks update this as they work -->
+
+## Interfaces Created
+<!-- Tasks add interfaces/contracts they create -->
+```
+
+Tasks working on this epic will read the plan for context and update it with discoveries.
 
 ### 2. Break Down into Tasks
 Each task should have:

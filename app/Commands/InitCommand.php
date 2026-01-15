@@ -57,6 +57,12 @@ class InitCommand extends Command
             mkdir($processesDir, 0755, true);
         }
 
+        // Create plans directory for epic plan files
+        $plansDir = $context->getPlansPath();
+        if (! is_dir($plansDir)) {
+            mkdir($plansDir, 0755, true);
+        }
+
         // Configure database path and run migrations to create schema
         $context->configureDatabase();
         Artisan::call('migrate', ['--force' => true]);
@@ -168,29 +174,46 @@ class InitCommand extends Command
     }
 
     /**
-     * Ensure .fuel/ directory is in .gitignore.
+     * Ensure .fuel transient files are in .gitignore (plans/ is committed).
      */
     private function ensureGitignoreEntry(string $cwd): void
     {
         $gitignorePath = $cwd.'/.gitignore';
-        $entry = '.fuel/';
 
-        // Check if .gitignore exists
+        // Selective ignores - plans/ is committed, transient files ignored
+        $entries = [
+            '.fuel/*.lock',
+            '.fuel/*.log',
+            '.fuel/agent.db',
+            '.fuel/config.yaml',
+            '.fuel/processes/',
+            '.fuel/runs/',
+        ];
+
         if (file_exists($gitignorePath)) {
             $content = file_get_contents($gitignorePath);
             if ($content === false) {
                 throw new RuntimeException('Failed to read .gitignore file: '.$gitignorePath);
             }
 
-            if (! str_contains($content, $entry)) {
-                $content = rtrim($content)."\n".$entry."\n";
-                file_put_contents($gitignorePath, $content);
-                $this->info('Added '.$entry.' to .gitignore');
+            // Remove old blanket .fuel/ ignore if present
+            $content = preg_replace('/^\.fuel\/\s*$/m', '', $content);
+
+            $added = [];
+            foreach ($entries as $entry) {
+                if (! str_contains($content, $entry)) {
+                    $content = rtrim($content)."\n".$entry;
+                    $added[] = $entry;
+                }
+            }
+
+            if ($added !== []) {
+                file_put_contents($gitignorePath, rtrim($content)."\n");
+                $this->info('Updated .gitignore with fuel entries');
             }
         } else {
-            // Create new .gitignore with entry
-            file_put_contents($gitignorePath, $entry."\n");
-            $this->info('Created .gitignore with '.$entry);
+            file_put_contents($gitignorePath, implode("\n", $entries)."\n");
+            $this->info('Created .gitignore with fuel entries');
         }
     }
 }

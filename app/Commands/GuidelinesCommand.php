@@ -127,6 +127,31 @@ Use **TodoWrite** for single-session step tracking. Use **fuel** for work that o
 
 **Always use epics for any feature or change requiring multiple tasks.** Epics group related tasks and trigger a combined review when all tasks complete.
 
+### Plan Files
+
+Plans are stored in `.fuel/plans/{epic-title-kebab}-{epic-id}.md` and committed to git.
+
+**When planning an epic:**
+1. Create epic first: `fuel epic:add "Feature name"` to get the ID
+2. Write plan to `.fuel/plans/{title-kebab}-{epic-id}.md`
+3. Tasks read the plan for context
+4. Tasks update the plan with discoveries (interfaces created, decisions made)
+5. Plan becomes implementation record
+
+**Plan structure (suggested):**
+```markdown
+# Epic: Feature Name (e-xxxxxx)
+
+## Plan
+Original design intent...
+
+## Implementation Notes
+<!-- Tasks append discoveries/decisions -->
+
+## Interfaces Created
+<!-- Tasks add these as they create them -->
+```
+
 **Workflow:**
 1. `fuel epic:add "Feature name" --description="What and why"`
 2. Break down into tasks, linking each: `fuel add "Task" --epic=e-xxxx`

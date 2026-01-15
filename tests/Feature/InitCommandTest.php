@@ -66,6 +66,12 @@ describe('init command', function (): void {
         expect(is_dir($this->tempDir.'/.fuel/processes'))->toBeTrue();
     });
 
+    it('creates plans directory', function (): void {
+        Artisan::call('init', []);
+
+        expect(is_dir($this->tempDir.'/.fuel/plans'))->toBeTrue();
+    });
+
     it('creates agent.db with all required tables', function (): void {
         Artisan::call('init', []);
 
@@ -111,14 +117,20 @@ describe('init command', function (): void {
         expect($tasks)->toHaveCount(1);
     });
 
-    it('adds .fuel/ to .gitignore', function (): void {
+    it('adds selective fuel entries to .gitignore', function (): void {
         Artisan::call('init', []);
 
         $gitignorePath = $this->tempDir.'/.gitignore';
         expect(file_exists($gitignorePath))->toBeTrue();
 
         $content = file_get_contents($gitignorePath);
-        expect($content)->toContain('.fuel/');
+        expect($content)->toContain('.fuel/*.lock');
+        expect($content)->toContain('.fuel/agent.db');
+        expect($content)->toContain('.fuel/config.yaml');
+        expect($content)->toContain('.fuel/processes/');
+        expect($content)->toContain('.fuel/runs/');
+        // plans/ should NOT be ignored (committed to git)
+        expect($content)->not->toContain('.fuel/plans/');
     });
 
     it('creates new .gitignore if it does not exist', function (): void {
@@ -128,10 +140,13 @@ describe('init command', function (): void {
         expect(file_exists($gitignorePath))->toBeTrue();
 
         $content = file_get_contents($gitignorePath);
-        expect(trim($content))->toBe('.fuel/');
+        expect($content)->toContain('.fuel/*.lock');
+        expect($content)->toContain('.fuel/agent.db');
+        expect($content)->toContain('.fuel/processes/');
+        expect($content)->toContain('.fuel/runs/');
     });
 
-    it('appends .fuel/ to existing .gitignore without duplicating', function (): void {
+    it('appends fuel entries to existing .gitignore without duplicating', function (): void {
         file_put_contents($this->tempDir.'/.gitignore', "node_modules\nvendor\n");
 
         Artisan::call('init', []);
@@ -139,10 +154,13 @@ describe('init command', function (): void {
         $content = file_get_contents($this->tempDir.'/.gitignore');
         expect($content)->toContain('node_modules');
         expect($content)->toContain('vendor');
-        expect($content)->toContain('.fuel/');
+        expect($content)->toContain('.fuel/*.lock');
+        expect($content)->toContain('.fuel/agent.db');
 
-        $count = substr_count($content, '.fuel/');
-        expect($count)->toBe(1);
+        // Run init again - should not duplicate entries
+        Artisan::call('init', []);
+        $content2 = file_get_contents($this->tempDir.'/.gitignore');
+        expect(substr_count($content2, '.fuel/*.lock'))->toBe(1);
     });
 
     it('updates AGENTS.md with guidelines', function (): void {
