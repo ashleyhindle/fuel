@@ -509,6 +509,58 @@ it('excludes tasks with needs-human label from ready()', function (): void {
     expect($ready->pluck('short_id'))->not->toContain($multiLabelTask->short_id);
 });
 
+it('excludes paused tasks from ready()', function (): void {
+    $normalTask = $this->taskService->create(['title' => 'Normal task']);
+    $pausedTask = $this->taskService->create(['title' => 'Paused task']);
+
+    // Update the task to paused status
+    $this->taskService->update($pausedTask->short_id, ['status' => TaskStatus::Paused->value]);
+
+    $ready = $this->taskService->ready();
+
+    // Only the normal task should be ready
+    expect($ready)->toHaveCount(1);
+    expect($ready->first()->short_id)->toBe($normalTask->short_id);
+    expect($ready->pluck('short_id'))->not->toContain($pausedTask->short_id);
+});
+
+it('excludes tasks from paused epics from ready()', function (): void {
+    $epicService = app(\App\Services\EpicService::class);
+
+    // Create a normal epic and a paused epic
+    $normalEpic = $epicService->createEpic('Normal epic', 'Active work');
+    $pausedEpic = $epicService->createEpic('Paused epic', 'On hold');
+
+    // Update the paused epic status directly (updateEpic doesn't support status)
+    $pausedEpic->status = \App\Enums\EpicStatus::Paused;
+    $pausedEpic->save();
+
+    // Create tasks for each epic
+    $normalEpicTask = $this->taskService->create([
+        'title' => 'Task in normal epic',
+        'epic_id' => $normalEpic->id,
+    ]);
+
+    $pausedEpicTask = $this->taskService->create([
+        'title' => 'Task in paused epic',
+        'epic_id' => $pausedEpic->id,
+    ]);
+
+    $standaloneTask = $this->taskService->create(['title' => 'Standalone task']);
+
+    // Verify the paused epic is actually saved with Paused status
+    $pausedEpic->refresh();
+    expect($pausedEpic->status)->toBe(\App\Enums\EpicStatus::Paused);
+
+    $ready = $this->taskService->ready();
+
+    // Should have normal epic task and standalone task, but not paused epic task
+    expect($ready)->toHaveCount(2);
+    expect($ready->pluck('short_id')->toArray())->toContain($normalEpicTask->short_id);
+    expect($ready->pluck('short_id')->toArray())->toContain($standaloneTask->short_id);
+    expect($ready->pluck('short_id')->toArray())->not->toContain($pausedEpicTask->short_id);
+});
+
 // =============================================================================
 // blocked() Method Tests
 // =============================================================================

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Agents\Tasks;
 
+use App\Daemon\DaemonLogger;
+use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\ProcessType;
 use App\Services\ConfigService;
@@ -43,6 +45,15 @@ class SelfGuidedAgentTask extends AbstractAgentTask
         $epicPlanFilename = $this->getEpicPlanFilename($epicShortId);
         $planContent = $this->loadPlanFile($epicPlanFilename);
         $progressLog = $this->extractProgressLog($planContent);
+
+        // Debug logging to catch prompt mismatch issues
+        DaemonLogger::getInstance()->debug('SelfGuidedAgentTask.buildPrompt', [
+            'task_short_id' => $this->task->short_id,
+            'task_id' => $this->task->id,
+            'epic_id' => $this->task->epic_id,
+            'epic_short_id' => $epicShortId,
+            'plan_filename' => $epicPlanFilename,
+        ]);
 
         $variables = [
             'iteration' => ($this->task->selfguided_iteration ?? 0) + 1,

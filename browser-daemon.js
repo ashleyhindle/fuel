@@ -414,6 +414,97 @@ async function handle(method, params) {
       return { ok: true, result: { closed: true } };
     }
 
+    case "text": {
+      const pageId = params?.pageId;
+      const selector = params?.selector;
+      const ref = params?.ref;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      let textContent;
+
+      // If ref is provided, resolve it from stored snapshot
+      if (ref) {
+        const snapshotData = pageSnapshots.get(pageId);
+        if (!snapshotData) {
+          throw Object.assign(new Error(`No snapshot found for page ${pageId}. Run browser:snapshot first.`), { code: "NO_SNAPSHOT" });
+        }
+
+        const node = snapshotData.refMap.get(ref);
+        if (!node) {
+          throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
+        }
+
+        // Use role and name to locate the element
+        if (node.role && node.name) {
+          const element = entry.page.getByRole(node.role, { name: node.name, exact: true });
+          textContent = await element.textContent();
+        } else {
+          throw Object.assign(new Error(`Cannot get text from ref ${ref}: node lacks role/name for location`), { code: "UNREADABLE_REF" });
+        }
+      } else if (selector) {
+        // Get text by CSS selector
+        const element = await entry.page.$(selector);
+        if (!element) {
+          throw Object.assign(new Error(`No element found for selector: ${selector}`), { code: "NO_ELEMENT" });
+        }
+        textContent = await element.textContent();
+      } else {
+        throw Object.assign(new Error(`Must provide either selector or ref`), { code: "BAD_PARAMS" });
+      }
+
+      return { ok: true, result: { text: textContent } };
+    }
+
+    case "html": {
+      const pageId = params?.pageId;
+      const selector = params?.selector;
+      const ref = params?.ref;
+      const inner = params?.inner || false;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      let html;
+
+      // If ref is provided, resolve it from stored snapshot
+      if (ref) {
+        const snapshotData = pageSnapshots.get(pageId);
+        if (!snapshotData) {
+          throw Object.assign(new Error(`No snapshot found for page ${pageId}. Run browser:snapshot first.`), { code: "NO_SNAPSHOT" });
+        }
+
+        const node = snapshotData.refMap.get(ref);
+        if (!node) {
+          throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
+        }
+
+        // Use role and name to locate the element
+        if (node.role && node.name) {
+          const element = entry.page.getByRole(node.role, { name: node.name, exact: true });
+          html = inner ? await element.innerHTML() : await element.evaluate(el => el.outerHTML);
+        } else {
+          throw Object.assign(new Error(`Cannot get HTML from ref ${ref}: node lacks role/name for location`), { code: "UNREADABLE_REF" });
+        }
+      } else if (selector) {
+        // Get HTML by CSS selector
+        const element = await entry.page.$(selector);
+        if (!element) {
+          throw Object.assign(new Error(`No element found for selector: ${selector}`), { code: "NO_ELEMENT" });
+        }
+        html = inner ? await element.innerHTML() : await element.evaluate(el => el.outerHTML);
+      } else {
+        throw Object.assign(new Error(`Must provide either selector or ref`), { code: "BAD_PARAMS" });
+      }
+
+      return { ok: true, result: { html } };
+    }
+
     case "status": {
       return {
         ok: true,

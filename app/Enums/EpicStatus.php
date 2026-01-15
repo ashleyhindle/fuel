@@ -7,6 +7,7 @@ namespace App\Enums;
 enum EpicStatus: string
 {
     case Planning = 'planning';
+    case Paused = 'paused';
     case InProgress = 'in_progress';
     case ReviewPending = 'review_pending';
     case Reviewed = 'reviewed';
@@ -32,6 +33,7 @@ enum EpicStatus: string
     {
         return match ($this) {
             self::Planning => 'Planning',
+            self::Paused => 'Paused',
             self::InProgress => 'In Progress',
             self::ReviewPending => 'Review Pending',
             self::Reviewed => 'Reviewed',

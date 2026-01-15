@@ -42,7 +42,7 @@ class PromptService
     public function render(string $template, array $variables): string
     {
         return preg_replace_callback(
-            '/\{\{([a-zA-Z0-9_.]+)\}\}/',
+            '/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
             function (array $matches) use ($variables): string {
                 $key = $matches[1];
                 $value = $this->resolveVariable($key, $variables);

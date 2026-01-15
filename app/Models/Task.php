@@ -74,6 +74,9 @@ class Task extends EloquentModel
                     ->orWhere('labels', '')
                     ->orWhere('labels', '[]')
                     ->orWhere('labels', 'not like', '%needs-human%');
+            })
+            ->whereDoesntHave('epic', function (Builder $query): void {
+                $query->where('status', \App\Enums\EpicStatus::Paused->value);
             });
     }
 

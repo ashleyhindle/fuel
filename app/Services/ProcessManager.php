@@ -767,6 +767,10 @@ class ProcessManager implements ProcessManagerInterface
             $stdoutPath = $outputPaths['stdoutPath'];
             $stderrPath = $outputPaths['stderrPath'];
 
+            // Save prompt for debugging
+            $promptPath = $outputPaths['outputDir'].'/prompt.md';
+            file_put_contents($promptPath, $fullPrompt);
+
             // Create and configure the process with env vars
             $env = array_merge($_ENV, $agentDef['env']);
             $symfonyProcess = $this->createSymfonyProcess($commandArray, $cwd, $env);
