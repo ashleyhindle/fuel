@@ -56,39 +56,62 @@ final readonly class DaemonLoop
     public function run(): void
     {
         while (! $this->lifecycleManager->isShuttingDown()) {
-            // Accept new client connections
-            $clientCount = $this->ipcServer->getClientCount();
-            $this->ipcServer->accept();
+            try {
+                // Accept new client connections
+                $clientCount = $this->ipcServer->getClientCount();
+                $this->ipcServer->accept();
 
-            // If new clients connected, send them HelloEvent and SnapshotEvent
-            if ($this->ipcServer->getClientCount() > $clientCount) {
-                $this->snapshotManager->broadcastHelloAndSnapshot();
+                // If new clients connected, send them HelloEvent and SnapshotEvent
+                if ($this->ipcServer->getClientCount() > $clientCount) {
+                    $this->snapshotManager->broadcastHelloAndSnapshot();
+                }
+
+                // Poll IPC commands from clients
+                $this->pollIpcCommands();
+
+                // Check for shutdown signal (handled by ProcessManager)
+                if ($this->processManager->isShuttingDown()) {
+                    $this->lifecycleManager->stop(true); // Treat signal as equivalent to stop() call
+                    break;
+                }
+
+                // Check for health changes and broadcast events
+                $this->snapshotManager->checkHealthChanges();
+
+                // Run tick to handle spawning, completions, and reviews
+                $this->tick();
+
+                // Periodically check for changes and broadcast (every 2 seconds)
+                // This detects external changes (e.g., tasks added via `fuel add`)
+                if ($this->snapshotManager->shouldBroadcastSnapshot() && $this->ipcServer->getClientCount() > 0) {
+                    $this->snapshotManager->broadcastSnapshotIfChanged();
+                }
+
+                // Sleep for interval (60ms for responsiveness)
+                usleep(60000);
+            } catch (\Throwable $e) {
+                $this->logException($e);
+                throw $e; // Re-throw to crash visibly rather than silently loop
             }
-
-            // Poll IPC commands from clients
-            $this->pollIpcCommands();
-
-            // Check for shutdown signal (handled by ProcessManager)
-            if ($this->processManager->isShuttingDown()) {
-                $this->lifecycleManager->stop(true); // Treat signal as equivalent to stop() call
-                break;
-            }
-
-            // Check for health changes and broadcast events
-            $this->snapshotManager->checkHealthChanges();
-
-            // Run tick to handle spawning, completions, and reviews
-            $this->tick();
-
-            // Periodically check for changes and broadcast (every 2 seconds)
-            // This detects external changes (e.g., tasks added via `fuel add`)
-            if ($this->snapshotManager->shouldBroadcastSnapshot() && $this->ipcServer->getClientCount() > 0) {
-                $this->snapshotManager->broadcastSnapshotIfChanged();
-            }
-
-            // Sleep for interval (60ms for responsiveness)
-            usleep(60000);
         }
+    }
+
+    /**
+     * Log exception to .fuel/debug.log for post-mortem analysis.
+     */
+    private function logException(\Throwable $e): void
+    {
+        $logPath = getcwd().'/.fuel/debug.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $message = sprintf(
+            "[%s] EXCEPTION: %s\n  File: %s:%d\n  Trace:\n%s\n",
+            $timestamp,
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine(),
+            $e->getTraceAsString()
+        );
+        @file_put_contents($logPath, $message, FILE_APPEND);
     }
 
     /**
