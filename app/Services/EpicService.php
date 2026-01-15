@@ -16,7 +16,7 @@ class EpicService
         private readonly TaskService $taskService
     ) {}
 
-    public function createEpic(string $title, ?string $description = null): Epic
+    public function createEpic(string $title, ?string $description = null, bool $selfGuided = false): Epic
     {
         $shortId = $this->generateId();
         $now = Carbon::now('UTC')->toIso8601String();
@@ -25,9 +25,22 @@ class EpicService
             'short_id' => $shortId,
             'title' => $title,
             'description' => $description,
+            'self_guided' => $selfGuided,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+
+        // If self-guided, create implementation task
+        if ($selfGuided) {
+            $this->taskService->create([
+                'title' => 'Implement: '.$title,
+                'description' => 'Self-guided implementation. See epic plan for acceptance criteria.',
+                'epic_id' => $epic->short_id,
+                'agent' => 'selfguided',
+                'complexity' => 'complex',
+                'type' => 'feature',
+            ]);
+        }
 
         // Set computed status (will be 'planning' for new epic with no tasks)
         $epic->status = $this->getEpicStatus($shortId);

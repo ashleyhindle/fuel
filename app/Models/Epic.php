@@ -29,6 +29,7 @@ class Epic extends Model
         'short_id',
         'title',
         'description',
+        'self_guided',
         'status',
         'reviewed_at',
         'approved_at',

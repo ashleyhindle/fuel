@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Agents\Tasks\SelfGuidedAgentTask;
 use App\Agents\Tasks\WorkAgentTask;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Models\Task;
@@ -102,12 +103,16 @@ final class TaskSpawner
         $taskId = $task->short_id;
         $cwd = $this->fuelContext->getProjectPath();
 
-        // Create WorkAgentTask via container
-        $agentTask = app(WorkAgentTask::class, [
-            'task' => $task,
-            'reviewEnabled' => $this->reviewEnabled,
-            'agentOverride' => $agentOverride,
-        ]);
+        // Create appropriate AgentTask based on task agent field
+        if ($task->agent === 'selfguided') {
+            $agentTask = app(SelfGuidedAgentTask::class, ['task' => $task]);
+        } else {
+            $agentTask = app(WorkAgentTask::class, [
+                'task' => $task,
+                'reviewEnabled' => $this->reviewEnabled,
+                'agentOverride' => $agentOverride,
+            ]);
+        }
 
         // Wire epicCompletionCallback if set
         if ($this->epicCompletionCallback !== null) {

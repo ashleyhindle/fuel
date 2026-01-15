@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Agents\Tasks\ReviewAgentTask;
+use App\Agents\Tasks\SelfGuidedAgentTask;
 use App\Agents\Tasks\UpdateRealityAgentTask;
 use App\Agents\Tasks\WorkAgentTask;
 use App\Contracts\ReviewServiceInterface;
@@ -539,5 +540,227 @@ describe('UpdateRealityAgentTask', function (): void {
         // Should not throw
         $agentTask->onFailure($completion);
         expect(true)->toBeTrue();
+    });
+});
+
+describe('SelfGuidedAgentTask', function (): void {
+    it('returns task ID from underlying task', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Self-guided Task', 'status' => 'open']);
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        expect($agentTask->getTaskId())->toBe('f-abc123');
+    });
+
+    it('always returns primary as agent name', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Self-guided Task', 'status' => 'open', 'complexity' => 'simple']);
+
+        // ConfigService should NOT be used for agent selection
+        $this->configService->shouldNotReceive('getAgentForComplexity');
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        expect($agentTask->getAgentName($this->configService))->toBe('primary');
+    });
+
+    it('returns Task process type', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Self-guided Task', 'status' => 'open']);
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        expect($agentTask->getProcessType())->toBe(ProcessType::Task);
+    });
+
+    it('increments iteration and resets stuck count on success', function (): void {
+        $task = new Task([
+            'short_id' => 'f-abc123',
+            'title' => 'Self-guided Task',
+            'status' => 'in_progress',
+            'selfguided_iteration' => 5,
+            'selfguided_stuck_count' => 2,
+        ]);
+
+        $this->taskService->shouldReceive('update')
+            ->with('f-abc123', [
+                'selfguided_iteration' => 6,
+                'selfguided_stuck_count' => 0,
+            ])
+            ->once();
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        $completion = new CompletionResult(
+            taskId: 'f-abc123',
+            agentName: 'primary',
+            exitCode: 0,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: '',
+            type: CompletionType::Success,
+        );
+
+        $agentTask->onSuccess($completion);
+    });
+
+    it('increments stuck count on failure', function (): void {
+        $task = new Task([
+            'short_id' => 'f-abc123',
+            'title' => 'Self-guided Task',
+            'status' => 'in_progress',
+            'selfguided_iteration' => 3,
+            'selfguided_stuck_count' => 1,
+        ]);
+
+        $this->taskService->shouldReceive('update')
+            ->with('f-abc123', ['selfguided_stuck_count' => 2])
+            ->once();
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        $completion = new CompletionResult(
+            taskId: 'f-abc123',
+            agentName: 'primary',
+            exitCode: 1,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: '',
+            type: CompletionType::Failed,
+        );
+
+        $agentTask->onFailure($completion);
+    });
+
+    it('creates needs-human task when stuck count reaches threshold', function (): void {
+        $task = new Task([
+            'short_id' => 'f-abc123',
+            'title' => 'Self-guided Task',
+            'status' => 'in_progress',
+            'selfguided_iteration' => 3,
+            'selfguided_stuck_count' => 2, // Will become 3, which triggers needs-human
+            'epic_id' => 5,
+        ]);
+
+        $needsHumanTask = new Task([
+            'short_id' => 'f-def456',
+            'title' => 'Self-guided task stuck after 3 consecutive failures',
+            'status' => 'open',
+        ]);
+
+        $this->taskService->shouldReceive('update')
+            ->with('f-abc123', ['selfguided_stuck_count' => 3])
+            ->once();
+
+        $this->taskService->shouldReceive('create')
+            ->with(Mockery::on(function ($data) {
+                return $data['title'] === 'Self-guided task stuck after 3 consecutive failures'
+                    && in_array('needs-human', $data['labels'], true)
+                    && $data['epic_id'] === 5;
+            }))
+            ->once()
+            ->andReturn($needsHumanTask);
+
+        $this->taskService->shouldReceive('addDependency')
+            ->with('f-abc123', 'f-def456')
+            ->once();
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        $completion = new CompletionResult(
+            taskId: 'f-abc123',
+            agentName: 'primary',
+            exitCode: 1,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: '',
+            type: CompletionType::Failed,
+        );
+
+        $agentTask->onFailure($completion);
+    });
+
+    it('handles null selfguided_iteration in onSuccess', function (): void {
+        $task = new Task([
+            'short_id' => 'f-abc123',
+            'title' => 'Self-guided Task',
+            'status' => 'in_progress',
+            // selfguided_iteration not set (null)
+        ]);
+
+        $this->taskService->shouldReceive('update')
+            ->with('f-abc123', [
+                'selfguided_iteration' => 1,
+                'selfguided_stuck_count' => 0,
+            ])
+            ->once();
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        $completion = new CompletionResult(
+            taskId: 'f-abc123',
+            agentName: 'primary',
+            exitCode: 0,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: '',
+            type: CompletionType::Success,
+        );
+
+        $agentTask->onSuccess($completion);
+    });
+
+    it('handles null selfguided_stuck_count in onFailure', function (): void {
+        $task = new Task([
+            'short_id' => 'f-abc123',
+            'title' => 'Self-guided Task',
+            'status' => 'in_progress',
+            // selfguided_stuck_count not set (null)
+        ]);
+
+        $this->taskService->shouldReceive('update')
+            ->with('f-abc123', ['selfguided_stuck_count' => 1])
+            ->once();
+
+        $agentTask = new SelfGuidedAgentTask(
+            $task,
+            $this->taskService,
+        );
+
+        $completion = new CompletionResult(
+            taskId: 'f-abc123',
+            agentName: 'primary',
+            exitCode: 1,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: '',
+            type: CompletionType::Failed,
+        );
+
+        $agentTask->onFailure($completion);
     });
 });

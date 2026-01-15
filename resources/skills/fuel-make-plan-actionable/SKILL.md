@@ -35,7 +35,21 @@ Note the epic ID (e.g., `e-abc123`) for linking tasks.
 
 Tasks working on this epic will read the plan for context and update it with discoveries.
 
-### 2. Break Down into Tasks
+### 2. Check Execution Mode
+
+First, check if this is a self-guided epic:
+```bash
+fuel epic:show [epic-id]
+```
+
+If the epic shows `self_guided: true`:
+- The epic already has its implementation task
+- Do NOT create additional tasks
+- Just inform the user: "This is a self-guided epic. Run fuel consume to start iteration."
+
+If `self_guided` is false (default), proceed with normal task breakdown.
+
+### 3. Break Down into Tasks
 Each task should have:
 - **Single responsibility** - One clear thing to do
 - **Explicit description** - Enough detail for a less capable agent to execute without guessing
@@ -50,7 +64,7 @@ fuel add "Task title" \
   --description="Exact file paths, what to change, expected behavior"
 ```
 
-### 3. Order by Dependencies
+### 4. Order by Dependencies
 Build foundational work first:
 1. Models/data structures
 2. Services/business logic
@@ -62,7 +76,7 @@ Use `--blocked-by` to enforce order:
 fuel add "Implement service" --blocked-by=f-model-task --epic=e-xxxx
 ```
 
-### 4. Create Review Task (Mandatory)
+### 5. Create Review Task (Mandatory)
 Every epic needs a final review task:
 ```bash
 fuel add "Review: Feature name" \

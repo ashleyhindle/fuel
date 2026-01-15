@@ -145,6 +145,9 @@ class TaskService
             'type' => $type,
             'priority' => $priority,
             'complexity' => $complexity,
+            'agent' => $data['agent'] ?? null,
+            'selfguided_iteration' => $data['selfguided_iteration'] ?? 0,
+            'selfguided_stuck_count' => $data['selfguided_stuck_count'] ?? 0,
             'labels' => $labels,
             'blocked_by' => $blockedBy,
             'epic_id' => $epicId,
@@ -236,7 +239,7 @@ class TaskService
         }
 
         // Handle arbitrary fields
-        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_output', 'consume_pid', 'last_review_issues'];
+        $arbitraryFields = ['commit_hash', 'reason', 'consumed', 'consumed_at', 'consumed_output', 'consume_pid', 'last_review_issues', 'agent', 'selfguided_iteration', 'selfguided_stuck_count'];
         foreach ($data as $key => $value) {
             if (in_array($key, $arbitraryFields, true)) {
                 $updates[$key] = $value;

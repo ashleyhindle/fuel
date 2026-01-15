@@ -18,6 +18,7 @@ class EpicAddCommand extends Command
     protected $signature = 'epic:add
         {title : The epic title}
         {--description= : Epic description}
+        {--selfguided : Create self-guided epic with single iterating task}
         {--json : Output as JSON}
         {--cwd= : Working directory (defaults to current directory)}';
 
@@ -27,9 +28,10 @@ class EpicAddCommand extends Command
     {
         $title = $this->argument('title');
         $description = $this->option('description');
+        $selfGuided = $this->option('selfguided');
 
         try {
-            $epic = $epicService->createEpic($title, $description);
+            $epic = $epicService->createEpic($title, $description, $selfGuided);
         } catch (RuntimeException $runtimeException) {
             return $this->outputError($runtimeException->getMessage());
         }
@@ -46,6 +48,9 @@ class EpicAddCommand extends Command
                 $this->line('  Description: '.$epic->description);
             }
             $this->line('  Plan: .fuel/plans/'.$planFilename.' (add your plan here)');
+            if ($selfGuided && isset($epic->selfGuidedTaskId)) {
+                $this->line('  Created self-guided task: '.$epic->selfGuidedTaskId);
+            }
         }
 
         return self::SUCCESS;
