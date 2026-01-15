@@ -15,6 +15,7 @@ handoff.md
 !.claude/skills/fuel-release/**
 !.fuel/plans/*.md
 !.fuel/prompts/*.md
+!.fuel/reality.md
 /database/database.sqlite
 
 # Fuel data (but not plans/prompts)
@@ -22,6 +23,7 @@ handoff.md
 .fuel/*.log
 .fuel/*.pid
 .fuel/agent.db
+.fuel/agent.db*
 .fuel/config.yaml
 .fuel/processes/
 .fuel/runs/
