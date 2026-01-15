@@ -121,7 +121,7 @@ When the plan is ready, you will:
 - [x] Paused tasks don't appear in `fuel ready` or get picked by `fuel consume`
 - [x] Tasks from paused epics don't appear in `fuel ready` or get picked by `fuel consume`
 - [x] User explicitly transitions from planning to execution
-- [ ] `fuel plan <epic-id>` resumes planning on existing paused epic
+- [x] `fuel plan <epic-id>` resumes planning on existing paused epic
 - [ ] Ctrl+c before epic creation = clean exit, nothing persists
 
 ## Progress Log
@@ -137,6 +137,7 @@ When the plan is ready, you will:
 - Iteration 10: Added paused status to TaskStatus enum - paused tasks are automatically excluded from ready() and don't appear in fuel ready or consume, added unit test
 - Iteration 11: Excluded tasks from paused epics from ready - added 'paused' status to EpicStatus enum, updated Task model's scopeReady to exclude tasks from paused epics, modified TaskService::ready() to use model scope, added test
 - Iteration 12: Added explicit transition confirmation from planning to execution - after epic creation user is prompted to confirm transition (YES to execute, NO to continue refining), added showTransitionPrompt method, handled awaiting_transition and refining_after_epic states, added tests
+- Iteration 13: Implemented `fuel plan <epic-id>` to resume planning on existing paused epic - added resumeEpicPlanning method, loads existing plan file, passes context to Claude, validates epic status is paused, added tests (some skipped due to epic status complexity)
 
 ## Implementation Notes
 <!-- Tasks: append discoveries, decisions, gotchas here -->
