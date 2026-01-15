@@ -47,6 +47,11 @@ class PlanCommand extends Command
      */
     private function startPlanningSession(): void
     {
+        // Don't actually run in testing mode
+        if (app()->environment() === 'testing') {
+            return;
+        }
+
         // Build the command to spawn Claude with JSON mode
         $command = [
             'claude',
@@ -56,36 +61,165 @@ class PlanCommand extends Command
 
         $process = new Process($command);
 
-        // Only set TTY if we're in a real terminal (not testing)
-        if (app()->environment() !== 'testing' && Process::isTtySupported()) {
-            $process->setTty(true);
-        }
+        // JSON mode requires no TTY
+        $process->setTty(false);
+        $process->setPty(false);
         $process->setTimeout(null); // No timeout for interactive session
+        $process->setIdleTimeout(null);
 
         try {
             $this->info("Connecting to Claude Opus 4.5 in planning mode...\n");
 
-            // Inject initial system prompt for planning mode
-            $systemPrompt = $this->getPlanningSystemPrompt();
+            // Start the process
+            $process->start();
 
-            // For now, just spawn Claude directly
-            // TODO: Implement JSON communication layer
+            if (! $process->isRunning()) {
+                $this->error('Failed to start Claude process');
+                $this->error($process->getErrorOutput());
 
-            // Don't actually run the process in testing mode
-            if (app()->environment() !== 'testing') {
-                $process->run();
-
-                if (! $process->isSuccessful()) {
-                    $this->error('Planning session ended with errors.');
-                    $this->error($process->getErrorOutput());
-                } else {
-                    $this->info("\nPlanning session ended successfully.");
-                    $this->info("Run 'fuel consume' to begin working on your planned tasks.");
-                }
+                return;
             }
+
+            // Send initial system prompt
+            $systemPrompt = $this->getPlanningSystemPrompt();
+            $initialMessage = [
+                'type' => 'message',
+                'content' => $systemPrompt."\n\nWhat would you like to build? Describe your feature idea:",
+            ];
+
+            $process->getInput()->write(json_encode($initialMessage)."\n");
+
+            // Main interaction loop
+            $this->runInteractionLoop($process);
+
         } catch (\Exception $e) {
             $this->error('Failed to start planning session: '.$e->getMessage());
+        } finally {
+            if ($process->isRunning()) {
+                $process->stop(5);
+            }
         }
+    }
+
+    /**
+     * Run the main interaction loop with Claude
+     */
+    private function runInteractionLoop(Process $process): void
+    {
+        $outputBuffer = '';
+
+        while ($process->isRunning()) {
+            // Check for Claude's output
+            $output = $process->getIncrementalOutput();
+            if ($output) {
+                $outputBuffer .= $output;
+
+                // Process complete lines
+                while (($newlinePos = strpos($outputBuffer, "\n")) !== false) {
+                    $line = substr($outputBuffer, 0, $newlinePos);
+                    $outputBuffer = substr($outputBuffer, $newlinePos + 1);
+
+                    if (! empty(trim($line))) {
+                        $this->processClaudeOutput($line);
+                    }
+                }
+            }
+
+            // Check for errors
+            $error = $process->getIncrementalErrorOutput();
+            if ($error) {
+                $this->error('Error from Claude: '.$error);
+            }
+
+            // Small delay to prevent CPU spinning
+            usleep(100000); // 100ms
+
+            // Check if user wants to provide input (non-blocking)
+            if ($this->hasWaitingInput()) {
+                $userInput = $this->ask('You');
+
+                if ($userInput === 'exit') {
+                    $this->info('Ending planning session...');
+                    break;
+                }
+
+                // Send user message to Claude
+                $userMessage = [
+                    'type' => 'message',
+                    'content' => $userInput,
+                ];
+
+                $process->getInput()->write(json_encode($userMessage)."\n");
+            }
+        }
+
+        $this->info("\nPlanning session ended.");
+        if (! $process->isRunning() && $process->getExitCode() !== 0) {
+            $this->error('Claude exited with error code: '.$process->getExitCode());
+        }
+    }
+
+    /**
+     * Process a line of output from Claude
+     */
+    private function processClaudeOutput(string $line): void
+    {
+        $data = json_decode($line, true);
+        if (! $data) {
+            // Not JSON, might be raw output
+            return;
+        }
+
+        // Handle different message types from Claude
+        switch ($data['type'] ?? '') {
+            case 'message':
+            case 'assistant':
+                if (isset($data['content'])) {
+                    $this->line('');
+                    $this->comment('Claude:');
+                    $this->line($data['content']);
+                    $this->line('');
+                }
+                break;
+
+            case 'tool_call':
+                if (isset($data['tool_call'])) {
+                    $toolName = array_keys($data['tool_call'])[0] ?? 'unknown';
+                    $this->info('→ Claude is executing: '.$toolName);
+                }
+                break;
+
+            case 'tool_result':
+                // Tool result, might want to show something
+                break;
+
+            case 'error':
+                $this->error('Error: '.($data['message'] ?? 'Unknown error'));
+                break;
+
+            case 'system':
+                // System messages, possibly ignore or show in verbose mode
+                break;
+        }
+    }
+
+    /**
+     * Check if there's input waiting (simplified version)
+     */
+    private function hasWaitingInput(): bool
+    {
+        // For now, we'll prompt for input periodically
+        // In a real implementation, this could use select() or similar
+        static $lastPrompt = 0;
+        $now = time();
+
+        if ($now - $lastPrompt > 2) { // Prompt every 2 seconds
+            $lastPrompt = $now;
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
