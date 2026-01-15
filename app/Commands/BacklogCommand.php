@@ -8,6 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
+use Symfony\Component\Console\Terminal;
 
 class BacklogCommand extends Command
 {
@@ -35,12 +36,20 @@ class BacklogCommand extends Command
             $this->info(sprintf('Backlog items (%d):', $items->count()));
             $this->newLine();
 
+            // Calculate max title width to fit terminal
+            $terminal = new Terminal;
+            $terminalWidth = $terminal->getWidth();
+            $idWidth = 10; // 'f-xxxxxx' + padding
+            $createdWidth = 9; // '3d ago' or 'Jan 15' + padding
+            $borders = 12; // Table borders and column separators
+            $maxTitleWidth = max(20, $terminalWidth - $idWidth - $createdWidth - $borders);
+
             $table = new Table;
             $table->render(
                 ['ID', 'Title', 'Created'],
                 $items->map(fn ($item): array => [
                     $item->short_id,
-                    $item->title,
+                    $this->truncateTitle($item->title, $maxTitleWidth),
                     $this->formatDate((string) $item->created_at),
                 ])->toArray(),
                 $this->output
@@ -48,6 +57,18 @@ class BacklogCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function truncateTitle(string $title, int $maxWidth): string
+    {
+        // Use mb_strwidth for accurate width calculation (handles emoji, multibyte chars)
+        if (mb_strwidth($title) <= $maxWidth) {
+            return $title;
+        }
+
+        // Truncate using mb_strimwidth to preserve multibyte chars
+        // -3 for '...' suffix
+        return mb_strimwidth($title, 0, $maxWidth - 3, '...');
     }
 
     private function formatDate(string $dateString): string
