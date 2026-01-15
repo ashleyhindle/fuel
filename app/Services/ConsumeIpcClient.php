@@ -268,7 +268,7 @@ class ConsumeIpcClient
 
     /**
      * Actively check if the connection is still alive.
-     * Uses socket_read with MSG_PEEK to detect closed connections without consuming data.
+     * Uses stream_get_meta_data() to detect EOF without discarding buffered data.
      * Updates the connected state and returns the result.
      */
     public function checkConnection(): bool
@@ -279,71 +279,22 @@ class ConsumeIpcClient
             return false;
         }
 
-        if (stream_get_meta_data($this->socket)['timed_out']) {
+        $meta = stream_get_meta_data($this->socket);
+
+        // Check for timeout
+        if ($meta['timed_out']) {
             $this->connected = false;
 
             return false;
         }
 
-        // Try to read with MSG_PEEK - this forces the OS to check the connection state
-        // without consuming any actual data from the buffer
-        if (! function_exists('socket_import_stream')) {
-            // Sockets extension not available, fall back to feof check
-            if (feof($this->socket)) {
-                $this->connected = false;
-
-                return false;
-            }
-
-            return $this->connected;
-        }
-
-        $socketResource = socket_import_stream($this->socket);
-        if ($socketResource === false) {
-            // Can't import stream, fall back to feof check
-            if (feof($this->socket)) {
-                $this->connected = false;
-
-                return false;
-            }
-
-            return $this->connected;
-        }
-
-        // Set non-blocking for the peek
-        socket_set_nonblock($socketResource);
-
-        // MSG_PEEK (2) + MSG_DONTWAIT (64) = 66
-        $result = @socket_recv($socketResource, $buf, 1, MSG_PEEK | MSG_DONTWAIT);
-
-        // socket_recv returns:
-        // - false on error (connection lost)
-        // - 0 when connection is closed gracefully
-        // - positive number if data is available (connection alive)
-        // - false with EAGAIN/EWOULDBLOCK if no data but connection alive
-        if ($result === false) {
-            $error = socket_last_error($socketResource);
-            socket_clear_error($socketResource);
-
-            // EAGAIN (11) or EWOULDBLOCK (11 on Linux, 35 on macOS) means no data but connection OK
-            if ($error === 11 || $error === 35 || $error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
-                return $this->connected;
-            }
-
-            // Any other error means connection is dead
+        // Check for EOF - this detects closed connections without consuming buffered data
+        if ($meta['eof'] || feof($this->socket)) {
             $this->connected = false;
 
             return false;
         }
 
-        if ($result === 0) {
-            // Graceful close - peer sent FIN
-            $this->connected = false;
-
-            return false;
-        }
-
-        // Data available, connection is alive
         return $this->connected;
     }
 
