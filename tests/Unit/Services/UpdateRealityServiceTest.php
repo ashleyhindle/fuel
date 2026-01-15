@@ -55,6 +55,7 @@ YAML;
 
     $this->taskService = makeTaskService();
     $this->epicService = makeEpicService($this->taskService);
+    $this->runService = makeRunService();
     $this->configService = new ConfigService($this->context);
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);
 });
@@ -78,7 +79,7 @@ it('triggers update for completed task', function (): void {
     // Create AgentProcess for SpawnResult
     $agentProcess = new AgentProcess(
         $symfonyProcess,
-        'reality-'.$task->short_id,
+        'f-abc123',
         'reality-agent',
         time(),
         null,
@@ -91,15 +92,19 @@ it('triggers update for completed task', function (): void {
     $this->processManager
         ->shouldReceive('spawnAgentTask')
         ->once()
-        ->withArgs(fn ($agentTask, $cwd): bool => $agentTask instanceof UpdateRealityAgentTask
-            && $agentTask->getTaskId() === 'reality-'.$task->short_id
-            && $cwd === $this->context->getProjectPath())
+        ->withArgs(fn ($agentTask, $cwd, $runId): bool => $agentTask instanceof UpdateRealityAgentTask
+            && str_starts_with($agentTask->getTaskId(), 'f-')
+            && ($agentTask->getTask()->type ?? null) === 'reality'
+            && $cwd === $this->context->getProjectPath()
+            && is_string($runId)
+            && str_starts_with($runId, 'run-'))
         ->andReturn(SpawnResult::success($agentProcess));
 
     $updateRealityService = new UpdateRealityService(
         $this->configService,
         $this->context,
-        $this->processManager
+        $this->processManager,
+        $this->runService
     );
 
     // Should not throw
@@ -118,7 +123,7 @@ it('triggers update for approved epic', function (): void {
     // Create AgentProcess for SpawnResult
     $agentProcess = new AgentProcess(
         $symfonyProcess,
-        'reality-'.$epic->short_id,
+        'f-def456',
         'reality-agent',
         time(),
         null,
@@ -131,15 +136,19 @@ it('triggers update for approved epic', function (): void {
     $this->processManager
         ->shouldReceive('spawnAgentTask')
         ->once()
-        ->withArgs(fn ($agentTask, $cwd): bool => $agentTask instanceof UpdateRealityAgentTask
-            && $agentTask->getTaskId() === 'reality-'.$epic->short_id
-            && $cwd === $this->context->getProjectPath())
+        ->withArgs(fn ($agentTask, $cwd, $runId): bool => $agentTask instanceof UpdateRealityAgentTask
+            && str_starts_with($agentTask->getTaskId(), 'f-')
+            && ($agentTask->getTask()->type ?? null) === 'reality'
+            && $cwd === $this->context->getProjectPath()
+            && is_string($runId)
+            && str_starts_with($runId, 'run-'))
         ->andReturn(SpawnResult::success($agentProcess));
 
     $updateRealityService = new UpdateRealityService(
         $this->configService,
         $this->context,
-        $this->processManager
+        $this->processManager,
+        $this->runService
     );
 
     // Should not throw
@@ -154,7 +163,8 @@ it('does nothing when neither task nor epic provided', function (): void {
     $updateRealityService = new UpdateRealityService(
         $this->configService,
         $this->context,
-        $this->processManager
+        $this->processManager,
+        $this->runService
     );
 
     // Should not throw
@@ -222,7 +232,7 @@ YAML;
     // Create AgentProcess for SpawnResult
     $agentProcess = new AgentProcess(
         $symfonyProcess,
-        'reality-'.$task->short_id,
+        'f-ghi789',
         'test-agent',
         time(),
         null,
@@ -239,7 +249,8 @@ YAML;
     $updateRealityService = new UpdateRealityService(
         $configService,
         $this->context,
-        $this->processManager
+        $this->processManager,
+        $this->runService
     );
 
     // Should not throw, falls back to primary
@@ -259,7 +270,7 @@ it('prefers epic over task when both provided', function (): void {
     // Create AgentProcess for SpawnResult
     $agentProcess = new AgentProcess(
         $symfonyProcess,
-        'reality-'.$epic->short_id,
+        'f-jkl012',
         'reality-agent',
         time(),
         null,
@@ -271,14 +282,17 @@ it('prefers epic over task when both provided', function (): void {
     $this->processManager
         ->shouldReceive('spawnAgentTask')
         ->once()
-        ->withArgs(fn ($agentTask, $cwd): bool => $agentTask instanceof UpdateRealityAgentTask
-            && $agentTask->getTaskId() === 'reality-'.$epic->short_id)
+        ->withArgs(fn ($agentTask, $cwd, $runId): bool => $agentTask instanceof UpdateRealityAgentTask
+            && str_starts_with($agentTask->getTaskId(), 'f-')
+            && is_string($runId)
+            && str_starts_with($runId, 'run-'))
         ->andReturn(SpawnResult::success($agentProcess));
 
     $updateRealityService = new UpdateRealityService(
         $this->configService,
         $this->context,
-        $this->processManager
+        $this->processManager,
+        $this->runService
     );
 
     // Epic should take precedence
@@ -297,7 +311,7 @@ it('is fire-and-forget - does not wait for spawn result', function (): void {
     // Create AgentProcess for SpawnResult
     $agentProcess = new AgentProcess(
         $symfonyProcess,
-        'reality-'.$task->short_id,
+        'f-mno345',
         'reality-agent',
         time(),
         null,
@@ -322,7 +336,8 @@ it('is fire-and-forget - does not wait for spawn result', function (): void {
     $updateRealityService = new UpdateRealityService(
         $this->configService,
         $this->context,
-        $this->processManager
+        $this->processManager,
+        $this->runService
     );
 
     $updateRealityService->triggerUpdate($task);
@@ -341,7 +356,8 @@ it('silently handles spawn failures', function (): void {
     $updateRealityService = new UpdateRealityService(
         $this->configService,
         $this->context,
-        $this->processManager
+        $this->processManager,
+        $this->runService
     );
 
     // Should not throw even on spawn failure
