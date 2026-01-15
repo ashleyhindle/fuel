@@ -57,18 +57,14 @@ class CompletedCommand extends Command
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority', 'Agent', 'Commit'];
 
             // Calculate max title width based on terminal width
-            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - Agent (12) - Commit (10) - borders/padding (20)
+            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - Agent (16) - Commit (10) - borders/padding (20)
             $terminalWidth = $this->getTerminalWidth();
-            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 12 + 10 + 20; // ID, Completed, Type, Priority, Agent, Commit columns + borders
+            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 16 + 10 + 20; // ID, Completed, Type, Priority, Agent, Commit columns + borders
             $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth); // Minimum 20 chars for title
 
             $rows = $tasks->map(function (Task $t) use ($runService, $maxTitleWidth): array {
                 $latestRun = $runService->getLatestRun($t->short_id);
                 $agent = $latestRun?->agent ?? '';
-                // Shorten agent name if too long
-                if (strlen($agent) > 10) {
-                    $agent = substr($agent, 0, 9).'…';
-                }
 
                 return [
                     $t->short_id,
