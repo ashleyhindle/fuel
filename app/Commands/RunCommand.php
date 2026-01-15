@@ -88,21 +88,42 @@ class RunCommand extends Command
 
         $this->newLine();
 
-        // Determine agent
+        // Determine agent and build prompt
         $agentName = $this->option('agent');
-        if ($agentName === null) {
-            $complexity = $task->complexity ?? 'simple';
-            try {
-                $agentName = $this->configService->getAgentForComplexity($complexity);
-            } catch (\RuntimeException $e) {
-                return $this->outputError('Failed to get agent: '.$e->getMessage());
+        $fullPrompt = $this->option('prompt');
+
+        if ($agentName === null || $fullPrompt === null) {
+            // Check if this is a reality task
+            if ($task->type === 'reality') {
+                if ($agentName === null) {
+                    $agentName = $this->configService->getRealityAgent();
+                    if ($agentName === null) {
+                        return $this->outputError('No reality agent configured');
+                    }
+                }
+
+                if ($fullPrompt === null) {
+                    $promptService = app(\App\Services\PromptService::class);
+                    $fullPrompt = $promptService->loadTemplate('reality');
+                }
+            } else {
+                // Standard complexity-based routing
+                if ($agentName === null) {
+                    $complexity = $task->complexity ?? 'simple';
+                    try {
+                        $agentName = $this->configService->getAgentForComplexity($complexity);
+                    } catch (\RuntimeException $e) {
+                        return $this->outputError('Failed to get agent: '.$e->getMessage());
+                    }
+                }
+
+                if ($fullPrompt === null) {
+                    $fullPrompt = $this->promptBuilder->build($task, $cwd);
+                }
             }
         }
 
         $this->info('Agent: '.$agentName);
-
-        // Build prompt
-        $fullPrompt = $this->option('prompt') ?? $this->promptBuilder->build($task, $cwd);
 
         // Mark task as in_progress unless --no-start
         if (! $this->option('no-start') && $task->status !== TaskStatus::InProgress) {
