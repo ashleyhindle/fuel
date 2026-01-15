@@ -24,6 +24,7 @@ use App\Services\DatabaseService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\NotificationService;
+use App\Services\PlanSession;
 use App\Services\ProcessManager;
 use App\Services\ReviewService;
 use App\Services\RunService;
@@ -155,6 +156,8 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(TaskPromptBuilder::class);
+
+        $this->app->singleton(PlanSession::class, fn (): PlanSession => new PlanSession);
 
         $this->app->singleton(UpdateRealityService::class, fn (Application $app): UpdateRealityService => new UpdateRealityService(
             configService: $app->make(ConfigService::class),
