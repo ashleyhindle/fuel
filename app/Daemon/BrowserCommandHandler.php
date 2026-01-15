@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Ipc\Commands\BrowserClickCommand;
 use App\Ipc\Commands\BrowserCloseCommand;
 use App\Ipc\Commands\BrowserCreateCommand;
+use App\Ipc\Commands\BrowserFillCommand;
 use App\Ipc\Commands\BrowserGotoCommand;
 use App\Ipc\Commands\BrowserPageCommand;
 use App\Ipc\Commands\BrowserRunCommand;
 use App\Ipc\Commands\BrowserScreenshotCommand;
 use App\Ipc\Commands\BrowserSnapshotCommand;
 use App\Ipc\Commands\BrowserStatusCommand;
+use App\Ipc\Commands\BrowserTypeCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\IpcMessage;
 use App\Services\BrowserDaemonManager;
@@ -263,6 +266,96 @@ final readonly class BrowserCommandHandler
                 $result = $this->browserManager->snapshot(
                     $message->pageId,
                     $message->interactiveOnly ?? false
+                );
+
+                // Send success response
+                $this->sendSuccessResponse($message->getRequestId(), $result);
+            } catch (Throwable $e) {
+                $this->sendErrorResponse(
+                    $message->getRequestId(),
+                    $e->getMessage(),
+                    $this->getErrorCode($e)
+                );
+            }
+        }
+    }
+
+    /**
+     * Handle browser click command
+     */
+    public function handleBrowserClick(IpcMessage $message): void
+    {
+        if ($message instanceof BrowserClickCommand) {
+            try {
+                // Ensure browser daemon is running
+                $this->ensureBrowserRunning();
+
+                // Click element
+                $result = $this->browserManager->click(
+                    $message->pageId,
+                    $message->selector,
+                    $message->ref
+                );
+
+                // Send success response
+                $this->sendSuccessResponse($message->getRequestId(), $result);
+            } catch (Throwable $e) {
+                $this->sendErrorResponse(
+                    $message->getRequestId(),
+                    $e->getMessage(),
+                    $this->getErrorCode($e)
+                );
+            }
+        }
+    }
+
+    /**
+     * Handle browser fill command
+     */
+    public function handleBrowserFill(IpcMessage $message): void
+    {
+        if ($message instanceof BrowserFillCommand) {
+            try {
+                // Ensure browser daemon is running
+                $this->ensureBrowserRunning();
+
+                // Fill input field
+                $result = $this->browserManager->fill(
+                    $message->pageId,
+                    $message->selector,
+                    $message->value,
+                    $message->ref
+                );
+
+                // Send success response
+                $this->sendSuccessResponse($message->getRequestId(), $result);
+            } catch (Throwable $e) {
+                $this->sendErrorResponse(
+                    $message->getRequestId(),
+                    $e->getMessage(),
+                    $this->getErrorCode($e)
+                );
+            }
+        }
+    }
+
+    /**
+     * Handle browser type command
+     */
+    public function handleBrowserType(IpcMessage $message): void
+    {
+        if ($message instanceof BrowserTypeCommand) {
+            try {
+                // Ensure browser daemon is running
+                $this->ensureBrowserRunning();
+
+                // Type text into element
+                $result = $this->browserManager->type(
+                    $message->pageId,
+                    $message->selector,
+                    $message->text,
+                    $message->ref,
+                    $message->delay
                 );
 
                 // Send success response
