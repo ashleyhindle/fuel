@@ -20,7 +20,8 @@ class TasksCommand extends Command
         {--status= : Filter by status (open|done)}
         {--type= : Filter by type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Filter by priority (0-4)}
-        {--labels= : Filter by labels (comma-separated)}';
+        {--labels= : Filter by labels (comma-separated)}
+        {--limit= : Limit number of results}';
 
     protected $description = 'List tasks with optional filters';
 
@@ -57,6 +58,11 @@ class TasksCommand extends Command
 
         // Sort by created_at
         $tasks = $tasks->sortBy('created_at')->values();
+
+        // Apply limit
+        if ($limit = $this->option('limit')) {
+            $tasks = $tasks->take((int) $limit);
+        }
 
         if ($this->option('json')) {
             $this->outputJson($tasks->map(fn (Task $t): array => $t->toArray())->toArray());
