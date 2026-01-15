@@ -1183,6 +1183,25 @@ class ConsumeCommand extends Command
 
             // Bottom border
             $overlayLines[] = '╰'.str_repeat('─', $boxWidth - 2).'╯';
+        } else {
+            // Suggestions empty and not a task-search command - clear any stale suggestion box
+            // Check if input looks like a complete command followed by arguments
+            $hasCompleteCommand = false;
+            foreach (array_keys(self::PALETTE_COMMANDS) as $cmd) {
+                if (str_starts_with($this->commandPaletteInput, $cmd.' ')) {
+                    $hasCompleteCommand = true;
+                    break;
+                }
+            }
+
+            if ($hasCompleteCommand) {
+                // Add empty clearing lines to wipe stale suggestion box
+                $boxStartRow = $inputRow - 1 - $maxSlots - 2;
+                $overlayStartRow = $boxStartRow;
+                for ($i = 0; $i < $maxBoxHeight; $i++) {
+                    $overlayLines[] = ''; // Empty line clears with \033[K
+                }
+            }
         }
 
         // Build input line with block cursor
