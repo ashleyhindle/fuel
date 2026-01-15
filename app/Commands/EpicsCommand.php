@@ -74,6 +74,9 @@ class EpicsCommand extends Command
             $table = new Table;
             $table->render($headers, $rows, $this->output);
 
+            $this->newLine();
+            $this->line("Use 'fuel epic:show <id>' for detailed view.");
+
             return self::SUCCESS;
         } catch (\Exception $exception) {
             return $this->outputError('Failed to fetch epics: '.$exception->getMessage());
