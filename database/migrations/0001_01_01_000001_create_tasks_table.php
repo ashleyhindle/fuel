@@ -26,7 +26,6 @@ return new class extends Migration
             $table->text('consumed_at')->nullable();
             $table->integer('consumed_exit_code')->nullable();
             $table->text('consumed_output')->nullable();
-            $table->integer('consume_pid')->nullable();
             $table->text('last_review_issues')->nullable();
             $table->text('created_at')->nullable();
             $table->text('updated_at')->nullable();

@@ -357,7 +357,6 @@ it('runs a basic command flow', function (): void {
         'consumed' => true,
         'consumed_at' => now()->toIso8601String(),
         'consumed_output' => 'Smoke retry output',
-        'consume_pid' => null,
     ]);
     $runService->logRun($retryTaskId, ['agent' => 'test', 'exit_code' => 1]);
 
