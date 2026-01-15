@@ -112,10 +112,10 @@ When the plan is ready, you will:
 ## Acceptance Criteria
 
 - [x] `fuel plan` (no args) starts immediately - quick to get going
-- [ ] Uses `--model opus-4-5-20250101` (passed explicitly)
-- [ ] Claude cannot write code or execute commands during planning
-- [ ] User can iteratively refine plan through conversation
-- [ ] Epic is created with correct flags (--selfguided when appropriate)
+- [x] Uses `--model opus-4-5-20250101` (passed explicitly)
+- [x] Claude cannot write code or execute commands during planning
+- [x] User can iteratively refine plan through conversation
+- [x] Epic is created with correct flags (--selfguided when appropriate)
 - [ ] Plan file is updated throughout discussion
 - [ ] For pre-planned: tasks are created with proper dependencies
 - [ ] Paused tasks don't appear in `fuel ready` or get picked by `fuel consume`
@@ -127,7 +127,11 @@ When the plan is ready, you will:
 ## Progress Log
 
 <!-- Self-guided task appends progress entries here -->
-- Iteration 1: Created PlanCommand that starts immediately without arguments, with tests
+- Iteration 1: Implemented basic PlanCommand that starts immediately with `fuel plan`, passes --model opus-4-5-20250101, sets up JSON communication mode
+- Iteration 2: Added planning-only constraints with tool whitelisting (Read/Grep/Glob/fuel commands only), improved JSON message handling, added constraint reminders with each user message
+- Iteration 3: Enhanced conversation flow with state tracking, contextual hints, epic creation detection, and better exit handling
+- Iteration 4: Implemented iterative plan refinement with PlanSession service, conversation state tracking (initial→planning→refining→ready_to_create), visual hints to guide users, improved system prompt for collaboration
+- Iteration 5: Added self-guided vs pre-planned mode selection, proper --selfguided flag handling in epic creation, conversation states for mode selection (choosing_mode, mode_selected_*), visual feedback showing which mode was chosen
 
 ## Implementation Notes
 <!-- Tasks: append discoveries, decisions, gotchas here -->
