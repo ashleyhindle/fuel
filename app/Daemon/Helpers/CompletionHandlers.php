@@ -86,7 +86,11 @@ final class CompletionHandlers
 
         if ($completion->isRetryable() && $retryAttempts < $maxAttempts - 1) {
             $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
-            $this->taskService->reopen($taskId);
+            try {
+                $this->taskService->reopen($taskId);
+            } catch (\RuntimeException $e) {
+                $this->logWarning("Failed to reopen task {$taskId} in handleFailure: {$e->getMessage()}");
+            }
         }
     }
 
@@ -105,7 +109,11 @@ final class CompletionHandlers
 
         if ($retryAttempts < $maxAttempts - 1) {
             $this->taskRetryAttempts[$taskId] = $retryAttempts + 1;
-            $this->taskService->reopen($taskId);
+            try {
+                $this->taskService->reopen($taskId);
+            } catch (\RuntimeException $e) {
+                $this->logWarning("Failed to reopen task {$taskId} in handleNetworkError: {$e->getMessage()}");
+            }
         }
     }
 
@@ -135,17 +143,25 @@ final class CompletionHandlers
             'priority' => 1,
         ]);
 
-        $this->taskService->addDependency($taskId, $humanTask->short_id);
-        $this->taskService->reopen($taskId);
+        try {
+            $this->taskService->addDependency($taskId, $humanTask->short_id);
+            $this->taskService->reopen($taskId);
+        } catch (\RuntimeException $e) {
+            $this->logWarning("Failed to add dependency or reopen task {$taskId} in handlePermissionBlocked: {$e->getMessage()}");
+        }
     }
 
     private function fallbackAutoComplete(string $taskId): void
     {
-        $this->taskService->update($taskId, ['add_labels' => ['auto-closed']]);
-        Artisan::call('done', [
-            'ids' => [$taskId],
-            '--reason' => 'Auto-completed by consume (agent exit 0)',
-        ]);
+        try {
+            $this->taskService->update($taskId, ['add_labels' => ['auto-closed']]);
+            Artisan::call('done', [
+                'ids' => [$taskId],
+                '--reason' => 'Auto-completed by consume (agent exit 0)',
+            ]);
+        } catch (\RuntimeException $e) {
+            $this->logWarning("Failed to auto-complete task {$taskId} in fallbackAutoComplete: {$e->getMessage()}");
+        }
     }
 
     public function getRetryAttempts(): array
@@ -161,5 +177,16 @@ final class CompletionHandlers
     public function getPreReviewTaskStatus(): array
     {
         return $this->preReviewTaskStatus;
+    }
+
+    /**
+     * Log warning to .fuel/debug.log.
+     */
+    private function logWarning(string $message): void
+    {
+        $logPath = getcwd().'/.fuel/debug.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $logMessage = sprintf("[%s] WARNING: %s\n", $timestamp, $message);
+        @file_put_contents($logPath, $logMessage, FILE_APPEND);
     }
 }
