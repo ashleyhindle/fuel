@@ -62,3 +62,50 @@ test('plan session tracks plan refinements', function () {
     expect($summary)->toContain('Build a caching system');
     expect($summary)->toContain('TTL and eviction policies');
 });
+
+test('plan command handles self-guided vs pre-planned mode selection', function () {
+    // Test that command recognizes when user chooses self-guided
+    $planCommand = new \App\Commands\PlanCommand;
+
+    // Use reflection to test private methods
+    $reflection = new ReflectionClass($planCommand);
+    $wrapMethod = $reflection->getMethod('wrapUserMessage');
+    $wrapMethod->setAccessible(true);
+
+    // Test self-guided selection
+    $state = 'ready_to_create';
+    $message = $wrapMethod->invokeArgs($planCommand, ['self-guided', &$state]);
+    expect($state)->toBe('mode_selected_selfguided');
+    expect($message['content'][0]['text'])->toContain('--selfguided');
+
+    // Test pre-planned selection
+    $state = 'ready_to_create';
+    $message = $wrapMethod->invokeArgs($planCommand, ['pre-planned', &$state]);
+    expect($state)->toBe('mode_selected_preplanned');
+    expect($message['content'][0]['text'])->toContain('no --selfguided flag');
+});
+
+test('plan session tracks selfguided flag in epic creation', function () {
+    // Test that PlanSession properly tracks when --selfguided is used
+    $session = new PlanSession;
+
+    // Use reflection to test private method
+    $reflection = new ReflectionClass($session);
+    $trackMethod = $reflection->getMethod('trackToolCall');
+    $trackMethod->setAccessible(true);
+
+    // Simulate epic creation with selfguided flag
+    $toolCall = [
+        'Bash' => [
+            'command' => 'fuel epic:add "Test Feature" --selfguided --description="A test epic"'
+        ]
+    ];
+
+    $trackMethod->invokeArgs($session, [$toolCall]);
+
+    $planData = $session->getPlanData();
+    expect($planData)->toHaveKey('selfguided');
+    expect($planData['selfguided'])->toBeTrue();
+    expect($planData)->toHaveKey('epic_title');
+    expect($planData['epic_title'])->toBe('Test Feature');
+});

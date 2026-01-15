@@ -250,8 +250,15 @@ class PlanCommand extends Command
 
                         // Check if this is an epic creation
                         if ($toolName === 'Bash' && isset($params['command'])) {
-                            if (str_contains($params['command'], 'fuel epic:add')) {
+                            $command = $params['command'];
+                            if (str_contains($command, 'fuel epic:add')) {
                                 $newEpicCreated = true;
+                                // Detect if --selfguided flag is present
+                                if (str_contains($command, '--selfguided')) {
+                                    $this->info("→ Creating self-guided epic (iterative execution)");
+                                } else {
+                                    $this->info("→ Creating pre-planned epic (all tasks upfront)");
+                                }
                             }
                         }
                     }
@@ -331,16 +338,26 @@ class PlanCommand extends Command
      */
     private function wrapUserMessage(string $userInput, string &$conversationState): array
     {
+        // Check if user is choosing mode
+        if (stripos($userInput, 'self-guided') !== false) {
+            $conversationState = 'mode_selected_selfguided';
+        } elseif (stripos($userInput, 'pre-planned') !== false) {
+            $conversationState = 'mode_selected_preplanned';
+        }
         // Check if user is ready to create the epic
-        if (stripos($userInput, 'looks good') !== false ||
+        elseif (stripos($userInput, 'looks good') !== false ||
             stripos($userInput, 'let\'s do it') !== false ||
             stripos($userInput, 'create the epic') !== false) {
             $conversationState = 'ready_to_create';
         }
 
         $reminder = '';
-        if ($conversationState === 'ready_to_create') {
-            $reminder = "\n\n[REMINDER: The user seems ready. Create the epic with 'fuel epic:add', write the plan file, and if pre-planned, create the tasks.]";
+        if ($conversationState === 'mode_selected_selfguided') {
+            $reminder = "\n\n[REMINDER: User chose self-guided. Create the epic with 'fuel epic:add \"Title\" --selfguided --description=\"...\"', then write the plan file with acceptance criteria as checkboxes.]";
+        } elseif ($conversationState === 'mode_selected_preplanned') {
+            $reminder = "\n\n[REMINDER: User chose pre-planned. Create the epic with 'fuel epic:add \"Title\" --description=\"...\"' (no --selfguided flag), write the plan file, then create all tasks with dependencies.]";
+        } elseif ($conversationState === 'ready_to_create') {
+            $reminder = "\n\n[REMINDER: The user seems ready. First ask whether this should be self-guided (iterative) or pre-planned (all tasks upfront), then create the epic accordingly.]";
         } else {
             $reminder = "\n\n[REMINDER: You're in planning mode. Focus on discussion and refinement. Only use Read/Grep/Glob for exploration and 'fuel' commands when ready to create the epic.]";
         }
@@ -363,6 +380,13 @@ class PlanCommand extends Command
     {
         if ($epicCreated) {
             $state = 'completed';
+
+            return;
+        }
+
+        // Check if we're asking about self-guided vs pre-planned
+        if (stripos($lastResponse, 'self-guided') !== false && stripos($lastResponse, 'pre-planned') !== false) {
+            $state = 'choosing_mode';
 
             return;
         }
@@ -413,6 +437,9 @@ class PlanCommand extends Command
                 break;
             case 'refining':
                 $this->line($this->wrapInBox("💡 Tip: When the plan looks good, say 'looks good' or 'create the epic' to proceed.", 'dim'));
+                break;
+            case 'choosing_mode':
+                $this->line($this->wrapInBox('🎯 Choose: "self-guided" (iterative execution) or "pre-planned" (all tasks upfront)', 'dim'));
                 break;
             case 'ready_to_create':
                 $this->line($this->wrapInBox('🎯 Claude is ready to create the epic and tasks. Confirm to proceed.', 'dim'));
@@ -473,10 +500,15 @@ KEY BEHAVIORS:
 - Be collaborative: This is a discussion, not a one-way specification
 
 WHEN THE USER APPROVES THE PLAN:
-1. Create an epic with `fuel epic:add "Title" --description="..." [--selfguided if appropriate]`
-2. Write the detailed plan to `.fuel/plans/{title-kebab}-{epic-id}.md`
-3. For pre-planned epics: create tasks with proper dependencies
-4. Tell the user: "Planning complete! Run `fuel consume` to begin execution"
+1. Ask whether this should be self-guided or pre-planned:
+   - Self-guided: Claude implements the feature iteratively, one criterion at a time
+   - Pre-planned: You create all tasks upfront with dependencies
+2. Create the epic with appropriate flag:
+   - Self-guided: `fuel epic:add "Title" --selfguided --description="..."`
+   - Pre-planned: `fuel epic:add "Title" --description="..."`
+3. Write the detailed plan to `.fuel/plans/{title-kebab}-{epic-id}.md`
+4. For pre-planned epics only: create tasks with proper dependencies
+5. Tell the user: "Planning complete! Run `fuel consume` to begin execution"
 
 REMEMBER: This is a collaborative planning session. Take time to understand what the user wants to build and help them think through edge cases and design decisions. The goal is a well-thought-out plan that both of you are confident in.
 PROMPT;
