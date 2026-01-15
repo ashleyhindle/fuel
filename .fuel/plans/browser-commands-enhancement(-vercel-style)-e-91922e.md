@@ -249,6 +249,8 @@ Add sections for:
 - Iteration 9: Implemented browser:wait command for selector/URL/text with timeout support
 - Iteration 10: Added feature test for browser:snapshot command
 - Iteration 11: Added feature tests for browser:click and browser:fill commands
+- Iteration 12: Added feature test for browser:type command with selector, ref, delay, and JSON output support
+- Iteration 13: Added feature test for browser:text command and fixed namespace import bugs in BrowserTextCommand and BrowserHtmlCommand
 
 ## Implementation Notes
 

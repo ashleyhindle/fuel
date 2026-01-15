@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\Commands\BrowserWaitCommand as IpcBrowserWaitCommand;
+use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
