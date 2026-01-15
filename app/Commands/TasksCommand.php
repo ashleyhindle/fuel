@@ -21,6 +21,7 @@ class TasksCommand extends Command
         {--type= : Filter by type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--priority= : Filter by priority (0-4)}
         {--labels= : Filter by labels (comma-separated)}
+        {--agent= : Filter by agent}
         {--selfguided : Filter tasks that went through selfguided loop}
         {--limit= : Limit number of results}';
 
@@ -55,6 +56,10 @@ class TasksCommand extends Command
                 // Task must have at least one of the filter labels
                 return array_intersect($filterLabels, $taskLabels) !== [];
             });
+        }
+
+        if ($agent = $this->option('agent')) {
+            $tasks = $tasks->filter(fn (Task $t): bool => $t->agent === $agent);
         }
 
         if ($this->option('selfguided')) {

@@ -124,6 +124,18 @@ describe('tasks command', function (): void {
             ->assertExitCode(0);
     });
 
+    it('filters by --agent flag', function (): void {
+        $this->taskService->create(['title' => 'Task for agent1', 'agent' => 'agent1']);
+        $this->taskService->create(['title' => 'Task for agent2', 'agent' => 'agent2']);
+        $this->taskService->create(['title' => 'Task with no agent']);
+
+        $this->artisan('tasks', ['--agent' => 'agent1'])
+            ->expectsOutputToContain('Task for agent1')
+            ->doesntExpectOutputToContain('Task for agent2')
+            ->doesntExpectOutputToContain('Task with no agent')
+            ->assertExitCode(0);
+    });
+
     it('filters by multiple labels (comma-separated)', function (): void {
         $this->taskService->create(['title' => 'Task with frontend', 'labels' => ['frontend']]);
         $this->taskService->create(['title' => 'Task with backend', 'labels' => ['backend']]);
