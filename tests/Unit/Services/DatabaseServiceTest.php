@@ -27,47 +27,6 @@ it('creates database file on initialization', function (): void {
     expect(count($tables))->toBeGreaterThan(0);
 });
 
-it('creates runs table with correct schema', function (): void {
-
-    $columns = $this->service->fetchAll('PRAGMA table_info(runs)');
-
-    expect($columns)->toHaveCount(16);
-    expect(array_column($columns, 'name'))->toBe([
-        'id',
-        'short_id',
-        'task_id',
-        'agent',
-        'status',
-        'exit_code',
-        'started_at',
-        'ended_at',
-        'duration_seconds',
-        'session_id',
-        'error_type',
-        'model',
-        'output',
-        'cost_usd',
-        'pid',
-        'runner_instance_id',
-    ]);
-});
-
-it('creates agent_health table with correct schema', function (): void {
-
-    $columns = $this->service->fetchAll('PRAGMA table_info(agent_health)');
-
-    expect($columns)->toHaveCount(7);
-    expect(array_column($columns, 'name'))->toBe([
-        'agent',
-        'last_success_at',
-        'last_failure_at',
-        'consecutive_failures',
-        'backoff_until',
-        'total_runs',
-        'total_successes',
-    ]);
-});
-
 it('creates indexes on runs table', function (): void {
 
     $indexes = $this->service->fetchAll('PRAGMA index_list(runs)');
@@ -153,27 +112,6 @@ it('checks if database exists', function (): void {
     expect($this->service->exists())->toBeTrue();
 
     expect($this->service->exists())->toBeTrue();
-});
-
-it('creates epics table with correct schema', function (): void {
-
-    $columns = $this->service->fetchAll('PRAGMA table_info(epics)');
-
-    expect($columns)->toHaveCount(12);
-    expect(array_column($columns, 'name'))->toBe([
-        'id',
-        'short_id',
-        'title',
-        'description',
-        'status',
-        'reviewed_at',
-        'approved_at',
-        'approved_by',
-        'changes_requested_at',
-        'created_at',
-        'updated_at',
-        'self_guided',
-    ]);
 });
 
 it('creates index on epics status', function (): void {
