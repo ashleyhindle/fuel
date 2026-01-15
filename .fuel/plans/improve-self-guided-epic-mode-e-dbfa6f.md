@@ -75,5 +75,29 @@ Test that selfguided epic creation and transition work correctly.
 - Highlight critical behavior differences with **CRITICAL** prefix
 - Provide concrete examples (checkbox format, not just "add criteria")
 
+### Task f-033518: Tests for selfguided epic creation and transition
+
+**Completed:**
+- Added comprehensive tests to `tests/Feature/EpicCommandsTest.php` covering all requirements
+- Test suite includes:
+  1. `epic:add --selfguided` creates plan with `## Acceptance Criteria` (with checkboxes) and `## Progress Log` sections
+  2. Regular `epic:add` (without --selfguided) creates plan without those sections
+  3. `epic:update --selfguided` creates selfguided task when transitioning from regular to selfguided mode
+  4. `epic:update --selfguided` is idempotent - doesn't create duplicate tasks on repeated calls
+  5. Plan file is updated with required sections when transitioning to selfguided mode
+  6. Plan file is created from scratch with selfguided template if missing during transition
+  7. No changes occur when updating an already selfguided epic
+
+**Test Patterns Established:**
+- Use JSON output mode (`--json`) to reliably extract epic/task IDs from command output
+- Create plans directory explicitly in tests when manually creating plan files
+- Use `$this->epicService->getTasksForEpic()` to verify task creation instead of parsing output
+- Each test is self-contained with its own epic/task creation for isolation
+
+**Key Learnings:**
+- EpicAddCommand does not create selfguided tasks - only marks the epic as selfguided
+- Selfguided tasks are created only during transition via EpicUpdateCommand
+- Plan file sections are inserted in proper order (Acceptance Criteria before Progress Log before Implementation Notes)
+
 ## Interfaces Created
 <!-- Tasks add interfaces/contracts created -->

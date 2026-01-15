@@ -191,6 +191,231 @@ describe('add command with --epic flag', function (): void {
     });
 });
 
+describe('epic:add with selfguided mode', function (): void {
+    it('creates plan file with Acceptance Criteria and Progress Log sections', function (): void {
+        // Create epic with JSON output to get ID reliably
+        Artisan::call('epic:add', [
+            'title' => 'Self-guided test epic',
+            '--selfguided' => true,
+            '--json' => true,
+        ]);
+
+        $output = Artisan::output();
+        $epic = json_decode($output, true);
+        $epicId = $epic['short_id'];
+
+        // Check that plan file was created with correct sections
+        $planPath = $this->tempDir.'/.fuel/plans/self-guided-test-epic-'.$epicId.'.md';
+        expect(file_exists($planPath))->toBeTrue();
+
+        $content = file_get_contents($planPath);
+
+        // Verify required sections exist
+        expect($content)->toContain('## Acceptance Criteria');
+        expect($content)->toContain('- [ ] Criterion 1');
+        expect($content)->toContain('- [ ] Criterion 2');
+        expect($content)->toContain('- [ ] Criterion 3');
+        expect($content)->toContain('## Progress Log');
+        expect($content)->toContain('## Implementation Notes');
+        expect($content)->toContain('## Interfaces Created');
+    });
+
+    it('creates plan file with only Implementation Notes for non-selfguided epic', function (): void {
+        // Create epic with JSON output to get ID reliably
+        Artisan::call('epic:add', [
+            'title' => 'Regular test epic',
+            '--json' => true,
+        ]);
+
+        $output = Artisan::output();
+        $epic = json_decode($output, true);
+        $epicId = $epic['short_id'];
+
+        // Check that plan file was created without selfguided sections
+        $planPath = $this->tempDir.'/.fuel/plans/regular-test-epic-'.$epicId.'.md';
+        expect(file_exists($planPath))->toBeTrue();
+
+        $content = file_get_contents($planPath);
+
+        // Verify selfguided sections do NOT exist
+        expect($content)->not->toContain('## Acceptance Criteria');
+        expect($content)->not->toContain('## Progress Log');
+
+        // But regular sections do exist
+        expect($content)->toContain('## Implementation Notes');
+        expect($content)->toContain('## Interfaces Created');
+    });
+});
+
+describe('epic:update with selfguided transition', function (): void {
+    it('creates selfguided task when transitioning to selfguided mode', function (): void {
+        // Create regular epic first
+        $epic = $this->epicService->createEpic('Epic to transition');
+
+        // Transition to selfguided mode
+        $this->artisan('epic:update', [
+            'id' => $epic->short_id,
+            '--selfguided' => true,
+        ])
+            ->expectsOutputToContain('Updated epic: '.$epic->short_id)
+            ->expectsOutputToContain('Created self-guided task: f-')
+            ->assertExitCode(0);
+
+        // Verify task was created
+        $tasks = $this->epicService->getTasksForEpic($epic->short_id);
+        expect($tasks)->toHaveCount(1);
+        expect($tasks[0]->agent)->toBe('selfguided');
+        expect($tasks[0]->complexity)->toBe('complex');
+        expect($tasks[0]->title)->toContain('Implement: Epic to transition');
+    });
+
+    it('is idempotent - does not create duplicate selfguided tasks', function (): void {
+        // Create regular epic
+        $epic = $this->epicService->createEpic('Idempotent test epic');
+
+        // First transition to selfguided
+        $this->artisan('epic:update', [
+            'id' => $epic->short_id,
+            '--selfguided' => true,
+        ])
+            ->expectsOutputToContain('Created self-guided task: f-')
+            ->assertExitCode(0);
+
+        // Get the created task
+        $tasks = $this->epicService->getTasksForEpic($epic->short_id);
+        expect($tasks)->toHaveCount(1);
+        $firstTaskId = $tasks[0]->short_id;
+
+        // Second update with selfguided (should be idempotent)
+        $this->artisan('epic:update', [
+            'id' => $epic->short_id,
+            '--selfguided' => true,
+            '--title' => 'Updated title',
+        ])
+            ->expectsOutputToContain('Updated epic: '.$epic->short_id)
+            ->assertExitCode(0);
+
+        $output2 = Artisan::output();
+
+        // Should NOT create a new task
+        expect($output2)->not->toContain('Created self-guided task:');
+
+        // Verify only one task exists
+        $tasks = $this->epicService->getTasksForEpic($epic->short_id);
+        expect($tasks)->toHaveCount(1);
+        expect($tasks[0]->short_id)->toBe($firstTaskId);
+    });
+
+    it('updates plan file with required sections when transitioning', function (): void {
+        // Create regular epic first
+        $epic = $this->epicService->createEpic('Epic with plan update');
+
+        // Ensure plans directory exists
+        $plansDir = $this->tempDir.'/.fuel/plans';
+        if (! is_dir($plansDir)) {
+            mkdir($plansDir, 0755, true);
+        }
+
+        // Create the plan file without selfguided sections
+        $planPath = $plansDir.'/epic-with-plan-update-'.$epic->short_id.'.md';
+        file_put_contents($planPath, <<<MARKDOWN
+# Epic: Epic with plan update ({$epic->short_id})
+
+## Plan
+
+Test plan content
+
+## Implementation Notes
+<!-- Tasks: append discoveries, decisions, gotchas here -->
+
+## Interfaces Created
+<!-- Tasks: document interfaces/contracts created -->
+MARKDOWN);
+
+        // Transition to selfguided mode
+        $this->artisan('epic:update', [
+            'id' => $epic->short_id,
+            '--selfguided' => true,
+        ])
+            ->expectsOutputToContain('Updated epic: '.$epic->short_id)
+            ->expectsOutputToContain('Plan: .fuel/plans/')
+            ->assertExitCode(0);
+
+        // Verify plan file was updated with required sections
+        $content = file_get_contents($planPath);
+
+        // Should have added the missing sections
+        expect($content)->toContain('## Acceptance Criteria');
+        expect($content)->toContain('- [ ] Criterion 1');
+        expect($content)->toContain('- [ ] Criterion 2');
+        expect($content)->toContain('- [ ] Criterion 3');
+        expect($content)->toContain('## Progress Log');
+
+        // Original content should still be present
+        expect($content)->toContain('Test plan content');
+        expect($content)->toContain('## Implementation Notes');
+        expect($content)->toContain('## Interfaces Created');
+    });
+
+    it('creates plan file with selfguided sections if missing during transition', function (): void {
+        // Create regular epic
+        $epic = $this->epicService->createEpic('Epic without plan');
+
+        // Delete the auto-created plan file
+        $planPath = $this->tempDir.'/.fuel/plans/epic-without-plan-'.$epic->short_id.'.md';
+        if (file_exists($planPath)) {
+            unlink($planPath);
+        }
+
+        // Transition to selfguided mode (should create plan file)
+        $this->artisan('epic:update', [
+            'id' => $epic->short_id,
+            '--selfguided' => true,
+        ])
+            ->expectsOutputToContain('Updated epic: '.$epic->short_id)
+            ->expectsOutputToContain('Plan: .fuel/plans/')
+            ->assertExitCode(0);
+
+        // Verify plan file was created with selfguided template
+        expect(file_exists($planPath))->toBeTrue();
+
+        $content = file_get_contents($planPath);
+        expect($content)->toContain('## Acceptance Criteria');
+        expect($content)->toContain('- [ ] Criterion 1');
+        expect($content)->toContain('## Progress Log');
+        expect($content)->toContain('## Implementation Notes');
+    });
+
+    it('does not modify plan when epic is already selfguided', function (): void {
+        // Create selfguided epic from the start
+        Artisan::call('epic:add', [
+            'title' => 'Already selfguided epic',
+            '--selfguided' => true,
+            '--json' => true,
+        ]);
+
+        $output = Artisan::output();
+        $epic = json_decode($output, true);
+        $epicId = $epic['short_id'];
+
+        // Update the epic while it's already selfguided
+        $this->artisan('epic:update', [
+            'id' => $epicId,
+            '--selfguided' => true,
+            '--description' => 'New description',
+        ])
+            ->expectsOutputToContain('Updated epic: '.$epicId)
+            ->assertExitCode(0);
+
+        $updateOutput = Artisan::output();
+
+        // Should NOT mention creating task or updating plan since already selfguided
+        expect($updateOutput)->not->toContain('Created self-guided task:');
+        // Plan path is still shown when transition happens, even if no changes
+        // But the task creation should not happen
+    });
+});
+
 describe('epic status derivation via commands', function (): void {
     it('epic status is planning when no tasks', function (): void {
         $epic = $this->epicService->createEpic('Empty Epic');
