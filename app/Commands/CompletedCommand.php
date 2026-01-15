@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
+use App\Services\RunService;
 use App\Services\TaskService;
 use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
@@ -24,7 +25,7 @@ class CompletedCommand extends Command
 
     protected $description = 'Show a list of recently completed tasks';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, RunService $runService): int
     {
         $limit = (int) $this->option('limit');
         if ($limit < 1) {
@@ -53,22 +54,32 @@ class CompletedCommand extends Command
 
             $this->info(sprintf('Completed tasks (%d):', $tasks->count()));
 
-            $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority', 'Commit'];
+            $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority', 'Agent', 'Commit'];
 
             // Calculate max title width based on terminal width
-            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - Commit (10) - borders/padding (20)
+            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - Agent (12) - Commit (10) - borders/padding (20)
             $terminalWidth = $this->getTerminalWidth();
-            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 10 + 20; // ID, Completed, Type, Priority, Commit columns + borders
+            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 12 + 10 + 20; // ID, Completed, Type, Priority, Agent, Commit columns + borders
             $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth); // Minimum 20 chars for title
 
-            $rows = $tasks->map(fn (Task $t): array => [
-                $t->short_id,
-                $this->truncate($t->title, $maxTitleWidth),
-                $this->formatDate($t->updated_at),
-                $t->type ?? 'task',
-                $t->priority ?? 2,
-                $t->commit_hash ?? '',
-            ])->toArray();
+            $rows = $tasks->map(function (Task $t) use ($runService, $maxTitleWidth): array {
+                $latestRun = $runService->getLatestRun($t->short_id);
+                $agent = $latestRun?->agent ?? '';
+                // Shorten agent name if too long
+                if (strlen($agent) > 10) {
+                    $agent = substr($agent, 0, 9).'…';
+                }
+
+                return [
+                    $t->short_id,
+                    $this->truncate($t->title, $maxTitleWidth),
+                    $this->formatDate($t->updated_at),
+                    $t->type ?? 'task',
+                    $t->priority ?? 2,
+                    $agent,
+                    $t->commit_hash ?? '',
+                ];
+            })->toArray();
 
             $table = new Table;
             $table->render($headers, $rows, $this->output);
