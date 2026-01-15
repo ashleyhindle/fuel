@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TaskStatus;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
@@ -84,6 +85,19 @@ describe('ready command', function (): void {
         $this->artisan('ready', [])
             ->expectsOutputToContain('Open task')
             ->doesntExpectOutputToContain('Closed task')
+            ->assertExitCode(0);
+    });
+
+    it('excludes paused tasks', function (): void {
+        $normalTask = $this->taskService->create(['title' => 'Normal task']);
+        $pausedTask = $this->taskService->create(['title' => 'Paused task']);
+
+        // Update the task to paused status
+        $this->taskService->update($pausedTask->short_id, ['status' => TaskStatus::Paused->value]);
+
+        $this->artisan('ready', [])
+            ->expectsOutputToContain('Normal task')
+            ->doesntExpectOutputToContain('Paused task')
             ->assertExitCode(0);
     });
 

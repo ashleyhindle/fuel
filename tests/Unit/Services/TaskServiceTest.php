@@ -509,6 +509,21 @@ it('excludes tasks with needs-human label from ready()', function (): void {
     expect($ready->pluck('short_id'))->not->toContain($multiLabelTask->short_id);
 });
 
+it('excludes paused tasks from ready()', function (): void {
+    $normalTask = $this->taskService->create(['title' => 'Normal task']);
+    $pausedTask = $this->taskService->create(['title' => 'Paused task']);
+
+    // Update the task to paused status
+    $this->taskService->update($pausedTask->short_id, ['status' => TaskStatus::Paused->value]);
+
+    $ready = $this->taskService->ready();
+
+    // Only the normal task should be ready
+    expect($ready)->toHaveCount(1);
+    expect($ready->first()->short_id)->toBe($normalTask->short_id);
+    expect($ready->pluck('short_id'))->not->toContain($pausedTask->short_id);
+});
+
 // =============================================================================
 // blocked() Method Tests
 // =============================================================================

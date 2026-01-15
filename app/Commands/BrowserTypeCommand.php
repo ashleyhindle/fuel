@@ -19,8 +19,8 @@ class BrowserTypeCommand extends Command
 
     protected $signature = 'browser:type
         {page_id : Page ID to type on}
-        {selector? : CSS selector of element to type into}
         {text : Text to type}
+        {selector? : CSS selector of element to type into}
         {--ref= : Element ref from snapshot (e.g. @e2)}
         {--delay=0 : Delay between keystrokes in milliseconds}
         {--json : Output as JSON}';

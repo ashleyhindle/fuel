@@ -12,4 +12,5 @@ enum TaskStatus: string
     case Done = 'done';
     case Cancelled = 'cancelled';
     case Someday = 'someday';
+    case Paused = 'paused';
 }

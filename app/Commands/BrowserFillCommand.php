@@ -19,8 +19,8 @@ class BrowserFillCommand extends Command
 
     protected $signature = 'browser:fill
         {page_id : Page ID to fill input on}
-        {selector? : CSS selector of input to fill}
         {value : Value to fill into the input}
+        {selector? : CSS selector of input to fill}
         {--ref= : Element ref from snapshot (e.g. @e2)}
         {--json : Output as JSON}';
 
