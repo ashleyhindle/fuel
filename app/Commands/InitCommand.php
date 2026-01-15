@@ -145,7 +145,7 @@ REALITY;
             $this->info('Created starter task: '.$task->short_id);
 
             $this->newLine();
-            $this->line('Run your favourite agent and ask it to "Consume the fuel"');
+            $this->line("Configure '.fuel/config.yaml' then run 'fuel consume'");
         }
 
         return self::SUCCESS;

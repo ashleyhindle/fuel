@@ -227,7 +227,7 @@ describe('init command', function (): void {
 
     it('shows "run your favourite agent" message only on fresh install', function (): void {
         $this->artisan('init', [])
-            ->expectsOutput('Run your favourite agent and ask it to "Consume the fuel"')
+            ->expectsOutput("Configure '.fuel/config.yaml' then run 'fuel consume'")
             ->assertExitCode(0);
     });
 
@@ -246,7 +246,7 @@ describe('init command', function (): void {
 
         // Run init again - should not show the message
         $this->artisan('init', [])
-            ->doesntExpectOutput('Run your favourite agent and ask it to "Consume the fuel"')
+            ->doesntExpectOutput("Configure '.fuel/config.yaml' then run 'fuel consume'")
             ->assertExitCode(0);
     });
 
