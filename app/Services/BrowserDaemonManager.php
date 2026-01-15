@@ -460,6 +460,17 @@ class BrowserDaemonManager
     }
 
     /**
+     * Take an accessibility snapshot of the page
+     */
+    public function snapshot(string $pageId, bool $interactiveOnly = false): array
+    {
+        return $this->sendRequest('snapshot', [
+            'pageId' => $pageId,
+            'interactiveOnly' => $interactiveOnly,
+        ]);
+    }
+
+    /**
      * Close a browser context and all its pages
      */
     public function closeContext(string $contextId): array

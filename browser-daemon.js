@@ -69,6 +69,7 @@ const CONTEXT_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 const contexts = new Map(); // contextId -> { context, session, lastActivity }
 const pages = new Map();    // pageId -> { page, contextId }
+const pageSnapshots = new Map(); // pageId -> { refMap: Map<string, node>, snapshot: object }
 
 function touchContext(contextId) {
   const entry = contexts.get(contextId);
@@ -196,6 +197,9 @@ async function handle(method, params) {
       touchContext(entry.contextId);
       await entry.page.goto(url, { waitUntil, timeout: timeoutMs });
 
+      // Clear any stored snapshot for this page since navigation happened
+      pageSnapshots.delete(pageId);
+
       const result = { url: entry.page.url() };
       if (returnHtml) {
         result.html = await entry.page.content();
@@ -226,6 +230,44 @@ async function handle(method, params) {
       touchContext(entry.contextId);
       await entry.page.screenshot({ path: outPath, fullPage: !!params?.fullPage });
       return { ok: true, result: { path: outPath } };
+    }
+
+    case "snapshot": {
+      const pageId = params?.pageId;
+      const interactiveOnly = params?.interactiveOnly || false;
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      // Get accessibility tree
+      const snapshot = await entry.page.accessibility.snapshot({
+        interestingOnly: interactiveOnly
+      });
+
+      // Assign refs recursively and build flat ref map
+      let refCounter = 0;
+      const refMap = new Map();
+
+      function assignRefs(node) {
+        const ref = `@e${++refCounter}`;
+        node.ref = ref;
+        refMap.set(ref, node);
+        if (node.children) {
+          node.children.forEach(assignRefs);
+        }
+        return node;
+      }
+
+      const snapshotWithRefs = assignRefs(snapshot);
+
+      // Store snapshot and ref map for this page
+      pageSnapshots.set(pageId, {
+        refMap,
+        snapshot: snapshotWithRefs
+      });
+
+      return { ok: true, result: { snapshot: snapshotWithRefs } };
     }
 
     case "closeContext": {

@@ -207,6 +207,7 @@ final class DaemonLoop
             onBrowserGoto: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserGoto($message),
             onBrowserRun: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserRun($message),
             onBrowserScreenshot: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserScreenshot($message),
+            onBrowserSnapshot: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserSnapshot($message),
             onBrowserClose: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserClose($message),
             onBrowserStatus: fn (IpcMessage $message) => $this->browserCommandHandler->handleBrowserStatus($message),
             onRequestDoneTasks: fn (string $clientId) => $this->commandHandlers->handleRequestDoneTasks($clientId, $this->ipcServer),

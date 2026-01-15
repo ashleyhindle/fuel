@@ -48,6 +48,7 @@ final readonly class IpcCommandDispatcher
      * @param  callable  $onBrowserGoto  Callback when browser goto command is received
      * @param  callable  $onBrowserRun  Callback when browser run command is received
      * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
+     * @param  callable  $onBrowserSnapshot  Callback when browser snapshot command is received
      * @param  callable  $onBrowserClose  Callback when browser close command is received
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
      * @param  callable  $onRequestDoneTasks  Callback when done tasks are requested
@@ -70,6 +71,7 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserGoto,
         callable $onBrowserRun,
         callable $onBrowserScreenshot,
+        callable $onBrowserSnapshot,
         callable $onBrowserClose,
         callable $onBrowserStatus,
         callable $onRequestDoneTasks,
@@ -128,6 +130,7 @@ final readonly class IpcCommandDispatcher
      * @param  callable  $onBrowserGoto  Callback when browser goto command is received
      * @param  callable  $onBrowserRun  Callback when browser run command is received
      * @param  callable  $onBrowserScreenshot  Callback when browser screenshot command is received
+     * @param  callable  $onBrowserSnapshot  Callback when browser snapshot command is received
      * @param  callable  $onBrowserClose  Callback when browser close command is received
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
      * @param  callable  $onRequestDoneTasks  Callback when done tasks are requested
@@ -152,6 +155,7 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserGoto,
         callable $onBrowserRun,
         callable $onBrowserScreenshot,
+        callable $onBrowserSnapshot,
         callable $onBrowserClose,
         callable $onBrowserStatus,
         callable $onRequestDoneTasks,
@@ -186,6 +190,7 @@ final readonly class IpcCommandDispatcher
             'browser_goto' => $onBrowserGoto($message),
             'browser_run' => $onBrowserRun($message),
             'browser_screenshot' => $onBrowserScreenshot($message),
+            'browser_snapshot' => $onBrowserSnapshot($message),
             'browser_close' => $onBrowserClose($message),
             'browser_status' => $onBrowserStatus($message),
             // Lazy-loaded data requests (send to requesting client only)

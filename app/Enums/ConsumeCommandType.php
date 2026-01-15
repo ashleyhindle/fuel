@@ -33,6 +33,7 @@ enum ConsumeCommandType: string
     case BrowserGoto = 'browser_goto';
     case BrowserRun = 'browser_run';
     case BrowserScreenshot = 'browser_screenshot';
+    case BrowserSnapshot = 'browser_snapshot';
     case BrowserClose = 'browser_close';
     case BrowserStatus = 'browser_status';
 
