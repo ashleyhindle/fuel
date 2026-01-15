@@ -251,12 +251,12 @@ class TaskService
             $updates['updated_at'] = $data['updated_at'];
         }
 
-        $playCompletionSound = $this->shouldPlayCompletionSound($taskModel, $updates);
+        $shouldNotifyCompletion = $this->shouldPlayCompletionSound($taskModel, $updates);
 
         $taskModel->update($updates);
 
-        if ($playCompletionSound) {
-            $this->playCompletionSound();
+        if ($shouldNotifyCompletion) {
+            $this->notifyTaskCompletion($taskModel);
         }
 
         return $taskModel->fresh();
@@ -337,21 +337,33 @@ class TaskService
     }
 
     /**
-     * Play a completion sound for a newly completed task.
+     * Play a completion sound and send desktop notification for a newly completed task.
      */
-    private function playCompletionSound(): void
+    private function notifyTaskCompletion(Task $task): void
     {
         if (function_exists('app') && app()->environment('testing')) {
             return;
         }
 
+        // Build a short useful notification message
+        $title = $task->title;
+        // Truncate if too long for notification
+        if (mb_strlen($title) > 50) {
+            $title = mb_substr($title, 0, 47).'...';
+        }
+        $message = sprintf('✓ %s (%s)', $title, $task->short_id);
+
         if (function_exists('app')) {
-            app(NotificationService::class)->playSound(self::COMPLETION_SOUND);
+            $notificationService = app(NotificationService::class);
+            $notificationService->playSound(self::COMPLETION_SOUND);
+            $notificationService->desktopNotify($message, 'Fuel: Task Complete');
 
             return;
         }
 
-        (new NotificationService)->playSound(self::COMPLETION_SOUND);
+        $notificationService = new NotificationService;
+        $notificationService->playSound(self::COMPLETION_SOUND);
+        $notificationService->desktopNotify($message, 'Fuel: Task Complete');
     }
 
     /**

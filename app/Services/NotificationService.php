@@ -70,6 +70,65 @@ class NotificationService
     {
         $this->playSound($sound, $volume);
         $this->notify($message, $title);
+        $this->desktopNotify($message, $title);
+    }
+
+    /**
+     * Send a native desktop notification.
+     * Uses terminal-notifier on macOS, notify-send on Linux.
+     * Works in headless/daemon scenarios where OSC escape sequences don't work.
+     *
+     * @param  string  $message  The notification message
+     * @param  string|null  $title  Optional title (defaults to 'Fuel')
+     */
+    public function desktopNotify(string $message, ?string $title = null): void
+    {
+        $title ??= 'Fuel';
+
+        if ($this->isMacOS()) {
+            $this->sendMacOSNotification($message, $title);
+        } elseif ($this->isLinux()) {
+            $this->sendLinuxNotification($message, $title);
+        }
+    }
+
+    /**
+     * Send notification on macOS using terminal-notifier or osascript.
+     */
+    private function sendMacOSNotification(string $message, string $title): void
+    {
+        // Try terminal-notifier first (better experience, needs to be installed)
+        if ($this->commandExists('terminal-notifier')) {
+            exec(sprintf(
+                'terminal-notifier -title %s -message %s -group fuel > /dev/null 2>&1 &',
+                escapeshellarg($title),
+                escapeshellarg($message)
+            ));
+
+            return;
+        }
+
+        // Fall back to osascript (built-in, less features)
+        exec(sprintf(
+            'osascript -e %s > /dev/null 2>&1 &',
+            escapeshellarg(sprintf('display notification "%s" with title "%s"', addslashes($message), addslashes($title)))
+        ));
+    }
+
+    /**
+     * Send notification on Linux using notify-send.
+     */
+    private function sendLinuxNotification(string $message, string $title): void
+    {
+        if (! $this->commandExists('notify-send')) {
+            return;
+        }
+
+        exec(sprintf(
+            'notify-send %s %s > /dev/null 2>&1 &',
+            escapeshellarg($title),
+            escapeshellarg($message)
+        ));
     }
 
     /**
