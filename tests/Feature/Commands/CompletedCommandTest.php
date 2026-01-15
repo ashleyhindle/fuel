@@ -186,4 +186,23 @@ describe('completed command', function (): void {
         expect($output)->toContain('feature');
         expect($output)->toContain('1');
     });
+
+    it('truncates long task titles to fit terminal width', function (): void {
+        $longTitle = 'This is a very long task title that should be truncated to fit within the terminal width constraints';
+        $task = $this->taskService->create(['title' => $longTitle]);
+        $this->taskService->done($task->short_id);
+
+        // Set narrow terminal width
+        putenv('COLUMNS=80');
+
+        Artisan::call('completed', []);
+        $output = Artisan::output();
+
+        // Title should be truncated with ellipsis
+        expect($output)->toContain('...');
+        expect($output)->toContain($task->short_id);
+
+        // Clean up
+        putenv('COLUMNS');
+    });
 });

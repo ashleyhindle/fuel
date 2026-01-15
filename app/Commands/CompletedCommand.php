@@ -13,6 +13,7 @@ use LaravelZero\Framework\Commands\Command;
 
 class CompletedCommand extends Command
 {
+    use Concerns\RendersBoardColumns;
     use HandlesJsonOutput;
 
     protected $signature = 'completed
@@ -47,9 +48,16 @@ class CompletedCommand extends Command
             $this->info(sprintf('Completed tasks (%d):', $tasks->count()));
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority'];
+
+            // Calculate max title width based on terminal width
+            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - borders/padding (18)
+            $terminalWidth = $this->getTerminalWidth();
+            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 18; // ID, Completed, Type, Priority columns + borders
+            $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth); // Minimum 20 chars for title
+
             $rows = $tasks->map(fn (Task $t): array => [
                 $t->short_id,
-                $t->title,
+                $this->truncate($t->title, $maxTitleWidth),
                 $this->formatDate($t->updated_at),
                 $t->type ?? 'task',
                 $t->priority ?? 2,
