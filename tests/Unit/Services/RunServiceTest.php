@@ -518,3 +518,28 @@ it('includes duration_seconds in getLatestRun response', function (): void {
     expect($latestRun)->toBeInstanceOf(Run::class);
     expect($latestRun->duration_seconds)->toBe(420); // 7 minutes = 420 seconds
 });
+
+it('finds a run by run_id', function (): void {
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+        'started_at' => '2026-01-07T10:00:00+00:00',
+    ]);
+
+    $runs = $this->runService->getRuns($this->taskId);
+    $runId = $runs[0]->run_id;
+
+    $foundRun = $this->runService->findRun($runId);
+
+    expect($foundRun)->not->toBeNull();
+    expect($foundRun)->toBeInstanceOf(Run::class);
+    expect($foundRun->run_id)->toBe($runId);
+    expect($foundRun->agent)->toBe('test-agent');
+    expect($foundRun->model)->toBe('test-model');
+});
+
+it('returns null when finding non-existent run', function (): void {
+    $foundRun = $this->runService->findRun('run-nonexist');
+
+    expect($foundRun)->toBeNull();
+});

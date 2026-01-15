@@ -331,4 +331,28 @@ describe('show command', function (): void {
         expect($output)->toContain('--tail');
         expect($output)->toContain('Continuously tail the live output');
     });
+
+    it('routes run- prefix to run:show command', function (): void {
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'model' => 'test-model',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'ended_at' => '2026-01-07T10:05:00+00:00',
+            'exit_code' => 0,
+        ]);
+
+        $runs = $runService->getRuns($task->short_id);
+        $runId = $runs[0]->run_id;
+
+        // Call show command with run- ID, should route to run:show
+        Artisan::call('show', ['id' => $runId]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Run: '.$runId);
+        expect($output)->toContain('test-agent');
+        expect($output)->toContain('test-model');
+    });
 });

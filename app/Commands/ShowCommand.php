@@ -64,6 +64,14 @@ class ShowCommand extends Command
             ]);
         }
 
+        if (str_starts_with($id, 'run-')) {
+            return $this->call('run:show', [
+                'id' => $id,
+                '--cwd' => $this->option('cwd'),
+                '--json' => $this->option('json'),
+            ]);
+        }
+
         try {
             $task = $taskService->find($id);
 
@@ -150,16 +158,10 @@ class ShowCommand extends Command
                 }
 
                 // Consume command fields
-                if (! empty($task->consumed) || isset($task->consume_pid)) {
+                if (! empty($task->consumed)) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Consume Info ──</>');
-                    if (! empty($task->consumed)) {
-                        $this->line('  Consumed: Yes');
-                    }
-
-                    if (isset($task->consume_pid) && $task->consume_pid !== null) {
-                        $this->line('  PID: '.$task->consume_pid);
-                    }
+                    $this->line('  Consumed: Yes');
 
                     if (isset($task->consumed_at)) {
                         $this->line('  Consumed at: '.$task->consumed_at);
@@ -236,9 +238,10 @@ class ShowCommand extends Command
                             if ($this->option('tail') && $liveOutput !== null) {
                                 if ($stdoutPath !== null) {
                                     $this->line('    <fg=gray>Path: '.$stdoutPath.'</>');
-                                    // Check if process is still running
-                                    if ($task->consume_pid !== null && ! ProcessManager::isProcessAlive($task->consume_pid)) {
-                                        $this->line('    <fg=red>(agent not running - PID '.$task->consume_pid.' not found)</>');
+                                    // Check if process is still running using run's pid
+                                    $runPid = $run->pid ?? null;
+                                    if ($runPid !== null && ! ProcessManager::isProcessAlive($runPid)) {
+                                        $this->line('    <fg=red>(agent not running - PID '.$runPid.' not found)</>');
                                         $this->outputChunk($liveOutput, $this->option('raw'));
                                     } else {
                                         $this->line('    <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
@@ -268,9 +271,11 @@ class ShowCommand extends Command
 
                     if ($this->option('tail')) {
                         if ($stdoutPath !== null) {
-                            // Check if process is still running
-                            if ($task->consume_pid !== null && ! ProcessManager::isProcessAlive($task->consume_pid)) {
-                                $this->line('  <fg=red>(agent not running - PID '.$task->consume_pid.' not found)</>');
+                            // Check if process is still running using latest run's pid
+                            $latestRun = $runService->getLatestRun($task->short_id);
+                            $latestPid = $latestRun?->pid;
+                            if ($latestPid !== null && ! ProcessManager::isProcessAlive($latestPid)) {
+                                $this->line('  <fg=red>(agent not running - PID '.$latestPid.' not found)</>');
                                 $this->outputChunk($liveOutput, $this->option('raw'));
                             } else {
                                 $this->line('  <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');

@@ -149,6 +149,16 @@ class RunService
     }
 
     /**
+     * Find a run by its run_id (short_id).
+     *
+     * @param  string  $runId  Run ID (e.g., 'run-abc123')
+     */
+    public function findRun(string $runId): ?Run
+    {
+        return Run::where('short_id', $runId)->first();
+    }
+
+    /**
      * Update a specific run by its short_id.
      *
      * @param  string  $runId  Run short_id (e.g., 'run-abc123')
