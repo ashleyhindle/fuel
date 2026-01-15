@@ -233,6 +233,18 @@ The script will:
 
 After deployment, configure the custom domain `addfuel.dev` in the Cloudflare Dashboard.
 
+## Development & Testing
+
+### Test Commands
+
+Fuel includes test commands for validating functionality:
+
+```bash
+fuel test:selfguided          # Run self-guided test command
+```
+
+**test:selfguided** - A demonstration command for self-guided execution mode. Generates a random number and provides different output based on the value. Used primarily for testing the self-guided epic execution flow.
+
 ## License
 
 MIT
