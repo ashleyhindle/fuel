@@ -270,6 +270,133 @@ async function handle(method, params) {
       return { ok: true, result: { snapshot: snapshotWithRefs } };
     }
 
+    case "click": {
+      const pageId = params?.pageId;
+      const selector = params?.selector;
+      const ref = params?.ref;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      let targetSelector = selector;
+
+      // If ref is provided, resolve it from stored snapshot
+      if (ref) {
+        const snapshotData = pageSnapshots.get(pageId);
+        if (!snapshotData) {
+          throw Object.assign(new Error(`No snapshot found for page ${pageId}. Run browser:snapshot first.`), { code: "NO_SNAPSHOT" });
+        }
+
+        const node = snapshotData.refMap.get(ref);
+        if (!node) {
+          throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
+        }
+
+        // Use role and name to locate the element
+        if (node.role && node.name) {
+          await entry.page.getByRole(node.role, { name: node.name, exact: true }).click();
+        } else {
+          throw Object.assign(new Error(`Cannot click ref ${ref}: node lacks role/name for location`), { code: "UNCLICKABLE_REF" });
+        }
+      } else if (targetSelector) {
+        // Click by CSS selector
+        await entry.page.click(targetSelector);
+      } else {
+        throw Object.assign(new Error(`Must provide either selector or ref`), { code: "BAD_PARAMS" });
+      }
+
+      return { ok: true, result: { clicked: true } };
+    }
+
+    case "fill": {
+      const pageId = params?.pageId;
+      const selector = params?.selector;
+      const value = params?.value;
+      const ref = params?.ref;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      if (value === undefined) {
+        throw Object.assign(new Error(`Must provide value parameter`), { code: "BAD_PARAMS" });
+      }
+
+      // If ref is provided, resolve it from stored snapshot
+      if (ref) {
+        const snapshotData = pageSnapshots.get(pageId);
+        if (!snapshotData) {
+          throw Object.assign(new Error(`No snapshot found for page ${pageId}. Run browser:snapshot first.`), { code: "NO_SNAPSHOT" });
+        }
+
+        const node = snapshotData.refMap.get(ref);
+        if (!node) {
+          throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
+        }
+
+        // Use role and name to locate the element
+        if (node.role && node.name) {
+          await entry.page.getByRole(node.role, { name: node.name, exact: true }).fill(value);
+        } else {
+          throw Object.assign(new Error(`Cannot fill ref ${ref}: node lacks role/name for location`), { code: "UNFILLABLE_REF" });
+        }
+      } else if (selector) {
+        // Fill by CSS selector
+        await entry.page.fill(selector, value);
+      } else {
+        throw Object.assign(new Error(`Must provide either selector or ref`), { code: "BAD_PARAMS" });
+      }
+
+      return { ok: true, result: { filled: true } };
+    }
+
+    case "type": {
+      const pageId = params?.pageId;
+      const selector = params?.selector;
+      const text = params?.text;
+      const ref = params?.ref;
+      const delay = params?.delay || 0;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      if (text === undefined) {
+        throw Object.assign(new Error(`Must provide text parameter`), { code: "BAD_PARAMS" });
+      }
+
+      // If ref is provided, resolve it from stored snapshot
+      if (ref) {
+        const snapshotData = pageSnapshots.get(pageId);
+        if (!snapshotData) {
+          throw Object.assign(new Error(`No snapshot found for page ${pageId}. Run browser:snapshot first.`), { code: "NO_SNAPSHOT" });
+        }
+
+        const node = snapshotData.refMap.get(ref);
+        if (!node) {
+          throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
+        }
+
+        // Use role and name to locate the element
+        if (node.role && node.name) {
+          await entry.page.getByRole(node.role, { name: node.name, exact: true }).type(text, { delay });
+        } else {
+          throw Object.assign(new Error(`Cannot type in ref ${ref}: node lacks role/name for location`), { code: "UNTYPEABLE_REF" });
+        }
+      } else if (selector) {
+        // Type by CSS selector
+        await entry.page.type(selector, text, { delay });
+      } else {
+        throw Object.assign(new Error(`Must provide either selector or ref`), { code: "BAD_PARAMS" });
+      }
+
+      return { ok: true, result: { typed: true } };
+    }
+
     case "closeContext": {
       const contextId = params?.contextId;
       const entry = contexts.get(contextId);

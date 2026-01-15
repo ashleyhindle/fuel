@@ -471,6 +471,69 @@ class BrowserDaemonManager
     }
 
     /**
+     * Click an element on the page
+     */
+    public function click(string $pageId, ?string $selector, ?string $ref): array
+    {
+        $params = [
+            'pageId' => $pageId,
+        ];
+
+        if ($selector !== null) {
+            $params['selector'] = $selector;
+        }
+
+        if ($ref !== null) {
+            $params['ref'] = $ref;
+        }
+
+        return $this->sendRequest('click', $params);
+    }
+
+    /**
+     * Fill an input field on the page
+     */
+    public function fill(string $pageId, ?string $selector, string $value, ?string $ref): array
+    {
+        $params = [
+            'pageId' => $pageId,
+            'value' => $value,
+        ];
+
+        if ($selector !== null) {
+            $params['selector'] = $selector;
+        }
+
+        if ($ref !== null) {
+            $params['ref'] = $ref;
+        }
+
+        return $this->sendRequest('fill', $params);
+    }
+
+    /**
+     * Type text into an element on the page
+     */
+    public function type(string $pageId, ?string $selector, string $text, ?string $ref, int $delay = 0): array
+    {
+        $params = [
+            'pageId' => $pageId,
+            'text' => $text,
+            'delay' => $delay,
+        ];
+
+        if ($selector !== null) {
+            $params['selector'] = $selector;
+        }
+
+        if ($ref !== null) {
+            $params['ref'] = $ref;
+        }
+
+        return $this->sendRequest('type', $params);
+    }
+
+    /**
      * Close a browser context and all its pages
      */
     public function closeContext(string $contextId): array
