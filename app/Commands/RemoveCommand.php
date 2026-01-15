@@ -19,6 +19,8 @@ class RemoveCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
+    protected $aliases = ['delete'];
+
     protected $description = 'Delete a task';
 
     public function handle(TaskService $taskService): int
