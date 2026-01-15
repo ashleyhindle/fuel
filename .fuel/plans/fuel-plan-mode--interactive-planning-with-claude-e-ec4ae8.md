@@ -119,7 +119,7 @@ When the plan is ready, you will:
 - [x] Plan file is updated throughout discussion
 - [x] For pre-planned: tasks are created with proper dependencies
 - [x] Paused tasks don't appear in `fuel ready` or get picked by `fuel consume`
-- [ ] Tasks from paused epics don't appear in `fuel ready` or get picked by `fuel consume`
+- [x] Tasks from paused epics don't appear in `fuel ready` or get picked by `fuel consume`
 - [ ] User explicitly transitions from planning to execution
 - [ ] `fuel plan <epic-id>` resumes planning on existing paused epic
 - [ ] Ctrl+c before epic creation = clean exit, nothing persists
@@ -135,6 +135,7 @@ When the plan is ready, you will:
 - Iteration 6: Enabled Write tool for .fuel/plans/*.md files only during planning mode, added proper constraint checking and user feedback for plan file updates
 - Iteration 7: Implemented task creation with dependencies for pre-planned epics - enhanced system prompt with specific task creation instructions, added UI feedback for task creation, added tests to verify dependency tracking
 - Iteration 10: Added paused status to TaskStatus enum - paused tasks are automatically excluded from ready() and don't appear in fuel ready or consume, added unit test
+- Iteration 11: Excluded tasks from paused epics from ready - added 'paused' status to EpicStatus enum, updated Task model's scopeReady to exclude tasks from paused epics, modified TaskService::ready() to use model scope, added test
 
 ## Implementation Notes
 <!-- Tasks: append discoveries, decisions, gotchas here -->
