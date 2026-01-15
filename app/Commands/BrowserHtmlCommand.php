@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
-use App\Ipc\Client\ConsumeIpcClient;
 use App\Ipc\Commands\BrowserHtmlCommand as IpcBrowserHtmlCommand;
 use App\Ipc\Events\BrowserResponseEvent;
+use App\Services\ConsumeIpcClient;
 use App\Services\ConsumeProcessManager;
 use Illuminate\Console\Scheduling\Schedule;
 use LaravelZero\Framework\Commands\Command;
