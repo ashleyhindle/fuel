@@ -10,10 +10,10 @@ Users can reopen tasks without leaving the TUI. The command autocompletes with:
 2. Last 5 done tasks (recently completed)
 
 ### Acceptance Criteria
-1. `/reopen` shows in command list when pressing `/`
-2. Typing `reopen ` shows failed tasks + last 5 done tasks
-3. Tab completes task ID into input
-4. Enter reopens the selected task
+- [x] `/reopen` shows in command list when pressing `/`
+- [x] Typing `reopen ` shows failed tasks + last 5 done tasks
+- [x] Tab completes task ID into input
+- [x] Enter reopens the selected task
 
 ### Approach
 
@@ -41,7 +41,15 @@ Users can reopen tasks without leaving the TUI. The command autocompletes with:
 - Execute reopen, verify task status changes to open
 
 ## Implementation Notes
-<!-- Tasks update this as they work -->
+- Iteration 1: Completed all acceptance criteria in a single iteration
+- TaskReopenCommand IPC and sendTaskReopen() were pre-existing
+- PALETTE_COMMANDS already had 'reopen' entry
+- Added updateReopenTaskSuggestions() method - shows failed tasks first, then last 5 done
+- Updated acceptCurrentSuggestion() to detect reopen vs close context
+- Added /reopen handler in executeCommandPalette() with proper validation
+
+## Progress Log
+- Iteration 1: Implemented all remaining features (suggestions, tab complete, execution)
 
 ## Interfaces Created
-<!-- Tasks: document interfaces/contracts created -->
+- No new interfaces created - used existing TaskReopenCommand and ConsumeIpcClient.sendTaskReopen()
