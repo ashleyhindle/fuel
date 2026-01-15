@@ -6,12 +6,14 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
+use App\Services\RunService;
 use App\Services\TaskService;
 use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 
 class TasksCommand extends Command
 {
+    use Concerns\RendersBoardColumns;
     use HandlesJsonOutput;
 
     protected $signature = 'tasks
@@ -27,7 +29,7 @@ class TasksCommand extends Command
 
     protected $description = 'List tasks with optional filters';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, RunService $runService): int
     {
         $tasks = $taskService->all();
 
@@ -86,18 +88,38 @@ class TasksCommand extends Command
             $this->info(sprintf('Tasks (%d):', $tasks->count()));
             $this->newLine();
 
+            // Calculate max title width to fit screen
+            // ID (10) + Status (12) + Type (10) + Priority (10) + Labels (8) + Agent (12) + Created (10) + borders (24)
+            $terminalWidth = $this->getTerminalWidth();
+            $fixedColumnsWidth = 10 + 12 + 10 + 10 + 8 + 12 + 10 + 24;
+            $maxTitleWidth = max(30, $terminalWidth - $fixedColumnsWidth);
+
             $table = new Table;
             $table->render(
-                ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Created'],
-                $tasks->map(fn (Task $t): array => [
-                    $t->short_id,
-                    $t->title,
-                    $t->status->value,
-                    $t->type ?? 'task',
-                    $t->priority ?? 2,
-                    isset($t->labels) && ! empty($t->labels) && is_array($t->labels) ? implode(', ', $t->labels) : '-',
-                    $this->formatDate((string) $t->created_at),
-                ])->toArray(),
+                ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Agent', 'Created'],
+                $tasks->map(function (Task $t) use ($runService, $maxTitleWidth): array {
+                    $latestRun = $runService->getLatestRun($t->short_id);
+                    $agent = $latestRun?->agent ?? '';
+                    if (strlen($agent) > 10) {
+                        $agent = substr($agent, 0, 9).'…';
+                    }
+
+                    $title = $t->title;
+                    if (strlen($title) > $maxTitleWidth) {
+                        $title = substr($title, 0, $maxTitleWidth - 3).'...';
+                    }
+
+                    return [
+                        $t->short_id,
+                        $title,
+                        $t->status->value,
+                        $t->type ?? 'task',
+                        $t->priority ?? 2,
+                        isset($t->labels) && ! empty($t->labels) && is_array($t->labels) ? implode(', ', $t->labels) : '-',
+                        $agent,
+                        $this->formatDate((string) $t->created_at),
+                    ];
+                })->toArray(),
                 $this->output
             );
         }
