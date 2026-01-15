@@ -27,7 +27,7 @@ class TaskPromptBuilder
             ],
             'context' => [
                 'task_details' => $this->formatTaskForPrompt($task),
-                'closing_protocol' => $this->buildClosingProtocol($task, $task->short_id),
+                'closing_protocol' => $this->buildClosingProtocol($task->short_id),
             ],
             'cwd' => $cwd,
         ];
@@ -108,56 +108,9 @@ PROMPT;
     }
 
     /**
-     * Build the closing protocol based on whether task is part of an epic.
+     * Build the closing protocol (same for all tasks - each task commits).
      */
-    private function buildClosingProtocol(Task $task, string $taskId): string
-    {
-        $isEpicTask = ! empty($task->epic_id);
-
-        if ($isEpicTask) {
-            return $this->buildEpicTaskClosingProtocol($taskId);
-        }
-
-        return $this->buildStandaloneTaskClosingProtocol($taskId);
-    }
-
-    /**
-     * Closing protocol for tasks that are part of an epic (stage only, no commit).
-     */
-    private function buildEpicTaskClosingProtocol(string $taskId): string
-    {
-        return <<<PROTOCOL
-== CLOSING PROTOCOL (EPIC TASK) ==
-Before exiting, you MUST:
-1. If you changed code: run tests and linter/formatter
-2. Run `git status` to see modified files
-3. Run `git add <files>` for each file YOU modified (not files from other agents)
-4. VERIFY: `git diff --cached --stat` shows all YOUR changes are staged
-5. DO NOT commit - commits will be organized when the epic is approved
-6. ./fuel done {$taskId}
-7. ./fuel add "..." for any discovered/incomplete work (DO NOT work on these - just log them)
-
-CRITICAL: Stage your changes with git add but DO NOT run git commit.
-Your work is part of an epic - all changes will be committed together after epic approval.
-
-⚠️  FILE COLLISION WARNING:
-If you see files in `git status` that you did NOT modify, DO NOT stage them with `git add`.
-Other agents may have modified those files while you were working. Only stage files YOU changed.
-
-CRITICAL - If you worked on the same file as another agent:
-- DO NOT remove, overwrite, or undo their changes
-- DO NOT assume your version is correct and theirs is wrong
-- Use `git diff <file>` to see ALL changes in the file
-- Preserve ALL changes from both agents - merge them together if needed
-- If you cannot safely merge, create a needs-human task and block yourself
-- When in doubt, preserve other agents' work - it's easier to add than to recover deleted work
-PROTOCOL;
-    }
-
-    /**
-     * Closing protocol for standalone tasks (full commit workflow).
-     */
-    private function buildStandaloneTaskClosingProtocol(string $taskId): string
+    private function buildClosingProtocol(string $taskId): string
     {
         return <<<PROTOCOL
 == CLOSING PROTOCOL ==

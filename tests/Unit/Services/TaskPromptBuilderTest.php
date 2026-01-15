@@ -30,7 +30,7 @@ describe('TaskPromptBuilder closing protocol', function (): void {
         expect($prompt)->not->toContain('DO NOT commit');
     });
 
-    it('includes epic task closing protocol for tasks with epic_id', function (): void {
+    it('includes same closing protocol for tasks with epic_id (each task commits)', function (): void {
         // Create an epic first
         $epic = Epic::create([
             'short_id' => 'e-test123',
@@ -48,14 +48,14 @@ describe('TaskPromptBuilder closing protocol', function (): void {
 
         $prompt = $this->builder->build($task, '/test/cwd');
 
-        // Should include epic task closing protocol
-        expect($prompt)->toContain('== CLOSING PROTOCOL (EPIC TASK) ==');
-        expect($prompt)->toContain('DO NOT commit - commits will be organized when the epic is approved');
-        expect($prompt)->toContain('./fuel done f-epictask');
+        // Should include standard closing protocol with git commit (same as standalone)
+        expect($prompt)->toContain('== CLOSING PROTOCOL ==');
+        expect($prompt)->toContain('git commit -m "feat/fix: description"');
+        expect($prompt)->toContain('./fuel done f-epictask --commit=<hash>');
 
-        // Should NOT include standard closing protocol with git commit
-        expect($prompt)->not->toContain('git commit -m "feat/fix: description"');
-        expect($prompt)->not->toContain('--commit=<hash>');
+        // Should NOT include old "do not commit" messaging
+        expect($prompt)->not->toContain('DO NOT commit');
+        expect($prompt)->not->toContain('== CLOSING PROTOCOL (EPIC TASK) ==');
     });
 
     it('includes epic context section for tasks with epic_id', function (): void {
