@@ -10,13 +10,17 @@
 # Planning docs
 fuel-orchestrator-v2*.md
 handoff.md
-.fuel
 *.md
 !resources/**/*.md
 !.claude/skills/fuel-release/**
+!.fuel/plans/*.md
+!.fuel/prompts/*.md
 /database/database.sqlite
+
+# Fuel data (but not plans/prompts)
 .fuel/*.lock
 .fuel/*.log
+.fuel/*.pid
 .fuel/agent.db
 .fuel/config.yaml
 .fuel/processes/
