@@ -10,6 +10,7 @@ use App\Ipc\Commands\BrowserGotoCommand;
 use App\Ipc\Commands\BrowserPageCommand;
 use App\Ipc\Commands\BrowserRunCommand;
 use App\Ipc\Commands\BrowserScreenshotCommand;
+use App\Ipc\Commands\BrowserSnapshotCommand;
 use App\Ipc\Commands\BrowserStatusCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\IpcMessage;
@@ -234,6 +235,34 @@ final readonly class BrowserCommandHandler
                     $message->pageId,
                     $message->path,
                     $message->fullPage ?? false
+                );
+
+                // Send success response
+                $this->sendSuccessResponse($message->getRequestId(), $result);
+            } catch (Throwable $e) {
+                $this->sendErrorResponse(
+                    $message->getRequestId(),
+                    $e->getMessage(),
+                    $this->getErrorCode($e)
+                );
+            }
+        }
+    }
+
+    /**
+     * Handle browser snapshot command
+     */
+    public function handleBrowserSnapshot(IpcMessage $message): void
+    {
+        if ($message instanceof BrowserSnapshotCommand) {
+            try {
+                // Ensure browser daemon is running
+                $this->ensureBrowserRunning();
+
+                // Get accessibility snapshot
+                $result = $this->browserManager->snapshot(
+                    $message->pageId,
+                    $message->interactiveOnly ?? false
                 );
 
                 // Send success response

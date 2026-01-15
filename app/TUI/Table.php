@@ -11,6 +11,40 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class Table
 {
+    /** @var array<string, array{min?: int, priority?: int}> Column truncation configuration */
+    private array $truncatable = [];
+
+    /** @var array<string> Columns that can be omitted, in order of priority (first = omit first) */
+    private array $omittable = [];
+
+    /**
+     * Configure which columns can be truncated and their minimum widths.
+     *
+     * @param  array<string, array{min?: int, priority?: int}>  $config  Truncation config
+     *                                                                   Keys are column names, values are arrays with optional 'min' (minimum width)
+     *                                                                   and 'priority' (lower = truncate first)
+     * @return self For chaining
+     */
+    public function setTruncatable(array $config): self
+    {
+        $this->truncatable = $config;
+
+        return $this;
+    }
+
+    /**
+     * Configure which columns can be omitted to fit width.
+     *
+     * @param  array<string>  $columns  Column names in order of omission priority
+     * @return self For chaining
+     */
+    public function setOmittable(array $columns): self
+    {
+        $this->omittable = $columns;
+
+        return $this;
+    }
+
     /**
      * Render a table with headers and rows.
      *
@@ -50,7 +84,11 @@ class Table
 
         // Apply terminal width constraints if needed
         if ($maxWidth !== null) {
-            $columnWidths = $this->fitToWidth($headers, $rows, $columnWidths, $maxWidth);
+            $result = $this->fitToWidth($headers, $rows, $columnWidths, $maxWidth);
+            $headers = $result['headers'];
+            $rows = $result['rows'];
+            $columnWidths = $result['widths'];
+            $numColumns = count($headers);
         }
 
         $lines = [];
@@ -114,14 +152,13 @@ class Table
     }
 
     /**
-     * Fit column widths to terminal width by truncating as needed.
-     * Truncates Epic column first, then Title column.
+     * Fit column widths to terminal width by truncating or omitting columns.
      *
      * @param  array<string>  $headers  Column headers
      * @param  array<array<string>>  $rows  Table rows
      * @param  array<int>  $columnWidths  Initial column widths
      * @param  int  $maxWidth  Maximum table width
-     * @return array<int> Adjusted column widths
+     * @return array{headers: array<string>, rows: array<array<string>>, widths: array<int>}
      */
     private function fitToWidth(array $headers, array $rows, array $columnWidths, int $maxWidth): array
     {
@@ -137,44 +174,116 @@ class Table
 
         // If we fit, return as-is
         if ($tableWidth <= $maxWidth) {
-            return $columnWidths;
+            return [
+                'headers' => $headers,
+                'rows' => $rows,
+                'widths' => $columnWidths,
+            ];
         }
 
-        // Find Epic and Title column indices
-        $epicIndex = array_search('Epic', $headers, true);
-        $titleIndex = array_search('Title', $headers, true);
+        // First, try omitting columns if configured
+        if ($this->omittable !== []) {
+            foreach ($this->omittable as $omitColumn) {
+                $omitIndex = array_search($omitColumn, $headers, true);
+                if ($omitIndex !== false) {
+                    // Calculate new width without this column
+                    $newTableWidth = $tableWidth - ($columnWidths[$omitIndex] + 3); // column + padding + border
 
-        $overflow = $tableWidth - $maxWidth;
-        $minColumnWidth = 10; // Minimum width for truncated columns
+                    // Remove column and continue checking
+                    unset($headers[$omitIndex]);
+                    unset($columnWidths[$omitIndex]);
+                    $headers = array_values($headers);
+                    $columnWidths = array_values($columnWidths);
+                    $rows = array_map(function ($row) use ($omitIndex) {
+                        unset($row[$omitIndex]);
 
-        // Try truncating Epic column first
-        if ($epicIndex !== false && $columnWidths[$epicIndex] > $minColumnWidth) {
-            $canReduce = $columnWidths[$epicIndex] - $minColumnWidth;
-            $reduction = min($canReduce, $overflow);
-            $columnWidths[$epicIndex] -= $reduction;
-            $overflow -= $reduction;
-        }
+                        return array_values($row);
+                    }, $rows);
+                    $tableWidth = $newTableWidth;
+                    $numColumns--;
 
-        // If still overflowing, truncate Title column
-        if ($overflow > 0 && $titleIndex !== false && $columnWidths[$titleIndex] > $minColumnWidth) {
-            $canReduce = $columnWidths[$titleIndex] - $minColumnWidth;
-            $reduction = min($canReduce, $overflow);
-            $columnWidths[$titleIndex] -= $reduction;
-            $overflow -= $reduction;
-        }
-
-        // If still overflowing, reduce both proportionally
-        if ($overflow > 0) {
-            if ($epicIndex !== false && $titleIndex !== false) {
-                $epicReduction = (int) ceil($overflow / 2);
-                $titleReduction = $overflow - $epicReduction;
-
-                $columnWidths[$epicIndex] = max(5, $columnWidths[$epicIndex] - $epicReduction);
-                $columnWidths[$titleIndex] = max(5, $columnWidths[$titleIndex] - $titleReduction);
+                    // Check if we now fit
+                    if ($tableWidth <= $maxWidth) {
+                        return [
+                            'headers' => $headers,
+                            'rows' => $rows,
+                            'widths' => $columnWidths,
+                        ];
+                    }
+                }
             }
         }
 
-        return $columnWidths;
+        // After omitting columns, recalculate if we still need to truncate
+        $overflow = $tableWidth - $maxWidth;
+
+        // If we still don't fit after omitting columns, truncate
+        if ($overflow > 0) {
+            // Build truncation list sorted by priority
+            $truncList = [];
+            foreach ($this->truncatable as $column => $config) {
+                $index = array_search($column, $headers, true);
+                if ($index !== false) {
+                    $truncList[] = [
+                        'index' => $index,
+                        'column' => $column,
+                        'min' => $config['min'] ?? 10,
+                        'priority' => $config['priority'] ?? 999,
+                    ];
+                }
+            }
+
+            // Sort by priority (lower = truncate first)
+            usort($truncList, fn ($a, $b) => $a['priority'] <=> $b['priority']);
+
+            // Apply truncation in priority order
+            foreach ($truncList as $trunc) {
+                if ($overflow <= 0) {
+                    break;
+                }
+
+                $index = $trunc['index'];
+                $minWidth = $trunc['min'];
+
+                if ($columnWidths[$index] > $minWidth) {
+                    $canReduce = $columnWidths[$index] - $minWidth;
+                    $reduction = min($canReduce, $overflow);
+                    $columnWidths[$index] -= $reduction;
+                    $overflow -= $reduction;
+                }
+            }
+        }
+
+        // If no truncation config, fall back to old behavior for backwards compatibility
+        if ($this->truncatable === [] && $overflow > 0) {
+            // Find Epic and Title column indices
+            $epicIndex = array_search('Epic', $headers, true);
+            $titleIndex = array_search('Title', $headers, true);
+
+            $minColumnWidth = 10; // Minimum width for truncated columns
+
+            // Try truncating Epic column first
+            if ($epicIndex !== false && $columnWidths[$epicIndex] > $minColumnWidth) {
+                $canReduce = $columnWidths[$epicIndex] - $minColumnWidth;
+                $reduction = min($canReduce, $overflow);
+                $columnWidths[$epicIndex] -= $reduction;
+                $overflow -= $reduction;
+            }
+
+            // If still overflowing, truncate Title column
+            if ($overflow > 0 && $titleIndex !== false && $columnWidths[$titleIndex] > $minColumnWidth) {
+                $canReduce = $columnWidths[$titleIndex] - $minColumnWidth;
+                $reduction = min($canReduce, $overflow);
+                $columnWidths[$titleIndex] -= $reduction;
+                $overflow -= $reduction;
+            }
+        }
+
+        return [
+            'headers' => $headers,
+            'rows' => $rows,
+            'widths' => $columnWidths,
+        ];
     }
 
     /**
@@ -259,6 +368,11 @@ class Table
 
             // Truncate if needed
             $cellValue = $this->truncate($cellValue, $width);
+
+            // Debug truncation
+            if ($i == 1 && strlen($row[$i] ?? '') > 30) { // Title column
+                file_put_contents('/tmp/table_debug.log', 'Truncating Title from ['.($row[$i] ?? '')."] to [$cellValue], width=$width\n", FILE_APPEND);
+            }
 
             $padding = $width - $this->visibleLength($cellValue);
             $line .= ' '.$cellValue.str_repeat(' ', $padding).' │';

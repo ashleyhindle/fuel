@@ -93,27 +93,28 @@ class TasksCommand extends Command
             $this->info(sprintf('Tasks (%d):', $tasks->count()));
             $this->newLine();
 
-            // Calculate max title width to fit screen
-            // ID (10) + Status (12) + Type (10) + Priority (10) + Labels (8) + Agent (20) + Created (10) + borders (24)
             $terminalWidth = $this->getTerminalWidth();
-            $fixedColumnsWidth = 10 + 12 + 10 + 10 + 8 + 20 + 10 + 24;
-            $maxTitleWidth = max(30, $terminalWidth - $fixedColumnsWidth);
 
             $table = new Table;
+
+            // Configure columns that can be truncated (Title should be truncated first)
+            $table->setTruncatable([
+                'Title' => ['min' => 20, 'priority' => 1],
+                'Labels' => ['min' => 10, 'priority' => 2],
+            ]);
+
+            // Configure columns that can be omitted if needed (in order of priority)
+            $table->setOmittable(['Agent', 'Labels', 'Type']);
+
             $table->render(
                 ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Agent', 'Created'],
-                $tasks->map(function (Task $t) use ($runService, $maxTitleWidth): array {
+                $tasks->map(function (Task $t) use ($runService): array {
                     $latestRun = $runService->getLatestRun($t->short_id);
                     $agent = $latestRun?->agent ?? '';
 
-                    $title = $t->title;
-                    if (strlen($title) > $maxTitleWidth) {
-                        $title = substr($title, 0, $maxTitleWidth - 3).'...';
-                    }
-
                     return [
                         $t->short_id,
-                        $title,
+                        $t->title,
                         $t->status->value,
                         $t->type ?? 'task',
                         $t->priority ?? 2,
@@ -122,7 +123,8 @@ class TasksCommand extends Command
                         $this->formatDate((string) $t->created_at),
                     ];
                 })->toArray(),
-                $this->output
+                $this->output,
+                $terminalWidth
             );
         }
 
