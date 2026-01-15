@@ -167,7 +167,14 @@ describe('PromptService writeDefaultPrompts', function (): void {
             }
         }
 
-        $this->promptService->writeDefaultPrompts();
+        $written = $this->promptService->writeDefaultPrompts();
+
+        expect($written)->toHaveCount(5);
+        expect($written)->toContain('work');
+        expect($written)->toContain('review');
+        expect($written)->toContain('verify');
+        expect($written)->toContain('reality');
+        expect($written)->toContain('selfguided');
 
         expect(file_exists($promptsDir.'/work.md'))->toBeTrue();
         expect(file_exists($promptsDir.'/review.md'))->toBeTrue();
@@ -195,10 +202,14 @@ describe('PromptService writeDefaultPrompts', function (): void {
         $customContent = 'My custom prompt';
         file_put_contents($promptsDir.'/work.md', $customContent);
 
-        $this->promptService->writeDefaultPrompts();
+        $written = $this->promptService->writeDefaultPrompts();
 
         // Custom prompt should not be overwritten
         expect(file_get_contents($promptsDir.'/work.md'))->toBe($customContent);
+
+        // Should have written 4 prompts (all except work)
+        expect($written)->toHaveCount(4);
+        expect($written)->not->toContain('work');
 
         // Cleanup
         unlink($promptsDir.'/work.md');

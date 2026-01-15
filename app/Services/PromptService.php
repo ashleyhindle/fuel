@@ -109,9 +109,13 @@ class PromptService
      * Write default prompts to the user's .fuel/prompts/ directory.
      *
      * Only writes files that don't already exist.
+     *
+     * @return array<string> Names of prompts that were written
      */
-    public function writeDefaultPrompts(): void
+    public function writeDefaultPrompts(): array
     {
+        $written = [];
+
         foreach (self::PROMPT_NAMES as $name) {
             $userPath = $this->getUserPromptPath($name);
             if (file_exists($userPath)) {
@@ -120,7 +124,10 @@ class PromptService
 
             $default = $this->getDefaultPrompt($name);
             file_put_contents($userPath, $default);
+            $written[] = $name;
         }
+
+        return $written;
     }
 
     /**

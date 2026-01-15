@@ -98,7 +98,28 @@ REALITY;
         if (! is_dir($promptsDir)) {
             mkdir($promptsDir, 0755, true);
         }
-        $promptService->writeDefaultPrompts();
+        $written = $promptService->writeDefaultPrompts();
+        if ($written !== []) {
+            $this->info(sprintf('Wrote %d new prompt%s: %s', count($written), count($written) === 1 ? '' : 's', implode(', ', array_map(fn ($n) => $n.'.md', $written))));
+        }
+
+        // Check for outdated prompts and write .new files
+        $outdated = $promptService->checkVersions();
+        if ($outdated !== []) {
+            $upgraded = $promptService->writeUpgradeFiles();
+            foreach ($upgraded as $name) {
+                $this->warn(sprintf(
+                    'Prompt %s.md is outdated (v%d < v%d). Compare with %s.md.new',
+                    $name,
+                    $outdated[$name]['user'],
+                    $outdated[$name]['current'],
+                    $name
+                ));
+            }
+            if ($upgraded !== []) {
+                $this->line('Run: diff .fuel/prompts/<name>.md .fuel/prompts/<name>.md.new');
+            }
+        }
 
         // Configure database path and run migrations to create schema
         $context->configureDatabase();

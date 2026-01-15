@@ -141,4 +141,62 @@ describe('init command', function (): void {
         @rmdir($tempDir.'/.fuel');
         @rmdir($tempDir);
     });
+
+    it('creates prompt files during init', function (): void {
+        $promptsDir = $this->tempDir.'/.fuel/prompts';
+
+        // Ensure prompts directory doesn't exist
+        if (is_dir($promptsDir)) {
+            File::deleteDirectory($promptsDir);
+        }
+
+        $this->artisan('init')
+            ->expectsOutputToContain('Wrote 5 new prompts')
+            ->assertExitCode(0);
+
+        expect(is_dir($promptsDir))->toBeTrue();
+        expect(file_exists($promptsDir.'/work.md'))->toBeTrue();
+        expect(file_exists($promptsDir.'/review.md'))->toBeTrue();
+        expect(file_exists($promptsDir.'/verify.md'))->toBeTrue();
+        expect(file_exists($promptsDir.'/reality.md'))->toBeTrue();
+        expect(file_exists($promptsDir.'/selfguided.md'))->toBeTrue();
+    });
+
+    it('detects outdated prompts during init', function (): void {
+        $promptsDir = $this->tempDir.'/.fuel/prompts';
+        if (! is_dir($promptsDir)) {
+            mkdir($promptsDir, 0755, true);
+        }
+
+        // Write an outdated prompt (version 0)
+        file_put_contents($promptsDir.'/work.md', 'Old prompt without version tag');
+
+        $this->artisan('init')
+            ->expectsOutputToContain('outdated')
+            ->assertExitCode(0);
+
+        // Verify .new file was created
+        expect(file_exists($promptsDir.'/work.md.new'))->toBeTrue();
+
+        // Verify .new file has version tag
+        $newContent = file_get_contents($promptsDir.'/work.md.new');
+        expect($newContent)->toContain('<fuel-prompt version="1" />');
+    });
+
+    it('does not overwrite existing prompts during init', function (): void {
+        $promptsDir = $this->tempDir.'/.fuel/prompts';
+        if (! is_dir($promptsDir)) {
+            mkdir($promptsDir, 0755, true);
+        }
+
+        // Write a custom prompt with current version
+        $customContent = "<fuel-prompt version=\"1\" />\n\nMy custom work prompt";
+        file_put_contents($promptsDir.'/work.md', $customContent);
+
+        $this->artisan('init')
+            ->assertExitCode(0);
+
+        // Custom prompt should not be overwritten
+        expect(file_get_contents($promptsDir.'/work.md'))->toBe($customContent);
+    });
 });
