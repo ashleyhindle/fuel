@@ -16,6 +16,8 @@ class TaskService
 
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
 
+    private const COMPLETION_SOUND = '/System/Library/Sounds/Glass.aiff';
+
     private string $prefix = 'f';
 
     /**
@@ -249,7 +251,13 @@ class TaskService
             $updates['updated_at'] = $data['updated_at'];
         }
 
+        $playCompletionSound = $this->shouldPlayCompletionSound($taskModel, $updates);
+
         $taskModel->update($updates);
+
+        if ($playCompletionSound) {
+            $this->playCompletionSound();
+        }
 
         return $taskModel->fresh();
     }
@@ -308,6 +316,42 @@ class TaskService
         $data['last_review_issues'] = null;
 
         return $this->update($id, $data);
+    }
+
+    /**
+     * Determine whether a task completion should trigger a sound.
+     *
+     * @param  array<string, mixed>  $updates
+     */
+    private function shouldPlayCompletionSound(Task $taskModel, array $updates): bool
+    {
+        if (! array_key_exists('status', $updates)) {
+            return false;
+        }
+
+        if ($updates['status'] !== TaskStatus::Done->value) {
+            return false;
+        }
+
+        return $taskModel->status !== TaskStatus::Done->value;
+    }
+
+    /**
+     * Play a completion sound for a newly completed task.
+     */
+    private function playCompletionSound(): void
+    {
+        if (function_exists('app') && app()->environment('testing')) {
+            return;
+        }
+
+        if (function_exists('app')) {
+            app(NotificationService::class)->playSound(self::COMPLETION_SOUND);
+
+            return;
+        }
+
+        (new NotificationService)->playSound(self::COMPLETION_SOUND);
     }
 
     /**
