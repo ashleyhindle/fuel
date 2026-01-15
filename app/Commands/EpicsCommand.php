@@ -55,18 +55,20 @@ class EpicsCommand extends Command
             $this->newLine();
 
             // Build table rows with progress tracking
-            $headers = ['ID', 'Title', 'Status', 'Progress', 'Created'];
+            $headers = ['ID', 'Title', 'Status', 'Progress', 'Mode', 'Created'];
             $rows = array_map(function (Epic $epic) use ($epicService): array {
                 $tasks = $epicService->getTasksForEpic($epic->short_id);
                 $totalCount = count($tasks);
                 $completedCount = count(array_filter($tasks, fn (Task $task): bool => $task->status === TaskStatus::Done));
                 $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
+                $mode = $epic->self_guided ? 'self-guided' : 'parallel';
 
                 return [
                     $epic->short_id,
                     $epic->title ?? '',
                     $epic->status->value,
                     $progress,
+                    $mode,
                     $this->formatDate($epic->created_at ?? new \DateTime),
                 ];
             }, $epics);

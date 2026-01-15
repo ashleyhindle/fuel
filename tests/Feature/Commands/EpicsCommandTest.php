@@ -251,4 +251,20 @@ describe('epics command', function (): void {
         expect($foundEpic['task_count'])->toBe(3);
         expect($foundEpic['completed_count'])->toBe(2);
     });
+
+    it('shows self-guided mode in table output', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+
+        $parallelEpic = $epicService->createEpic('Parallel Epic', 'Regular epic');
+        $selfGuidedEpic = $epicService->createEpic('Self-Guided Epic', 'Self-guided epic', selfGuided: true);
+
+        Artisan::call('epics', []);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Parallel Epic');
+        expect($output)->toContain('Self-Guided Epic');
+        expect($output)->toContain('parallel');
+        expect($output)->toContain('self-guided');
+        expect($output)->toContain('Mode');
+    });
 });
