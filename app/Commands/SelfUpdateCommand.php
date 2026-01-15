@@ -134,11 +134,11 @@ class SelfUpdateCommand extends Command
             }
 
             $this->info('Updated to '.$version);
+            $this->line('Release notes: '.self::GITHUB_RELEASES_BASE.'/'.self::GITHUB_REPO.'/releases/tag/'.$version);
         }
 
         // Run init to update guidelines and skills in current project
         if ($shouldRunInit) {
-            $this->info('Updating project with latest guidelines and skills...');
 
             // If we just replaced the binary, execute the new binary for init
             // to avoid zlib errors from the old process reading the changed phar
