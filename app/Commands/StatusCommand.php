@@ -77,10 +77,10 @@ class StatusCommand extends Command
         $runnerStatus = $this->getRunnerStatus($fuelContext);
 
         if ($this->option('json')) {
-            $output = ['board' => $boardState];
-            if ($runnerStatus !== null) {
-                $output['runner'] = $runnerStatus;
-            }
+            $output = [
+                'board' => $boardState,
+                'runner' => $runnerStatus ?? ['state' => 'NOT_RUNNING', 'pid' => null, 'active_processes' => 0],
+            ];
 
             $this->outputJson($output);
 
@@ -101,8 +101,10 @@ class StatusCommand extends Command
             ]
         );
 
-        // If no runner status, just show board table stacked
+        // If no runner status, show "Not running" with board table
         if ($runnerStatus === null) {
+            $this->line('<fg=white;options=bold>Runner:</>  <fg=yellow>Not running</>');
+            $this->newLine();
             $this->line('<fg=white;options=bold>Board Summary</>');
             foreach ($boardLines as $line) {
                 $this->output->writeln($line);
@@ -193,10 +195,21 @@ class StatusCommand extends Command
     /**
      * Get runner status if daemon is running.
      *
-     * @return array{state: string, active_processes: int}|null
+     * Also cleans up stale PID files from dead processes.
+     *
+     * @return array{state: string, active_processes: int, pid: int}|null
      */
     private function getRunnerStatus(FuelContext $fuelContext): ?array
     {
-        return ConsumeIpcClient::getStatus($fuelContext->getPidFilePath());
+        $pidFilePath = $fuelContext->getPidFilePath();
+        $status = ConsumeIpcClient::getStatus($pidFilePath);
+
+        // If no status but PID file exists, clean up stale file
+        if ($status === null && file_exists($pidFilePath)) {
+            @unlink($pidFilePath);
+            @unlink($pidFilePath.'.lock');
+        }
+
+        return $status;
     }
 }
