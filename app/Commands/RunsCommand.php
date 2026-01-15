@@ -13,6 +13,7 @@ use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\RunService;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -112,7 +113,8 @@ class RunsCommand extends Command
                         ];
                     }, $runs);
 
-                    $this->table($headers, $rows);
+                    $table = new Table;
+                    $table->render($headers, $rows, $this->output);
                 }
             }
 
