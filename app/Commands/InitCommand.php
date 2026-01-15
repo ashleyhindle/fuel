@@ -83,6 +83,10 @@ This section will be populated after the first task completion.
 ## Patterns
 This section will be populated after the first task completion.
 
+## Quality Gates
+| Tool | Command | Purpose |
+|------|---------|---------|
+
 ## Recent Changes
 _Last updated: never_
 
@@ -136,7 +140,7 @@ REALITY;
                 'type' => 'task',
                 'priority' => 1,
                 'complexity' => 'moderate',
-                'description' => 'Explore the codebase and populate .fuel/reality.md with: Architecture overview, key modules (table with Module|Purpose|Entry Point), main entry points, coding patterns/conventions, and leave Recent Changes empty. Be concise - this is a quick reference, not documentation.',
+                'description' => 'Explore the codebase and populate .fuel/reality.md with: Architecture overview, key modules (table with Module|Purpose|Entry Point), main entry points, coding patterns/conventions, quality gates (table with Tool|Command|Purpose - detect from composer.json scripts/require-dev, package.json scripts/devDependencies for linters, formatters, test runners like pest/phpunit/pint/rector/eslint/prettier/vitest/jest), and leave Recent Changes empty. Be concise - this is a quick reference, not documentation.',
             ]);
 
             $this->info('Created starter task: '.$task->short_id);
