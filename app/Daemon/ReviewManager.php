@@ -11,6 +11,7 @@ use App\Models\Review;
 use App\Process\ReviewResult;
 use App\Services\ConsumeIpcServer;
 use App\Services\TaskService;
+use App\Services\UpdateRealityService;
 use Illuminate\Support\Facades\Artisan;
 use RuntimeException;
 
@@ -78,6 +79,12 @@ final readonly class ReviewManager
                             'ids' => [$taskId],
                             '--reason' => 'Review passed',
                         ]);
+                    }
+
+                    // Trigger reality update for solo tasks (no epic)
+                    $task = $this->taskService->find($taskId);
+                    if ($task !== null && $task->epic_id === null) {
+                        app(UpdateRealityService::class)->triggerUpdate($task);
                     }
                 } else {
                     // Review found issues - reopen task if it was already done
