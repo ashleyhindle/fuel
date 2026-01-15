@@ -14,4 +14,10 @@ handoff.md
 *.md
 !resources/**/*.md
 /database/database.sqlite
-.fuel/
+.fuel/*.lock
+.fuel/*.log
+.fuel/agent.db
+.fuel/config.yaml
+.fuel/processes/
+.fuel/runs/
+.fuel/prompts/*.new
