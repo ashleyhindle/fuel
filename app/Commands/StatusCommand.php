@@ -171,17 +171,11 @@ class StatusCommand extends Command
         $leftWidth = $this->visibleLength($leftLines[0]);
         $rightWidth = $this->visibleLength($rightLines[0]);
 
-        // Calculate header padding for centering
-        $leftHeaderVisible = $this->visibleLength($this->stripAnsi($leftHeader));
-        $leftHeaderPadding = max(0, ($leftWidth - $leftHeaderVisible) / 2);
-
-        $rightHeaderVisible = $this->visibleLength($this->stripAnsi($rightHeader));
-        $rightHeaderPadding = max(0, ($rightWidth - $rightHeaderVisible) / 2);
-
-        // Render headers
-        $leftHeaderLine = str_repeat(' ', (int) $leftHeaderPadding).'<fg=white;options=bold>'.$leftHeader.'</>';
-        $rightHeaderLine = str_repeat(' ', (int) $rightHeaderPadding).'<fg=white;options=bold>'.$rightHeader.'</>';
-        $this->line($leftHeaderLine.str_repeat(' ', $spacing).$rightHeaderLine);
+        // Render headers (left-aligned with their respective tables)
+        $leftHeaderLine = '<fg=white;options=bold>'.$leftHeader.'</>';
+        $rightHeaderLine = '<fg=white;options=bold>'.$rightHeader.'</>';
+        $leftHeaderPadded = $this->padLine($leftHeaderLine, $leftWidth);
+        $this->line($leftHeaderPadded.str_repeat(' ', $spacing).$rightHeaderLine);
 
         // Pad arrays to same height
         $maxHeight = max(count($leftLines), count($rightLines));
@@ -194,23 +188,6 @@ class StatusCommand extends Command
             $rightLine = $rightLines[$i];
             $this->output->writeln($leftLine.str_repeat(' ', $spacing).$rightLine);
         }
-    }
-
-    /**
-     * Strip ANSI escape codes and Symfony color tags from text.
-     *
-     * @param  string  $text  Text to strip
-     * @return string Plain text without ANSI codes
-     */
-    private function stripAnsi(string $text): string
-    {
-        // Strip Symfony/Laravel color tags
-        $text = preg_replace('/<(?:\/|(?:fg|bg|options)(?:=[^>]+)?)>/i', '', $text) ?? $text;
-
-        // Strip ANSI escape codes
-        $text = preg_replace('/\e\[[0-9;]*m/', '', $text) ?? $text;
-
-        return $text;
     }
 
     /**
