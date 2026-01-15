@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Providers\AppServiceProvider;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
+use App\Services\UpdateRealityService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Artisan;
 
@@ -24,11 +25,18 @@ beforeEach(function (): void {
     // Configure Eloquent to use the test database
     AppServiceProvider::configureDatabasePath($this->context);
 
+    // Mock UpdateRealityService to prevent config errors
+    $mockUpdateReality = Mockery::mock(UpdateRealityService::class);
+    $mockUpdateReality->shouldReceive('triggerUpdate')->andReturnNull();
+    app()->instance(UpdateRealityService::class, $mockUpdateReality);
+
     $this->taskService = makeTaskService();
     $this->service = makeEpicService($this->taskService);
 });
 
 afterEach(function (): void {
+    Mockery::close();
+
     $deleteDir = function (string $dir) use (&$deleteDir): void {
         if (! is_dir($dir)) {
             return;

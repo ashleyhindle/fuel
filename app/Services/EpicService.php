@@ -148,6 +148,9 @@ class EpicService
         $epic->refresh();
         $epic->status = $this->getEpicStatus($epic->short_id);
 
+        // Trigger reality.md update after epic approval
+        app(UpdateRealityService::class)->triggerUpdate(null, $epic);
+
         return $epic;
     }
 

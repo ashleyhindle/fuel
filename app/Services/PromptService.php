@@ -10,7 +10,7 @@ class PromptService
 {
     public const CURRENT_VERSION = 1;
 
-    private const PROMPT_NAMES = ['work', 'review', 'verify'];
+    private const PROMPT_NAMES = ['work', 'review', 'verify', 'reality'];
 
     public function __construct(
         private readonly FuelContext $context
