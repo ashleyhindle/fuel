@@ -7,6 +7,7 @@ namespace App\Daemon;
 use App\Daemon\Helpers\CommandHandlers;
 use App\Ipc\IpcMessage;
 use App\Models\Task;
+use App\Services\ConfigService;
 use App\Services\ConsumeIpcServer;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -21,24 +22,28 @@ use App\Services\TaskService;
  * - Coordinate component interactions
  * - Handle IPC command callbacks
  */
-final readonly class DaemonLoop
+final class DaemonLoop
 {
     private CommandHandlers $commandHandlers;
 
+    private int $lastConfigReload;
+
     public function __construct(
-        private LifecycleManager $lifecycleManager,
-        private TaskSpawner $taskSpawner,
-        private CompletionHandler $completionHandler,
-        private ?ReviewManager $reviewManager,
-        private IpcCommandDispatcher $ipcCommandDispatcher,
-        private SnapshotManager $snapshotManager,
-        private ConsumeIpcServer $ipcServer,
-        private ProcessManager $processManager,
-        private TaskService $taskService,
-        private RunService $runService,
-        private BrowserCommandHandler $browserCommandHandler,
+        private readonly LifecycleManager $lifecycleManager,
+        private readonly TaskSpawner $taskSpawner,
+        private readonly CompletionHandler $completionHandler,
+        private readonly ?ReviewManager $reviewManager,
+        private readonly IpcCommandDispatcher $ipcCommandDispatcher,
+        private readonly SnapshotManager $snapshotManager,
+        private readonly ConsumeIpcServer $ipcServer,
+        private readonly ProcessManager $processManager,
+        private readonly TaskService $taskService,
+        private readonly RunService $runService,
+        private readonly BrowserCommandHandler $browserCommandHandler,
+        private readonly ConfigService $configService,
     ) {
         $this->commandHandlers = app(CommandHandlers::class);
+        $this->lastConfigReload = time();
     }
 
     /**
@@ -85,6 +90,12 @@ final readonly class DaemonLoop
                 // This detects external changes (e.g., tasks added via `fuel add`)
                 if ($this->snapshotManager->shouldBroadcastSnapshot() && $this->ipcServer->getClientCount() > 0) {
                     $this->snapshotManager->broadcastSnapshotIfChanged();
+                }
+
+                // Periodically reload config (every 10 seconds)
+                if ($this->shouldReloadConfig()) {
+                    $this->configService->reload();
+                    $this->snapshotManager->broadcastConfigReloaded();
                 }
 
                 // Sleep for interval (60ms for responsiveness)
@@ -202,5 +213,20 @@ final readonly class DaemonLoop
             onRequestBlockedTasks: fn (string $clientId) => $this->commandHandlers->handleRequestBlockedTasks($clientId, $this->ipcServer),
             onRequestCompletedTasks: fn (string $clientId) => $this->commandHandlers->handleRequestCompletedTasks($clientId, $this->ipcServer),
         );
+    }
+
+    /**
+     * Check if config should be reloaded (every 10 seconds).
+     */
+    private function shouldReloadConfig(): bool
+    {
+        $now = time();
+        if (($now - $this->lastConfigReload) >= 10) {
+            $this->lastConfigReload = $now;
+
+            return true;
+        }
+
+        return false;
     }
 }

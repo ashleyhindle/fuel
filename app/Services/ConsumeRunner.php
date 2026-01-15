@@ -118,6 +118,7 @@ final class ConsumeRunner
             taskService: $this->taskService,
             runService: $this->runService,
             browserCommandHandler: $browserCommandHandler,
+            configService: $this->configService,
         );
         $this->daemonLoop->run();
 
