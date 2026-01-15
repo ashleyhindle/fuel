@@ -428,7 +428,8 @@ class TaskService
      */
     public function ready(): Collection
     {
-        return $this->readyFrom($this->all());
+        // Use the model scope which filters out paused tasks and tasks from paused epics
+        return Task::ready()->with('epic')->get();
     }
 
     /**
