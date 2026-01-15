@@ -128,7 +128,7 @@ class BrowserSnapshotCommand extends Command
             }
 
             // Format snapshot as readable text
-            $this->info('Accessibility Snapshot:');
+            $this->info('Page Accessibility Snapshot:');
             $this->line('');
             $this->formatSnapshotNode($snapshot, 0);
         }
