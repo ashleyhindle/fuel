@@ -36,7 +36,7 @@ class SelfGuidedAgentTask extends AbstractAgentTask
      */
     public function getAgentName(ConfigService $configService): ?string
     {
-        return 'primary';
+        return $configService->getPrimaryAgent();
     }
 
     /**

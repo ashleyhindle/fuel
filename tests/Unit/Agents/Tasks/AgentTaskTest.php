@@ -580,18 +580,19 @@ describe('SelfGuidedAgentTask', function (): void {
         expect($agentTask->getTaskId())->toBe('f-abc123');
     });
 
-    it('always returns primary as agent name', function (): void {
+    it('always returns primary agent from config', function (): void {
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Self-guided Task', 'status' => 'open', 'complexity' => 'simple']);
 
-        // ConfigService should NOT be used for agent selection
+        // Should use getPrimaryAgent(), not getAgentForComplexity()
         $this->configService->shouldNotReceive('getAgentForComplexity');
+        $this->configService->shouldReceive('getPrimaryAgent')->once()->andReturn('claude-opus');
 
         $agentTask = new SelfGuidedAgentTask(
             $task,
             $this->taskService,
         );
 
-        expect($agentTask->getAgentName($this->configService))->toBe('primary');
+        expect($agentTask->getAgentName($this->configService))->toBe('claude-opus');
     });
 
     it('returns Task process type', function (): void {
