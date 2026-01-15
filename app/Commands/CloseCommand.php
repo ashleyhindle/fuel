@@ -41,6 +41,6 @@ class CloseCommand extends Command
             $params['--cwd'] = $cwd;
         }
 
-        return Artisan::call('done', $params);
+        return Artisan::call('done', $params, $this->output);
     }
 }
