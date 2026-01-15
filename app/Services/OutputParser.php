@@ -174,8 +174,8 @@ class OutputParser
         $toolCall = $raw['tool_call'] ?? [];
 
         foreach ($toolCall as $value) {
-            if (is_array($value) && isset($value['arguments'])) {
-                return $value['arguments'];
+            if (is_array($value) && isset($value['args'])) {
+                return $value['args'];
             }
         }
 

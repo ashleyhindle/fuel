@@ -108,7 +108,7 @@ describe('format', function (): void {
             'subtype' => 'started',
             'tool_call' => [
                 'readToolCall' => [
-                    'arguments' => ['path' => 'config/app.php'],
+                    'args' => ['path' => 'config/app.php'],
                 ],
             ],
         ];
@@ -125,7 +125,7 @@ describe('format', function (): void {
             'subtype' => 'started',
             'tool_call' => [
                 'editToolCall' => [
-                    'arguments' => ['path' => '/Users/ashleyhindle/Code/fuel/app/Services/TaskService.php'],
+                    'args' => ['path' => '/Users/ashleyhindle/Code/fuel/app/Services/TaskService.php'],
                 ],
             ],
         ];
@@ -142,7 +142,7 @@ describe('format', function (): void {
             'subtype' => 'started',
             'tool_call' => [
                 'writeToolCall' => [
-                    'arguments' => ['path' => 'tests/Feature/NewTest.php'],
+                    'args' => ['path' => 'tests/Feature/NewTest.php'],
                 ],
             ],
         ];
@@ -159,7 +159,7 @@ describe('format', function (): void {
             'subtype' => 'started',
             'tool_call' => [
                 'shellToolCall' => [
-                    'arguments' => ['command' => './vendor/bin/pest tests/Unit/TaskServiceTest.php'],
+                    'args' => ['command' => './vendor/bin/pest tests/Unit/TaskServiceTest.php'],
                 ],
             ],
         ];
@@ -176,7 +176,7 @@ describe('format', function (): void {
             'subtype' => 'started',
             'tool_call' => [
                 'shellToolCall' => [
-                    'arguments' => ['command' => 'git status'],
+                    'args' => ['command' => 'git status'],
                 ],
             ],
         ];
@@ -193,7 +193,7 @@ describe('format', function (): void {
             'subtype' => 'started',
             'tool_call' => [
                 'grepToolCall' => [
-                    'arguments' => ['pattern' => 'reality-'],
+                    'args' => ['pattern' => 'reality-'],
                 ],
             ],
         ];
@@ -225,7 +225,7 @@ describe('format', function (): void {
             'subtype' => 'started',
             'tool_call' => [
                 'customToolCall' => [
-                    'arguments' => ['foo' => 'bar'],
+                    'args' => ['foo' => 'bar'],
                 ],
             ],
         ];
