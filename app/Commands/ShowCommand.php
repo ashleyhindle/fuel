@@ -61,6 +61,7 @@ class ShowCommand extends Command
                 'id' => $id,
                 '--cwd' => $this->option('cwd'),
                 '--json' => $this->option('json'),
+                '--raw' => $this->option('raw'),
             ]);
         }
 
@@ -69,6 +70,7 @@ class ShowCommand extends Command
                 'id' => $id,
                 '--cwd' => $this->option('cwd'),
                 '--json' => $this->option('json'),
+                '--raw' => $this->option('raw'),
             ]);
         }
 

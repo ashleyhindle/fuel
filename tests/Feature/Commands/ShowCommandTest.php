@@ -355,4 +355,46 @@ describe('show command', function (): void {
         expect($output)->toContain('test-agent');
         expect($output)->toContain('test-model');
     });
+
+    it('handles --tail flag on epic without error', function (): void {
+        $epicService = makeEpicService($this->taskService);
+        $epic = $epicService->createEpic('Test Epic', 'Epic description');
+
+        // Should not throw error when --tail is used with epic
+        $this->artisan('show', ['id' => $epic->short_id, '--tail' => true])
+            ->expectsOutputToContain('Epic: '.$epic->short_id)
+            ->assertExitCode(0);
+    });
+
+    it('handles --raw flag on epic without error', function (): void {
+        $epicService = makeEpicService($this->taskService);
+        $epic = $epicService->createEpic('Test Epic', 'Epic description');
+
+        // Should not throw error when --raw is used with epic
+        $this->artisan('show', ['id' => $epic->short_id, '--raw' => true])
+            ->expectsOutputToContain('Epic: '.$epic->short_id)
+            ->assertExitCode(0);
+    });
+
+    it('passes --raw flag to run:show command', function (): void {
+        $task = $this->taskService->create(['title' => 'Test task']);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'output' => 'Test output',
+            'started_at' => '2026-01-07T10:00:00+00:00',
+            'ended_at' => '2026-01-07T10:05:00+00:00',
+        ]);
+
+        $runs = $runService->getRuns($task->short_id);
+        $runId = $runs[0]->run_id;
+
+        // Call show command with --raw flag, should pass through to run:show
+        Artisan::call('show', ['id' => $runId, '--raw' => true]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Run: '.$runId);
+        expect($output)->toContain('Test output');
+    });
 });
