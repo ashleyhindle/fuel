@@ -168,14 +168,21 @@ class OutputParser
 
     /**
      * Extract tool arguments from raw event data.
+     * Checks for both 'args' (Cursor) and 'arguments' (other agents).
      */
     private function extractToolArgs(array $raw): array
     {
         $toolCall = $raw['tool_call'] ?? [];
 
         foreach ($toolCall as $value) {
-            if (is_array($value) && isset($value['args'])) {
-                return $value['args'];
+            if (is_array($value)) {
+                // Try 'args' first (Cursor), then 'arguments' (other agents)
+                if (isset($value['args'])) {
+                    return $value['args'];
+                }
+                if (isset($value['arguments'])) {
+                    return $value['arguments'];
+                }
             }
         }
 
