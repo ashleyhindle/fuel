@@ -53,12 +53,12 @@ class CompletedCommand extends Command
 
             $this->info(sprintf('Completed tasks (%d):', $tasks->count()));
 
-            $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority'];
+            $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority', 'Commit'];
 
             // Calculate max title width based on terminal width
-            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - borders/padding (18)
+            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - Commit (10) - borders/padding (20)
             $terminalWidth = $this->getTerminalWidth();
-            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 18; // ID, Completed, Type, Priority columns + borders
+            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 10 + 20; // ID, Completed, Type, Priority, Commit columns + borders
             $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth); // Minimum 20 chars for title
 
             $rows = $tasks->map(fn (Task $t): array => [
@@ -67,6 +67,7 @@ class CompletedCommand extends Command
                 $this->formatDate($t->updated_at),
                 $t->type ?? 'task',
                 $t->priority ?? 2,
+                $t->commit_hash ?? '',
             ])->toArray();
 
             $table = new Table;

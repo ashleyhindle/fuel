@@ -181,9 +181,40 @@ describe('completed command', function (): void {
         expect($output)->toContain('Completed');
         expect($output)->toContain('Type');
         expect($output)->toContain('Priority');
+        expect($output)->toContain('Commit');
         expect($output)->toContain($task->short_id);
         expect($output)->toContain('Test completed task');
         expect($output)->toContain('feature');
         expect($output)->toContain('1');
+    });
+
+    it('displays commit hash when present', function (): void {
+        $task = $this->taskService->create([
+            'title' => 'Task with commit',
+            'type' => 'feature',
+            'priority' => 1,
+        ]);
+        $commitHash = 'abc123def456';
+        $this->taskService->done($task->short_id, commitHash: $commitHash);
+
+        Artisan::call('completed', []);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Commit');
+        expect($output)->toContain($commitHash);
+    });
+
+    it('displays empty commit column when no commit hash', function (): void {
+        $task = $this->taskService->create([
+            'title' => 'Task without commit',
+        ]);
+        $this->taskService->done($task->short_id);
+
+        Artisan::call('completed', []);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Commit');
+        // Task should still be shown even without commit hash
+        expect($output)->toContain($task->short_id);
     });
 });
