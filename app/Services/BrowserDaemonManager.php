@@ -534,6 +534,47 @@ class BrowserDaemonManager
     }
 
     /**
+     * Get text content from an element
+     */
+    public function text(string $pageId, ?string $selector, ?string $ref): array
+    {
+        $params = [
+            'pageId' => $pageId,
+        ];
+
+        if ($selector !== null) {
+            $params['selector'] = $selector;
+        }
+
+        if ($ref !== null) {
+            $params['ref'] = $ref;
+        }
+
+        return $this->sendRequest('text', $params);
+    }
+
+    /**
+     * Get HTML content from an element
+     */
+    public function html(string $pageId, ?string $selector, ?string $ref, bool $inner = false): array
+    {
+        $params = [
+            'pageId' => $pageId,
+            'inner' => $inner,
+        ];
+
+        if ($selector !== null) {
+            $params['selector'] = $selector;
+        }
+
+        if ($ref !== null) {
+            $params['ref'] = $ref;
+        }
+
+        return $this->sendRequest('html', $params);
+    }
+
+    /**
      * Close a browser context and all its pages
      */
     public function closeContext(string $contextId): array

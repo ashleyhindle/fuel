@@ -45,6 +45,8 @@ Edit `{{ epic_plan_filename }}` to:
 
 ### 5. Decide Next Action
 
+**CRITICAL: You MUST run ONE of these commands before exiting. Do NOT exit without running one of these:**
+
 **All acceptance criteria complete?**
 ```bash
 fuel done {{ task.short_id }} --commit=[hash from step 3]
@@ -59,6 +61,8 @@ fuel selfguided:continue {{ task.short_id }} --notes='Completed X, next is Y'
 ```bash
 fuel selfguided:blocked {{ task.short_id }} --reason='Why you are blocked'
 ```
+
+**REMINDER: Your session will end after this. You MUST run one of the above commands NOW.**
 
 == QUALITY GATES ==
 Before marking any criterion complete:

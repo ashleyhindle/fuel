@@ -9,11 +9,13 @@ use App\Ipc\Commands\BrowserCloseCommand;
 use App\Ipc\Commands\BrowserCreateCommand;
 use App\Ipc\Commands\BrowserFillCommand;
 use App\Ipc\Commands\BrowserGotoCommand;
+use App\Ipc\Commands\BrowserHtmlCommand;
 use App\Ipc\Commands\BrowserPageCommand;
 use App\Ipc\Commands\BrowserRunCommand;
 use App\Ipc\Commands\BrowserScreenshotCommand;
 use App\Ipc\Commands\BrowserSnapshotCommand;
 use App\Ipc\Commands\BrowserStatusCommand;
+use App\Ipc\Commands\BrowserTextCommand;
 use App\Ipc\Commands\BrowserTypeCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\IpcMessage;
@@ -356,6 +358,63 @@ final readonly class BrowserCommandHandler
                     $message->text,
                     $message->ref,
                     $message->delay
+                );
+
+                // Send success response
+                $this->sendSuccessResponse($message->getRequestId(), $result);
+            } catch (Throwable $e) {
+                $this->sendErrorResponse(
+                    $message->getRequestId(),
+                    $e->getMessage(),
+                    $this->getErrorCode($e)
+                );
+            }
+        }
+    }
+
+    /**
+     * Handle browser text command
+     */
+    public function handleBrowserText(IpcMessage $message): void
+    {
+        if ($message instanceof BrowserTextCommand) {
+            try {
+                $this->ensureBrowserRunning();
+
+                // Get text content from element
+                $result = $this->browserManager->text(
+                    $message->pageId,
+                    $message->selector,
+                    $message->ref
+                );
+
+                // Send success response
+                $this->sendSuccessResponse($message->getRequestId(), $result);
+            } catch (Throwable $e) {
+                $this->sendErrorResponse(
+                    $message->getRequestId(),
+                    $e->getMessage(),
+                    $this->getErrorCode($e)
+                );
+            }
+        }
+    }
+
+    /**
+     * Handle browser html command
+     */
+    public function handleBrowserHtml(IpcMessage $message): void
+    {
+        if ($message instanceof BrowserHtmlCommand) {
+            try {
+                $this->ensureBrowserRunning();
+
+                // Get HTML from element
+                $result = $this->browserManager->html(
+                    $message->pageId,
+                    $message->selector,
+                    $message->ref,
+                    $message->inner
                 );
 
                 // Send success response

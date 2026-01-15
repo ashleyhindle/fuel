@@ -545,8 +545,13 @@ class TaskService
             return true;
         }
 
-        // Case 3: in_progress + PID that is dead
+        // Case 3: in_progress + PID that is dead (but run not completed)
         if ($status === TaskStatus::InProgress && $pid !== null) {
+            // If latest run already completed successfully, PID being dead is expected
+            if ($latestRun?->status === 'completed') {
+                return false;
+            }
+
             $pidInt = (int) $pid;
             if (in_array($pidInt, $excludePids, true)) {
                 return false;

@@ -4,9 +4,12 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.0"
+    "@vercel/ncc": "^0.38.0",
+    "vitest": "^2.1.8"
   },
   "scripts": {
-    "bundle:browser": "ncc build browser-daemon.js -o browser-daemon-dist --minify"
+    "bundle:browser": "ncc build browser-daemon.js -o browser-daemon-dist --minify",
+    "test": "vitest",
+    "test:run": "vitest run"
   }
 }

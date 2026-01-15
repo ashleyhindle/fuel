@@ -103,6 +103,14 @@ final class TaskSpawner
         $taskId = $task->short_id;
         $cwd = $this->fuelContext->getProjectPath();
 
+        // Debug logging to catch task/prompt mismatch issues
+        DaemonLogger::getInstance()->debug('TaskSpawner.trySpawnTask', [
+            'task_short_id' => $task->short_id,
+            'task_id' => $task->id,
+            'epic_id' => $task->epic_id,
+            'agent' => $task->agent,
+        ]);
+
         // Create appropriate AgentTask based on task agent field
         if ($task->agent === 'selfguided') {
             $agentTask = app(SelfGuidedAgentTask::class, ['task' => $task]);
