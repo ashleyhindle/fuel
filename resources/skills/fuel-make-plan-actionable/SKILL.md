@@ -1,5 +1,5 @@
 ---
-name: make-plan-actionable
+name: fuel-make-plan-actionable
 description: Convert an approved plan into well-defined Fuel tasks with epics, dependencies, and review tasks. Use after exiting plan mode.
 ---
 

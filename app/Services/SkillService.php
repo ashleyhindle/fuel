@@ -19,11 +19,6 @@ class SkillService
     ];
 
     /**
-     * Prefix for skill directories to avoid collisions with user skills.
-     */
-    private const SKILL_PREFIX = 'fuel-';
-
-    /**
      * Get the path to bundled skills.
      * Handles both phar and development environments.
      */
@@ -106,7 +101,7 @@ class SkillService
         $installedPaths = [];
 
         foreach (self::TARGET_DIRECTORIES as $targetDir) {
-            $targetSkillDir = $projectPath.'/'.$targetDir.'/'.self::SKILL_PREFIX.$skillName;
+            $targetSkillDir = $projectPath.'/'.$targetDir.'/'.$skillName;
             $targetFile = $targetSkillDir.'/SKILL.md';
 
             // Create directory if it doesn't exist

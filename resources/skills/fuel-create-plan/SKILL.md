@@ -1,5 +1,5 @@
 ---
-name: create-plan
+name: fuel-create-plan
 description: Plan features using codebase context from reality.md. Use when designing implementations or entering plan mode.
 ---
 
