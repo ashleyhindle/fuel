@@ -270,6 +270,7 @@ PROTOCOL;
         $lines[] = '  - Patterns you established that others should follow';
         $lines[] = '  - Gotchas or mistakes to avoid';
         $lines[] = '  - Key decisions and why you made them';
+        $lines[] = '  - Mark off parts you completed';
         $lines[] = '';
         $lines[] = 'You are working on a small part of this larger epic. Understanding the epic context will help you build better solutions that align with the overall goal.';
         $lines[] = '';
