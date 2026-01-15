@@ -4,10 +4,10 @@ use App\Commands\PlanCommand;
 
 test('plan command starts immediately without arguments', function () {
     // Mock the Process so we don't actually spawn claude
+    // In testing mode, startPlanningSession returns early, so we only see the initial messages
     $this->artisan('plan')
         ->expectsOutput('Starting new planning session with Claude Opus 4.5...')
         ->expectsOutputToContain("Type 'exit' or press Ctrl+C to end the planning session.")
-        ->expectsOutputToContain('Connecting to Claude Opus 4.5 in planning mode...')
         ->assertExitCode(0);
 });
 

@@ -72,8 +72,8 @@ class PlanCommand extends Command
         $process->setWorkingDirectory(getcwd());
 
         try {
-            $this->info("🚀 Starting interactive planning session with Claude Opus 4.5");
-            $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            $this->info('🚀 Starting interactive planning session with Claude Opus 4.5');
+            $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             $this->info("Type 'exit' or press Ctrl+C to end the session.\n");
 
             // Start the process
@@ -120,7 +120,10 @@ class PlanCommand extends Command
     {
         $outputBuffer = '';
         $waitingForInput = false;
-        $conversationState = 'initial'; // Track state: initial, planning, ready_to_create
+        $conversationState = 'initial'; // Track state: initial, planning, refining, ready_to_create
+        $turnCount = 0;
+        $lastClaudeResponse = '';
+        $epicCreated = false;
 
         while ($process->isRunning()) {
             // Check for Claude's output
@@ -134,7 +137,11 @@ class PlanCommand extends Command
                     $outputBuffer = substr($outputBuffer, $newlinePos + 1);
 
                     if (! empty(trim($line))) {
-                        $waitingForInput = $this->processClaudeOutput($line);
+                        $result = $this->processClaudeOutput($line, $lastClaudeResponse, $epicCreated);
+                        $waitingForInput = $result['waiting'];
+                        if ($result['epicCreated']) {
+                            $epicCreated = true;
+                        }
                     }
                 }
             }
@@ -147,11 +154,21 @@ class PlanCommand extends Command
 
             // Only prompt for input when Claude is done responding
             if ($waitingForInput && ! $this->hasMoreOutput($process)) {
+                $turnCount++;
+
+                // Update state based on conversation progress
+                $this->updateConversationState($conversationState, $lastClaudeResponse, $turnCount, $epicCreated);
+
+                // Show hints based on state
+                $this->showStateHint($conversationState, $epicCreated);
+
                 $userInput = $this->ask('You');
 
                 if (strtolower($userInput) === 'exit') {
                     $this->info("\n👋 Ending planning session...");
-                    $this->warn("Note: No epic was created. Run 'fuel plan' again to start fresh.");
+                    if (! $epicCreated) {
+                        $this->warn("Note: No epic was created. Run 'fuel plan' again to start fresh.");
+                    }
                     break;
                 }
 
@@ -169,7 +186,12 @@ class PlanCommand extends Command
         }
 
         $this->info("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        $this->info("Planning session ended.");
+        if ($epicCreated) {
+            $this->info('✅ Planning session ended successfully!');
+            $this->info("Run 'fuel consume' to begin working on the tasks.");
+        } else {
+            $this->info('Planning session ended.');
+        }
 
         if (! $process->isRunning() && $process->getExitCode() !== 0) {
             $this->error('Claude process exited with error code: '.$process->getExitCode());
@@ -179,15 +201,17 @@ class PlanCommand extends Command
     /**
      * Process a line of output from Claude
      *
-     * @return bool Whether we're waiting for user input
+     * @return array ['waiting' => bool, 'epicCreated' => bool]
      */
-    private function processClaudeOutput(string $line): bool
+    private function processClaudeOutput(string $line, string &$lastClaudeResponse, bool $epicCreated): array
     {
         $data = json_decode($line, true);
         if (! $data) {
             // Not JSON, skip it
-            return false;
+            return ['waiting' => false, 'epicCreated' => false];
         }
+
+        $newEpicCreated = false;
 
         // Handle different message types from Claude
         switch ($data['type'] ?? '') {
@@ -209,8 +233,11 @@ class PlanCommand extends Command
                     $this->line($text);
                     $this->line('');
 
+                    // Track the last response for state detection
+                    $lastClaudeResponse = $text;
+
                     // After Claude responds, we're waiting for input
-                    return true;
+                    return ['waiting' => true, 'epicCreated' => false];
                 }
                 break;
 
@@ -218,7 +245,15 @@ class PlanCommand extends Command
                 if (isset($data['subtype']) && $data['subtype'] === 'started') {
                     if (isset($data['tool_call'])) {
                         $toolName = array_keys($data['tool_call'])[0] ?? 'unknown';
-                        $this->checkToolConstraint($toolName, $data['tool_call'][$toolName] ?? []);
+                        $params = $data['tool_call'][$toolName] ?? [];
+                        $this->checkToolConstraint($toolName, $params);
+
+                        // Check if this is an epic creation
+                        if ($toolName === 'Bash' && isset($params['command'])) {
+                            if (str_contains($params['command'], 'fuel epic:add')) {
+                                $newEpicCreated = true;
+                            }
+                        }
                     }
                 }
                 break;
@@ -228,7 +263,7 @@ class PlanCommand extends Command
                 break;
 
             case 'error':
-                $this->error('❌ ' . ($data['message'] ?? 'Unknown error'));
+                $this->error('❌ '.($data['message'] ?? 'Unknown error'));
                 break;
 
             case 'system':
@@ -236,7 +271,7 @@ class PlanCommand extends Command
                 break;
         }
 
-        return false;
+        return ['waiting' => false, 'epicCreated' => $newEpicCreated];
     }
 
     /**
@@ -249,9 +284,10 @@ class PlanCommand extends Command
             'Read' => true,
             'Grep' => true,
             'Glob' => true,
-            'Bash' => function($params) {
+            'Bash' => function ($params) {
                 // Only fuel commands are allowed
                 $command = $params['command'] ?? '';
+
                 return str_starts_with($command, 'fuel ') || str_starts_with($command, './fuel ');
             },
         ];
@@ -259,6 +295,7 @@ class PlanCommand extends Command
         // Check if tool is allowed
         if (! isset($allowedTools[$toolName])) {
             $this->warn("⚠️  Tool '{$toolName}' is not allowed in planning mode. Ignoring.");
+
             return;
         }
 
@@ -266,6 +303,7 @@ class PlanCommand extends Command
         if (is_callable($allowedTools[$toolName])) {
             if (! $allowedTools[$toolName]($params)) {
                 $this->warn("⚠️  Command not allowed in planning mode. Only 'fuel' commands permitted.");
+
                 return;
             }
         }
@@ -312,10 +350,85 @@ class PlanCommand extends Command
             'content' => [
                 [
                     'type' => 'text',
-                    'text' => $userInput . $reminder,
+                    'text' => $userInput.$reminder,
                 ],
             ],
         ];
+    }
+
+    /**
+     * Update conversation state based on progress
+     */
+    private function updateConversationState(string &$state, string $lastResponse, int $turnCount, bool $epicCreated): void
+    {
+        if ($epicCreated) {
+            $state = 'completed';
+
+            return;
+        }
+
+        // Detect user satisfaction with plan
+        $readyPhrases = [
+            'looks good',
+            'let\'s do it',
+            'create the epic',
+            'sounds perfect',
+            'i like it',
+            'go ahead',
+            'ship it',
+            'perfect',
+        ];
+
+        foreach ($readyPhrases as $phrase) {
+            if (stripos($lastResponse, $phrase) !== false) {
+                $state = 'ready_to_create';
+
+                return;
+            }
+        }
+
+        // Progress through states based on turn count and content
+        if ($turnCount > 2 && str_contains(strtolower($lastResponse), 'acceptance criteria')) {
+            $state = 'refining';
+        } elseif ($turnCount > 1) {
+            $state = 'planning';
+        }
+    }
+
+    /**
+     * Show helpful hints based on conversation state
+     */
+    private function showStateHint(string $state, bool $epicCreated): void
+    {
+        if ($epicCreated) {
+            return;
+        }
+
+        switch ($state) {
+            case 'initial':
+                // No hints on first turn
+                break;
+            case 'planning':
+                $this->line($this->wrapInBox('💡 Tip: Ask clarifying questions or suggest improvements to refine the plan.', 'dim'));
+                break;
+            case 'refining':
+                $this->line($this->wrapInBox("💡 Tip: When the plan looks good, say 'looks good' or 'create the epic' to proceed.", 'dim'));
+                break;
+            case 'ready_to_create':
+                $this->line($this->wrapInBox('🎯 Claude is ready to create the epic and tasks. Confirm to proceed.', 'dim'));
+                break;
+        }
+    }
+
+    /**
+     * Wrap text in a simple box for visual distinction
+     */
+    private function wrapInBox(string $text, string $style = 'info'): string
+    {
+        $length = strlen($text) + 2;
+        $border = str_repeat('─', $length);
+
+        return "<{$style}>┌{$border}┐\n│ {$text} │\n└{$border}┘</{$style}>";
     }
 
     /**
@@ -324,7 +437,7 @@ class PlanCommand extends Command
     private function getPlanningSystemPrompt(): string
     {
         return <<<'PROMPT'
-You are in PLANNING MODE for the Fuel task management system. Your role is to help the user plan a feature through iterative conversation.
+You are in PLANNING MODE for the Fuel task management system. Your role is to help the user plan a feature through iterative conversation and refinement.
 
 STRICT CONSTRAINTS - YOU MUST FOLLOW THESE:
 1. You may ONLY use these tools:
@@ -344,16 +457,28 @@ STRICT CONSTRAINTS - YOU MUST FOLLOW THESE:
    - Iteratively refining the plan with the user
    - Creating clear acceptance criteria
 
-PLANNING WORKFLOW:
-1. Discuss and refine the feature idea with the user
-2. Ask clarifying questions to understand scope and requirements
-3. Read relevant files to understand existing patterns and constraints
-4. Once the plan is solid, create an epic with `fuel epic:add "Title" --description="..."`
-5. Write the plan to `.fuel/plans/{title-kebab}-{epic-id}.md`
-6. For pre-planned epics: create tasks with proper dependencies
-7. Tell the user: "Planning complete! Run `fuel consume` to begin execution"
+ITERATIVE REFINEMENT PROCESS:
+1. **Initial Understanding**: Ask about the user's feature idea and goals
+2. **Clarification**: Ask specific questions to uncover edge cases and requirements
+3. **Exploration**: Read relevant files to understand existing patterns
+4. **Draft Plan**: Present an initial plan with acceptance criteria
+5. **Refinement**: Iterate based on user feedback, adjusting the plan as needed
+6. **Finalization**: Once user approves, create epic and tasks
 
-IMPORTANT: This is a collaborative planning session. Don't rush to implementation. Take time to understand what the user wants to build and help them think through edge cases and design decisions.
+KEY BEHAVIORS:
+- Start with open questions: "What would you like to build?" "What problem does this solve?"
+- Present plans incrementally: Start with high-level approach, then add details
+- Check understanding: "Does this match what you had in mind?" "Should we adjust anything?"
+- Suggest improvements: "Have you considered...?" "What about edge case X?"
+- Be collaborative: This is a discussion, not a one-way specification
+
+WHEN THE USER APPROVES THE PLAN:
+1. Create an epic with `fuel epic:add "Title" --description="..." [--selfguided if appropriate]`
+2. Write the detailed plan to `.fuel/plans/{title-kebab}-{epic-id}.md`
+3. For pre-planned epics: create tasks with proper dependencies
+4. Tell the user: "Planning complete! Run `fuel consume` to begin execution"
+
+REMEMBER: This is a collaborative planning session. Take time to understand what the user wants to build and help them think through edge cases and design decisions. The goal is a well-thought-out plan that both of you are confident in.
 PROMPT;
     }
 }
