@@ -67,7 +67,15 @@ class EpicShowCommand extends Command
                 $totalCount = count($sortedTasks);
                 $completedCount = count(array_filter($sortedTasks, fn (Task $task): bool => $task->status === TaskStatus::Done));
                 $epicArray = $epic->toArray();
-                $epicArray['tasks'] = array_map(fn (Task $task): array => $task->toArray(), $sortedTasks);
+                $epicArray['tasks'] = array_map(function (Task $task) use ($runService): array {
+                    $data = $task->toArray();
+                    $latestRun = $runService->getLatestRun($task->short_id);
+                    $data['type'] = $task->type ?? 'task';
+                    $data['agent'] = $latestRun?->agent;
+                    $data['commit_hash'] = $task->commit_hash ?? null;
+
+                    return $data;
+                }, $sortedTasks);
                 $epicArray['task_count'] = $totalCount;
                 $epicArray['completed_count'] = $completedCount;
                 $this->outputJson($epicArray);
@@ -98,7 +106,7 @@ class EpicShowCommand extends Command
                 $this->line('  <fg=yellow>No tasks linked to this epic.</>');
             } else {
                 $this->line(sprintf('  Linked Tasks (%d):', count($sortedTasks)));
-                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Run ID', 'Exit Code', 'Commit'];
+                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Agent', 'Run ID', 'Exit Code', 'Commit'];
                 $rows = array_map(function (Task $task) use ($blockedIds, $runService): array {
                     $isBlocked = in_array($task->short_id, $blockedIds, true);
 
@@ -111,13 +119,15 @@ class EpicShowCommand extends Command
                     $latestRun = $runService->getLatestRun($task->short_id);
                     $runId = $latestRun?->short_id ?? '';
                     $exitCode = $latestRun?->exit_code !== null ? (string) $latestRun->exit_code : '';
+                    $agent = $latestRun?->agent ?? '';
 
                     return [
                         $task->short_id,
                         $task->title ?? '',
                         $statusDisplay,
-                        $task->type ?? '',
+                        $task->type ?? 'task',
                         isset($task->priority) ? (string) $task->priority : '',
+                        $agent,
                         $runId,
                         $exitCode,
                         $task->commit_hash ?? '',

@@ -77,7 +77,12 @@ class TasksCommand extends Command
         }
 
         if ($this->option('json')) {
-            $this->outputJson($tasks->map(fn (Task $t): array => $t->toArray())->toArray());
+            $this->outputJson($tasks->map(function (Task $t): array {
+                $data = $t->toArray();
+                $data['type'] = $t->type ?? 'task';
+
+                return $data;
+            })->toArray());
         } else {
             if ($tasks->isEmpty()) {
                 $this->info('No tasks found.');

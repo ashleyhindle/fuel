@@ -44,7 +44,12 @@ class CompletedCommand extends Command
             ->values();
 
         if ($this->option('json')) {
-            $this->outputJson($tasks->map(fn (Task $task): array => $task->toArray())->toArray());
+            $this->outputJson($tasks->map(function (Task $task): array {
+                $data = $task->toArray();
+                $data['type'] = $task->type ?? 'task';
+
+                return $data;
+            })->toArray());
         } else {
             if ($tasks->isEmpty()) {
                 $this->info('No completed tasks found.');
