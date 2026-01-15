@@ -23,7 +23,7 @@ describe('TaskPromptBuilder closing protocol', function (): void {
         // Should include standard closing protocol with git commit
         expect($prompt)->toContain('== CLOSING PROTOCOL ==');
         expect($prompt)->toContain('git commit -m "feat/fix: description"');
-        expect($prompt)->toContain('./fuel done f-standalone --commit=<hash>');
+        expect($prompt)->toContain('fuel done f-standalone --commit=<hash>');
 
         // Should NOT include epic task closing protocol
         expect($prompt)->not->toContain('== CLOSING PROTOCOL (EPIC TASK) ==');
@@ -51,7 +51,7 @@ describe('TaskPromptBuilder closing protocol', function (): void {
         // Should include standard closing protocol with git commit (same as standalone)
         expect($prompt)->toContain('== CLOSING PROTOCOL ==');
         expect($prompt)->toContain('git commit -m "feat/fix: description"');
-        expect($prompt)->toContain('./fuel done f-epictask --commit=<hash>');
+        expect($prompt)->toContain('fuel done f-epictask --commit=<hash>');
 
         // Should NOT include old "do not commit" messaging
         expect($prompt)->not->toContain('DO NOT commit');

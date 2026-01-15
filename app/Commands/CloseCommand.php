@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use Illuminate\Support\Facades\Artisan;
 use LaravelZero\Framework\Commands\Command;
 
 class CloseCommand extends Command
@@ -19,28 +18,23 @@ class CloseCommand extends Command
 
     public function handle(): int
     {
-        $ids = $this->argument('ids');
-        $commit = $this->option('commit');
-        $json = $this->option('json');
-        $cwd = $this->option('cwd');
-
         $params = [
-            'ids' => $ids,
+            'ids' => $this->argument('ids'),
             '--reason' => 'closed',
         ];
 
-        if ($commit !== null) {
-            $params['--commit'] = $commit;
+        if ($this->option('commit') !== null) {
+            $params['--commit'] = $this->option('commit');
         }
 
-        if ($json) {
+        if ($this->option('json')) {
             $params['--json'] = true;
         }
 
-        if ($cwd !== null) {
-            $params['--cwd'] = $cwd;
+        if ($this->option('cwd') !== null) {
+            $params['--cwd'] = $this->option('cwd');
         }
 
-        return Artisan::call('done', $params, $this->output);
+        return $this->call('done', $params);
     }
 }
