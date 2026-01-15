@@ -82,7 +82,7 @@ test('plan command handles self-guided vs pre-planned mode selection', function 
     $state = 'ready_to_create';
     $message = $wrapMethod->invokeArgs($planCommand, ['pre-planned', &$state]);
     expect($state)->toBe('mode_selected_preplanned');
-    expect($message['content'][0]['text'])->toContain('no --selfguided flag');
+    expect($message['content'][0]['text'])->toContain('no --selfguided');
 });
 
 test('plan session tracks selfguided flag in epic creation', function () {
@@ -97,8 +97,8 @@ test('plan session tracks selfguided flag in epic creation', function () {
     // Simulate epic creation with selfguided flag
     $toolCall = [
         'Bash' => [
-            'command' => 'fuel epic:add "Test Feature" --selfguided --description="A test epic"'
-        ]
+            'command' => 'fuel epic:add "Test Feature" --selfguided --description="A test epic"',
+        ],
     ];
 
     $trackMethod->invokeArgs($session, [$toolCall]);
@@ -108,4 +108,44 @@ test('plan session tracks selfguided flag in epic creation', function () {
     expect($planData['selfguided'])->toBeTrue();
     expect($planData)->toHaveKey('epic_title');
     expect($planData['epic_title'])->toBe('Test Feature');
+});
+
+test('plan session tracks task creation for pre-planned epics', function () {
+    // Test that PlanSession tracks tasks created for pre-planned epics
+    $session = new PlanSession;
+
+    // Use reflection to test private method
+    $reflection = new ReflectionClass($session);
+    $trackMethod = $reflection->getMethod('trackToolCall');
+    $trackMethod->setAccessible(true);
+
+    // Simulate task creation with dependencies
+    $toolCall1 = [
+        'Bash' => [
+            'command' => 'fuel add "Setup database schema" --epic=e-test --complexity=moderate',
+        ],
+    ];
+
+    $toolCall2 = [
+        'Bash' => [
+            'command' => 'fuel add "Implement API endpoints" --epic=e-test --blocked-by=f-task1 --complexity=complex',
+        ],
+    ];
+
+    $toolCall3 = [
+        'Bash' => [
+            'command' => 'fuel add "Review: Test Feature" --epic=e-test --blocked-by=f-task1,f-task2 --complexity=complex',
+        ],
+    ];
+
+    $trackMethod->invokeArgs($session, [$toolCall1]);
+    $trackMethod->invokeArgs($session, [$toolCall2]);
+    $trackMethod->invokeArgs($session, [$toolCall3]);
+
+    $planData = $session->getPlanData();
+    expect($planData)->toHaveKey('created_tasks');
+    expect($planData['created_tasks'])->toHaveCount(3);
+    expect($planData['created_tasks'][0])->toBe('Setup database schema');
+    expect($planData['created_tasks'][1])->toBe('Implement API endpoints');
+    expect($planData['created_tasks'][2])->toBe('Review: Test Feature');
 });

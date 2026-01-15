@@ -255,9 +255,9 @@ class PlanCommand extends Command
                                 $newEpicCreated = true;
                                 // Detect if --selfguided flag is present
                                 if (str_contains($command, '--selfguided')) {
-                                    $this->info("→ Creating self-guided epic (iterative execution)");
+                                    $this->info('→ Creating self-guided epic (iterative execution)');
                                 } else {
-                                    $this->info("→ Creating pre-planned epic (all tasks upfront)");
+                                    $this->info('→ Creating pre-planned epic (all tasks upfront)');
                                 }
                             }
                         }
@@ -316,7 +316,7 @@ class PlanCommand extends Command
         if (is_callable($allowedTools[$toolName])) {
             if (! $allowedTools[$toolName]($params)) {
                 if ($toolName === 'Write') {
-                    $this->warn("⚠️  Can only write to .fuel/plans/*.md files in planning mode.");
+                    $this->warn('⚠️  Can only write to .fuel/plans/*.md files in planning mode.');
                 } else {
                     $this->warn("⚠️  Command not allowed in planning mode. Only 'fuel' commands permitted.");
                 }
@@ -327,7 +327,10 @@ class PlanCommand extends Command
 
         // Tool is allowed - show what Claude is doing
         if ($toolName === 'Write' && isset($params['file_path'])) {
-            $this->info("→ Updating plan file: " . basename($params['file_path']));
+            $this->info('→ Updating plan file: '.basename($params['file_path']));
+        } elseif ($toolName === 'Bash' && isset($params['command']) && str_contains($params['command'], 'fuel add')) {
+            // Track task creation for pre-planned epics
+            $this->info('→ Creating task for pre-planned epic');
         } else {
             $this->info("→ Claude is using: {$toolName}");
         }
@@ -369,7 +372,7 @@ class PlanCommand extends Command
         if ($conversationState === 'mode_selected_selfguided') {
             $reminder = "\n\n[REMINDER: User chose self-guided. Create the epic with 'fuel epic:add \"Title\" --selfguided --description=\"...\"', then write the plan file with acceptance criteria as checkboxes.]";
         } elseif ($conversationState === 'mode_selected_preplanned') {
-            $reminder = "\n\n[REMINDER: User chose pre-planned. Create the epic with 'fuel epic:add \"Title\" --description=\"...\"' (no --selfguided flag), write the plan file, then create all tasks with dependencies.]";
+            $reminder = "\n\n[REMINDER: User chose pre-planned. Steps: 1) Create epic with 'fuel epic:add \"Title\" --description=\"...\"' (no --selfguided), 2) Write plan file, 3) Create tasks with --epic and --blocked-by flags for dependencies, 4) Add final review task blocked by all other tasks.]";
         } elseif ($conversationState === 'ready_to_create') {
             $reminder = "\n\n[REMINDER: The user seems ready. First ask whether this should be self-guided (iterative) or pre-planned (all tasks upfront), then create the epic accordingly.]";
         } else {
@@ -523,7 +526,11 @@ WHEN THE USER APPROVES THE PLAN:
    - Self-guided: `fuel epic:add "Title" --selfguided --description="..."`
    - Pre-planned: `fuel epic:add "Title" --description="..."`
 3. Write the detailed plan to `.fuel/plans/{title-kebab}-{epic-id}.md`
-4. For pre-planned epics only: create tasks with proper dependencies
+4. For pre-planned epics only: create tasks with proper dependencies:
+   - Break down the plan into concrete implementation tasks
+   - Use --blocked-by for dependent tasks: `fuel add "Task 2" --epic=e-xxxx --blocked-by=f-task1`
+   - Create tasks in logical order (foundation first, then dependent work)
+   - Add a final review task: `fuel add "Review: Epic name" --epic=e-xxxx --complexity=complex --blocked-by=f-task1,f-task2,...`
 5. Tell the user: "Planning complete! Run `fuel consume` to begin execution"
 
 REMEMBER: This is a collaborative planning session. Take time to understand what the user wants to build and help them think through edge cases and design decisions. The goal is a well-thought-out plan that both of you are confident in.
