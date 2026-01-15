@@ -879,13 +879,7 @@ class ConsumeCommand extends Command
             $this->captureCommandPalette();
         } else {
             // Status line (centered, above footer)
-            if ($paused) {
-                $statusLine = '<fg=yellow>PAUSED</>';
-            } else {
-                $spinner = self::CONNECTING_SPINNER[$this->spinnerFrame % count(self::CONNECTING_SPINNER)];
-                $this->spinnerFrame++;
-                $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
-            }
+            $statusLine = $this->buildStatusLine($paused, $isConnected);
 
             $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
             $this->screenBuffer->setLine($this->terminalHeight - 1, str_repeat(' ', $statusPadding).$statusLine);
@@ -916,6 +910,25 @@ class ConsumeCommand extends Command
         }
 
         return $this->screenBuffer->getLines();
+    }
+
+    private function buildStatusLine(bool $paused, bool $isConnected): string
+    {
+        if (! $isConnected) {
+            $spinner = self::CONNECTING_SPINNER[$this->spinnerFrame % count(self::CONNECTING_SPINNER)];
+            $this->spinnerFrame++;
+
+            return sprintf('<fg=yellow>%s Reconnecting</>', $spinner);
+        }
+
+        if ($paused) {
+            return '<fg=yellow>PAUSED</>';
+        }
+
+        $spinner = self::CONNECTING_SPINNER[$this->spinnerFrame % count(self::CONNECTING_SPINNER)];
+        $this->spinnerFrame++;
+
+        return sprintf('<fg=green>%s Consuming</>', $spinner);
     }
 
     /**
@@ -1480,13 +1493,7 @@ class ConsumeCommand extends Command
         }
 
         // Render status line above key instructions (centered)
-        if ($paused) {
-            $statusLine = '<fg=yellow>PAUSED</>';
-        } else {
-            $spinner = self::CONNECTING_SPINNER[$this->spinnerFrame % count(self::CONNECTING_SPINNER)];
-            $this->spinnerFrame++;
-            $statusLine = sprintf('<fg=green>%s Consuming</>', $spinner);
-        }
+        $statusLine = $this->buildStatusLine($paused, $isConnected);
 
         $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
         $this->getOutput()->write(sprintf("\033[%d;1H%s%s", $this->terminalHeight - 1, str_repeat(' ', $statusPadding), $statusLine));
