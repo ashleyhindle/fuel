@@ -1,6 +1,6 @@
 ---
 name: fuel-create-plan
-description: Plan features using codebase context from reality.md. Use when designing implementations or entering plan mode.
+description: Plan features using codebase context from reality.md. Use when building something across multiple tasks, designing implementations, entering plan mode, or exiting plan mode. This must be used when planning.
 ---
 
 # Create Plan
@@ -75,7 +75,27 @@ fuel epic:add "Feature name" --description="What and why"
 
 Note the epic ID (e.g., `e-abc123`). A plan file is auto-created at `.fuel/plans/{title-kebab}-{epic-id}.md`.
 
-### 5. Document the Plan
+### 5. Execution Mode Choice
+
+After creating the epic, ask the user how they want it executed:
+
+**Parallel (default)**: Use fuel-make-plan-actionable skill to break into tasks.
+- Best when: Requirements are clear, tasks are independent, want faster execution
+- Allows cheaper models on simpler tasks
+- Tasks run concurrently
+
+**Self-guided**: Add --selfguided flag to epic:add
+- Best when: Exploratory work, requirements may evolve, need to learn as you go
+- Single task iterates until all acceptance criteria met
+- Always uses capable model (more expensive)
+- Cannot parallelize
+
+Example:
+```bash
+fuel epic:add 'Feature' --selfguided --description='Criteria: 1)... 2)...'
+```
+
+### 6. Document the Plan
 
 Write your plan to the epic's plan file:
 
@@ -94,7 +114,7 @@ Write your plan to the epic's plan file:
 
 **Commit the plan file** - `.fuel/plans/` is tracked in git.
 
-### 6. Exit Plan Mode
+### 7. Exit Plan Mode
 
 Once your plan is complete, exit plan mode for approval. After approval, use the `fuel-make-plan-actionable` skill to convert the plan into tasks.
 
