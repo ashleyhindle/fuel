@@ -117,7 +117,7 @@ When the plan is ready, you will:
 - [x] User can iteratively refine plan through conversation
 - [x] Epic is created with correct flags (--selfguided when appropriate)
 - [x] Plan file is updated throughout discussion
-- [ ] For pre-planned: tasks are created with proper dependencies
+- [x] For pre-planned: tasks are created with proper dependencies
 - [ ] Paused tasks don't appear in `fuel ready` or get picked by `fuel consume`
 - [ ] Tasks from paused epics don't appear in `fuel ready` or get picked by `fuel consume`
 - [ ] User explicitly transitions from planning to execution
@@ -133,6 +133,7 @@ When the plan is ready, you will:
 - Iteration 4: Implemented iterative plan refinement with PlanSession service, conversation state tracking (initial→planning→refining→ready_to_create), visual hints to guide users, improved system prompt for collaboration
 - Iteration 5: Added self-guided vs pre-planned mode selection, proper --selfguided flag handling in epic creation, conversation states for mode selection (choosing_mode, mode_selected_*), visual feedback showing which mode was chosen
 - Iteration 6: Enabled Write tool for .fuel/plans/*.md files only during planning mode, added proper constraint checking and user feedback for plan file updates
+- Iteration 7: Implemented task creation with dependencies for pre-planned epics - enhanced system prompt with specific task creation instructions, added UI feedback for task creation, added tests to verify dependency tracking
 
 ## Implementation Notes
 <!-- Tasks: append discoveries, decisions, gotchas here -->
