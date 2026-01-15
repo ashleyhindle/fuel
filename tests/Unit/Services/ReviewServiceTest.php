@@ -57,7 +57,7 @@ YAML;
 
     $this->taskService = makeTaskService();
     $this->configService = new ConfigService($this->context);
-    $this->reviewPrompt = new ReviewPrompt;
+    $this->reviewPrompt = app(ReviewPrompt::class);
     $this->processManager = Mockery::mock(ProcessManagerInterface::class);
     $this->runService = makeRunService();
 });

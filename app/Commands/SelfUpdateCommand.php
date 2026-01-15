@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Services\FuelContext;
+use App\Services\PromptService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 use Throwable;
@@ -155,6 +156,9 @@ class SelfUpdateCommand extends Command
 
                 return self::FAILURE;
             }
+
+            // Check for outdated prompt templates
+            $this->checkOutdatedPrompts();
         } else {
             $this->line('No .fuel directory found in current path. Run `fuel init` in your project to update.');
         }
@@ -312,6 +316,35 @@ class SelfUpdateCommand extends Command
     private function getBinaryUrl(string $os, string $arch, string $version): string
     {
         return self::GITHUB_RELEASES_BASE.'/'.self::GITHUB_REPO.'/releases/download/'.$version.'/fuel-'.$os.'-'.$arch;
+    }
+
+    /**
+     * Check for outdated prompt templates and write .new files if needed.
+     */
+    private function checkOutdatedPrompts(): void
+    {
+        $promptService = app(PromptService::class);
+        $outdated = $promptService->checkVersions();
+
+        if ($outdated === []) {
+            return;
+        }
+
+        $written = $promptService->writeUpgradeFiles();
+
+        foreach ($written as $name) {
+            $this->warn(sprintf(
+                'Prompt %s.md is outdated (v%d < v%d). Compare with %s.md.new',
+                $name,
+                $outdated[$name]['user'],
+                $outdated[$name]['current'],
+                $name
+            ));
+        }
+
+        if ($written !== []) {
+            $this->line('Run: diff .fuel/prompts/<name>.md .fuel/prompts/<name>.md.new');
+        }
     }
 
     /**

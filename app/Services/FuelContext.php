@@ -48,6 +48,11 @@ class FuelContext
         return $this->basePath.'/plans';
     }
 
+    public function getPromptsPath(): string
+    {
+        return $this->basePath.'/prompts';
+    }
+
     /**
      * Get the project root directory (parent of .fuel).
      */

@@ -29,6 +29,7 @@ use App\Services\ReviewService;
 use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
+use App\Services\UpdateRealityService;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -148,12 +149,18 @@ class AppServiceProvider extends ServiceProvider
             processManager: $app->make(ProcessManagerInterface::class),
             taskService: $app->make(TaskService::class),
             configService: $app->make(ConfigService::class),
-            reviewPrompt: new ReviewPrompt,
+            reviewPrompt: $app->make(ReviewPrompt::class),
             runService: $app->make(RunService::class),
             fuelContext: $app->make(FuelContext::class),
         ));
 
         $this->app->singleton(TaskPromptBuilder::class);
+
+        $this->app->singleton(UpdateRealityService::class, fn (Application $app): UpdateRealityService => new UpdateRealityService(
+            configService: $app->make(ConfigService::class),
+            fuelContext: $app->make(FuelContext::class),
+            processManager: $app->make(ProcessManagerInterface::class),
+        ));
 
         $this->app->singleton(NotificationService::class);
 

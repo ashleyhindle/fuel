@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 use App\Models\Epic;
 use App\Models\Task;
-use App\Services\RunService;
 use App\Services\TaskPromptBuilder;
 
 beforeEach(function (): void {
-    $this->runService = $this->app->make(RunService::class);
-    $this->builder = new TaskPromptBuilder($this->runService);
+    $this->builder = $this->app->make(TaskPromptBuilder::class);
 });
 
 describe('TaskPromptBuilder closing protocol', function (): void {

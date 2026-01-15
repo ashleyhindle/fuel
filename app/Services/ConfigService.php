@@ -455,6 +455,19 @@ class ConfigService
     }
 
     /**
+     * Get the reality agent name.
+     * Falls back to primary agent if not configured.
+     * Returns null if neither is configured.
+     */
+    public function getRealityAgent(): ?string
+    {
+        $config = $this->loadConfig();
+
+        // Try 'reality' first, then fall back to 'primary'
+        return $config['reality'] ?? $config['primary'] ?? null;
+    }
+
+    /**
      * Get max_concurrent limit for a specific agent.
      * Returns default of 2 if agent is not configured.
      */
@@ -593,6 +606,7 @@ desktop_notifications: true
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
 review: claude-opus
+reality: claude-opus
 
 # Map complexity levels to agents
 complexity:

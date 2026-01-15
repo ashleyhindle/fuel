@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Agents\Tasks\ReviewAgentTask;
+use App\Agents\Tasks\UpdateRealityAgentTask;
 use App\Agents\Tasks\WorkAgentTask;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\TaskStatus;
+use App\Models\Epic;
 use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\CompletionType;
@@ -367,5 +369,175 @@ describe('ReviewAgentTask', function (): void {
         );
 
         $agentTask->onFailure($completion);
+    });
+});
+
+describe('UpdateRealityAgentTask', function (): void {
+    it('returns prefixed task ID for solo task', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+        );
+
+        expect($agentTask->getTaskId())->toBe('reality-f-abc123');
+    });
+
+    it('returns prefixed task ID for epic', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+        $epic = new Epic(['short_id' => 'e-xyz789', 'title' => 'Test Epic', 'description' => 'Epic desc']);
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+            $epic,
+        );
+
+        expect($agentTask->getTaskId())->toBe('reality-e-xyz789');
+    });
+
+    it('gets reality agent from config', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $this->configService->shouldReceive('getRealityAgent')
+            ->once()
+            ->andReturn('reality-agent');
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+        );
+
+        expect($agentTask->getAgentName($this->configService))->toBe('reality-agent');
+    });
+
+    it('falls back to primary when reality agent not configured', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $this->configService->shouldReceive('getRealityAgent')
+            ->once()
+            ->andReturn('primary-agent');
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+        );
+
+        expect($agentTask->getAgentName($this->configService))->toBe('primary-agent');
+    });
+
+    it('builds prompt for solo task', function (): void {
+        $task = new Task([
+            'short_id' => 'f-abc123',
+            'title' => 'Add new feature',
+            'type' => 'feature',
+            'description' => 'Implement feature X',
+            'status' => 'done',
+        ]);
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+        );
+
+        $prompt = $agentTask->buildPrompt('/test/cwd');
+
+        expect($prompt)->toContain('UPDATE REALITY INDEX');
+        expect($prompt)->toContain('/test/cwd/.fuel/reality.md');
+        expect($prompt)->toContain('Add new feature');
+        expect($prompt)->toContain('f-abc123');
+        expect($prompt)->toContain('feature');
+        expect($prompt)->toContain('Implement feature X');
+    });
+
+    it('returns Task process type', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+        );
+
+        expect($agentTask->getProcessType())->toBe(ProcessType::Task);
+    });
+
+    it('creates from task using static factory', function (): void {
+        // Bind TaskService mock to container
+        app()->instance(TaskService::class, $this->taskService);
+
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $agentTask = UpdateRealityAgentTask::fromTask($task, '/test/cwd');
+
+        expect($agentTask->getTaskId())->toBe('reality-f-abc123');
+        expect($agentTask->getTask())->toBe($task);
+    });
+
+    it('creates from epic using static factory', function (): void {
+        // Bind TaskService mock to container
+        app()->instance(TaskService::class, $this->taskService);
+
+        $epic = new Epic(['short_id' => 'e-xyz789', 'title' => 'Test Epic', 'description' => 'Epic desc']);
+
+        $agentTask = UpdateRealityAgentTask::fromEpic($epic, '/test/cwd');
+
+        expect($agentTask->getTaskId())->toBe('reality-e-xyz789');
+    });
+
+    it('onSuccess is fire-and-forget (no exception)', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+        );
+
+        $completion = new CompletionResult(
+            taskId: 'reality-f-abc123',
+            agentName: 'reality-agent',
+            exitCode: 0,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: '',
+            type: CompletionType::Success,
+        );
+
+        // Should not throw
+        $agentTask->onSuccess($completion);
+        expect(true)->toBeTrue();
+    });
+
+    it('onFailure is fire-and-forget (no exception)', function (): void {
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+
+        $agentTask = new UpdateRealityAgentTask(
+            $task,
+            $this->taskService,
+            '/test/cwd',
+        );
+
+        $completion = new CompletionResult(
+            taskId: 'reality-f-abc123',
+            agentName: 'reality-agent',
+            exitCode: 1,
+            duration: 60,
+            sessionId: null,
+            costUsd: null,
+            output: '',
+            type: CompletionType::Failed,
+        );
+
+        // Should not throw
+        $agentTask->onFailure($completion);
+        expect(true)->toBeTrue();
     });
 });

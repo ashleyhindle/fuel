@@ -4,7 +4,7 @@ use App\Models\Task;
 use App\Prompts\ReviewPrompt;
 
 beforeEach(function (): void {
-    $this->reviewPrompt = new ReviewPrompt;
+    $this->reviewPrompt = $this->app->make(ReviewPrompt::class);
 });
 
 it('contains the task ID in the prompt', function (): void {

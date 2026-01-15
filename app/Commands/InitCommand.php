@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
+use App\Services\PromptService;
 use App\Services\SkillService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -24,10 +25,10 @@ class InitCommand extends Command
 
     protected $description = 'Initialize Fuel in the current project';
 
-    public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService, SkillService $skillService): int
+    public function handle(FuelContext $context, TaskService $taskService, ConfigService $configService, DatabaseService $databaseService, SkillService $skillService, PromptService $promptService): int
     {
         try {
-            return $this->doInit($context, $taskService, $configService, $skillService);
+            return $this->doInit($context, $taskService, $configService, $skillService, $promptService);
         } catch (Throwable $throwable) {
             $this->error('Init failed: '.$throwable->getMessage());
 
@@ -35,7 +36,7 @@ class InitCommand extends Command
         }
     }
 
-    private function doInit(FuelContext $context, TaskService $taskService, ConfigService $configService, SkillService $skillService): int
+    private function doInit(FuelContext $context, TaskService $taskService, ConfigService $configService, SkillService $skillService, PromptService $promptService): int
     {
         // Use FuelContext as source of truth, --cwd option only overrides if explicitly set
         if ($this->option('cwd')) {
@@ -62,6 +63,39 @@ class InitCommand extends Command
         if (! is_dir($plansDir)) {
             mkdir($plansDir, 0755, true);
         }
+
+        // Create stub reality.md
+        $realityPath = $context->basePath.'/reality.md';
+        if (! file_exists($realityPath)) {
+            $stubContent = <<<'REALITY'
+# Reality
+
+## Architecture
+This section will be populated after the first task completion.
+
+## Modules
+| Module | Purpose | Entry Point |
+|--------|---------|-------------|
+
+## Entry Points
+This section will be populated after the first task completion.
+
+## Patterns
+This section will be populated after the first task completion.
+
+## Recent Changes
+_Last updated: never_
+
+REALITY;
+            file_put_contents($realityPath, $stubContent);
+        }
+
+        // Create prompts directory for customizable prompt templates
+        $promptsDir = $context->getPromptsPath();
+        if (! is_dir($promptsDir)) {
+            mkdir($promptsDir, 0755, true);
+        }
+        $promptService->writeDefaultPrompts();
 
         // Configure database path and run migrations to create schema
         $context->configureDatabase();
@@ -180,7 +214,7 @@ class InitCommand extends Command
     {
         $gitignorePath = $cwd.'/.gitignore';
 
-        // Selective ignores - plans/ is committed, transient files ignored
+        // Selective ignores - plans/ and prompts/ are committed, transient files ignored
         $entries = [
             '.fuel/*.lock',
             '.fuel/*.log',
@@ -188,6 +222,7 @@ class InitCommand extends Command
             '.fuel/config.yaml',
             '.fuel/processes/',
             '.fuel/runs/',
+            '.fuel/prompts/*.new',
         ];
 
         if (file_exists($gitignorePath)) {

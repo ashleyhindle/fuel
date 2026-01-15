@@ -249,4 +249,21 @@ describe('init command', function (): void {
             ->doesntExpectOutput('Run your favourite agent and ask it to "Consume the fuel"')
             ->assertExitCode(0);
     });
+
+    it('creates stub reality.md', function (): void {
+        Artisan::call('init', []);
+
+        $realityPath = $this->tempDir.'/.fuel/reality.md';
+        expect(file_exists($realityPath))->toBeTrue();
+
+        $content = file_get_contents($realityPath);
+        expect($content)->toContain('# Reality');
+        expect($content)->toContain('## Architecture');
+        expect($content)->toContain('## Modules');
+        expect($content)->toContain('| Module | Purpose | Entry Point |');
+        expect($content)->toContain('## Entry Points');
+        expect($content)->toContain('## Patterns');
+        expect($content)->toContain('## Recent Changes');
+        expect($content)->toContain('_Last updated: never_');
+    });
 });
