@@ -9,7 +9,7 @@ Improve browser commands to match Vercel agent-browser patterns: accessibility s
 - [x] JS test harness for browser-daemon.js with Vitest
 - [x] `browser:snapshot` command with element refs (@e1, @e2)
 - [x] `browser:click`, `browser:fill`, `browser:type` action commands
-- [ ] `browser:text`, `browser:html` query commands
+- [x] `browser:text`, `browser:html` query commands
 - [ ] `browser:wait` command for selector/URL/text
 - [x] Element ref support (daemon-side memory, resolve @e1 to locator)
 - [ ] Updated skill documentation in `resources/skills/fuel-browser/SKILL.md`
@@ -245,6 +245,7 @@ Add sections for:
 - Iteration 1: Implemented browser:snapshot command with element refs (@e1, @e2) and daemon-side ref storage
 - Iteration 6: Added comprehensive test suite for browser-daemon.js with Vitest, including snapshot method tests
 - Iteration 7: Implemented browser action commands (click, fill, type) with full element ref support across all 6 layers
+- Iteration 8: Implemented browser:text and browser:html query commands with selector and ref support
 
 ## Implementation Notes
 
