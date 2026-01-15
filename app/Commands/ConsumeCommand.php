@@ -3071,7 +3071,9 @@ class ConsumeCommand extends Command
         // Task suggestion - has short_id
         if (isset($selected->short_id) || (is_array($selected) && isset($selected['short_id']))) {
             $shortId = is_object($selected) ? $selected->short_id : $selected['short_id'];
-            $this->commandPaletteInput = 'close '.$shortId;
+            // Determine which command we're completing for
+            $prefix = str_starts_with($this->commandPaletteInput, 'reopen ') ? 'reopen ' : 'close ';
+            $this->commandPaletteInput = $prefix.$shortId;
             $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
             $this->updateCommandPaletteSuggestions();
         }
@@ -3087,6 +3089,13 @@ class ConsumeCommand extends Command
         // Check if input matches a command with arguments (e.g., "close ")
         if (str_starts_with($input, 'close ')) {
             $this->updateTaskSuggestions(mb_substr($input, 6));
+
+            return;
+        }
+
+        // Check if input matches reopen command with arguments
+        if (str_starts_with($input, 'reopen ')) {
+            $this->updateReopenTaskSuggestions(mb_substr($input, 7));
 
             return;
         }
@@ -3143,6 +3152,49 @@ class ConsumeCommand extends Command
             ->map(fn (Task $t): array => [
                 'short_id' => $t->short_id,
                 'title' => $t->title,
+            ])
+            ->values()
+            ->toArray();
+
+        $this->clampSuggestionIndex();
+    }
+
+    /**
+     * Update suggestions with reopenable tasks for the reopen command.
+     * Shows failed tasks + last 5 done tasks.
+     */
+    private function updateReopenTaskSuggestions(string $searchTerm): void
+    {
+        // Get failed tasks (in_progress but process died)
+        $failed = $this->taskService->failed();
+
+        // Get last 5 done tasks
+        $done = $this->taskService->all()
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Done)
+            ->sortByDesc('updated_at')
+            ->take(5);
+
+        // Combine: failed first, then done
+        $tasks = $failed->merge($done)->unique('short_id');
+
+        // Filter by partial match (case-insensitive) on short_id OR title
+        if ($searchTerm !== '') {
+            $searchTermLower = mb_strtolower($searchTerm);
+            $tasks = $tasks->filter(function (Task $t) use ($searchTermLower): bool {
+                $shortIdLower = mb_strtolower($t->short_id);
+                $titleLower = mb_strtolower($t->title);
+
+                return str_contains($shortIdLower, $searchTermLower) || str_contains($titleLower, $searchTermLower);
+            });
+        }
+
+        // Take first 10 results
+        $this->commandPaletteSuggestions = $tasks
+            ->take(10)
+            ->map(fn (Task $t): array => [
+                'short_id' => $t->short_id,
+                'title' => $t->title,
+                'status' => $t->status->value,
             ])
             ->values()
             ->toArray();
@@ -3267,8 +3319,50 @@ class ConsumeCommand extends Command
             return;
         }
 
+        // Parse /reopen command
+        if (preg_match('/^reopen\s+(\S+)/', $input, $matches)) {
+            $taskIdInput = $matches[1];
+
+            // If suggestionIndex >= 0 and valid, use that task's short_id instead
+            if ($this->commandPaletteSuggestionIndex >= 0 && $this->commandPaletteSuggestionIndex < count($this->commandPaletteSuggestions)) {
+                $selected = $this->commandPaletteSuggestions[$this->commandPaletteSuggestionIndex];
+                if (isset($selected['short_id'])) {
+                    $taskIdInput = $selected['short_id'];
+                }
+            }
+
+            // Find task
+            $task = $this->taskService->find($taskIdInput);
+
+            // Validate
+            if (! $task instanceof Task) {
+                $this->toast?->show('Task not found: '.$taskIdInput, 'error');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            // Only allow reopening done, in_progress (failed), or review tasks
+            if (! in_array($task->status, [TaskStatus::Done, TaskStatus::InProgress, TaskStatus::Review], true)) {
+                $this->toast?->show('Cannot reopen: '.$task->status->value, 'warning');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            // Execute
+            $this->ipcClient?->sendTaskReopen($taskIdInput);
+            $this->toast?->show('Reopened: '.$task->short_id, 'success');
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
         // Handle unknown command or empty input
-        if ($input !== '' && ! str_starts_with($input, 'close') && ! str_starts_with($input, 'add')) {
+        if ($input !== '' && ! str_starts_with($input, 'close') && ! str_starts_with($input, 'add') && ! str_starts_with($input, 'reopen')) {
             $this->toast?->show('Unknown command: '.$input, 'error');
         }
 
