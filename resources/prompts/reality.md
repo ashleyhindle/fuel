@@ -46,6 +46,15 @@ Brief 2-3 sentence overview of what this codebase is and how it's structured.
 _Last updated: YYYY-MM-DD by UpdateReality_
 ```
 
+== SKIP CONDITIONS ==
+Do NOT modify reality.md if the completed work:
+- Fixed a bug without architectural changes
+- Was a typo, comment, or documentation fix
+- Made no changes to modules, patterns, or entry points
+- Is trivial or inconsequential to codebase understanding
+
+Think hard and use your best judgement whether an update is needed. If not, exit without modifying any files.
+
 == RULES ==
 - Be concise - one line per module/pattern
 - Don't duplicate information already in CLAUDE.md
