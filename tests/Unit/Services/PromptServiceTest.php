@@ -160,7 +160,7 @@ describe('PromptService writeDefaultPrompts', function (): void {
         }
 
         // Ensure no prompts exist
-        foreach (['work.md', 'review.md', 'verify.md'] as $file) {
+        foreach (['work.md', 'review.md', 'verify.md', 'reality.md', 'selfguided.md'] as $file) {
             $path = $promptsDir.'/'.$file;
             if (file_exists($path)) {
                 unlink($path);
@@ -172,13 +172,15 @@ describe('PromptService writeDefaultPrompts', function (): void {
         expect(file_exists($promptsDir.'/work.md'))->toBeTrue();
         expect(file_exists($promptsDir.'/review.md'))->toBeTrue();
         expect(file_exists($promptsDir.'/verify.md'))->toBeTrue();
+        expect(file_exists($promptsDir.'/reality.md'))->toBeTrue();
+        expect(file_exists($promptsDir.'/selfguided.md'))->toBeTrue();
 
         // Verify content has version tag
         $workContent = file_get_contents($promptsDir.'/work.md');
         expect($workContent)->toContain('<fuel-prompt version="1" />');
 
         // Cleanup
-        foreach (['work.md', 'review.md', 'verify.md'] as $file) {
+        foreach (['work.md', 'review.md', 'verify.md', 'reality.md', 'selfguided.md'] as $file) {
             unlink($promptsDir.'/'.$file);
         }
     });
@@ -200,7 +202,7 @@ describe('PromptService writeDefaultPrompts', function (): void {
 
         // Cleanup
         unlink($promptsDir.'/work.md');
-        foreach (['review.md', 'verify.md'] as $file) {
+        foreach (['review.md', 'verify.md', 'reality.md', 'selfguided.md'] as $file) {
             $path = $promptsDir.'/'.$file;
             if (file_exists($path)) {
                 unlink($path);
@@ -240,5 +242,7 @@ describe('PromptService getPromptNames', function (): void {
         expect($names)->toContain('work');
         expect($names)->toContain('review');
         expect($names)->toContain('verify');
+        expect($names)->toContain('reality');
+        expect($names)->toContain('selfguided');
     });
 });
