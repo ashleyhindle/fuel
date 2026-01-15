@@ -97,6 +97,14 @@ async function closeStaleContexts() {
 // Check for stale contexts every minute
 setInterval(closeStaleContexts, 60 * 1000);
 
+// Exit if parent process dies (PPID becomes 1 = reparented to init)
+const initialPpid = process.ppid;
+setInterval(() => {
+  if (process.ppid !== initialPpid || process.ppid === 1) {
+    process.exit(0);
+  }
+}, 5000);
+
 async function ensureBrowser() {
   if (browser) return;
 

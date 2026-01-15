@@ -150,14 +150,13 @@ class BrowserDaemonManager
             return base_path('browser-daemon.js');
         }
 
-        // Running from PHAR/binary - extract to ~/.fuel/browser-daemon-dist/
+        // Running from PHAR/binary - always extract to ~/.fuel/browser-daemon-dist/
+        // (ensures updates get new daemon version)
         $fuelDir = (getenv('HOME') ?: getenv('USERPROFILE') ?: sys_get_temp_dir()).'/.fuel';
         $extractDir = $fuelDir.'/browser-daemon-dist';
         $extractedPath = $extractDir.'/index.js';
 
-        if (! file_exists($extractedPath)) {
-            $this->extractBrowserDaemon($pharPath, $extractDir);
-        }
+        $this->extractBrowserDaemon($pharPath, $extractDir);
 
         return $extractedPath;
     }
