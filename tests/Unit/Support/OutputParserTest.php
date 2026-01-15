@@ -102,6 +102,140 @@ describe('format', function (): void {
         expect($formatted)->toBe('🔧 Read');
     });
 
+    it('formats Read with file path', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'readToolCall' => [
+                    'arguments' => ['path' => 'config/app.php'],
+                ],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Read', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Read config/app.php');
+    });
+
+    it('formats Edit with truncated path', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'editToolCall' => [
+                    'arguments' => ['path' => '/Users/ashleyhindle/Code/fuel/app/Services/TaskService.php'],
+                ],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Edit', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Edit Services/TaskService.php');
+    });
+
+    it('formats Write with file path', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'writeToolCall' => [
+                    'arguments' => ['path' => 'tests/Feature/NewTest.php'],
+                ],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Write', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Write Feature/NewTest.php');
+    });
+
+    it('formats Bash with command', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'shellToolCall' => [
+                    'arguments' => ['command' => './vendor/bin/pest tests/Unit/TaskServiceTest.php'],
+                ],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Bash', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Bash ./vendor/bin/pest tests/Unit/TaskService...');
+    });
+
+    it('formats Bash with short command', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'shellToolCall' => [
+                    'arguments' => ['command' => 'git status'],
+                ],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Bash', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Bash git status');
+    });
+
+    it('formats Grep with pattern', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'grepToolCall' => [
+                    'arguments' => ['pattern' => 'reality-'],
+                ],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Grep', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe("🔧 Grep 'reality-'");
+    });
+
+    it('falls back to basic format when args missing', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'readToolCall' => [],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Read', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Read');
+    });
+
+    it('falls back to basic format for unknown tool', function (): void {
+        $raw = [
+            'type' => 'tool_call',
+            'subtype' => 'started',
+            'tool_call' => [
+                'customToolCall' => [
+                    'arguments' => ['foo' => 'bar'],
+                ],
+            ],
+        ];
+        $event = new ParsedEvent('tool_call', 'started', toolName: 'Custom', raw: $raw);
+
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Custom');
+    });
+
     it('returns null for tool_call completed', function (): void {
         $event = new ParsedEvent('tool_call', 'completed', toolName: 'Read');
 

@@ -155,6 +155,95 @@ class OutputParser
             return null;
         }
 
+        // Extract tool arguments from raw data
+        $args = $this->extractToolArgs($event->raw ?? []);
+        $details = $this->extractToolDetails($event->toolName, $args);
+
+        if ($details !== null) {
+            return sprintf('🔧 %s %s', $event->toolName, $details);
+        }
+
         return sprintf('🔧 %s', $event->toolName);
+    }
+
+    /**
+     * Extract tool arguments from raw event data.
+     */
+    private function extractToolArgs(array $raw): array
+    {
+        $toolCall = $raw['tool_call'] ?? [];
+
+        foreach ($toolCall as $value) {
+            if (is_array($value) && isset($value['arguments'])) {
+                return $value['arguments'];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Extract relevant details for specific tool types.
+     */
+    private function extractToolDetails(string $toolName, array $args): ?string
+    {
+        return match ($toolName) {
+            'Edit', 'Write' => $this->formatPath($args['path'] ?? null),
+            'Read' => $this->formatPath($args['path'] ?? null),
+            'Bash' => $this->formatCommand($args['command'] ?? null),
+            'Grep' => $this->formatPattern($args['pattern'] ?? null),
+            default => null,
+        };
+    }
+
+    /**
+     * Format a file path - show basename or last 2 segments.
+     */
+    private function formatPath(?string $path): ?string
+    {
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+
+        // Remove leading/trailing slashes for consistent handling
+        $path = trim($path, '/');
+        $segments = explode('/', $path);
+
+        // Show last 2 segments if path has multiple parts
+        if (count($segments) > 2) {
+            return implode('/', array_slice($segments, -2));
+        }
+
+        return $path;
+    }
+
+    /**
+     * Format a command - truncate to first 40 chars.
+     */
+    private function formatCommand(?string $command): ?string
+    {
+        if ($command === null || trim($command) === '') {
+            return null;
+        }
+
+        $command = trim($command);
+
+        if (strlen($command) > 40) {
+            return substr($command, 0, 40).'...';
+        }
+
+        return $command;
+    }
+
+    /**
+     * Format a grep pattern.
+     */
+    private function formatPattern(?string $pattern): ?string
+    {
+        if ($pattern === null || trim($pattern) === '') {
+            return null;
+        }
+
+        return "'{$pattern}'";
     }
 }
