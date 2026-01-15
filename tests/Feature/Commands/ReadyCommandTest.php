@@ -101,6 +101,25 @@ describe('ready command', function (): void {
             ->expectsOutput('[]')
             ->assertExitCode(0);
     });
+
+    it('shows infinity symbol for selfguided tasks', function (): void {
+        $this->taskService->create(['title' => 'Normal task']);
+        $this->taskService->create(['title' => 'Selfguided task', 'agent' => 'selfguided']);
+
+        $this->artisan('ready', [])
+            ->expectsOutputToContain('Normal task')
+            ->expectsOutputToContain('∞ Selfguided task')
+            ->assertExitCode(0);
+    });
+
+    it('does not show infinity symbol in JSON output', function (): void {
+        $this->taskService->create(['title' => 'Selfguided task', 'agent' => 'selfguided']);
+
+        $this->artisan('ready', ['--json' => true])
+            ->expectsOutputToContain('"title": "Selfguided task"')
+            ->doesntExpectOutputToContain('∞')
+            ->assertExitCode(0);
+    });
 });
 
 describe('ready command with dependencies', function (): void {
