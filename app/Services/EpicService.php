@@ -110,9 +110,9 @@ class EpicService
             $updates['description'] = $data['description'];
         }
 
-        // Toggle self_guided if requested
-        if (isset($data['toggle_selfguided']) && $data['toggle_selfguided']) {
-            $updates['self_guided'] = ! $epic->self_guided;
+        // Set self_guided explicitly if requested
+        if (array_key_exists('self_guided', $data)) {
+            $updates['self_guided'] = $data['self_guided'];
         }
 
         $epic->update($updates);

@@ -95,8 +95,11 @@ Examples:
 # Create epic with selfguided from start
 fuel epic:add 'Feature' --selfguided --description='Criteria: 1)... 2)...'
 
-# Or toggle selfguided on existing epic
+# Enable selfguided on existing epic
 fuel epic:update e-xxxx --selfguided
+
+# Disable selfguided on existing epic
+fuel epic:update e-xxxx --no-selfguided
 ```
 
 ### 6. Document the Plan

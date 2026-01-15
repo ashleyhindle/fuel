@@ -86,7 +86,7 @@ describe('epic:update command', function (): void {
         expect($updatedEpic->description)->toBe('Updated description');
     });
 
-    it('toggles selfguided flag from false to true', function (): void {
+    it('enables selfguided flag', function (): void {
         $epic = $this->epicService->createEpic('Test Epic', null, false);
         expect($epic->self_guided)->toBeFalse();
 
@@ -99,13 +99,13 @@ describe('epic:update command', function (): void {
         expect($updatedEpic->self_guided)->toBeTrue();
     });
 
-    it('toggles selfguided flag from true to false', function (): void {
+    it('disables selfguided flag', function (): void {
         $epic = $this->epicService->createEpic('Test Epic', null, true);
         expect($epic->self_guided)->toBeTrue();
 
         Artisan::call('epic:update', [
             'id' => $epic->short_id,
-            '--selfguided' => true,
+            '--no-selfguided' => true,
         ]);
 
         $updatedEpic = $this->epicService->getEpic($epic->short_id);
@@ -185,5 +185,44 @@ describe('epic:update command', function (): void {
 
         $updatedEpic = $this->epicService->getEpic($epic->short_id);
         expect($updatedEpic->title)->toBe('Updated via Partial');
+    });
+
+    it('returns error when both selfguided flags are used', function (): void {
+        $epic = $this->epicService->createEpic('Test Epic');
+
+        Artisan::call('epic:update', [
+            'id' => $epic->short_id,
+            '--selfguided' => true,
+            '--no-selfguided' => true,
+        ]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Cannot use both --selfguided and --no-selfguided');
+    });
+
+    it('selfguided flag is idempotent when enabling', function (): void {
+        $epic = $this->epicService->createEpic('Test Epic', null, true);
+        expect($epic->self_guided)->toBeTrue();
+
+        Artisan::call('epic:update', [
+            'id' => $epic->short_id,
+            '--selfguided' => true,
+        ]);
+
+        $updatedEpic = $this->epicService->getEpic($epic->short_id);
+        expect($updatedEpic->self_guided)->toBeTrue();
+    });
+
+    it('no-selfguided flag is idempotent when disabling', function (): void {
+        $epic = $this->epicService->createEpic('Test Epic', null, false);
+        expect($epic->self_guided)->toBeFalse();
+
+        Artisan::call('epic:update', [
+            'id' => $epic->short_id,
+            '--no-selfguided' => true,
+        ]);
+
+        $updatedEpic = $this->epicService->getEpic($epic->short_id);
+        expect($updatedEpic->self_guided)->toBeFalse();
     });
 });

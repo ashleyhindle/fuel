@@ -19,7 +19,8 @@ class EpicUpdateCommand extends Command
         {--json : Output as JSON}
         {--title= : Update epic title}
         {--description= : Update epic description}
-        {--selfguided : Toggle self-guided flag}';
+        {--selfguided : Enable self-guided mode}
+        {--no-selfguided : Disable self-guided mode}';
 
     protected $description = 'Update epic fields';
 
@@ -36,13 +37,18 @@ class EpicUpdateCommand extends Command
             $updateData['description'] = $this->option('description') ?: null;
         }
 
-        // Toggle self_guided if flag is present
+        // Handle self_guided flag explicitly
+        if ($this->option('selfguided') && $this->option('no-selfguided')) {
+            return $this->outputError('Cannot use both --selfguided and --no-selfguided flags.');
+        }
         if ($this->option('selfguided')) {
-            $updateData['toggle_selfguided'] = true;
+            $updateData['self_guided'] = true;
+        } elseif ($this->option('no-selfguided')) {
+            $updateData['self_guided'] = false;
         }
 
         if (empty($updateData)) {
-            return $this->outputError('No update fields provided. Use --title, --description, or --selfguided.');
+            return $this->outputError('No update fields provided. Use --title, --description, --selfguided, or --no-selfguided.');
         }
 
         try {
@@ -56,7 +62,7 @@ class EpicUpdateCommand extends Command
                 if ($epic->description) {
                     $this->line('  Description: '.$epic->description);
                 }
-                if (isset($updateData['toggle_selfguided'])) {
+                if (isset($updateData['self_guided'])) {
                     $status = $epic->self_guided ? 'enabled' : 'disabled';
                     $this->line('  Self-guided: '.$status);
                 }
