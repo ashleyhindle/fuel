@@ -32,8 +32,8 @@ ALLOWED:
 
 == WHEN BLOCKED ==
 If you need human input (credentials, decisions, file permissions):
-1. ./fuel add 'What you need' --labels=needs-human --description='Exact steps for human'
-2. ./fuel dep:add {{task.id}} <needs-human-task-id>
+1. fuel add 'What you need' --labels=needs-human --description='Exact steps for human'
+2. fuel dep:add {{task.id}} <needs-human-task-id>
 3. Exit immediately - do NOT wait or retry
 
 {{context.closing_protocol}}

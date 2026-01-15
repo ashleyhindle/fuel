@@ -3,7 +3,7 @@
 == SELF-GUIDED EPIC EXECUTION ==
 Iteration {{ iteration }} of {{ max_iterations }}
 
-You are executing an epic incrementally. Each iteration you assess progress, execute one criterion, and decide what to do next.
+You are executing an epic incrementally. Each iteration you assess progress, execute one task, and decide what to do next.
 
 == CODEBASE CONTEXT ==
 {{ reality }}
@@ -29,6 +29,8 @@ Pick the next unchecked criterion and implement it fully:
 - Write code
 - Run tests for affected code
 - Fix any issues
+
+You MUST execute only one task / criterion. Do not implement everything.
 
 ### 3. Commit Your Changes
 ```bash
