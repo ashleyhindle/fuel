@@ -112,6 +112,25 @@ class PlanCommand extends Command
         // Set working directory to project root
         $process->setWorkingDirectory(getcwd());
 
+        // Track if an epic was created for clean exit handling
+        $epicCreated = (bool) $existingEpicId;
+
+        // Register signal handler for clean exit on Ctrl+C
+        if (function_exists('pcntl_signal')) {
+            $handler = function ($signo) use (&$process, &$epicCreated, $existingEpicId) {
+                $this->info("\n\n👋 Planning session interrupted.");
+                if (! $epicCreated && ! $existingEpicId) {
+                    $this->warn("Note: No epic was created. Run 'fuel plan' again to start fresh.");
+                }
+                if ($process && $process->isRunning()) {
+                    $process->stop(5);
+                }
+                exit(0);
+            };
+            pcntl_signal(SIGINT, $handler);
+            pcntl_async_signals(true);
+        }
+
         try {
             $this->info('🚀 Starting interactive planning session with Claude Opus 4.5');
             $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -159,7 +178,7 @@ class PlanCommand extends Command
             $process->getInput()->flush();
 
             // Main interaction loop
-            $this->runInteractionLoop($process, $existingEpicId);
+            $this->runInteractionLoop($process, $existingEpicId, $epicCreated);
 
         } catch (\Exception $e) {
             $this->error('Failed to start planning session: '.$e->getMessage());
@@ -173,7 +192,7 @@ class PlanCommand extends Command
     /**
      * Run the main interaction loop with Claude
      */
-    private function runInteractionLoop(Process $process, ?string $existingEpicId = null): void
+    private function runInteractionLoop(Process $process, ?string $existingEpicId = null, bool &$epicCreated = false): void
     {
         $outputBuffer = '';
         $waitingForInput = false;
@@ -181,7 +200,9 @@ class PlanCommand extends Command
         $conversationState = $existingEpicId ? 'refining' : 'initial';
         $turnCount = 0;
         $lastClaudeResponse = '';
-        $epicCreated = (bool) $existingEpicId; // Already created if resuming
+        if ($existingEpicId) {
+            $epicCreated = true; // Already created if resuming
+        }
         $epicId = $existingEpicId;
 
         while ($process->isRunning()) {
