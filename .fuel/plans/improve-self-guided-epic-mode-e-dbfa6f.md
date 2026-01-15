@@ -60,5 +60,20 @@ Test that selfguided epic creation and transition work correctly.
 - Progress Log section must be present (even if empty) for self-guided mode
 - Regular mode template unchanged (no Acceptance Criteria or Progress Log sections)
 
+### Task f-a9cdeb: fuel-create-plan skill format guidance
+
+**Completed:**
+- Updated `resources/skills/fuel-create-plan/SKILL.md` section 6 "Document the Plan"
+- Added two explicit templates: Parallel Mode (default) and Self-Guided Mode
+- Parallel mode includes: `## Plan`, `## Implementation Notes`, `## Interfaces Created`
+- Self-guided mode includes: `## Plan`, `## Acceptance Criteria` (with checkbox placeholders), `## Progress Log`, `## Implementation Notes`
+- Added CRITICAL warning that without explicit `- [ ]` checkbox criteria, agents complete everything in one pass instead of iterating
+- Provided guidance on what makes good acceptance criteria (specific, testable, independent, measurable)
+
+**Pattern for future documentation:**
+- Show templates side-by-side when modes differ
+- Highlight critical behavior differences with **CRITICAL** prefix
+- Provide concrete examples (checkbox format, not just "add criteria")
+
 ## Interfaces Created
 <!-- Tasks add interfaces/contracts created -->

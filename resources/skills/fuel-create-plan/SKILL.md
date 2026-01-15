@@ -104,7 +104,9 @@ fuel epic:update e-xxxx --no-selfguided
 
 ### 6. Document the Plan
 
-Write your plan to the epic's plan file:
+Write your plan to the epic's plan file. **Use the template matching your execution mode:**
+
+#### Parallel Mode (default)
 
 ```markdown
 # Epic: Feature Name (e-abc123)
@@ -118,6 +120,31 @@ Write your plan to the epic's plan file:
 ## Interfaces Created
 <!-- Tasks add interfaces/contracts they create -->
 ```
+
+#### Self-Guided Mode
+
+```markdown
+# Epic: Feature Name (e-abc123)
+
+## Plan
+[Your detailed implementation approach]
+
+## Acceptance Criteria
+- [ ] Criterion 1: specific, testable requirement
+- [ ] Criterion 2: specific, testable requirement
+- [ ] Criterion 3: specific, testable requirement
+
+## Progress Log
+<!-- Agent logs iteration progress here -->
+
+## Implementation Notes
+<!-- Agent documents decisions and discoveries -->
+```
+
+**CRITICAL for self-guided mode:** Without explicit `- [ ]` checkbox criteria, the agent will complete everything in one pass instead of iterating. Each criterion should be:
+- Specific and testable (not vague like "make it work")
+- Independent (can be verified separately)
+- Measurable (clear pass/fail state)
 
 **Commit the plan file** - `.fuel/plans/` is tracked in git.
 
