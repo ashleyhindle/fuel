@@ -15,45 +15,73 @@ class RemoveCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'remove
-        {id : The task ID (f-xxx, supports partial matching)}
+        {ids* : The task ID(s) (f-xxx, supports partial matching, accepts multiple IDs)}
         {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $aliases = ['delete'];
 
-    protected $description = 'Delete a task';
+    protected $description = 'Delete one or more tasks';
 
     public function handle(TaskService $taskService): int
     {
-        $id = $this->argument('id');
+        $ids = $this->argument('ids');
+        $tasks = [];
+        $errors = [];
 
-        try {
-            // Find the task (supports partial ID matching)
-            $task = $taskService->find($id);
+        foreach ($ids as $id) {
+            try {
+                // Find the task (supports partial ID matching)
+                $task = $taskService->find($id);
 
-            if (! $task instanceof Task) {
-                return $this->outputError(sprintf("Task '%s' not found", $id));
+                if (! $task instanceof Task) {
+                    $errors[] = ['id' => $id, 'error' => sprintf("Task '%s' not found", $id)];
+
+                    continue;
+                }
+
+                $resolvedId = $task->short_id;
+
+                // Delete the task
+                $deletedTask = $taskService->delete($resolvedId);
+                $tasks[] = $deletedTask;
+            } catch (RuntimeException $e) {
+                $errors[] = ['id' => $id, 'error' => $e->getMessage()];
             }
+        }
 
-            $resolvedId = $task->short_id;
-            $title = $task->title ?? '';
+        if ($tasks === [] && $errors !== []) {
+            // All failed
+            return $this->outputError($errors[0]['error']);
+        }
 
-            // Delete the task
-            $deletedTask = $taskService->delete($resolvedId);
-
-            if ($this->option('json')) {
+        if ($this->option('json')) {
+            if (count($tasks) === 1) {
+                // Single task - return object for backward compatibility
                 $this->outputJson([
-                    'short_id' => $resolvedId,
-                    'deleted' => $deletedTask->toArray(),
+                    'short_id' => $tasks[0]->short_id,
+                    'deleted' => $tasks[0]->toArray(),
                 ]);
             } else {
-                $this->info('Deleted task: '.$resolvedId);
-                $this->line('  Title: '.$title);
+                // Multiple tasks - return array
+                $this->outputJson(array_map(fn (Task $task): array => $task->toArray(), $tasks));
+            }
+        } else {
+            foreach ($tasks as $task) {
+                $this->info('Deleted task: '.$task->short_id);
+                $this->line('  Title: '.$task->title);
+            }
+        }
+
+        // If there were any errors, return failure even if some succeeded
+        if ($errors !== []) {
+            foreach ($errors as $error) {
+                $this->outputError(sprintf("Task '%s': %s", $error['id'], $error['error']));
             }
 
-            return self::SUCCESS;
-        } catch (RuntimeException $runtimeException) {
-            return $this->outputError($runtimeException->getMessage());
+            return self::FAILURE;
         }
+
+        return self::SUCCESS;
     }
 }
