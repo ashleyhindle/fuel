@@ -44,7 +44,7 @@ class ReadyCommand extends Command
                 ['ID', 'Title', 'Complexity', 'Epic', 'Created'],
                 $tasks->map(fn (Task $t): array => [
                     $t->short_id,
-                    $t->title,
+                    ($t->agent === 'selfguided' ? '∞ ' : '').$t->title,
                     $t->complexity ?? '-',
                     $t->epic?->title ?? '-',
                     $this->formatDate((string) $t->created_at),
