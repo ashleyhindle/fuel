@@ -83,6 +83,9 @@ class ConsumeCommand extends Command
     /** Whether done modal is visible */
     private bool $showDoneModal = false;
 
+    /** Whether completed modal is visible */
+    private bool $showCompletedModal = false;
+
     /** Flag to force refresh on next loop (e.g., after SIGWINCH) */
     private bool $forceRefresh = false;
 
@@ -94,6 +97,9 @@ class ConsumeCommand extends Command
 
     /** Scroll offset for done modal */
     private int $doneModalScroll = 0;
+
+    /** Scroll offset for completed modal */
+    private int $completedModalScroll = 0;
 
     /** Spinner frame counter for activity indicator */
     private int $spinnerFrame = 0;
@@ -857,6 +863,7 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedCount.')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneCount.')</>';
+        $footerParts[] = '<fg=gray>c: completed</>';
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
@@ -875,7 +882,7 @@ class ConsumeCommand extends Command
         }
 
         // Render command palette if active (overlays status line area)
-        if ($this->commandPaletteActive && ! $this->showBlockedModal && ! $this->showDoneModal) {
+        if ($this->commandPaletteActive && ! $this->showBlockedModal && ! $this->showDoneModal && ! $this->showCompletedModal) {
             $this->captureCommandPalette();
         } else {
             // Status line (centered, above footer)
@@ -906,6 +913,13 @@ class ConsumeCommand extends Command
                 $this->captureLoadingModal('Done Tasks');
             } else {
                 $this->captureModal('Done Tasks', $this->hydrateTasksForModal($doneData), 'done', $this->doneModalScroll);
+            }
+        } elseif ($this->showCompletedModal) {
+            $completedData = $this->ipcClient?->getCompletedTasks();
+            if ($completedData === null) {
+                $this->captureLoadingModal('Completed Tasks');
+            } else {
+                $this->captureModal('Completed Tasks', $this->hydrateTasksForModal($completedData), 'completed', $this->completedModalScroll);
             }
         }
 
@@ -1049,6 +1063,8 @@ class ConsumeCommand extends Command
         // Update the caller's scroll position if it was clamped
         if ($style === 'done') {
             $this->doneModalScroll = $scrollOffset;
+        } elseif ($style === 'completed') {
+            $this->completedModalScroll = $scrollOffset;
         } else {
             $this->blockedModalScroll = $scrollOffset;
         }
@@ -1473,6 +1489,7 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>Shift+Tab: '.($paused ? 'resume' : 'pause').'</>';
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedCount.')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneCount.')</>';
+        $footerParts[] = '<fg=gray>c: completed</>';
         $footerParts[] = '<fg=gray>q: exit</>';
         $footerLine = implode(' <fg=#555>|</> ', $footerParts);
 
@@ -1521,6 +1538,14 @@ class ConsumeCommand extends Command
                 $this->info('Loading done tasks...');
             } else {
                 $this->renderModal('Done Tasks', $this->hydrateTasksForModal($doneData), 'done', $this->doneModalScroll);
+            }
+        } elseif ($this->showCompletedModal) {
+            $completedData = $this->ipcClient?->getCompletedTasks();
+            if ($completedData === null) {
+                // Still loading - show placeholder
+                $this->info('Loading completed tasks...');
+            } else {
+                $this->renderModal('Completed Tasks', $this->hydrateTasksForModal($completedData), 'completed', $this->completedModalScroll);
             }
         }
     }
@@ -1707,7 +1732,7 @@ class ConsumeCommand extends Command
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
         $autoClosedIcon = '';
-        if ($style === 'done') {
+        if ($style === 'done' || $style === 'completed') {
             $labels = $task->labels ?? [];
             $autoClosedIcon = is_array($labels) && in_array('auto-closed', $labels, true) ? '🤖' : '';
         }
@@ -1721,24 +1746,24 @@ class ConsumeCommand extends Command
         // Colors based on style
         $borderColor = match ($style) {
             'blocked' => 'fg=#b36666',
-            'done' => 'fg=#888888',
+            'done', 'completed' => 'fg=#888888',
             'review' => 'fg=yellow',
             default => 'fg=gray',
         };
 
         $idColor = match ($style) {
             'blocked' => 'fg=#b36666',
-            'done' => 'fg=#888888',
+            'done', 'completed' => 'fg=#888888',
             'review' => 'fg=yellow',
             default => 'fg=cyan',
         };
 
         $titleColor = match ($style) {
-            'done' => '<fg=#888888>',
+            'done', 'completed' => '<fg=#888888>',
             'review' => '<fg=yellow>',
             default => '',
         };
-        $titleEnd = ($style === 'done' || $style === 'review') ? '</>' : '';
+        $titleEnd = ($style === 'done' || $style === 'completed' || $style === 'review') ? '</>' : '';
 
         // Header: ╭─ f-abc123 ────────╮
         // Fixed chars: ╭─ (2) + space (1) + space (1) + ╮ (1) = 5, plus id length
@@ -1936,6 +1961,8 @@ class ConsumeCommand extends Command
         // Update the caller's scroll position if it was clamped
         if ($style === 'done') {
             $this->doneModalScroll = $scrollOffset;
+        } elseif ($style === 'completed') {
+            $this->completedModalScroll = $scrollOffset;
         } else {
             $this->blockedModalScroll = $scrollOffset;
         }
@@ -2070,11 +2097,13 @@ class ConsumeCommand extends Command
      */
     private function handleBareEscape(): void
     {
-        if ($this->showBlockedModal || $this->showDoneModal) {
+        if ($this->showBlockedModal || $this->showDoneModal || $this->showCompletedModal) {
             $this->showBlockedModal = false;
             $this->showDoneModal = false;
+            $this->showCompletedModal = false;
             $this->blockedModalScroll = 0;
             $this->doneModalScroll = 0;
+            $this->completedModalScroll = 0;
             $this->forceRefresh = true;
         }
     }
@@ -2156,6 +2185,9 @@ class ConsumeCommand extends Command
                             $this->forceRefresh = true;
                         } elseif ($this->showBlockedModal) {
                             $this->blockedModalScroll = max(0, $this->blockedModalScroll + $scrollDelta);
+                            $this->forceRefresh = true;
+                        } elseif ($this->showCompletedModal) {
+                            $this->completedModalScroll = max(0, $this->completedModalScroll + $scrollDelta);
                             $this->forceRefresh = true;
                         }
                     }
@@ -2267,7 +2299,7 @@ class ConsumeCommand extends Command
         $char = $buf[0];
         $this->inputBuffer = substr($buf, 1);
 
-        if ($char === '/' && ! $this->showBlockedModal && ! $this->showDoneModal) {
+        if ($char === '/' && ! $this->showBlockedModal && ! $this->showDoneModal && ! $this->showCompletedModal) {
             $this->activateCommandPalette();
 
             return 1;
@@ -2279,8 +2311,10 @@ class ConsumeCommand extends Command
                 $this->showBlockedModal = ! $this->showBlockedModal;
                 if ($this->showBlockedModal) {
                     $this->showDoneModal = false;
+                    $this->showCompletedModal = false;
                     $this->doneModalScroll = 0;
                     $this->blockedModalScroll = 0;
+                    $this->completedModalScroll = 0;
                     // Request blocked tasks if not already loaded
                     if ($this->ipcClient?->isConnected() && ! $this->ipcClient->hasBlockedTasks()) {
                         $this->ipcClient->requestBlockedTasks();
@@ -2298,14 +2332,37 @@ class ConsumeCommand extends Command
                 $this->showDoneModal = ! $this->showDoneModal;
                 if ($this->showDoneModal) {
                     $this->showBlockedModal = false;
+                    $this->showCompletedModal = false;
                     $this->blockedModalScroll = 0;
                     $this->doneModalScroll = 0;
+                    $this->completedModalScroll = 0;
                     // Request done tasks if not already loaded
                     if ($this->ipcClient?->isConnected() && ! $this->ipcClient->hasDoneTasks()) {
                         $this->ipcClient->requestDoneTasks();
                     }
                 } else {
                     $this->doneModalScroll = 0;
+                }
+
+                $this->forceRefresh = true;
+
+                return 1;
+
+            case 'c':
+            case 'C':
+                $this->showCompletedModal = ! $this->showCompletedModal;
+                if ($this->showCompletedModal) {
+                    $this->showBlockedModal = false;
+                    $this->showDoneModal = false;
+                    $this->blockedModalScroll = 0;
+                    $this->doneModalScroll = 0;
+                    $this->completedModalScroll = 0;
+                    // Request completed tasks if not already loaded
+                    if ($this->ipcClient?->isConnected() && ! $this->ipcClient->hasCompletedTasks()) {
+                        $this->ipcClient->requestCompletedTasks();
+                    }
+                } else {
+                    $this->completedModalScroll = 0;
                 }
 
                 $this->forceRefresh = true;

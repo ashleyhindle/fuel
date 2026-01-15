@@ -22,6 +22,7 @@ enum ConsumeEventType: string
     // Lazy-loaded data responses
     case DoneTasks = 'done_tasks';
     case BlockedTasks = 'blocked_tasks';
+    case CompletedTasks = 'completed_tasks';
 
     public static function fromString(string $value): self
     {

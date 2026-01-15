@@ -9,6 +9,7 @@ use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestBlockedTasksCommand;
+use App\Ipc\Commands\RequestCompletedTasksCommand;
 use App\Ipc\Commands\RequestDoneTasksCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
@@ -17,6 +18,7 @@ use App\Ipc\Commands\StopCommand;
 use App\Ipc\Commands\TaskCreateCommand;
 use App\Ipc\Commands\TaskDoneCommand;
 use App\Ipc\Events\BlockedTasksEvent;
+use App\Ipc\Events\CompletedTasksEvent;
 use App\Ipc\Events\DoneTasksEvent;
 use App\Ipc\Events\HealthChangeEvent;
 use App\Ipc\Events\SnapshotEvent;
@@ -59,6 +61,9 @@ class ConsumeIpcClient
 
     /** Blocked tasks (lazy-loaded on demand) */
     private ?array $blockedTasks = null;
+
+    /** Completed tasks (lazy-loaded on demand, limited to 15) */
+    private ?array $completedTasks = null;
 
     /** Count of done tasks from snapshot (for footer display) */
     private int $doneCount = 0;
@@ -556,6 +561,7 @@ class ConsumeIpcClient
             'error' => null, // Handle errors separately
             'done_tasks' => $this->handleDoneTasksEvent($event),
             'blocked_tasks' => $this->handleBlockedTasksEvent($event),
+            'completed_tasks' => $this->handleCompletedTasksEvent($event),
             default => null,
         };
     }
@@ -890,6 +896,7 @@ class ConsumeIpcClient
         // Clear cached lazy-loaded data (snapshot changed, cache may be stale)
         $this->doneTasks = null;
         $this->blockedTasks = null;
+        $this->completedTasks = null;
     }
 
     /**
@@ -982,6 +989,18 @@ class ConsumeIpcClient
     }
 
     /**
+     * Handle completed tasks event - store lazy-loaded completed tasks.
+     */
+    private function handleCompletedTasksEvent(IpcMessage $event): void
+    {
+        if (! $event instanceof CompletedTasksEvent) {
+            return;
+        }
+
+        $this->completedTasks = $event->tasks();
+    }
+
+    /**
      * Request done tasks from runner.
      */
     public function requestDoneTasks(): void
@@ -1006,6 +1025,18 @@ class ConsumeIpcClient
     }
 
     /**
+     * Request completed tasks from runner (limited to 15).
+     */
+    public function requestCompletedTasks(): void
+    {
+        $cmd = new RequestCompletedTasksCommand(
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
      * Get done tasks (lazy-loaded).
      * Returns null if not yet loaded, array of tasks if loaded.
      */
@@ -1021,6 +1052,15 @@ class ConsumeIpcClient
     public function getBlockedTasks(): ?array
     {
         return $this->blockedTasks;
+    }
+
+    /**
+     * Get completed tasks (lazy-loaded, limited to 15).
+     * Returns null if not yet loaded, array of tasks if loaded.
+     */
+    public function getCompletedTasks(): ?array
+    {
+        return $this->completedTasks;
     }
 
     /**
@@ -1056,6 +1096,14 @@ class ConsumeIpcClient
     }
 
     /**
+     * Check if completed tasks have been loaded.
+     */
+    public function hasCompletedTasks(): bool
+    {
+        return $this->completedTasks !== null;
+    }
+
+    /**
      * Clear cached done tasks (e.g., when snapshot changes).
      */
     public function clearDoneTasks(): void
@@ -1069,5 +1117,13 @@ class ConsumeIpcClient
     public function clearBlockedTasks(): void
     {
         $this->blockedTasks = null;
+    }
+
+    /**
+     * Clear cached completed tasks (e.g., when snapshot changes).
+     */
+    public function clearCompletedTasks(): void
+    {
+        $this->completedTasks = null;
     }
 }

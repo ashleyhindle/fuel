@@ -52,6 +52,7 @@ final readonly class IpcCommandDispatcher
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
      * @param  callable  $onRequestDoneTasks  Callback when done tasks are requested
      * @param  callable  $onRequestBlockedTasks  Callback when blocked tasks are requested
+     * @param  callable  $onRequestCompletedTasks  Callback when completed tasks are requested
      */
     public function pollIpcCommands(
         callable $onPause,
@@ -73,6 +74,7 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserStatus,
         callable $onRequestDoneTasks,
         callable $onRequestBlockedTasks,
+        callable $onRequestCompletedTasks,
     ): void {
         $commands = $this->ipcServer->poll();
 
@@ -100,6 +102,7 @@ final readonly class IpcCommandDispatcher
                     onBrowserStatus: $onBrowserStatus,
                     onRequestDoneTasks: $onRequestDoneTasks,
                     onRequestBlockedTasks: $onRequestBlockedTasks,
+                    onRequestCompletedTasks: $onRequestCompletedTasks,
                 );
             }
         }
@@ -129,6 +132,7 @@ final readonly class IpcCommandDispatcher
      * @param  callable  $onBrowserStatus  Callback when browser status command is received
      * @param  callable  $onRequestDoneTasks  Callback when done tasks are requested
      * @param  callable  $onRequestBlockedTasks  Callback when blocked tasks are requested
+     * @param  callable  $onRequestCompletedTasks  Callback when completed tasks are requested
      */
     private function handleIpcCommand(
         string $clientId,
@@ -152,6 +156,7 @@ final readonly class IpcCommandDispatcher
         callable $onBrowserStatus,
         callable $onRequestDoneTasks,
         callable $onRequestBlockedTasks,
+        callable $onRequestCompletedTasks,
     ): void {
         // Handle commands based on message type
         match ($message->type()) {
@@ -178,6 +183,7 @@ final readonly class IpcCommandDispatcher
             // Lazy-loaded data requests (send to requesting client only)
             'request_done_tasks' => $onRequestDoneTasks($clientId),
             'request_blocked_tasks' => $onRequestBlockedTasks($clientId),
+            'request_completed_tasks' => $onRequestCompletedTasks($clientId),
             // attach/detach handled implicitly via accept() detecting new connections
             default => null,
         };

@@ -20,6 +20,7 @@ use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestBlockedTasksCommand;
+use App\Ipc\Commands\RequestCompletedTasksCommand;
 use App\Ipc\Commands\RequestDoneTasksCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
 use App\Ipc\Commands\ResumeCommand;
@@ -30,6 +31,7 @@ use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Commands\TaskStartCommand;
 use App\Ipc\Events\BlockedTasksEvent;
 use App\Ipc\Events\BrowserResponseEvent;
+use App\Ipc\Events\CompletedTasksEvent;
 use App\Ipc\Events\ConfigReloadedEvent;
 use App\Ipc\Events\DoneTasksEvent;
 use App\Ipc\Events\ErrorEvent;
@@ -145,6 +147,7 @@ final class ConsumeIpcProtocol
                 ConsumeCommandType::BrowserStatus => BrowserStatusCommand::fromArray($data),
                 ConsumeCommandType::RequestDoneTasks => RequestDoneTasksCommand::fromArray($data),
                 ConsumeCommandType::RequestBlockedTasks => RequestBlockedTasksCommand::fromArray($data),
+                ConsumeCommandType::RequestCompletedTasks => RequestCompletedTasksCommand::fromArray($data),
             };
         } catch (\ValueError) {
             // Not a command type, try event types
@@ -168,6 +171,7 @@ final class ConsumeIpcProtocol
                 ConsumeEventType::BrowserResponse => $this->decodeBrowserResponseEvent($data),
                 ConsumeEventType::DoneTasks => $this->decodeDoneTasksEvent($data),
                 ConsumeEventType::BlockedTasks => $this->decodeBlockedTasksEvent($data),
+                ConsumeEventType::CompletedTasks => $this->decodeCompletedTasksEvent($data),
                 ConsumeEventType::ConfigReloaded => $this->decodeConfigReloadedEvent($data),
             };
         } catch (\ValueError) {
@@ -336,6 +340,17 @@ final class ConsumeIpcProtocol
     private function decodeBlockedTasksEvent(array $data): BlockedTasksEvent
     {
         return new BlockedTasksEvent(
+            tasks: $data['tasks'] ?? [],
+            total: $data['total'] ?? 0,
+            instanceId: $data['instance_id'] ?? '',
+            timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
+            requestId: $data['request_id'] ?? null
+        );
+    }
+
+    private function decodeCompletedTasksEvent(array $data): CompletedTasksEvent
+    {
+        return new CompletedTasksEvent(
             tasks: $data['tasks'] ?? [],
             total: $data['total'] ?? 0,
             instanceId: $data['instance_id'] ?? '',

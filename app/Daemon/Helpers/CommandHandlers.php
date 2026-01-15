@@ -14,6 +14,7 @@ use App\Ipc\Commands\TaskDoneCommand;
 use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Commands\TaskStartCommand;
 use App\Ipc\Events\BlockedTasksEvent;
+use App\Ipc\Events\CompletedTasksEvent;
 use App\Ipc\Events\DoneTasksEvent;
 use App\Ipc\Events\TaskCreateResponseEvent;
 use App\Ipc\IpcMessage;
@@ -228,6 +229,41 @@ final readonly class CommandHandlers
         })->toArray();
 
         $event = new BlockedTasksEvent(
+            tasks: $tasksArray,
+            total: count($tasksArray),
+            instanceId: $this->lifecycleManager->getInstanceId()
+        );
+
+        $ipcServer->sendTo($clientId, $event);
+    }
+
+    /**
+     * Handle request for completed tasks - sends only to the requesting client.
+     * Returns the last 15 done tasks, sorted by updated_at descending.
+     */
+    public function handleRequestCompletedTasks(string $clientId, ConsumeIpcServer $ipcServer): void
+    {
+        $allTasks = $this->taskService->all();
+        $completedTasks = $allTasks->filter(fn ($t): bool => $t->status === TaskStatus::Done)
+            ->sortByDesc('updated_at')
+            ->take(15)
+            ->values();
+
+        // Serialize tasks for IPC transfer
+        $tasksArray = $completedTasks->map(function ($task) {
+            if (method_exists($task, 'attributesToArray')) {
+                $data = $task->attributesToArray();
+                if (method_exists($task, 'relationLoaded') && $task->relationLoaded('epic') && $task->epic) {
+                    $data['epic_short_id'] = $task->epic->short_id;
+                }
+
+                return $data;
+            }
+
+            return $task->toArray();
+        })->toArray();
+
+        $event = new CompletedTasksEvent(
             tasks: $tasksArray,
             total: count($tasksArray),
             instanceId: $this->lifecycleManager->getInstanceId()
