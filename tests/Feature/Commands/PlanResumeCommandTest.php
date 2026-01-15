@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Models\Epic;
-use App\Enums\EpicStatus;
 
 // Skip for now - the epic status computation makes testing complex
 test('fuel plan resumes planning on existing paused epic', function () {

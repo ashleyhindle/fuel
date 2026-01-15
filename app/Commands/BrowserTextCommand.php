@@ -8,7 +8,7 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Ipc\Commands\BrowserTextCommand as IpcBrowserTextCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
-use App\Services\ConsumeProcessManager;
+use App\Services\FuelContext;
 use Illuminate\Console\Scheduling\Schedule;
 use LaravelZero\Framework\Commands\Command;
 
@@ -37,7 +37,7 @@ class BrowserTextCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(ConsumeProcessManager $processManager, ConsumeIpcClient $ipcClient): int
+    public function handle(): int
     {
         $pageId = $this->argument('page_id');
         $selector = $this->argument('selector');
@@ -57,8 +57,11 @@ class BrowserTextCommand extends Command
             return self::FAILURE;
         }
 
+        $ipcClient = app(ConsumeIpcClient::class);
+        $pidFilePath = app(FuelContext::class)->getPidFilePath();
+
         // Ensure fuel consume is running
-        if (! $processManager->isRunning()) {
+        if (! $ipcClient->isRunnerAlive($pidFilePath)) {
             if ($this->option('json')) {
                 $this->outputJson([
                     'error' => 'Fuel consume is not running. Start it first with: fuel consume',
@@ -71,8 +74,36 @@ class BrowserTextCommand extends Command
             return self::FAILURE;
         }
 
-        // Connect to IPC
-        $ipcClient->connect();
+        // Get port from PID file and connect
+        try {
+            $pidData = json_decode(file_get_contents($pidFilePath), true);
+            $port = $pidData['port'] ?? 0;
+            if ($port === 0) {
+                if ($this->option('json')) {
+                    $this->outputJson([
+                        'error' => 'Invalid port in PID file',
+                    ], self::FAILURE);
+
+                    return self::FAILURE;
+                }
+                $this->error('Invalid port in PID file');
+
+                return self::FAILURE;
+            }
+
+            $ipcClient->connect($port);
+        } catch (\Throwable $e) {
+            if ($this->option('json')) {
+                $this->outputJson([
+                    'error' => 'Failed to connect to daemon: '.$e->getMessage(),
+                ], self::FAILURE);
+
+                return self::FAILURE;
+            }
+            $this->error('Failed to connect to daemon: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
 
         try {
             // Send browser text command
@@ -90,31 +121,56 @@ class BrowserTextCommand extends Command
             while (time() - $start < $timeout) {
                 $messages = $ipcClient->receive();
                 foreach ($messages as $message) {
-                    if ($message instanceof BrowserResponseEvent
-                        && $message->requestId === $command->getRequestId()) {
-                        if ($message->error) {
+                    // Check if this response matches our request
+                    $messageRequestId = null;
+                    if ($message instanceof BrowserResponseEvent) {
+                        $messageRequestId = $message->getRequestId();
+                    } elseif (isset($message->requestId)) {
+                        $messageRequestId = $message->requestId;
+                    }
+
+                    if ($messageRequestId === $command->getRequestId()) {
+                        // Handle error response
+                        $error = null;
+                        if ($message instanceof BrowserResponseEvent && $message->error) {
+                            $error = $message->error;
+                        } elseif (isset($message->error) && $message->error) {
+                            $error = $message->error;
+                        }
+
+                        if ($error) {
                             if ($this->option('json')) {
                                 $this->outputJson([
-                                    'error' => $message->error,
+                                    'error' => $error,
                                 ], self::FAILURE);
 
                                 return self::FAILURE;
                             }
-                            $this->error($message->error);
+                            $this->error($error);
 
                             return self::FAILURE;
                         }
 
-                        // Output the text content
-                        if ($this->option('json')) {
-                            $this->outputJson($message->data);
+                        // Get data from response
+                        $data = null;
+                        if ($message instanceof BrowserResponseEvent && $message->result) {
+                            $data = $message->result;
+                        } elseif (isset($message->data)) {
+                            $data = $message->data;
+                        }
+
+                        if ($data) {
+                            // Output the text content
+                            if ($this->option('json')) {
+                                $this->outputJson($data);
+
+                                return self::SUCCESS;
+                            }
+
+                            $this->info($data['text'] ?? '');
 
                             return self::SUCCESS;
                         }
-
-                        $this->info($message->data['text'] ?? '');
-
-                        return self::SUCCESS;
                     }
                 }
                 usleep(100000); // 100ms

@@ -7,7 +7,7 @@ use App\Services\ConsumeIpcClient;
 
 beforeEach(function () {
     // Create a temporary PID file for testing
-    $pidFilePath = sys_get_temp_dir() . '/fuel-test-' . uniqid() . '.pid';
+    $pidFilePath = sys_get_temp_dir().'/fuel-test-'.uniqid().'.pid';
     $pidData = [
         'pid' => 12345,
         'port' => 9876,
@@ -79,6 +79,7 @@ it('sends snapshot command to daemon', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -136,6 +137,7 @@ it('sends snapshot command with interactive-only flag', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -194,6 +196,7 @@ it('outputs JSON when --json flag is provided', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -256,6 +259,7 @@ it('handles empty snapshot gracefully', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -299,6 +303,7 @@ it('handles daemon errors gracefully', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
