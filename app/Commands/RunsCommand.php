@@ -9,6 +9,7 @@ use App\Commands\Concerns\CalculatesDuration;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Run;
 use App\Models\Task;
+use App\Services\FuelContext;
 use App\Services\OutputParser;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -38,7 +39,8 @@ class RunsCommand extends Command
 
     public function handle(
         TaskService $taskService,
-        RunService $runService
+        RunService $runService,
+        FuelContext $fuelContext
     ): int {
         try {
             // Validate task exists
@@ -69,7 +71,7 @@ class RunsCommand extends Command
                 } else {
                     $this->info(sprintf('Latest run for task %s:', $taskId));
                     $this->newLine();
-                    $this->displayRunDetails($latestRun, $duration, true);
+                    $this->displayRunDetails($latestRun, $duration, true, $fuelContext);
                 }
             } else {
                 $runs = $runService->getRuns($taskId);
@@ -131,7 +133,7 @@ class RunsCommand extends Command
     /**
      * Display detailed run information.
      */
-    private function displayRunDetails(Run $run, string $duration, bool $showOutput = false): void
+    private function displayRunDetails(Run $run, string $duration, bool $showOutput = false, ?FuelContext $fuelContext = null): void
     {
         $this->line('  Run ID: '.$run->run_id);
 
@@ -179,11 +181,31 @@ class RunsCommand extends Command
             }
         }
 
-        if ($showOutput && $run->output !== null && $run->output !== '') {
-            $this->newLine();
-            $this->line('  <fg=cyan>── Output ──</>');
-            $this->outputChunk($run->output, $this->option('raw'));
+        if ($showOutput) {
+            $output = $this->getRunOutput($run, $fuelContext);
+            if ($output !== null && $output !== '') {
+                $this->newLine();
+                $this->line('  <fg=cyan>── Output ──</>');
+                $this->outputChunk($output, $this->option('raw'));
+            }
         }
+    }
+
+    /**
+     * Get run output from stdout.log file, falling back to DB if file doesn't exist.
+     */
+    private function getRunOutput(Run $run, ?FuelContext $fuelContext): ?string
+    {
+        // Try reading from stdout.log file first (has full output)
+        if ($fuelContext !== null && $run->run_id !== null) {
+            $stdoutPath = $fuelContext->getProcessesPath().'/'.$run->run_id.'/stdout.log';
+            if (file_exists($stdoutPath)) {
+                return file_get_contents($stdoutPath);
+            }
+        }
+
+        // Fall back to DB output (may be truncated)
+        return $run->output;
     }
 
     /**
