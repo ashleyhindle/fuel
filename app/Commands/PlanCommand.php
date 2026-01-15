@@ -2,6 +2,7 @@
 
 namespace App\Commands;
 
+use App\Models\Epic;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Process\Process;
 
@@ -56,8 +57,11 @@ class PlanCommand extends Command
             return self::FAILURE;
         }
 
-        if ($epic->status->value !== 'paused') {
-            $this->error("Epic {$epicId} is not paused (status: {$epic->status->value}).");
+        // Check the actual status from the database, not the computed one
+        $dbEpic = Epic::where('short_id', $epic->short_id)->first();
+        if (! $dbEpic || $dbEpic->status !== \App\Enums\EpicStatus::Paused) {
+            $currentStatus = $dbEpic ? $dbEpic->status->value : 'unknown';
+            $this->error("Epic {$epicId} is not paused (status: {$currentStatus}).");
             $this->info('Only paused epics can be resumed for planning.');
 
             return self::FAILURE;
@@ -132,12 +136,12 @@ class PlanCommand extends Command
                 $epic = $epicService->getEpic($existingEpicId);
                 $existingPlan = $this->loadExistingPlan($existingEpicId, $epic->title);
 
-                $initialText = $systemPrompt . "\n\n" .
-                    "You are resuming planning for epic {$existingEpicId}: {$epic->title}\n\n" .
-                    "Here's the current plan:\n\n{$existingPlan}\n\n" .
-                    "What would you like to refine or add to this plan?";
+                $initialText = $systemPrompt."\n\n".
+                    "You are resuming planning for epic {$existingEpicId}: {$epic->title}\n\n".
+                    "Here's the current plan:\n\n{$existingPlan}\n\n".
+                    'What would you like to refine or add to this plan?';
             } else {
-                $initialText = $systemPrompt . "\n\n" .
+                $initialText = $systemPrompt."\n\n".
                     "What would you like to build? Describe your feature idea, and I'll help you plan it thoroughly before we start implementation.";
             }
 
@@ -215,7 +219,7 @@ class PlanCommand extends Command
                 $turnCount++;
 
                 // If epic was just created (and not resuming), ask for explicit transition confirmation
-                if ($epicCreated && !$existingEpicId && $conversationState !== 'transition_confirmed') {
+                if ($epicCreated && ! $existingEpicId && $conversationState !== 'transition_confirmed') {
                     $this->showTransitionPrompt($epicId);
                     $conversationState = 'awaiting_transition';
                 }
