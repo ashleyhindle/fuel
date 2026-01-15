@@ -12,6 +12,7 @@ use App\Process\ProcessType;
 use App\Services\ConfigService;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
+use App\Services\UpdateRealityService;
 use Illuminate\Support\Facades\Artisan;
 
 /**
@@ -102,6 +103,11 @@ class WorkAgentTask extends AbstractAgentTask
                 $this->taskService->done($taskId, 'Auto-completed by consume (review skipped)');
             }
 
+            // Trigger reality update for solo tasks
+            if ($task->epic_id === null) {
+                app(UpdateRealityService::class)->triggerUpdate($task);
+            }
+
             $this->notifyEpicCompletion($taskId);
 
             return;
@@ -162,6 +168,12 @@ class WorkAgentTask extends AbstractAgentTask
             'ids' => [$taskId],
             '--reason' => 'Auto-completed by consume (agent exit 0)',
         ]);
+
+        // Trigger reality update for solo tasks
+        $task = $this->taskService->find($taskId);
+        if ($task instanceof Task && $task->epic_id === null) {
+            app(UpdateRealityService::class)->triggerUpdate($task);
+        }
 
         $this->notifyEpicCompletion($taskId);
     }
