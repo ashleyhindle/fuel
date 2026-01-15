@@ -1731,13 +1731,14 @@ class ConsumeCommand extends Command
         // Icons
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
+        $selfGuidedIcon = $task->agent === 'selfguided' ? '◉' : '';
         $autoClosedIcon = '';
         if ($style === 'done' || $style === 'completed') {
             $labels = $task->labels ?? [];
             $autoClosedIcon = is_array($labels) && in_array('auto-closed', $labels, true) ? '🤖' : '';
         }
 
-        $icons = array_filter([$consumeIcon, $failedIcon, $autoClosedIcon]);
+        $icons = array_filter([$consumeIcon, $failedIcon, $selfGuidedIcon, $autoClosedIcon]);
         $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
         $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
 
@@ -1813,7 +1814,8 @@ class ConsumeCommand extends Command
         // Icons
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
-        $icons = array_filter([$consumeIcon, $failedIcon]);
+        $selfGuidedIcon = $task->agent === 'selfguided' ? '◉' : '';
+        $icons = array_filter([$consumeIcon, $failedIcon, $selfGuidedIcon]);
         $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
         $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
 
