@@ -127,7 +127,8 @@ describe('PromptService checkVersions', function (): void {
 
         expect($outdated)->toHaveKey('work');
         expect($outdated['work']['user'])->toBe(0);
-        expect($outdated['work']['current'])->toBe(PromptService::CURRENT_VERSION);
+        // Current version should match the bundled prompt's version (work.md is version 1)
+        expect($outdated['work']['current'])->toBe(1);
 
         // Cleanup
         unlink($promptsDir.'/work.md');
@@ -139,8 +140,8 @@ describe('PromptService checkVersions', function (): void {
             mkdir($promptsDir, 0755, true);
         }
 
-        // Write user prompt with current version
-        $content = sprintf("<fuel-prompt version=\"%d\" />\n\nCustom prompt", PromptService::CURRENT_VERSION);
+        // Write user prompt with same version as bundled (work.md is version 1)
+        $content = "<fuel-prompt version=\"1\" />\n\nCustom prompt";
         file_put_contents($promptsDir.'/work.md', $content);
 
         $outdated = $this->promptService->checkVersions();

@@ -8,8 +8,6 @@ use RuntimeException;
 
 class PromptService
 {
-    public const CURRENT_VERSION = 1;
-
     private const PROMPT_NAMES = ['work', 'review', 'verify', 'reality', 'selfguided'];
 
     public function __construct(
@@ -74,7 +72,7 @@ class PromptService
     }
 
     /**
-     * Check which user prompts are outdated compared to current version.
+     * Check which user prompts are outdated compared to bundled version.
      *
      * @return array<string, array{user: int, current: int}>
      */
@@ -88,16 +86,18 @@ class PromptService
                 continue;
             }
 
-            $content = file_get_contents($userPath);
-            if ($content === false) {
+            $userContent = file_get_contents($userPath);
+            if ($userContent === false) {
                 continue;
             }
 
-            $userVersion = $this->parseVersion($content);
-            if ($userVersion < self::CURRENT_VERSION) {
+            $userVersion = $this->parseVersion($userContent);
+            $bundledVersion = $this->parseVersion($this->getDefaultPrompt($name));
+
+            if ($userVersion < $bundledVersion) {
                 $outdated[$name] = [
                     'user' => $userVersion,
-                    'current' => self::CURRENT_VERSION,
+                    'current' => $bundledVersion,
                 ];
             }
         }
