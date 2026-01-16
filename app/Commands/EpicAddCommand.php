@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Epic;
 use App\Services\EpicService;
 use App\Services\FuelContext;
-use Illuminate\Support\Str;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -36,8 +36,8 @@ class EpicAddCommand extends Command
             return $this->outputError($runtimeException->getMessage());
         }
 
-        // Create stub plan file
-        $planFilename = $this->createPlanFile($context, $epic->title, $epic->short_id, $description, $selfGuided);
+        // Create stub plan file and store filename on epic
+        $planFilename = $this->createPlanFile($context, $epic, $description, $selfGuided);
 
         if ($this->option('json')) {
             $this->outputJson($epic->toArray());
@@ -57,16 +57,22 @@ class EpicAddCommand extends Command
         return self::SUCCESS;
     }
 
-    private function createPlanFile(FuelContext $context, string $title, string $epicId, ?string $description, bool $selfGuided = false): string
+    private function createPlanFile(FuelContext $context, Epic $epic, ?string $description, bool $selfGuided = false): string
     {
         $plansDir = $context->getPlansPath();
         if (! is_dir($plansDir)) {
             mkdir($plansDir, 0755, true);
         }
 
-        $filename = Str::slug($title).'-'.$epicId.'.md';
+        $filename = Epic::generatePlanFilename($epic->title, $epic->short_id);
         $planPath = $plansDir.'/'.$filename;
 
+        // Store the filename on the epic
+        $epic->plan_filename = $filename;
+        $epic->save();
+
+        $title = $epic->title;
+        $epicId = $epic->short_id;
         $descriptionSection = $description ? PHP_EOL.$description.PHP_EOL : '';
 
         if ($selfGuided) {

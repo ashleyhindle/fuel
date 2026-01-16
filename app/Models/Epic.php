@@ -6,9 +6,11 @@ namespace App\Models;
 
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
+use App\Services\FuelContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Epic extends Model
 {
@@ -31,6 +33,7 @@ class Epic extends Model
         'description',
         'self_guided',
         'status',
+        'plan_filename',
         'reviewed_at',
         'approved_at',
         'approved_by',
@@ -216,6 +219,55 @@ class Epic extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Get the plan filename for this epic.
+     * Uses stored filename if available, otherwise generates it.
+     * For old epics without stored filename, tries to find existing file.
+     */
+    public function getPlanFilename(): string
+    {
+        // Use stored filename if available
+        if (! empty($this->plan_filename)) {
+            return $this->plan_filename;
+        }
+
+        // For old epics, try to find existing plan file
+        $context = app(FuelContext::class);
+        $plansDir = $context->getPlansPath();
+
+        // Try slug format first (new style)
+        $slugFilename = Str::slug($this->title).'-'.$this->short_id.'.md';
+        if (file_exists($plansDir.'/'.$slugFilename)) {
+            return $slugFilename;
+        }
+
+        // Try kebab format (old style)
+        $kebabFilename = Str::kebab($this->title).'-'.$this->short_id.'.md';
+        if (file_exists($plansDir.'/'.$kebabFilename)) {
+            return $kebabFilename;
+        }
+
+        // Default to new slug format
+        return $slugFilename;
+    }
+
+    /**
+     * Get the full plan path for this epic.
+     */
+    public function getPlanPath(): string
+    {
+        return '.fuel/plans/'.$this->getPlanFilename();
+    }
+
+    /**
+     * Generate a plan filename for a title and epic ID.
+     * Use this when creating new epics.
+     */
+    public static function generatePlanFilename(string $title, string $epicId): string
+    {
+        return Str::slug($title).'-'.$epicId.'.md';
     }
 
     /**

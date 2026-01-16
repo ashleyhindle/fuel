@@ -8,7 +8,6 @@ use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Run;
 use App\Models\Task;
-use Illuminate\Support\Str;
 
 class TaskPromptBuilder
 {
@@ -127,7 +126,7 @@ PROTOCOL;
             $lines[] = 'Epic Description: '.$epic->description;
         }
 
-        $planPath = '.fuel/plans/'.Str::kebab($epic->title).'-'.$epic->short_id.'.md';
+        $planPath = $epic->getPlanPath();
         $lines[] = '';
         $lines[] = 'Plan file: '.$planPath;
         $lines[] = 'Read the plan for context. Update it to help subsequent agents/developers:';

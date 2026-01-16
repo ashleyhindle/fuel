@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Models\Epic;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\TaskService;
-use Illuminate\Support\Str;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -91,7 +91,7 @@ class EpicUpdateCommand extends Command
                 }
 
                 // Update plan file with selfguided sections
-                $planPath = $this->ensureSelfguidedPlanSections($context, $epic->title, $epic->short_id);
+                $planPath = $this->ensureSelfguidedPlanSections($context, $epic);
             }
 
             if ($this->option('json')) {
@@ -127,10 +127,10 @@ class EpicUpdateCommand extends Command
      * Ensure the plan file has the required sections for self-guided mode.
      * If sections are missing, add them. Returns the plan path.
      */
-    private function ensureSelfguidedPlanSections(FuelContext $context, string $title, string $epicId): string
+    private function ensureSelfguidedPlanSections(FuelContext $context, Epic $epic): string
     {
         $plansDir = $context->getPlansPath();
-        $filename = Str::kebab($title).'-'.$epicId.'.md';
+        $filename = $epic->getPlanFilename();
         $planPath = $plansDir.'/'.$filename;
 
         // Check if plan file exists
@@ -140,6 +140,14 @@ class EpicUpdateCommand extends Command
                 mkdir($plansDir, 0755, true);
             }
 
+            // Generate new filename and store it
+            $filename = Epic::generatePlanFilename($epic->title, $epic->short_id);
+            $planPath = $plansDir.'/'.$filename;
+            $epic->plan_filename = $filename;
+            $epic->save();
+
+            $title = $epic->title;
+            $epicId = $epic->short_id;
             $content = <<<MARKDOWN
 # Epic: {$title} ({$epicId})
 
