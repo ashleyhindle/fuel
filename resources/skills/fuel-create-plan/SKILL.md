@@ -33,6 +33,11 @@ If the user's request is unclear or missing key details, use the AskUserQuestion
 
 Keep questions focused and specific. Aim for 1-4 questions per round. Use the gathered answers to inform your planning.
 
+
+### critical: 0.5 Ask if the user wants selfguided or parallel
+
+This determines whether we pass `--selfguided` to `epic:add`, which changes the epic plan and execution approach massively.
+
 ### 1. Read Reality for Context
 
 Start by understanding the codebase architecture:
@@ -64,13 +69,14 @@ Write a clear plan that includes:
 - **New files needed** - With proposed locations
 - **Edge cases** - Errors, validation, boundaries
 - **Testing strategy** - How to verify it works
+- For complex interactions, ASCII diagrams can help (architecture, flow charts, sequence diagrams)
 
 ### 4. Create Epic (if multi-task)
 
 For features requiring multiple tasks:
 
 ```bash
-fuel epic:add "Feature name" --description="What and why"
+fuel epic:add "Feature name" --description="What and why" [--selfguided]
 ```
 
 Note the epic ID (e.g., `e-abc123`). A plan file is auto-created at `.fuel/plans/{title-kebab}-{epic-id}.md`.

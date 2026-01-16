@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\Artisan;
 describe('completed command', function (): void {
     beforeEach(function (): void {
         $this->taskService = app(TaskService::class);
+        // Ensure wide terminal so all columns (including Commit) are shown
+        putenv('COLUMNS=200');
+    });
+
+    afterEach(function (): void {
+        putenv('COLUMNS');
     });
 
     it('shows no completed tasks when empty', function (): void {

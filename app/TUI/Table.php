@@ -343,6 +343,16 @@ class Table
      */
     private function getTerminalWidth(): int
     {
+        // Check environment variables first (allows test override)
+        $envWidth = getenv('COLUMNS');
+        if ($envWidth !== false && (int) $envWidth > 0) {
+            return (int) $envWidth;
+        }
+
+        if (isset($_SERVER['COLUMNS']) && (int) $_SERVER['COLUMNS'] > 0) {
+            return (int) $_SERVER['COLUMNS'];
+        }
+
         // Try to get from tput
         $width = @shell_exec('tput cols');
         if ($width !== null && $width !== false) {
@@ -350,11 +360,6 @@ class Table
             if ($width > 0) {
                 return $width;
             }
-        }
-
-        // Try environment variables
-        if (isset($_SERVER['COLUMNS'])) {
-            return (int) $_SERVER['COLUMNS'];
         }
 
         // Default fallback

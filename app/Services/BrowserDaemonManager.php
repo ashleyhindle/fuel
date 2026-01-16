@@ -323,6 +323,14 @@ class BrowserDaemonManager
 
         // Write request
         $json = json_encode($request)."\n";
+
+        // Debug: Log what we're sending
+        @file_put_contents(getcwd().'/.fuel/browser-send-debug.log', sprintf(
+            "[%s] Sending to daemon: %s",
+            date('H:i:s'),
+            $json
+        ), FILE_APPEND);
+
         $written = fwrite($this->pipes[0], $json);
         if ($written === false) {
             throw new RuntimeException('Failed to write to daemon stdin');
@@ -375,6 +383,14 @@ class BrowserDaemonManager
                 ' (code: '.($response['error']['code'] ?? 'ERR').')'
             );
         }
+
+        // Debug: Log response received
+        @file_put_contents(getcwd().'/.fuel/browser-response-debug.log', sprintf(
+            "[%s] Response for method=%s: %s\n",
+            date('H:i:s'),
+            $method,
+            json_encode($response['result'] ?? [])
+        ), FILE_APPEND);
 
         return $response['result'] ?? [];
     }

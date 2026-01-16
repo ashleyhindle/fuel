@@ -191,6 +191,9 @@ async function handle(method, params) {
       const timeoutMs = params?.timeoutMs || 30000;
       const returnHtml = params?.html || false;
 
+      // Debug: Log received params
+      console.error(`[browser-daemon] goto params:`, JSON.stringify(params));
+
       const entry = pages.get(pageId);
       if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
