@@ -166,9 +166,12 @@ class ConsumeIpcClient
     /**
      * Start the consume runner in the background.
      *
+     * @param  string  $fuelBinPath  Path to the fuel binary
+     * @param  int|null  $port  Port number to pass to runner (null = use config)
+     *
      * @throws \RuntimeException If fork fails
      */
-    public function startRunner(string $fuelBinPath): void
+    public function startRunner(string $fuelBinPath, ?int $port = null): void
     {
         if (! function_exists('pcntl_fork')) {
             throw new \RuntimeException('pcntl extension required to start runner');
@@ -182,7 +185,11 @@ class ConsumeIpcClient
 
         if ($pid === 0) {
             // Child process: exec the runner command
-            pcntl_exec($fuelBinPath, ['consume:runner']);
+            $args = ['consume:runner'];
+            if ($port !== null) {
+                $args[] = '--port='.$port;
+            }
+            pcntl_exec($fuelBinPath, $args);
             // If exec fails, exit child
             exit(1);
         }

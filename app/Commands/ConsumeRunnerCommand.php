@@ -16,7 +16,8 @@ class ConsumeRunnerCommand extends Command
      */
     protected $signature = 'consume:runner
         {--interval=5 : Check interval in seconds when idle}
-        {--review : Enable automatic review of completed work}';
+        {--review : Enable automatic review of completed work}
+        {--port= : Port number to bind to (overrides config)}';
 
     /**
      * The description of the command.
@@ -39,7 +40,8 @@ class ConsumeRunnerCommand extends Command
     {
         // Start the runner (will run headless until stopped)
         $taskReviewEnabled = (bool) $this->option('review');
-        $runner->start($taskReviewEnabled);
+        $port = $this->option('port') ? (int) $this->option('port') : null;
+        $runner->start($taskReviewEnabled, $port);
 
         return self::SUCCESS;
     }

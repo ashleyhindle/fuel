@@ -25,10 +25,12 @@ final class ConsumeIpcServer
 
     /**
      * Create TCP socket and start listening on configured port.
+     *
+     * @param  int|null  $port  Port number to bind to (null = use config)
      */
-    public function start(): void
+    public function start(?int $port = null): void
     {
-        $port = $this->configService->getConsumePort();
+        $port = $port ?? $this->configService->getConsumePort();
         $this->startTcpSocket($port);
     }
 

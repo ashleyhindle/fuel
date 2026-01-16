@@ -62,8 +62,9 @@ final class ConsumeRunner
      * - Cleanup after main loop exits
      *
      * @param  bool  $taskReviewEnabled  Whether to enable automatic task reviews
+     * @param  int|null  $port  Port number to bind to (null = use config)
      */
-    public function start(bool $taskReviewEnabled = false): void
+    public function start(bool $taskReviewEnabled = false, ?int $port = null): void
     {
         $log = DaemonLogger::getInstance();
         $log->info('Daemon starting', ['review_enabled' => $taskReviewEnabled]);
@@ -71,12 +72,12 @@ final class ConsumeRunner
         $this->completionHandler->setTaskReviewEnabled($taskReviewEnabled);
 
         // Start lifecycle manager (checks stale PID, writes PID file)
-        $port = $this->configService->getConsumePort();
+        $port = $port ?? $this->configService->getConsumePort();
         $this->lifecycleManager->start($port);
         $log->info('Lifecycle manager started', ['port' => $port]);
 
         // Start IPC server EARLY so clients can connect immediately
-        $this->ipcServer->start();
+        $this->ipcServer->start($port);
         $log->info('IPC server started');
 
         // Register signal handlers via ProcessManager
