@@ -1736,7 +1736,19 @@ class ConsumeCommand extends Command
         $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
         $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
 
-        $truncatedTitle = $this->truncate($taskTitle, $width - 4 - $iconWidth);
+        // For multiline titles, only show the first line in board cards
+        $titleLines = explode("\n", $taskTitle);
+        $firstLine = trim($titleLines[0]);
+        $hasMoreLines = count($titleLines) > 1;
+
+        // If there are more lines, leave space for "..." indicator
+        $maxLength = $hasMoreLines ? $width - 7 - $iconWidth : $width - 4 - $iconWidth;
+        $truncatedTitle = $this->truncate($firstLine, $maxLength);
+
+        // Add indicator if there are more lines
+        if ($hasMoreLines && mb_strlen($firstLine) <= $maxLength) {
+            $truncatedTitle .= '...';
+        }
 
         // Colors based on style
         $borderColor = match ($style) {
@@ -1813,7 +1825,19 @@ class ConsumeCommand extends Command
         $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
         $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
 
-        $truncatedTitle = $this->truncate($taskTitle, $width - 4 - $iconWidth);
+        // For multiline titles, only show the first line in board cards
+        $titleLines = explode("\n", $taskTitle);
+        $firstLine = trim($titleLines[0]);
+        $hasMoreLines = count($titleLines) > 1;
+
+        // If there are more lines, leave space for "..." indicator
+        $maxLength = $hasMoreLines ? $width - 7 - $iconWidth : $width - 4 - $iconWidth;
+        $truncatedTitle = $this->truncate($firstLine, $maxLength);
+
+        // Add indicator if there are more lines
+        if ($hasMoreLines && mb_strlen($firstLine) <= $maxLength) {
+            $truncatedTitle .= '...';
+        }
 
         $borderColor = 'fg=gray';
         $idColor = 'fg=cyan';
