@@ -856,7 +856,7 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Build footer - use counts from IPC client (lazy-loaded data)
+        // Build footer - keymap on left, status on right
         $blockedCount = $this->ipcClient?->getBlockedCount() ?? $blockedTasks->count();
         $doneCount = $this->ipcClient?->getDoneCount() ?? $doneTasks->count();
         $footerParts = [];
@@ -864,14 +864,14 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedCount.')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneCount.')</>';
         $footerParts[] = '<fg=gray>q: exit</>';
-        $footerLine = implode(' <fg=#555>|</> ', $footerParts);
+        $keymapLine = implode(' <fg=#555>|</> ', $footerParts);
 
         // Connection status indicator (green = connected, red = disconnected)
         $isConnected = $this->ipcClient?->isConnected() === true;
         $connectionIndicator = $isConnected ? '<fg=green>●</>' : '<fg=red>●</>';
 
         // Render status history above footer (positioned from bottom)
-        $footerHeight = 2; // status line + key instructions
+        $footerHeight = 1; // single combined footer line
         $statusLineCount = count($statusLines);
         if ($statusLineCount > 0) {
             $startRow = $this->terminalHeight - $statusLineCount - $footerHeight;
@@ -884,18 +884,17 @@ class ConsumeCommand extends Command
         if ($this->commandPaletteActive && ! $this->showBlockedModal && ! $this->showDoneModal && ! $this->showEpicsModal) {
             $this->captureCommandPalette();
         } else {
-            // Status line (centered, above footer)
+            // Build status indicator for right side
             $statusLine = $this->buildStatusLine($paused, $isConnected);
 
-            $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
-            $this->screenBuffer->setLine($this->terminalHeight - 1, str_repeat(' ', $statusPadding).$statusLine);
-
-            // Footer line (centered, at bottom) with connection indicator at far right
-            $footerVisibleLen = $this->visibleLength($footerLine);
+            // Footer: keymap on left, status + connection indicator on right
+            $keymapVisibleLen = $this->visibleLength($keymapLine);
+            $statusVisibleLen = $this->visibleLength($statusLine);
             $indicatorVisibleLen = 1; // The ● character
-            $paddingAmount = max(0, (int) floor(($this->terminalWidth - $footerVisibleLen) / 2));
-            $rightPadding = max(0, $this->terminalWidth - $paddingAmount - $footerVisibleLen - $indicatorVisibleLen - 1);
-            $this->screenBuffer->setLine($this->terminalHeight, str_repeat(' ', $paddingAmount).$footerLine.str_repeat(' ', $rightPadding).$connectionIndicator.' ');
+            $rightContent = $statusLine.' '.$connectionIndicator;
+            $rightContentLen = $statusVisibleLen + 1 + $indicatorVisibleLen;
+            $middlePadding = max(1, $this->terminalWidth - $keymapVisibleLen - $rightContentLen - 2);
+            $this->screenBuffer->setLine($this->terminalHeight, ' '.$keymapLine.str_repeat(' ', $middlePadding).$rightContent.' ');
         }
 
         // Render modals on top if active - use lazy-loaded data from IPC client
@@ -935,7 +934,7 @@ class ConsumeCommand extends Command
         }
 
         if ($paused) {
-            return '<fg=yellow>PAUSED</>';
+            return '<fg=yellow>⏸ Paused</>';
         }
 
         $spinner = self::CONNECTING_SPINNER[$this->spinnerFrame % count(self::CONNECTING_SPINNER)];
@@ -1573,7 +1572,7 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Build footer (key instructions only) - use counts from IPC client when available
+        // Build footer - keymap on left, status on right
         $blockedCount = $this->ipcClient?->getBlockedCount() ?? $blockedTasks->count();
         $doneCount = $this->ipcClient?->getDoneCount() ?? $doneTasks->count();
         $footerParts = [];
@@ -1581,14 +1580,14 @@ class ConsumeCommand extends Command
         $footerParts[] = '<fg=gray>b: blocked ('.$blockedCount.')</>';
         $footerParts[] = '<fg=gray>d: done ('.$doneCount.')</>';
         $footerParts[] = '<fg=gray>q: exit</>';
-        $footerLine = implode(' <fg=#555>|</> ', $footerParts);
+        $keymapLine = implode(' <fg=#555>|</> ', $footerParts);
 
         // Connection status indicator (green = connected, red = disconnected)
         $isConnected = $this->ipcClient?->isConnected() ?? false;
         $connectionIndicator = $isConnected ? '<fg=green>●</>' : '<fg=red>●</>';
 
-        // Footer always takes 2 lines: status line + key instructions
-        $footerHeight = 2;
+        // Footer is now a single combined line
+        $footerHeight = 1;
 
         // Render status history above footer (positioned from bottom)
         $statusLineCount = count($statusLines);
@@ -1599,18 +1598,17 @@ class ConsumeCommand extends Command
             }
         }
 
-        // Render status line above key instructions (centered)
+        // Build status indicator for right side
         $statusLine = $this->buildStatusLine($paused, $isConnected);
 
-        $statusPadding = max(0, (int) floor(($this->terminalWidth - $this->visibleLength($statusLine)) / 2));
-        $this->getOutput()->write(sprintf("\033[%d;1H%s%s", $this->terminalHeight - 1, str_repeat(' ', $statusPadding), $statusLine));
-
-        // Position footer at bottom of screen with connection indicator at far right
-        $footerVisibleLen = $this->visibleLength($footerLine);
+        // Footer: keymap on left, status + connection indicator on right
+        $keymapVisibleLen = $this->visibleLength($keymapLine);
+        $statusVisibleLen = $this->visibleLength($statusLine);
         $indicatorVisibleLen = 1; // The ● character
-        $paddingAmount = max(0, (int) floor(($this->terminalWidth - $footerVisibleLen) / 2));
-        $rightPadding = max(0, $this->terminalWidth - $paddingAmount - $footerVisibleLen - $indicatorVisibleLen - 1);
-        $this->getOutput()->write(sprintf("\033[%d;1H%s%s%s%s ", $this->terminalHeight, str_repeat(' ', $paddingAmount), $footerLine, str_repeat(' ', $rightPadding), $connectionIndicator));
+        $rightContent = $statusLine.' '.$connectionIndicator;
+        $rightContentLen = $statusVisibleLen + 1 + $indicatorVisibleLen;
+        $middlePadding = max(1, $this->terminalWidth - $keymapVisibleLen - $rightContentLen - 2);
+        $this->getOutput()->write(sprintf("\033[%d;1H %s%s%s ", $this->terminalHeight, $keymapLine, str_repeat(' ', $middlePadding), $rightContent));
 
         // Render modals if active - use lazy-loaded data from IPC client
         if ($this->showBlockedModal) {

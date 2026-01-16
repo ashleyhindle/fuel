@@ -187,4 +187,38 @@ describe('stuck command', function (): void {
         $pos2 = strpos($output, 'Second stuck task');
         expect($pos2)->toBeLessThan($pos1);
     });
+
+    it('excludes tasks with done status even if they have non-zero exit codes', function (): void {
+
+        $doneTask = $this->taskService->create(['title' => 'Completed task']);
+        $this->taskService->update($doneTask->short_id, [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'status' => 'done',
+        ]);
+        $this->runService->logRun($doneTask->short_id, ['agent' => 'test', 'exit_code' => -1]);
+
+        Artisan::call('stuck', []);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Completed task');
+        expect($output)->toContain('No stuck tasks found');
+    });
+
+    it('excludes tasks with cancelled status even if they have non-zero exit codes', function (): void {
+
+        $cancelledTask = $this->taskService->create(['title' => 'Cancelled task']);
+        $this->taskService->update($cancelledTask->short_id, [
+            'consumed' => true,
+            'consumed_at' => date('c'),
+            'status' => 'cancelled',
+        ]);
+        $this->runService->logRun($cancelledTask->short_id, ['agent' => 'test', 'exit_code' => 1]);
+
+        Artisan::call('stuck', []);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Cancelled task');
+        expect($output)->toContain('No stuck tasks found');
+    });
 });

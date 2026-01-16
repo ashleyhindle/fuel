@@ -555,6 +555,11 @@ class TaskService
         $consumed = ! empty($task->consumed);
         $status = $task->status;
 
+        // Tasks that are done or cancelled are not stuck/failed
+        if ($status === TaskStatus::Done || $status === TaskStatus::Cancelled) {
+            return false;
+        }
+
         // Get latest run info for PID and exit code checks
         $latestRun = app(RunService::class)->getLatestRun($task->short_id);
         $pid = $latestRun?->pid;
