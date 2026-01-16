@@ -115,7 +115,7 @@ class PlanCommand extends Command
             'claude',
             '--print',
             '--verbose',
-            '--model', 'opus-4-5-20250101',
+            '--model', 'opus',
             '--input-format', 'stream-json',
             '--output-format', 'stream-json',
         ];
@@ -737,6 +737,7 @@ KEY BEHAVIORS:
 - Check understanding: "Does this match what you had in mind?" "Should we adjust anything?"
 - Suggest improvements: "Have you considered...?" "What about edge case X?"
 - Be collaborative: This is a discussion, not a one-way specification
+- For complex interactions, ASCII diagrams can help (architecture, flow charts, sequence diagrams)
 
 WHEN THE USER APPROVES THE PLAN:
 1. Ask whether this should be self-guided or pre-planned:
