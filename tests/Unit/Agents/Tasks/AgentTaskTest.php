@@ -623,7 +623,7 @@ describe('SelfGuidedAgentTask', function (): void {
         expect($agentTask->getProcessType())->toBe(ProcessType::Task);
     });
 
-    it('increments iteration and resets stuck count on success', function (): void {
+    it('increments iteration and resets stuck count on success, reopens if in_progress', function (): void {
         $task = new Task([
             'short_id' => 'f-abc123',
             'title' => 'Self-guided Task',
@@ -637,6 +637,17 @@ describe('SelfGuidedAgentTask', function (): void {
                 'selfguided_iteration' => 6,
                 'selfguided_stuck_count' => 0,
             ])
+            ->once();
+
+        // onSuccess now finds the task to check status
+        $this->taskService->shouldReceive('find')
+            ->with('f-abc123')
+            ->once()
+            ->andReturn($task);
+
+        // Task is in_progress, so reopen for next iteration
+        $this->taskService->shouldReceive('reopen')
+            ->with('f-abc123')
             ->once();
 
         $agentTask = new SelfGuidedAgentTask(
@@ -658,7 +669,7 @@ describe('SelfGuidedAgentTask', function (): void {
         $agentTask->onSuccess($completion);
     });
 
-    it('increments stuck count on failure', function (): void {
+    it('increments stuck count on failure and reopens for retry if under threshold', function (): void {
         $task = new Task([
             'short_id' => 'f-abc123',
             'title' => 'Self-guided Task',
@@ -669,6 +680,11 @@ describe('SelfGuidedAgentTask', function (): void {
 
         $this->taskService->shouldReceive('update')
             ->with('f-abc123', ['selfguided_stuck_count' => 2])
+            ->once();
+
+        // Stuck count is 2, under threshold of 3, so reopen for retry
+        $this->taskService->shouldReceive('reopen')
+            ->with('f-abc123')
             ->once();
 
         $agentTask = new SelfGuidedAgentTask(
@@ -757,6 +773,15 @@ describe('SelfGuidedAgentTask', function (): void {
             ])
             ->once();
 
+        $this->taskService->shouldReceive('find')
+            ->with('f-abc123')
+            ->once()
+            ->andReturn($task);
+
+        $this->taskService->shouldReceive('reopen')
+            ->with('f-abc123')
+            ->once();
+
         $agentTask = new SelfGuidedAgentTask(
             $task,
             $this->taskService,
@@ -786,6 +811,11 @@ describe('SelfGuidedAgentTask', function (): void {
 
         $this->taskService->shouldReceive('update')
             ->with('f-abc123', ['selfguided_stuck_count' => 1])
+            ->once();
+
+        // Stuck count is 1, under threshold of 3, so reopen for retry
+        $this->taskService->shouldReceive('reopen')
+            ->with('f-abc123')
             ->once();
 
         $agentTask = new SelfGuidedAgentTask(

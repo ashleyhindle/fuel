@@ -59,38 +59,42 @@ describe('selfguided:continue command', function (): void {
         $deleteDir($this->tempDir);
     });
 
-    it('continues a selfguided task by incrementing iteration and reopening', function (): void {
+    it('signals continue for a selfguided task without reopening (onSuccess does that)', function (): void {
         $task = $this->taskService->create([
             'title' => 'Selfguided task',
             'agent' => 'selfguided',
             'selfguided_iteration' => 5,
             'selfguided_stuck_count' => 3,
         ]);
-        $this->taskService->done($task->short_id);
+        // Task stays in_progress to simulate being in a run
+        $this->taskService->start($task->short_id);
 
         $this->artisan('selfguided:continue', ['id' => $task->short_id])
-            ->expectsOutputToContain('Task reopened for iteration 6')
+            ->expectsOutputToContain('Continuing selfguided task after iteration 6')
             ->assertExitCode(0);
 
+        // Command no longer changes status/iteration/stuck_count - onSuccess() does that
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->status)->toBe(TaskStatus::Open);
-        expect($updated->selfguided_iteration)->toBe(6);
-        expect($updated->selfguided_stuck_count)->toBe(0);
+        expect($updated->status)->toBe(TaskStatus::InProgress);
+        expect($updated->selfguided_iteration)->toBe(5); // Unchanged - onSuccess increments
+        expect($updated->selfguided_stuck_count)->toBe(3); // Unchanged - onSuccess resets
     });
 
-    it('initializes iteration to 1 when null', function (): void {
+    it('reports iteration 1 when selfguided_iteration is null', function (): void {
         $task = $this->taskService->create([
             'title' => 'New selfguided task',
             'agent' => 'selfguided',
         ]);
-        $this->taskService->done($task->short_id);
+        $this->taskService->start($task->short_id);
 
         $this->artisan('selfguided:continue', ['id' => $task->short_id])
-            ->expectsOutputToContain('Task reopened for iteration 1')
+            ->expectsOutputToContain('Continuing selfguided task after iteration 1')
             ->assertExitCode(0);
 
+        // Iteration not changed by command - onSuccess does that
+        // Note: selfguided_iteration is cast to integer, so null becomes 0
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->selfguided_iteration)->toBe(1);
+        expect($updated->selfguided_iteration)->toBe(0);
     });
 
     it('creates needs-human task when max iterations reached', function (): void {
@@ -162,15 +166,16 @@ describe('selfguided:continue command', function (): void {
             'agent' => 'selfguided',
             'selfguided_iteration' => 1,
         ]);
-        $this->taskService->done($task->short_id);
+        $this->taskService->start($task->short_id);
         $partialId = substr((string) $task->short_id, 2, 3);
 
         $this->artisan('selfguided:continue', ['id' => $partialId])
-            ->expectsOutputToContain('Task reopened for iteration 2')
+            ->expectsOutputToContain('Continuing selfguided task after iteration 2')
             ->assertExitCode(0);
 
+        // Iteration not changed by command
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->selfguided_iteration)->toBe(2);
+        expect($updated->selfguided_iteration)->toBe(1);
     });
 
     it('outputs JSON when --json flag is used', function (): void {
@@ -178,8 +183,9 @@ describe('selfguided:continue command', function (): void {
             'title' => 'JSON task',
             'agent' => 'selfguided',
             'selfguided_iteration' => 3,
+            'selfguided_stuck_count' => 2,
         ]);
-        $this->taskService->done($task->short_id);
+        $this->taskService->start($task->short_id);
 
         Artisan::call('selfguided:continue', [
             'id' => $task->short_id,
@@ -190,9 +196,10 @@ describe('selfguided:continue command', function (): void {
 
         expect($result)->toBeArray();
         expect($result['short_id'])->toBe($task->short_id);
-        expect($result['status'])->toBe('open');
-        expect($result['selfguided_iteration'])->toBe(4);
-        expect($result['selfguided_stuck_count'])->toBe(0);
+        // Command no longer changes status/iteration/stuck_count - onSuccess does that
+        expect($result['status'])->toBe('in_progress');
+        expect($result['selfguided_iteration'])->toBe(3);
+        expect($result['selfguided_stuck_count'])->toBe(2);
     });
 
     it('outputs JSON with max iterations info when limit reached', function (): void {
@@ -217,20 +224,21 @@ describe('selfguided:continue command', function (): void {
         expect($result['needs_human_task']['labels'])->toContain('needs-human');
     });
 
-    it('resets stuck count to 0 on continue', function (): void {
+    it('does not reset stuck count (onSuccess does that)', function (): void {
         $task = $this->taskService->create([
             'title' => 'Stuck task',
             'agent' => 'selfguided',
             'selfguided_iteration' => 10,
             'selfguided_stuck_count' => 5,
         ]);
-        $this->taskService->done($task->short_id);
+        $this->taskService->start($task->short_id);
 
         $this->artisan('selfguided:continue', ['id' => $task->short_id])
             ->assertExitCode(0);
 
+        // Command no longer resets stuck count - onSuccess does that
         $updated = $this->taskService->find($task->short_id);
-        expect($updated->selfguided_stuck_count)->toBe(0);
+        expect($updated->selfguided_stuck_count)->toBe(5);
     });
 
     it('handles task with null agent field', function (): void {
