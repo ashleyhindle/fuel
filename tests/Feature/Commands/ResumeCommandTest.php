@@ -1,64 +1,13 @@
 <?php
 
-use App\Services\ConfigService;
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
-use Symfony\Component\Yaml\Yaml;
 
 // Resume Command Tests
 describe('resume command', function (): void {
     beforeEach(function (): void {
-        $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-
-        $context = new FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-        $this->dbPath = $context->getDatabasePath();
-
-        $context->configureDatabase();
-        $databaseService = new DatabaseService($context->getDatabasePath());
-        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-        Artisan::call('migrate', ['--force' => true]);
-
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
-
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
-        $this->taskService = $this->app->make(TaskService::class);
-    });
-
-    afterEach(function (): void {
-        $deleteDir = function (string $dir) use (&$deleteDir): void {
-            if (! is_dir($dir)) {
-                return;
-            }
-
-            $items = scandir($dir);
-            foreach ($items as $item) {
-                if ($item === '.') {
-                    continue;
-                }
-
-                if ($item === '..') {
-                    continue;
-                }
-
-                $path = $dir.'/'.$item;
-                if (is_dir($path)) {
-                    $deleteDir($path);
-                } elseif (file_exists($path)) {
-                    unlink($path);
-                }
-            }
-
-            rmdir($dir);
-        };
-
-        $deleteDir($this->tempDir);
+        $this->taskService = app(TaskService::class);
     });
 
     it('shows error when task not found', function (): void {
@@ -96,23 +45,18 @@ describe('resume command', function (): void {
     it('shows error when agent is unknown', function (): void {
         $task = $this->taskService->create(['title' => 'Test task']);
 
-        // Create config file so ConfigService can load (driver-based format)
-        $configPath = $this->tempDir.'/.fuel/config.yaml';
-        file_put_contents($configPath, Yaml::dump([
-            'agents' => [
-                'claude' => ['driver' => 'claude'],
-            ],
-            'complexity' => [
-                'simple' => 'claude',
-            ],
-            'primary' => 'claude',
-        ]));
+        // Set custom config (driver-based format)
+        $this->setConfig(<<<'YAML'
+primary: claude
+agents:
+  claude:
+    driver: claude
+    command: echo
+complexity:
+  simple: claude
+YAML);
 
-        // Bind ConfigService to use the test's context
-        $context = $this->app->make(FuelContext::class);
-        $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
-
-        $runService = $this->app->make(RunService::class);
+        $runService = app(RunService::class);
         $runService->logRun($task->short_id, [
             'agent' => 'unknown-agent',
             'started_at' => '2026-01-07T10:00:00+00:00',

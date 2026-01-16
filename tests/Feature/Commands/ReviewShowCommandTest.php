@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -28,59 +27,10 @@ function createReviewForShowCommandTask(
 }
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-    $context->configureDatabase();
-    $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-    Artisan::call('migrate', ['--force' => true]);
-    $this->app->singleton(ReviewRepository::class, fn (): ReviewRepository => new ReviewRepository($databaseService));
-
-    $taskService = makeTaskService();
-    $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
-
-    $runService = makeRunService();
-    $this->app->singleton(RunService::class, fn (): RunService => $runService);
-
-    $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->reviewRepo = $this->app->make(ReviewRepository::class);
-
-    $this->taskService = $this->app->make(TaskService::class);
-    $this->runService = $this->app->make(RunService::class);
-});
-
-afterEach(function (): void {
-    $deleteDir = function (string $dir) use (&$deleteDir): void {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $items = scandir($dir);
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-
-            if ($item === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $deleteDir($path);
-            } else {
-                unlink($path);
-            }
-        }
-
-        rmdir($dir);
-    };
-
-    $deleteDir($this->tempDir);
+    $this->databaseService = app(DatabaseService::class);
+    $this->reviewRepo = app(ReviewRepository::class);
+    $this->taskService = app(TaskService::class);
+    $this->runService = app(RunService::class);
 });
 
 it('shows error for non-existent review', function (): void {
@@ -193,7 +143,7 @@ it('shows agent output from stdout.log', function (): void {
     $this->reviewRepo->markAsCompleted($reviewId, true, []);
 
     // Use run-based directory path
-    $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
+    $processDir = $this->testDir.'/.fuel/processes/'.$runShortId;
     mkdir($processDir, 0755, true);
     file_put_contents($processDir.'/stdout.log', "Line 1\nLine 2\nLine 3\n");
 

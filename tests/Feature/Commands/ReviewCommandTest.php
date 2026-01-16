@@ -2,36 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Process\Process;
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    // Create FuelContext pointing to test directory
-    $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-    // Bind test services
-    $context->configureDatabase();
-    $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-    Artisan::call('migrate', ['--force' => true]);
-
-    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
-
-    $this->taskService = $this->app->make(TaskService::class);
-});
-
-afterEach(function (): void {
-    // Recursively delete temp directory
-    if (is_dir($this->tempDir)) {
-        exec('rm -rf '.escapeshellarg($this->tempDir));
-    }
+    $this->taskService = app(TaskService::class);
 });
 
 test('routes to epic:review for epic IDs', function (): void {

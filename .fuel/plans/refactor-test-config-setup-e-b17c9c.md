@@ -70,5 +70,24 @@ Migrated 8 test files to use TestCase's `$this->testDir`:
 - Tests that need no database (DbCommandTest error cases) must create separate temp dir
 - Unused DatabaseService variables from old boilerplate were removed
 
+### Batch 4: Promote-ReviewShow Tests Migrated (f-20621c)
+Migrated 10 test files to use TestCase's `$this->testDir`:
+
+1. **PromoteCommandTest.php** - Kept minimal beforeEach for taskService only
+2. **QCommandTest.php** - Kept minimal beforeEach for taskService only
+3. **ReadyCommandTest.php** - Two describe blocks, each with minimal beforeEach for taskService
+4. **RemoveCommandTest.php** - Kept minimal beforeEach for taskService only
+5. **ReopenCommandTest.php** - Kept minimal beforeEach for taskService only
+6. **ResumeCommandTest.php** - Kept minimal beforeEach for taskService; one test uses `$this->setConfig()` for custom config
+7. **RetryCommandTest.php** - Kept minimal beforeEach for taskService and runService
+8. **ReviewCommandTest.php** - Kept minimal beforeEach for taskService only (file-level)
+9. **ReviewsCommandTest.php** - Kept minimal beforeEach for databaseService and reviewRepo (file-level)
+10. **ReviewShowCommandTest.php** - Kept minimal beforeEach for databaseService, reviewRepo, taskService, runService; changed tempDir→testDir for process directory
+
+**Key patterns continued:**
+- Services obtained via `app(ServiceClass::class)` instead of `$this->app->make()`
+- Custom config uses `$this->setConfig()` helper instead of manual file writes
+- `$this->tempDir` references in tests changed to `$this->testDir`
+
 ## Interfaces Created
 None - added helper methods to existing TestCase class.

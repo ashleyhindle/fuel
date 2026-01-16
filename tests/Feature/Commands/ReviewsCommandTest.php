@@ -4,57 +4,11 @@ declare(strict_types=1);
 
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    // Create FuelContext pointing to test directory
-    $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-    // Bind our test DatabaseService instance
-    $context->configureDatabase();
-    $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-    Artisan::call('migrate', ['--force' => true]);
-    $this->app->singleton(ReviewRepository::class, fn (): ReviewRepository => new ReviewRepository($databaseService));
-
-    $this->databaseService = $this->app->make(DatabaseService::class);
-    $this->reviewRepo = $this->app->make(ReviewRepository::class);
-});
-
-afterEach(function (): void {
-    // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir): void {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $items = scandir($dir);
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-
-            if ($item === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $deleteDir($path);
-            } else {
-                unlink($path);
-            }
-        }
-
-        rmdir($dir);
-    };
-
-    $deleteDir($this->tempDir);
+    $this->databaseService = app(DatabaseService::class);
+    $this->reviewRepo = app(ReviewRepository::class);
 });
 
 it('shows no reviews message when no reviews exist', function (): void {
