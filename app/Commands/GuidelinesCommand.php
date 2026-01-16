@@ -94,7 +94,7 @@ fuel dep:add <id> <blocker>     # Add dependency
 fuel dep:remove <id> <blocker>  # Remove dependency
 ```
 
-You must never work on fuel tasks. Fuel will pickup and manage tasks. You work on non-fuel tasks when requested.
+You must never work on fuel tasks you add in-session. Fuel will pickup and manage tasks. You work on non-fuel tasks when requested.
 
 ### TodoWrite vs Fuel
 
