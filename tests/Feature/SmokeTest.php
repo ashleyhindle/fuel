@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Artisan;
 it('runs a basic command flow', function (): void {
     $cwd = $this->testDir;
 
-    Artisan::call('init', []);
+    Artisan::call('init', ['--cwd' => $cwd]);
 
     expect(file_exists($cwd.'/.fuel/agent.db'))->toBeTrue();
 
