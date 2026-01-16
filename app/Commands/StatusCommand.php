@@ -345,16 +345,17 @@ class StatusCommand extends Command
         $headers = ['ID', 'Title', 'Agent', 'Running', 'Complexity', 'Epic'];
         $terminalWidth = $this->getTerminalWidth();
 
-        // Calculate max title width: terminal - ID(10) - Agent(8) - Running(10) - Complexity(12) - Epic(10) - borders(20)
-        $fixedColumnsWidth = 10 + 8 + 10 + 12 + 10 + 20;
+        // Calculate max widths: terminal - ID(10) - Agent(12) - Running(10) - Complexity(12) - Epic(15) - borders(20)
+        $maxEpicWidth = 15;
+        $fixedColumnsWidth = 10 + 12 + 10 + 12 + $maxEpicWidth + 20;
         $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth);
 
-        $rows = $inProgress->map(function (Task $task) use ($maxTitleWidth): array {
+        $rows = $inProgress->map(function (Task $task) use ($maxTitleWidth, $maxEpicWidth): array {
             $activeRun = $this->getActiveRun($task);
             $agent = $activeRun?->agent ?? 'unknown';
             $runningTime = $this->getRunningTime($activeRun);
             $complexity = $this->getComplexityDisplay($task);
-            $epicId = $task->epic_id ?? '';
+            $epicTitle = $task->epic?->title ?? '';
 
             // Add icons to title like in consume command
             $icons = $this->getTaskIcons($task);
@@ -366,7 +367,7 @@ class StatusCommand extends Command
                 $agent,
                 $runningTime,
                 $complexity,
-                $epicId,
+                $this->truncate($epicTitle, $maxEpicWidth),
             ];
         })->toArray();
 
@@ -484,6 +485,7 @@ class StatusCommand extends Command
                 'running_seconds' => $runningSeconds,
                 'complexity' => $task->complexity ?? 'simple',
                 'epic_id' => $task->epic_id,
+                'epic_title' => $task->epic?->title,
                 'consumed' => ! empty($task->consumed),
                 'failed' => app(TaskService::class)->isFailed($task),
                 'selfguided' => $task->agent === 'selfguided',
