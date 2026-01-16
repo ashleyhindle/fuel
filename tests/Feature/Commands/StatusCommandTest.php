@@ -156,4 +156,38 @@ describe('status command', function (): void {
         expect($result['board']['human'])->toBe(1);
         expect($result['board']['blocked'])->toBe(0);
     });
+
+    it('includes browser daemon status in output', function (): void {
+        Artisan::call('status', ['--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toHaveKey('browser_daemon');
+        expect($result['browser_daemon'])->toHaveKeys(['state', 'healthy']);
+        expect($result['browser_daemon']['state'])->toBeString();
+        expect($result['browser_daemon']['healthy'])->toBeBool();
+    });
+
+    it('shows browser daemon status in text output', function (): void {
+        $this->artisan('status', [])
+            ->expectsOutputToContain('Browser')
+            ->assertExitCode(0);
+    });
+
+    it('detects orphaned browser daemon processes', function (): void {
+        // Create a mock StatusCommand to test the private method
+        $command = new \App\Commands\StatusCommand;
+        $reflection = new ReflectionClass($command);
+        $method = $reflection->getMethod('getBrowserDaemonStatus');
+        $method->setAccessible(true);
+
+        // Test with runner not running (should check for orphaned daemons)
+        $result = $method->invoke($command, false);
+        expect($result)->toBeArray();
+        expect($result)->toHaveKeys(['state', 'healthy']);
+
+        // State should be either 'Not running' or 'Orphaned (killed)' depending on if daemon is found
+        expect($result['state'])->toMatch('/Not running|Orphaned \(killed\)/');
+        expect($result['healthy'])->toBeFalse();
+    });
 });
