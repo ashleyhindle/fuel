@@ -8,7 +8,9 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Ipc\Commands\BrowserTextCommand as IpcBrowserTextCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
+use App\Services\ConsumeIpcProtocol;
 use App\Services\FuelContext;
+use DateTimeImmutable;
 use Illuminate\Console\Scheduling\Schedule;
 use LaravelZero\Framework\Commands\Command;
 
@@ -58,6 +60,7 @@ class BrowserTextCommand extends Command
         }
 
         $ipcClient = app(ConsumeIpcClient::class);
+        $protocol = new ConsumeIpcProtocol;
         $pidFilePath = app(FuelContext::class)->getPidFilePath();
 
         // Ensure fuel consume is running
@@ -92,104 +95,97 @@ class BrowserTextCommand extends Command
             }
 
             $ipcClient->connect($port);
+            $ipcClient->attach();
+
+            $requestId = $protocol->generateRequestId();
+            $ipcClient->sendCommand(new IpcBrowserTextCommand(
+                pageId: $pageId,
+                selector: $selector,
+                ref: $ref,
+                timestamp: new DateTimeImmutable,
+                instanceId: $ipcClient->getInstanceId(),
+                requestId: $requestId
+            ));
+
+            $response = $this->waitForResponse($ipcClient, $requestId, 5);
+
+            $ipcClient->detach();
+            $ipcClient->disconnect();
+
+            if ($response === null) {
+                if ($this->option('json')) {
+                    $this->outputJson([
+                        'error' => 'Timeout waiting for response',
+                    ], self::FAILURE);
+
+                    return self::FAILURE;
+                }
+                $this->error('Timeout waiting for response');
+
+                return self::FAILURE;
+            }
+
+            if (! $response->success) {
+                if ($this->option('json')) {
+                    $this->outputJson([
+                        'error' => $response->error ?? 'Failed to get text',
+                    ], self::FAILURE);
+
+                    return self::FAILURE;
+                }
+                $this->error($response->error ?? 'Failed to get text');
+
+                return self::FAILURE;
+            }
+
+            // Output the text content
+            if ($this->option('json')) {
+                $this->outputJson($response->result);
+
+                return self::SUCCESS;
+            }
+
+            $this->info($response->result['text'] ?? '');
+
+            return self::SUCCESS;
         } catch (\Throwable $e) {
             if ($this->option('json')) {
                 $this->outputJson([
-                    'error' => 'Failed to connect to daemon: '.$e->getMessage(),
+                    'error' => 'Failed to communicate with daemon: '.$e->getMessage(),
                 ], self::FAILURE);
 
                 return self::FAILURE;
             }
-            $this->error('Failed to connect to daemon: '.$e->getMessage());
+            $this->error('Failed to communicate with daemon: '.$e->getMessage());
 
             return self::FAILURE;
         }
+    }
 
-        try {
-            // Send browser text command
-            $command = new IpcBrowserTextCommand(
-                pageId: $pageId,
-                selector: $selector,
-                ref: $ref
-            );
+    /**
+     * Wait for a BrowserResponseEvent with matching request ID.
+     */
+    private function waitForResponse(ConsumeIpcClient $client, string $requestId, int $timeout): ?BrowserResponseEvent
+    {
+        $deadline = time() + $timeout;
 
-            $ipcClient->sendCommand($command);
+        while (time() < $deadline) {
+            $events = $client->pollEvents();
 
-            // Wait for response
-            $timeout = 5; // 5 seconds timeout
-            $start = time();
-            while (time() - $start < $timeout) {
-                $messages = $ipcClient->receive();
-                foreach ($messages as $message) {
-                    // Check if this response matches our request
-                    $messageRequestId = null;
-                    if ($message instanceof BrowserResponseEvent) {
-                        $messageRequestId = $message->getRequestId();
-                    } elseif (isset($message->requestId)) {
-                        $messageRequestId = $message->requestId;
-                    }
-
-                    if ($messageRequestId === $command->getRequestId()) {
-                        // Handle error response
-                        $error = null;
-                        if ($message instanceof BrowserResponseEvent && $message->error) {
-                            $error = $message->error;
-                        } elseif (isset($message->error) && $message->error) {
-                            $error = $message->error;
-                        }
-
-                        if ($error) {
-                            if ($this->option('json')) {
-                                $this->outputJson([
-                                    'error' => $error,
-                                ], self::FAILURE);
-
-                                return self::FAILURE;
-                            }
-                            $this->error($error);
-
-                            return self::FAILURE;
-                        }
-
-                        // Get data from response
-                        $data = null;
-                        if ($message instanceof BrowserResponseEvent && $message->result) {
-                            $data = $message->result;
-                        } elseif (isset($message->data)) {
-                            $data = $message->data;
-                        }
-
-                        if ($data) {
-                            // Output the text content
-                            if ($this->option('json')) {
-                                $this->outputJson($data);
-
-                                return self::SUCCESS;
-                            }
-
-                            $this->info($data['text'] ?? '');
-
-                            return self::SUCCESS;
-                        }
-                    }
+            foreach ($events as $event) {
+                if ($event instanceof BrowserResponseEvent && $event->requestId() === $requestId) {
+                    return $event;
                 }
-                usleep(100000); // 100ms
+
+                if (! $event instanceof BrowserResponseEvent) {
+                    $client->applyEvent($event);
+                }
             }
 
-            // Timeout
-            if ($this->option('json')) {
-                $this->outputJson([
-                    'error' => 'Timeout waiting for response',
-                ], self::FAILURE);
-
-                return self::FAILURE;
-            }
-            $this->error('Timeout waiting for response');
-
-            return self::FAILURE;
-        } finally {
-            $ipcClient->disconnect();
+            usleep(50000); // 50ms
         }
+
+        return null;
     }
 
     /**

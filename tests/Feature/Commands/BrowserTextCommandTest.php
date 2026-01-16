@@ -33,45 +33,40 @@ afterEach(function () {
 
 it('sends text command with selector to daemon', function () {
     // Create mock IPC client
-    $requestIdToMatch = null;
+    $capturedRequestId = ['id' => null];
+    $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserTextCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBe('h1');
         expect($cmd->ref)->toBeNull();
-        $requestIdToMatch = $cmd->getRequestId();
-
-        return true;
+        $capturedRequestId['id'] = $cmd->requestId();
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: true,
-            result: null,
-            error: null,
-            errorCode: null,
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['text' => 'Welcome to Example'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $capturedRequestId['id']
+                ),
+            ];
+        }
 
-            public $error = null;
-
-            public $data = ['text' => 'Welcome to Example'];
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
-    ]);
+        return [];
+    });
+    $ipcClient->shouldReceive('applyEvent')->zeroOrMoreTimes();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -86,34 +81,40 @@ it('sends text command with selector to daemon', function () {
 
 it('sends text command with element ref to daemon', function () {
     // Create mock IPC client
-    $requestIdToMatch = null;
+    $capturedRequestId = ['id' => null];
+    $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserTextCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBeNull();
         expect($cmd->ref)->toBe('@e42');
-        $requestIdToMatch = $cmd->getRequestId();
-
-        return true;
+        $capturedRequestId['id'] = $cmd->requestId();
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['text' => 'Button Text'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $capturedRequestId['id']
+                ),
+            ];
+        }
 
-            public $error = null;
-
-            public $data = ['text' => 'Button Text'];
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
-    ]);
+        return [];
+    });
+    $ipcClient->shouldReceive('applyEvent')->zeroOrMoreTimes();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -128,30 +129,36 @@ it('sends text command with element ref to daemon', function () {
 
 it('outputs JSON when json flag is provided', function () {
     // Create mock IPC client
-    $requestIdToMatch = null;
+    $capturedRequestId = ['id' => null];
+    $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
-        $requestIdToMatch = $cmd->getRequestId();
-
-        return true;
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
+        $capturedRequestId['id'] = $cmd->requestId();
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['text' => 'Test Content'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $capturedRequestId['id']
+                ),
+            ];
+        }
 
-            public $error = null;
-
-            public $data = ['text' => 'Test Content'];
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
-    ]);
+        return [];
+    });
+    $ipcClient->shouldReceive('applyEvent')->zeroOrMoreTimes();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -169,30 +176,36 @@ it('outputs JSON when json flag is provided', function () {
 
 it('handles error responses from daemon', function () {
     // Create mock IPC client
-    $requestIdToMatch = null;
+    $capturedRequestId = ['id' => null];
+    $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
-        $requestIdToMatch = $cmd->getRequestId();
-
-        return true;
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
+        $capturedRequestId['id'] = $cmd->requestId();
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: false,
+                    result: null,
+                    error: 'Element not found: .nonexistent',
+                    errorCode: null,
+                    timestamp: new DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $capturedRequestId['id']
+                ),
+            ];
+        }
 
-            public $error = 'Element not found: .nonexistent';
-
-            public $data = null;
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
-    ]);
+        return [];
+    });
+    $ipcClient->shouldReceive('applyEvent')->zeroOrMoreTimes();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
