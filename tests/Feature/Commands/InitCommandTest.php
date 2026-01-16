@@ -145,10 +145,46 @@ describe('init command', function (): void {
         $customContent = "<fuel-prompt version=\"1\" />\n\nMy custom work prompt";
         file_put_contents($promptsDir.'/work.md', $customContent);
 
-        $this->artisan('init')
+        $this->artisan('init', ['--cwd' => $this->testDir])
             ->assertExitCode(0);
 
         // Custom prompt should not be overwritten
         expect(file_get_contents($promptsDir.'/work.md'))->toBe($customContent);
+    });
+
+    it('finds git root when run from subdirectory', function (): void {
+        // Create a project with git root and a subdirectory
+        $projectDir = sys_get_temp_dir().'/fuel-gitroot-test-'.uniqid();
+        $subDir = $projectDir.'/src/app';
+        mkdir($subDir, 0755, true);
+        mkdir($projectDir.'/.git', 0755); // Fake git directory
+
+        $this->artisan('init', ['--cwd' => $subDir])
+            ->assertExitCode(0);
+
+        // Should create .fuel at git root, not in subdirectory
+        expect(is_dir($projectDir.'/.fuel'))->toBeTrue();
+        expect(is_dir($subDir.'/.fuel'))->toBeFalse();
+
+        // Cleanup
+        File::deleteDirectory($projectDir);
+    });
+
+    it('ignores parent .fuel directories and inits at git root', function (): void {
+        // Create a parent with .fuel and a child project with .git
+        $parentDir = sys_get_temp_dir().'/fuel-parent-test-'.uniqid();
+        $childDir = $parentDir.'/child-project';
+        mkdir($parentDir.'/.fuel', 0755, true);
+        mkdir($childDir.'/.git', 0755, true);
+
+        $this->artisan('init', ['--cwd' => $childDir])
+            ->assertExitCode(0);
+
+        // Should create .fuel at child project (git root), not use parent .fuel
+        expect(is_dir($childDir.'/.fuel'))->toBeTrue();
+        expect(file_exists($childDir.'/.fuel/config.yaml'))->toBeTrue();
+
+        // Cleanup
+        File::deleteDirectory($parentDir);
     });
 });

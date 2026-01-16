@@ -150,7 +150,7 @@ class SelfUpdateCommand extends Command
                 exit($initResult);
             }
 
-            $initResult = $this->call('init');
+            $initResult = $this->call('init', ['--cwd' => $projectPath]);
             if ($initResult !== self::SUCCESS) {
                 $this->error('Init failed with exit code: '.$initResult);
 

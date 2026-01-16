@@ -10,25 +10,25 @@ use Illuminate\Support\Facades\Schema;
 
 describe('init command', function (): void {
     it('creates .fuel/ directory', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         expect(is_dir($this->testDir.'/.fuel'))->toBeTrue();
     });
 
     it('creates processes directory', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         expect(is_dir($this->testDir.'/.fuel/processes'))->toBeTrue();
     });
 
     it('creates plans directory', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         expect(is_dir($this->testDir.'/.fuel/plans'))->toBeTrue();
     });
 
     it('creates agent.db with all required tables', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $dbPath = $this->testDir.'/.fuel/agent.db';
         expect(file_exists($dbPath))->toBeTrue();
@@ -40,7 +40,7 @@ describe('init command', function (): void {
     });
 
     it('creates starter task', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         // Use TaskService directly to verify (path resolution now happens at boot).
         $context = new FuelContext($this->testDir.'/.fuel');
@@ -56,8 +56,8 @@ describe('init command', function (): void {
     });
 
     it('is idempotent - can be run multiple times safely', function (): void {
-        Artisan::call('init', []);
-        $secondExitCode = Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
+        $secondExitCode = Artisan::call('init', ['--cwd' => $this->testDir]);
 
         expect($secondExitCode)->toBe(0);
 
@@ -73,7 +73,7 @@ describe('init command', function (): void {
     });
 
     it('adds selective fuel entries to .gitignore', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $gitignorePath = $this->testDir.'/.gitignore';
         expect(file_exists($gitignorePath))->toBeTrue();
@@ -88,7 +88,7 @@ describe('init command', function (): void {
     });
 
     it('creates new .gitignore if it does not exist', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $gitignorePath = $this->testDir.'/.gitignore';
         expect(file_exists($gitignorePath))->toBeTrue();
@@ -103,7 +103,7 @@ describe('init command', function (): void {
     it('appends fuel entries to existing .gitignore without duplicating', function (): void {
         file_put_contents($this->testDir.'/.gitignore', "node_modules\nvendor\n");
 
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $content = file_get_contents($this->testDir.'/.gitignore');
         expect($content)->toContain('node_modules');
@@ -112,13 +112,13 @@ describe('init command', function (): void {
         expect($content)->toContain('!.fuel/reality.md');
 
         // Run init again - should not duplicate entries
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
         $content2 = file_get_contents($this->testDir.'/.gitignore');
         expect(substr_count($content2, '.fuel/*'))->toBe(1);
     });
 
     it('updates AGENTS.md with guidelines', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $agentsMdPath = $this->testDir.'/AGENTS.md';
         expect(file_exists($agentsMdPath))->toBeTrue();
@@ -128,7 +128,7 @@ describe('init command', function (): void {
     });
 
     it('creates config.yaml with default configuration', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $configPath = $this->testDir.'/.fuel/config.yaml';
         expect(file_exists($configPath))->toBeTrue();
@@ -140,6 +140,7 @@ describe('init command', function (): void {
 
     it('creates default config.yaml when --agent flag is provided', function (): void {
         Artisan::call('init', [
+            '--cwd' => $this->testDir,
             '--agent' => 'claude-opus',
         ]);
 
@@ -153,7 +154,7 @@ describe('init command', function (): void {
     });
 
     it('does not create starter task if tasks already exist', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         // Use TaskService directly to add a task (path resolution now happens at boot).
         $context = new FuelContext($this->testDir.'/.fuel');
@@ -164,14 +165,14 @@ describe('init command', function (): void {
 
         $taskService->create(['title' => 'Existing task']);
 
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $tasks = $taskService->all();
         expect($tasks)->toHaveCount(2);
     });
 
     it('regression: Schema::hasTable returns true for all tables after init', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $tables = ['tasks', 'epics', 'runs', 'reviews', 'agent_health'];
         foreach ($tables as $table) {
@@ -180,13 +181,13 @@ describe('init command', function (): void {
     });
 
     it('shows "run your favourite agent" message only on fresh install', function (): void {
-        $this->artisan('init', [])
+        $this->artisan('init', ['--cwd' => $this->testDir])
             ->expectsOutput("Configure '.fuel/config.yaml' then run 'fuel consume'")
             ->assertExitCode(0);
     });
 
     it('does not show "run your favourite agent" message when tasks already exist', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         // Use TaskService directly to add a task (path resolution now happens at boot).
         $context = new FuelContext($this->testDir.'/.fuel');
@@ -199,13 +200,13 @@ describe('init command', function (): void {
         $taskService->create(['title' => 'Existing task']);
 
         // Run init again - should not show the message
-        $this->artisan('init', [])
+        $this->artisan('init', ['--cwd' => $this->testDir])
             ->doesntExpectOutput("Configure '.fuel/config.yaml' then run 'fuel consume'")
             ->assertExitCode(0);
     });
 
     it('creates stub reality.md', function (): void {
-        Artisan::call('init', []);
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         $realityPath = $this->testDir.'/.fuel/reality.md';
         expect(file_exists($realityPath))->toBeTrue();
