@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
 use App\Services\EpicService;
+use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -38,6 +39,16 @@ class DoneCommand extends Command
             try {
                 $task = $taskService->done($id, $reason, $commit);
                 $tasks[] = $task;
+
+                // Also update the latest run with the commit hash if provided
+                if ($commit !== null) {
+                    $runService = app(RunService::class);
+                    try {
+                        $runService->updateLatestRun($task->short_id, ['commit_hash' => $commit]);
+                    } catch (RuntimeException) {
+                        // No run exists - task completed without daemon
+                    }
+                }
             } catch (RuntimeException $e) {
                 $errors[] = ['id' => $id, 'error' => $e->getMessage()];
             }

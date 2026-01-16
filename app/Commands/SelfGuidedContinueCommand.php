@@ -17,6 +17,7 @@ class SelfGuidedContinueCommand extends Command
     protected $signature = 'selfguided:continue
         {id : The task ID (supports partial matching)}
         {--notes= : Optional notes about progress or observations}
+        {--commit= : Git commit hash from this iteration}
         {--json : Output as JSON}';
 
     protected $description = 'Continue a selfguided task by incrementing iteration and reopening';
@@ -25,6 +26,7 @@ class SelfGuidedContinueCommand extends Command
     {
         $id = $this->argument('id');
         $notes = $this->option('notes');
+        $commit = $this->option('commit');
 
         try {
             $task = $taskService->find($id);
@@ -84,6 +86,16 @@ class SelfGuidedContinueCommand extends Command
             }
 
             $task = $taskService->update($task->short_id, $updates);
+
+            // Update latest run with commit hash if provided
+            if ($commit !== null) {
+                $runService = app(\App\Services\RunService::class);
+                try {
+                    $runService->updateLatestRun($task->short_id, ['commit_hash' => $commit]);
+                } catch (RuntimeException) {
+                    // No run exists - task may have been created without daemon
+                }
+            }
 
             // Reopen the task
             $task = $taskService->reopen($task->short_id);

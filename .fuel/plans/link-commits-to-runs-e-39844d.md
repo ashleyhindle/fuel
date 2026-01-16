@@ -22,14 +22,18 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 - No changes needed to `createRun()` (commits happen at end of run)
 - Implementation: Added commit_hash handling in both update methods after output truncation
 
-### 3. SelfGuidedContinueCommand: Add --commit flag
-- Add `--commit=` option to capture the commit made during this iteration
-- Before reopening the task, update the latest run with the commit_hash
-- This records the commit for the iteration that just completed
+### 3. SelfGuidedContinueCommand: Add --commit flag ✅
+- ✅ Add `--commit=` option to capture the commit made during this iteration
+- ✅ Before reopening the task, update the latest run with the commit_hash
+- ✅ This records the commit for the iteration that just completed
+- Implementation: Added --commit flag to signature, captured in handle(), updates latest run before reopening
+- Uses `app(\App\Services\RunService::class)` pattern for DI (no import needed)
+- Gracefully handles missing runs with try/catch RuntimeException
 
-### 4. DoneCommand: Record commit on run (not just task)
-- When `fuel done --commit=<hash>` is called, also update the latest run's commit_hash
-- Keep existing behavior of storing on task for backward compatibility
+### 4. DoneCommand: Record commit on run (not just task) ✅
+- ✅ When `fuel done --commit=<hash>` is called, also update the latest run's commit_hash
+- ✅ Keep existing behavior of storing on task for backward compatibility
+- ✅ Gracefully handles case where no run exists (standalone tasks without daemon)
 
 ### 5. Update selfguided.md prompt
 - Update the prompt to instruct agents to use `--commit` with `selfguided:continue`
@@ -41,8 +45,8 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 |------|--------|
 | `database/migrations/2026_01_16_102931_add_commit_hash_to_runs_table.php` | ✅ Migration created and tested |
 | `app/Services/RunService.php` | ✅ Handle commit_hash in update methods |
-| `app/Commands/SelfGuidedContinueCommand.php` | Add --commit flag, update run |
-| `app/Commands/DoneCommand.php` | Also store commit_hash on latest run |
+| `app/Commands/SelfGuidedContinueCommand.php` | ✅ Add --commit flag, update run |
+| `app/Commands/DoneCommand.php` | ✅ Also store commit_hash on latest run |
 | `resources/prompts/selfguided.md` | Update prompt with new flag usage |
 | `tests/Unit/Services/RunServiceTest.php` | Test commit_hash handling |
 | `tests/Feature/Commands/SelfGuidedContinueCommandTest.php` | Test --commit flag |
@@ -74,3 +78,10 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 - Both methods handle commit_hash the same way as other optional fields (session_id, cost_usd, etc.)
 - Pattern: Check if key exists in $data, then add to update fields
 - Location: `app/Services/RunService.php` lines ~179 and ~257
+
+### DoneCommand commit_hash on run (f-8b337e)
+- `app/Commands/DoneCommand.php` now updates the latest run's commit_hash when `--commit` flag is provided
+- Implementation: After calling `taskService->done()`, uses `app(RunService::class)` to update the latest run
+- Gracefully handles RuntimeException when no run exists (standalone tasks without daemon)
+- Pattern: Wraps `updateLatestRun()` in try-catch, silently continues if no run exists
+- Location: `app/Commands/DoneCommand.php` lines ~43-51
