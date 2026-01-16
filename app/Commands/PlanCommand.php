@@ -2,6 +2,7 @@
 
 namespace App\Commands;
 
+use App\Daemon\DaemonLogger;
 use App\Models\Epic;
 use LaravelZero\Framework\Commands\Command;
 use Symfony\Component\Process\InputStream;
@@ -85,12 +86,27 @@ class PlanCommand extends Command
     }
 
     /**
+     * Get the logger instance for plan debugging.
+     */
+    private function log(): DaemonLogger
+    {
+        return DaemonLogger::getInstance(getcwd().'/.fuel/plan-debug.log');
+    }
+
+    /**
      * Start an interactive planning session with Claude
      */
     private function startPlanningSession(?string $existingEpicId = null): void
     {
+        $this->log()->info('PlanCommand.startPlanningSession', [
+            'existingEpicId' => $existingEpicId,
+            'cwd' => getcwd(),
+        ]);
+
         // Don't actually run in testing mode
         if (app()->environment() === 'testing') {
+            $this->log()->debug('Skipping in testing mode');
+
             return;
         }
 
@@ -103,6 +119,8 @@ class PlanCommand extends Command
             '--input-format', 'stream-json',
             '--output-format', 'stream-json',
         ];
+
+        $this->log()->info('Spawning claude process', ['command' => implode(' ', $command)]);
 
         $process = new Process($command);
 
@@ -145,10 +163,16 @@ class PlanCommand extends Command
 
             // Start the process
             $process->start();
+            $this->log()->info('Process started', ['pid' => $process->getPid()]);
 
             if (! $process->isRunning()) {
+                $errorOutput = $process->getErrorOutput();
+                $this->log()->error('Failed to start Claude process', [
+                    'exitCode' => $process->getExitCode(),
+                    'errorOutput' => $errorOutput,
+                ]);
                 $this->error('Failed to start Claude process');
-                $this->error($process->getErrorOutput());
+                $this->error($errorOutput);
 
                 return;
             }
@@ -181,12 +205,17 @@ class PlanCommand extends Command
                 ],
             ];
 
+            $this->log()->debug('Sending initial message', [
+                'messageType' => $initialMessage['type'],
+                'textLength' => strlen($initialText),
+            ]);
             $input->write(json_encode($initialMessage)."\n");
 
             // Main interaction loop
             $this->runInteractionLoop($process, $input, $existingEpicId, $epicCreated);
 
         } catch (\Exception $e) {
+            $this->log()->exception($e, 'Failed to start planning session');
             $this->error('Failed to start planning session: '.$e->getMessage());
         } finally {
             if ($process->isRunning()) {
@@ -200,6 +229,11 @@ class PlanCommand extends Command
      */
     private function runInteractionLoop(Process $process, InputStream $input, ?string $existingEpicId = null, bool &$epicCreated = false): void
     {
+        $this->log()->info('runInteractionLoop started', [
+            'existingEpicId' => $existingEpicId,
+            'processRunning' => $process->isRunning(),
+        ]);
+
         $outputBuffer = '';
         $waitingForInput = false;
         // If resuming, start in refining state
@@ -238,6 +272,7 @@ class PlanCommand extends Command
             // Check for errors
             $error = $process->getIncrementalErrorOutput();
             if ($error) {
+                $this->log()->error('Claude stderr output', ['error' => $error]);
                 $this->error('❌ Error from Claude: '.$error);
             }
 
@@ -291,6 +326,11 @@ class PlanCommand extends Command
                 // Inject planning constraints with each user message
                 $messageWithConstraints = $this->wrapUserMessage($userInput, $conversationState);
 
+                $this->log()->debug('Sending user message to Claude', [
+                    'turnCount' => $turnCount,
+                    'conversationState' => $conversationState,
+                    'userInputLength' => strlen($userInput),
+                ]);
                 $input->write(json_encode($messageWithConstraints)."\n");
 
                 $waitingForInput = false;
@@ -299,6 +339,14 @@ class PlanCommand extends Command
             // Small delay to prevent CPU spinning
             usleep(50000); // 50ms
         }
+
+        $this->log()->info('Interaction loop ended', [
+            'processRunning' => $process->isRunning(),
+            'exitCode' => $process->getExitCode(),
+            'epicCreated' => $epicCreated,
+            'finalState' => $conversationState,
+            'turnCount' => $turnCount,
+        ]);
 
         $this->info("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         if ($epicCreated && $conversationState === 'transition_confirmed') {
@@ -312,6 +360,10 @@ class PlanCommand extends Command
         }
 
         if (! $process->isRunning() && $process->getExitCode() !== 0) {
+            $this->log()->error('Claude process exited with error', [
+                'exitCode' => $process->getExitCode(),
+                'errorOutput' => $process->getErrorOutput(),
+            ]);
             $this->error('Claude process exited with error code: '.$process->getExitCode());
         }
     }
@@ -325,9 +377,16 @@ class PlanCommand extends Command
     {
         $data = json_decode($line, true);
         if (! $data) {
-            // Not JSON, skip it
+            $this->log()->warning('Non-JSON output from Claude', ['line' => substr($line, 0, 200)]);
+
             return ['waiting' => false, 'epicCreated' => false, 'epicId' => null];
         }
+
+        $this->log()->debug('Claude output received', [
+            'type' => $data['type'] ?? 'unknown',
+            'subtype' => $data['subtype'] ?? null,
+            'lineLength' => strlen($line),
+        ]);
 
         $newEpicCreated = false;
         $epicId = null;
