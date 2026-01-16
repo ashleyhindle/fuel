@@ -8,13 +8,20 @@ use App\DTO\ConsumeSnapshot;
 use App\Enums\ConsumeCommandType;
 use App\Enums\ConsumeEventType;
 use App\Ipc\Commands\AttachCommand;
+use App\Ipc\Commands\BrowserClickCommand;
 use App\Ipc\Commands\BrowserCloseCommand;
 use App\Ipc\Commands\BrowserCreateCommand;
+use App\Ipc\Commands\BrowserFillCommand;
 use App\Ipc\Commands\BrowserGotoCommand;
+use App\Ipc\Commands\BrowserHtmlCommand;
 use App\Ipc\Commands\BrowserPageCommand;
 use App\Ipc\Commands\BrowserRunCommand;
 use App\Ipc\Commands\BrowserScreenshotCommand;
+use App\Ipc\Commands\BrowserSnapshotCommand;
 use App\Ipc\Commands\BrowserStatusCommand;
+use App\Ipc\Commands\BrowserTextCommand;
+use App\Ipc\Commands\BrowserTypeCommand;
+use App\Ipc\Commands\BrowserWaitCommand;
 use App\Ipc\Commands\DependencyAddCommand;
 use App\Ipc\Commands\DetachCommand;
 use App\Ipc\Commands\PauseCommand;
@@ -143,6 +150,13 @@ final class ConsumeIpcProtocol
                 ConsumeCommandType::BrowserGoto => BrowserGotoCommand::fromArray($data),
                 ConsumeCommandType::BrowserRun => BrowserRunCommand::fromArray($data),
                 ConsumeCommandType::BrowserScreenshot => BrowserScreenshotCommand::fromArray($data),
+                ConsumeCommandType::BrowserSnapshot => BrowserSnapshotCommand::fromArray($data),
+                ConsumeCommandType::BrowserClick => BrowserClickCommand::fromArray($data),
+                ConsumeCommandType::BrowserFill => BrowserFillCommand::fromArray($data),
+                ConsumeCommandType::BrowserType => BrowserTypeCommand::fromArray($data),
+                ConsumeCommandType::BrowserText => BrowserTextCommand::fromArray($data),
+                ConsumeCommandType::BrowserHtml => BrowserHtmlCommand::fromArray($data),
+                ConsumeCommandType::BrowserWait => BrowserWaitCommand::fromArray($data),
                 ConsumeCommandType::BrowserClose => BrowserCloseCommand::fromArray($data),
                 ConsumeCommandType::BrowserStatus => BrowserStatusCommand::fromArray($data),
                 ConsumeCommandType::RequestDoneTasks => RequestDoneTasksCommand::fromArray($data),

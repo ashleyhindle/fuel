@@ -127,15 +127,24 @@ class BrowserSnapshotCommand extends Command
                 return;
             }
 
-            // Format snapshot as readable text
-            $this->info('Page Accessibility Snapshot:');
-            $this->line('');
-            $this->formatSnapshotNode($snapshot, 0);
+            // New format: { text: "...", refCount: N }
+            if (isset($snapshot['text'])) {
+                $this->info('Page Accessibility Snapshot:');
+                $this->line('');
+                $this->line($snapshot['text']);
+                $this->line('');
+                $this->info(sprintf('Found %d elements', $snapshot['refCount'] ?? 0));
+            } else {
+                // Legacy format (tree structure) - shouldn't happen with new daemon
+                $this->info('Page Accessibility Snapshot:');
+                $this->line('');
+                $this->formatSnapshotNode($snapshot, 0);
+            }
         }
     }
 
     /**
-     * Format snapshot node recursively for text output.
+     * Format snapshot node recursively for text output (legacy).
      */
     private function formatSnapshotNode(array $node, int $indent): void
     {

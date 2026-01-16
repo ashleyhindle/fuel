@@ -240,34 +240,68 @@ async function handle(method, params) {
 
       touchContext(entry.contextId);
 
-      // Get accessibility tree
-      const snapshot = await entry.page.accessibility.snapshot({
-        interestingOnly: interactiveOnly
-      });
+      // Interactive roles for filtering (from Vercel agent-browser)
+      const INTERACTIVE_ROLES = new Set([
+        'button', 'link', 'textbox', 'checkbox', 'radio', 'combobox', 'listbox',
+        'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'searchbox',
+        'slider', 'spinbutton', 'switch', 'tab', 'treeitem'
+      ]);
 
-      // Assign refs recursively and build flat ref map
+      // Get accessibility tree using new ariaSnapshot API (page.accessibility was removed in Playwright 1.57)
+      const locator = entry.page.locator(':root');
+      const ariaYaml = await locator.ariaSnapshot();
+
+      // Parse YAML-like output and assign refs
+      // Format: "- role \"name\":" or "- role:" with nested children
       let refCounter = 0;
       const refMap = new Map();
+      const lines = ariaYaml.split('\n');
+      const resultLines = [];
 
-      function assignRefs(node) {
-        const ref = `@e${++refCounter}`;
-        node.ref = ref;
-        refMap.set(ref, node);
-        if (node.children) {
-          node.children.forEach(assignRefs);
+      // Track role+name occurrences for disambiguating duplicates
+      const roleNameCounts = new Map();
+
+      for (const line of lines) {
+        // Match lines that define elements (start with "- " after indentation)
+        const match = line.match(/^(\s*-\s+)(\w+)(\s+"[^"]*")?(.*)$/);
+        if (match) {
+          const [, prefix, role, name, rest] = match;
+          const roleLower = role.toLowerCase();
+
+          // Skip non-interactive elements if filtering
+          if (interactiveOnly && !INTERACTIVE_ROLES.has(roleLower)) {
+            continue;
+          }
+
+          const ref = `@e${++refCounter}`;
+          const nameClean = name ? name.trim().slice(1, -1) : null;
+
+          // Track occurrence index for duplicates
+          const key = `${role}:${nameClean || ''}`;
+          const occurrenceIndex = (roleNameCounts.get(key) || 0);
+          roleNameCounts.set(key, occurrenceIndex + 1);
+
+          // Store ref info for later resolution (with index for duplicates)
+          refMap.set(ref, { role, name: nameClean, index: occurrenceIndex });
+          // Insert ref into the line
+          resultLines.push(`${prefix}${role}${name || ''} [ref=${ref}]${rest}`);
+        } else if (!interactiveOnly) {
+          // Keep structural lines only in full mode
+          resultLines.push(line);
         }
-        return node;
       }
 
-      const snapshotWithRefs = assignRefs(snapshot);
+      const snapshotWithRefs = resultLines.join('\n');
 
-      // Store snapshot and ref map for this page
+      // Store for ref resolution in click/fill/type commands
       pageSnapshots.set(pageId, {
         refMap,
-        snapshot: snapshotWithRefs
+        rawYaml: ariaYaml,
+        snapshotWithRefs
       });
 
-      return { ok: true, result: { snapshot: snapshotWithRefs } };
+      // Return as object with text representation
+      return { ok: true, result: { snapshot: { text: snapshotWithRefs, refCount: refCounter } } };
     }
 
     case "click": {
@@ -294,11 +328,17 @@ async function handle(method, params) {
           throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
         }
 
-        // Use role and name to locate the element
-        if (node.role && node.name) {
-          await entry.page.getByRole(node.role, { name: node.name, exact: true }).click();
+        // Use role and name to locate the element, with nth() for duplicates
+        if (node.role) {
+          let locator = node.name
+            ? entry.page.getByRole(node.role, { name: node.name, exact: true })
+            : entry.page.getByRole(node.role);
+          // Use nth() if there are duplicates (index > 0)
+          // Always use nth() to avoid strict mode violations with duplicates
+          locator = locator.nth(node.index);
+          await locator.click();
         } else {
-          throw Object.assign(new Error(`Cannot click ref ${ref}: node lacks role/name for location`), { code: "UNCLICKABLE_REF" });
+          throw Object.assign(new Error(`Cannot click ref ${ref}: node lacks role for location`), { code: "UNCLICKABLE_REF" });
         }
       } else if (targetSelector) {
         // Click by CSS selector
@@ -337,11 +377,16 @@ async function handle(method, params) {
           throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
         }
 
-        // Use role and name to locate the element
-        if (node.role && node.name) {
-          await entry.page.getByRole(node.role, { name: node.name, exact: true }).fill(value);
+        // Use role and name to locate the element, with nth() for duplicates
+        if (node.role) {
+          let locator = node.name
+            ? entry.page.getByRole(node.role, { name: node.name, exact: true })
+            : entry.page.getByRole(node.role);
+          // Always use nth() to avoid strict mode violations with duplicates
+          locator = locator.nth(node.index);
+          await locator.fill(value);
         } else {
-          throw Object.assign(new Error(`Cannot fill ref ${ref}: node lacks role/name for location`), { code: "UNFILLABLE_REF" });
+          throw Object.assign(new Error(`Cannot fill ref ${ref}: node lacks role for location`), { code: "UNFILLABLE_REF" });
         }
       } else if (selector) {
         // Fill by CSS selector
@@ -381,11 +426,16 @@ async function handle(method, params) {
           throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
         }
 
-        // Use role and name to locate the element
-        if (node.role && node.name) {
-          await entry.page.getByRole(node.role, { name: node.name, exact: true }).type(text, { delay });
+        // Use role and name to locate the element, with nth() for duplicates
+        if (node.role) {
+          let locator = node.name
+            ? entry.page.getByRole(node.role, { name: node.name, exact: true })
+            : entry.page.getByRole(node.role);
+          // Always use nth() to avoid strict mode violations with duplicates
+          locator = locator.nth(node.index);
+          await locator.type(text, { delay });
         } else {
-          throw Object.assign(new Error(`Cannot type in ref ${ref}: node lacks role/name for location`), { code: "UNTYPEABLE_REF" });
+          throw Object.assign(new Error(`Cannot type in ref ${ref}: node lacks role for location`), { code: "UNTYPEABLE_REF" });
         }
       } else if (selector) {
         // Type by CSS selector
@@ -438,12 +488,16 @@ async function handle(method, params) {
           throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
         }
 
-        // Use role and name to locate the element
-        if (node.role && node.name) {
-          const element = entry.page.getByRole(node.role, { name: node.name, exact: true });
-          textContent = await element.textContent();
+        // Use role and name to locate the element, with nth() for duplicates
+        if (node.role) {
+          let locator = node.name
+            ? entry.page.getByRole(node.role, { name: node.name, exact: true })
+            : entry.page.getByRole(node.role);
+          // Always use nth() to avoid strict mode violations with duplicates
+          locator = locator.nth(node.index);
+          textContent = await locator.textContent();
         } else {
-          throw Object.assign(new Error(`Cannot get text from ref ${ref}: node lacks role/name for location`), { code: "UNREADABLE_REF" });
+          throw Object.assign(new Error(`Cannot get text from ref ${ref}: node lacks role for location`), { code: "UNREADABLE_REF" });
         }
       } else if (selector) {
         // Get text by CSS selector
@@ -484,12 +538,16 @@ async function handle(method, params) {
           throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
         }
 
-        // Use role and name to locate the element
-        if (node.role && node.name) {
-          const element = entry.page.getByRole(node.role, { name: node.name, exact: true });
-          html = inner ? await element.innerHTML() : await element.evaluate(el => el.outerHTML);
+        // Use role and name to locate the element, with nth() for duplicates
+        if (node.role) {
+          let locator = node.name
+            ? entry.page.getByRole(node.role, { name: node.name, exact: true })
+            : entry.page.getByRole(node.role);
+          // Always use nth() to avoid strict mode violations with duplicates
+          locator = locator.nth(node.index);
+          html = inner ? await locator.innerHTML() : await locator.evaluate(el => el.outerHTML);
         } else {
-          throw Object.assign(new Error(`Cannot get HTML from ref ${ref}: node lacks role/name for location`), { code: "UNREADABLE_REF" });
+          throw Object.assign(new Error(`Cannot get HTML from ref ${ref}: node lacks role for location`), { code: "UNREADABLE_REF" });
         }
       } else if (selector) {
         // Get HTML by CSS selector

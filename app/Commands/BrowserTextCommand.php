@@ -113,7 +113,7 @@ class BrowserTextCommand extends Command
                 ref: $ref
             );
 
-            $ipcClient->send($command);
+            $ipcClient->sendCommand($command);
 
             // Wait for response
             $timeout = 5; // 5 seconds timeout
