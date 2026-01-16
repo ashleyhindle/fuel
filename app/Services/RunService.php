@@ -177,10 +177,6 @@ class RunService
             $data['output'] = substr($data['output'], 0, self::OUTPUT_MAX_LENGTH);
         }
 
-        if (isset($data['commit_hash'])) {
-            $data['commit_hash'] = $data['commit_hash'];
-        }
-
         // Calculate duration if ended_at is being set and started_at exists
         if (isset($data['ended_at']) && $run->started_at !== null) {
             $start = $run->started_at->getTimestamp();

@@ -25,13 +25,13 @@ class VerifyCommand extends Command
     protected $description = 'Run behavioral verification on a completed task';
 
     public function __construct(
-        private TaskService $taskService,
-        private ConfigService $configService,
-        private RunService $runService,
-        private ProcessManager $processManager,
-        private OutputParser $outputParser,
-        private PromptService $promptService,
-        private FuelContext $fuelContext,
+        private readonly TaskService $taskService,
+        private readonly ConfigService $configService,
+        private readonly RunService $runService,
+        private readonly ProcessManager $processManager,
+        private readonly OutputParser $outputParser,
+        private readonly PromptService $promptService,
+        private readonly FuelContext $fuelContext,
     ) {
         parent::__construct();
     }

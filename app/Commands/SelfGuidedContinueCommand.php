@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Services\RunService;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
 use App\Services\TaskService;
@@ -89,7 +90,7 @@ class SelfGuidedContinueCommand extends Command
 
             // Update latest run with commit hash if provided
             if ($commit !== null) {
-                $runService = app(\App\Services\RunService::class);
+                $runService = app(RunService::class);
                 try {
                     $runService->updateLatestRun($task->short_id, ['commit_hash' => $commit]);
                 } catch (RuntimeException) {
@@ -108,8 +109,8 @@ class SelfGuidedContinueCommand extends Command
             }
 
             return self::SUCCESS;
-        } catch (RuntimeException $e) {
-            return $this->outputError($e->getMessage());
+        } catch (RuntimeException $runtimeException) {
+            return $this->outputError($runtimeException->getMessage());
         }
     }
 }

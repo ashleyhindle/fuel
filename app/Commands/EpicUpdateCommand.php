@@ -44,6 +44,7 @@ class EpicUpdateCommand extends Command
         if ($this->option('selfguided') && $this->option('no-selfguided')) {
             return $this->outputError('Cannot use both --selfguided and --no-selfguided flags.');
         }
+
         if ($this->option('selfguided')) {
             $updateData['self_guided'] = true;
         } elseif ($this->option('no-selfguided')) {
@@ -101,13 +102,16 @@ class EpicUpdateCommand extends Command
                 if ($epic->description) {
                     $this->line('  Description: '.$epic->description);
                 }
+
                 if (isset($updateData['self_guided'])) {
                     $status = $epic->self_guided ? 'enabled' : 'disabled';
                     $this->line('  Self-guided: '.$status);
                 }
+
                 if ($selfGuidedTaskId !== null) {
                     $this->line('  Created self-guided task: '.$selfGuidedTaskId);
                 }
+
                 if ($planPath !== null) {
                     $this->line('  Plan: '.$planPath);
                 }

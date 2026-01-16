@@ -21,13 +21,10 @@ final class DaemonLogger
 
     private static ?self $instance = null;
 
-    private string $logPath;
-
     private int $minLevel;
 
-    private function __construct(string $logPath, string $minLevel = 'debug')
+    private function __construct(private readonly string $logPath, string $minLevel = 'debug')
     {
-        $this->logPath = $logPath;
         $this->minLevel = self::LEVELS[$minLevel] ?? 0;
     }
 
@@ -36,7 +33,7 @@ final class DaemonLogger
      */
     public static function getInstance(?string $logPath = null): self
     {
-        if (self::$instance === null) {
+        if (!self::$instance instanceof \App\Daemon\DaemonLogger) {
             $path = $logPath ?? getcwd().'/.fuel/daemon.log';
             self::$instance = new self($path);
         }
@@ -90,7 +87,7 @@ final class DaemonLogger
     public function exception(\Throwable $e, string $message = ''): void
     {
         $this->log('error', $message ?: $e->getMessage(), [
-            'exception' => get_class($e),
+            'exception' => $e::class,
             'file' => $e->getFile().':'.$e->getLine(),
             'trace' => $e->getTraceAsString(),
         ]);
@@ -109,7 +106,7 @@ final class DaemonLogger
         $timestamp = date('Y-m-d H:i:s.v');
         $levelUpper = strtoupper($level);
 
-        $line = sprintf("[%s] [%s] %s", $timestamp, $levelUpper, $message);
+        $line = sprintf('[%s] [%s] %s', $timestamp, $levelUpper, $message);
 
         if ($context !== []) {
             $line .= ' '.json_encode($context, JSON_UNESCAPED_SLASHES);

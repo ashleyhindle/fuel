@@ -107,7 +107,7 @@ describe('selfguided:continue command', function (): void {
             ->assertExitCode(0);
 
         $allTasks = $this->taskService->all();
-        $needsHumanTask = $allTasks->first(fn ($t) => str_starts_with($t->title, 'Max iterations reached'));
+        $needsHumanTask = $allTasks->first(fn ($t): bool => str_starts_with((string) $t->title, 'Max iterations reached'));
 
         expect($needsHumanTask)->not->toBeNull();
         expect($needsHumanTask->labels)->toContain('needs-human');

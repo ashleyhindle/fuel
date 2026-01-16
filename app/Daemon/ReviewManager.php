@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Models\Task;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\TaskStatus;
 use App\Ipc\Events\ReviewCompletedEvent;
@@ -83,7 +84,7 @@ final readonly class ReviewManager
 
                     // Trigger reality update for solo tasks (no epic)
                     $task = $this->taskService->find($taskId);
-                    if ($task !== null && $task->epic_id === null) {
+                    if ($task instanceof Task && $task->epic_id === null) {
                         app(UpdateRealityService::class)->triggerUpdate($task);
                     }
                 } else {

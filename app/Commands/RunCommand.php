@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Services\PromptService;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
@@ -103,7 +104,7 @@ class RunCommand extends Command
                 }
 
                 if ($fullPrompt === null) {
-                    $promptService = app(\App\Services\PromptService::class);
+                    $promptService = app(PromptService::class);
                     $fullPrompt = $promptService->loadTemplate('reality');
                 }
             } else {

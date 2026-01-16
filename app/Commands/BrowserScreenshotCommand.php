@@ -171,8 +171,8 @@ class BrowserScreenshotCommand extends Command
 
             return self::SUCCESS;
 
-        } catch (\Throwable $e) {
-            return $this->outputError('Failed to communicate with daemon: '.$e->getMessage());
+        } catch (\Throwable $throwable) {
+            return $this->outputError('Failed to communicate with daemon: '.$throwable->getMessage());
         }
     }
 
@@ -227,8 +227,8 @@ class BrowserScreenshotCommand extends Command
 
             return self::SUCCESS;
 
-        } catch (\Throwable $e) {
-            return $this->outputError('Failed to communicate with daemon: '.$e->getMessage());
+        } catch (\Throwable $throwable) {
+            return $this->outputError('Failed to communicate with daemon: '.$throwable->getMessage());
         }
     }
 
@@ -293,15 +293,13 @@ class BrowserScreenshotCommand extends Command
                 'full_page' => $this->fullPage,
                 'result' => $response->result,
             ]);
+        } elseif ($this->path !== null) {
+            $savedPath = $response->result['path'] ?? $this->path;
+            $this->info(sprintf('Screenshot saved to %s', $savedPath));
         } else {
-            if ($this->path !== null) {
-                $savedPath = $response->result['path'] ?? $this->path;
-                $this->info(sprintf('Screenshot saved to %s', $savedPath));
-            } else {
-                $this->info('Screenshot captured successfully');
-                if ($response->result !== null) {
-                    $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
-                }
+            $this->info('Screenshot captured successfully');
+            if ($response->result !== null) {
+                $this->line('Result: '.json_encode($response->result, JSON_PRETTY_PRINT));
             }
         }
     }

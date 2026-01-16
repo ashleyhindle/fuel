@@ -454,7 +454,7 @@ describe('UpdateRealityAgentTask', function (): void {
 
         $this->promptService->shouldReceive('render')
             ->once()
-            ->andReturnUsing(fn ($template, $vars) => str_replace(
+            ->andReturnUsing(fn ($template, $vars): string|array => str_replace(
                 ['{{ context.reality_path }}', '{{ context.completed_work }}'],
                 [$vars['context']['reality_path'], $vars['context']['completed_work']],
                 $template
@@ -711,11 +711,9 @@ describe('SelfGuidedAgentTask', function (): void {
             ->once();
 
         $this->taskService->shouldReceive('create')
-            ->with(Mockery::on(function ($data) {
-                return $data['title'] === 'Self-guided task stuck after 3 consecutive failures'
-                    && in_array('needs-human', $data['labels'], true)
-                    && $data['epic_id'] === 5;
-            }))
+            ->with(Mockery::on(fn($data): bool => $data['title'] === 'Self-guided task stuck after 3 consecutive failures'
+                && in_array('needs-human', $data['labels'], true)
+                && $data['epic_id'] === 5))
             ->once()
             ->andReturn($needsHumanTask);
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Daemon\DaemonLogger;
 use Exception;
 use RuntimeException;
 use Throwable;

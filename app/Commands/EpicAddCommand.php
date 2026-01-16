@@ -47,6 +47,7 @@ class EpicAddCommand extends Command
             if ($epic->description) {
                 $this->line('  Description: '.$epic->description);
             }
+
             $this->line('  Plan: .fuel/plans/'.$planFilename.' (add your plan here)');
             if ($selfGuided && isset($epic->selfGuidedTaskId)) {
                 $this->line('  Created self-guided task: '.$epic->selfGuidedTaskId);
@@ -66,7 +67,7 @@ class EpicAddCommand extends Command
         $filename = Str::kebab($title).'-'.$epicId.'.md';
         $planPath = $plansDir.'/'.$filename;
 
-        $descriptionSection = $description ? "\n{$description}\n" : '';
+        $descriptionSection = $description ? PHP_EOL . $description . PHP_EOL : '';
 
         if ($selfGuided) {
             $content = <<<MARKDOWN

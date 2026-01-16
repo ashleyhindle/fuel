@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\Task;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
@@ -26,7 +27,7 @@ class SelfGuidedBlockedCommand extends Command
 
         // Find task by id
         $task = $taskService->find($taskId);
-        if ($task === null) {
+        if (!$task instanceof Task) {
             return $this->outputError(sprintf("Task '%s' not found", $taskId));
         }
 

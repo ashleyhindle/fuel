@@ -36,7 +36,7 @@ class UpdateRealityService
     public function triggerUpdate(?Task $task = null, ?Epic $epic = null): void
     {
         // No-op if neither task nor epic provided
-        if ($task === null && $epic === null) {
+        if (!$task instanceof Task && !$epic instanceof Epic) {
             return;
         }
 
@@ -49,7 +49,7 @@ class UpdateRealityService
         // Create the appropriate agent task
         $cwd = $this->fuelContext->getProjectPath();
 
-        if ($epic !== null) {
+        if ($epic instanceof Epic) {
             $agentTask = UpdateRealityAgentTask::fromEpic($epic, $cwd);
         } else {
             $agentTask = UpdateRealityAgentTask::fromTask($task, $cwd);

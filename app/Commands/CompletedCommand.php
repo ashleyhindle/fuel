@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\RendersBoardColumns;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\TaskStatus;
 use App\Models\Task;
@@ -14,7 +15,7 @@ use LaravelZero\Framework\Commands\Command;
 
 class CompletedCommand extends Command
 {
-    use Concerns\RendersBoardColumns;
+    use RendersBoardColumns;
     use HandlesJsonOutput;
 
     protected $signature = 'completed

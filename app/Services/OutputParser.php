@@ -180,6 +180,7 @@ class OutputParser
                 if (isset($value['args'])) {
                     return $value['args'];
                 }
+
                 if (isset($value['arguments'])) {
                     return $value['arguments'];
                 }
@@ -251,6 +252,6 @@ class OutputParser
             return null;
         }
 
-        return "'{$pattern}'";
+        return sprintf("'%s'", $pattern);
     }
 }

@@ -97,7 +97,7 @@ class FuelContext
             if (is_file($dbPath.'-wal') || is_file($dbPath.'-shm')) {
                 throw new \RuntimeException(
                     "Orphaned SQLite WAL files found without main database.\n".
-                    "Delete them to start fresh: rm {$dbPath}*"
+                    sprintf('Delete them to start fresh: rm %s*', $dbPath)
                 );
             }
 
@@ -108,7 +108,7 @@ class FuelContext
         if (filesize($dbPath) === 0) {
             throw new \RuntimeException(
                 "Database file exists but is empty (likely from interrupted init).\n".
-                "Delete it manually to start fresh: rm {$dbPath}"
+                ('Delete it manually to start fresh: rm ' . $dbPath)
             );
         }
 
@@ -116,11 +116,9 @@ class FuelContext
             if (! Schema::hasTable('schema_version')) {
                 return;
             }
-        } catch (\Throwable $e) {
-            throw new \RuntimeException(
-                "Database file exists but appears corrupt: {$e->getMessage()}\n".
-                "Delete it manually to start fresh: rm {$dbPath}"
-            );
+        } catch (\Throwable $throwable) {
+            throw new \RuntimeException(sprintf('Database file exists but appears corrupt: %s%s', $throwable->getMessage(), PHP_EOL).
+            ('Delete it manually to start fresh: rm ' . $dbPath), $throwable->getCode(), $throwable);
         }
 
         $version = (int) (DB::table('schema_version')->value('version') ?? 0);

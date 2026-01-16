@@ -354,6 +354,7 @@ class TaskService
         if (mb_strlen($title) > 50) {
             $title = mb_substr($title, 0, 47).'...';
         }
+
         $message = sprintf('✓ %s (%s)', $title, $task->short_id);
 
         $notificationService = app(NotificationService::class);

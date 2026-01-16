@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use App\Agents\Tasks\UpdateRealityAgentTask;
 use App\Contracts\ProcessManagerInterface;
-use App\Models\Epic;
-use App\Models\Task;
 use App\Process\AgentProcess;
 use App\Process\ProcessType;
 use App\Process\SpawnResult;
@@ -196,7 +194,7 @@ YAML;
     $configService = new ConfigService($this->context);
 
     // getRealityAgent throws because 'primary' is required
-    expect(fn () => $configService->getRealityAgent())
+    expect(fn (): ?string => $configService->getRealityAgent())
         ->toThrow(RuntimeException::class, "Config must have 'primary' key");
 });
 

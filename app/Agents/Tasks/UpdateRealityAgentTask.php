@@ -23,21 +23,14 @@ use App\Services\TaskService;
  */
 class UpdateRealityAgentTask extends AbstractAgentTask
 {
-    private ?Epic $epic = null;
-
-    private ?Task $contextTask = null;
-
     public function __construct(
         Task $task,
         TaskService $taskService,
         private readonly PromptService $promptService,
-        private readonly string $cwd,
-        ?Epic $epic = null,
-        ?Task $contextTask = null,
+        private readonly ?Epic $epic = null,
+        private readonly ?Task $contextTask = null,
     ) {
         parent::__construct($task, $taskService);
-        $this->epic = $epic;
-        $this->contextTask = $contextTask;
     }
 
     /**
@@ -116,9 +109,9 @@ class UpdateRealityAgentTask extends AbstractAgentTask
      */
     private function buildContextSection(): string
     {
-        if ($this->epic !== null) {
+        if ($this->epic instanceof Epic) {
             $tasks = $this->epic->tasks()->get();
-            $taskList = $tasks->map(fn (Task $t) => "- [{$t->short_id}] {$t->title}")->implode("\n");
+            $taskList = $tasks->map(fn (Task $t): string => sprintf('- [%s] %s', $t->short_id, $t->title))->implode("\n");
 
             return <<<CONTEXT
 Epic: {$this->epic->title} ({$this->epic->short_id})

@@ -163,7 +163,7 @@ final readonly class IpcCommandDispatcher
             "[%s] IpcCommandDispatcher received: type=%s, class=%s\n",
             date('H:i:s'),
             $message->type(),
-            get_class($message)
+            $message::class
         ), FILE_APPEND);
 
         // Handle commands based on message type

@@ -176,7 +176,7 @@ describe('epic:update command', function (): void {
 
     it('supports partial ID matching', function (): void {
         $epic = $this->epicService->createEpic('Test Epic');
-        $partialId = substr($epic->short_id, 0, 5);
+        $partialId = substr((string) $epic->short_id, 0, 5);
 
         Artisan::call('epic:update', [
             'id' => $partialId,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use Illuminate\Support\Collection;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Enums\TaskStatus;
@@ -150,6 +151,7 @@ class StatusCommand extends Command
             foreach ($runnerLines as $line) {
                 $this->output->writeln($line);
             }
+
             $this->newLine();
 
             $this->line('<fg=white;options=bold>Board Summary</>');
@@ -230,7 +232,7 @@ class StatusCommand extends Command
     /**
      * Render in-progress tasks with details.
      */
-    private function renderInProgressTasks(\Illuminate\Support\Collection $inProgress): void
+    private function renderInProgressTasks(Collection $inProgress): void
     {
         $this->line('<fg=white;options=bold>In Progress Tasks ('.$inProgress->count().')</>');
 
@@ -241,7 +243,7 @@ class StatusCommand extends Command
         $fixedColumnsWidth = 10 + 8 + 10 + 12 + 10 + 20;
         $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth);
 
-        $rows = $inProgress->map(function (Task $task) use ($maxTitleWidth) {
+        $rows = $inProgress->map(function (Task $task) use ($maxTitleWidth): array {
             $activeRun = $this->getActiveRun($task);
             $agent = $activeRun?->agent ?? 'unknown';
             $runningTime = $this->getRunningTime($activeRun);
@@ -283,7 +285,7 @@ class StatusCommand extends Command
      */
     private function getRunningTime(?Run $run): string
     {
-        if ($run === null || $run->started_at === null) {
+        if (!$run instanceof Run || $run->started_at === null) {
             return '-';
         }
 
@@ -359,9 +361,9 @@ class StatusCommand extends Command
      *
      * @return array<int, array<string, mixed>>
      */
-    private function getInProgressTasksData(\Illuminate\Support\Collection $inProgress): array
+    private function getInProgressTasksData(Collection $inProgress): array
     {
-        return $inProgress->map(function (Task $task) {
+        return $inProgress->map(function (Task $task): array {
             $activeRun = $this->getActiveRun($task);
             $runningSeconds = null;
 

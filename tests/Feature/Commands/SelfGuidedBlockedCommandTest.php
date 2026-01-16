@@ -76,7 +76,7 @@ describe('selfguided:blocked command', function (): void {
 
         // Verify needs-human task was created
         $tasks = $this->taskService->all();
-        $needsHumanTask = $tasks->filter(fn ($task) => str_contains($task->title, 'Blocked: Need credentials'))->first();
+        $needsHumanTask = $tasks->filter(fn ($task): bool => str_contains((string) $task->title, 'Blocked: Need credentials'))->first();
 
         expect($needsHumanTask)->not->toBeNull();
         expect($needsHumanTask->labels)->toContain('needs-human');
@@ -102,7 +102,7 @@ describe('selfguided:blocked command', function (): void {
 
         // Verify needs-human task title uses original task title
         $tasks = $this->taskService->all();
-        $needsHumanTask = $tasks->filter(fn ($task) => str_contains($task->title, 'Blocked: My selfguided task'))->first();
+        $needsHumanTask = $tasks->filter(fn ($task): bool => str_contains((string) $task->title, 'Blocked: My selfguided task'))->first();
 
         expect($needsHumanTask)->not->toBeNull();
     });

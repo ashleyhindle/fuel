@@ -24,7 +24,7 @@ use App\Services\TaskService;
  */
 final class DaemonLoop
 {
-    private CommandHandlers $commandHandlers;
+    private readonly CommandHandlers $commandHandlers;
 
     private int $lastConfigReload;
 

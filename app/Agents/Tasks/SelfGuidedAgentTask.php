@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace App\Agents\Tasks;
 
-use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\ProcessType;
 use App\Services\ConfigService;
 use App\Services\FuelContext;
 use App\Services\PromptService;
-use App\Services\TaskService;
 
 /**
  * Agent task for self-guided epic execution.
@@ -23,13 +21,6 @@ class SelfGuidedAgentTask extends AbstractAgentTask
     private const MAX_ITERATIONS = 50;
 
     private const MAX_STUCK_COUNT = 3;
-
-    public function __construct(
-        Task $task,
-        TaskService $taskService,
-    ) {
-        parent::__construct($task, $taskService);
-    }
 
     /**
      * Always use 'primary' agent (capable model) for self-guided tasks.
@@ -49,8 +40,8 @@ class SelfGuidedAgentTask extends AbstractAgentTask
 
         $epic = $this->task->epic;
         $epicShortId = $epic?->short_id ?? '';
-        $epicPlanFilename = $this->getEpicPlanFilename($cwd, $epicShortId);
-        $planContent = $this->loadPlanFile($cwd, $epicPlanFilename);
+        $epicPlanFilename = $this->getEpicPlanFilename($epicShortId);
+        $planContent = $this->loadPlanFile($epicPlanFilename);
         $progressLog = $this->extractProgressLog($planContent);
 
         $variables = [
@@ -115,7 +106,7 @@ class SelfGuidedAgentTask extends AbstractAgentTask
     /**
      * Get epic plan filename from .fuel/plans/ directory.
      */
-    private function getEpicPlanFilename(string $cwd, string $epicShortId): string
+    private function getEpicPlanFilename(string $epicShortId): string
     {
         if ($epicShortId === '') {
             return '';
@@ -128,7 +119,7 @@ class SelfGuidedAgentTask extends AbstractAgentTask
         $pattern = '*-'.$epicShortId.'.md';
         $files = glob($plansPath.'/'.$pattern);
 
-        if ($files !== false && count($files) > 0) {
+        if ($files !== false && $files !== []) {
             return basename($files[0]);
         }
 
@@ -138,7 +129,7 @@ class SelfGuidedAgentTask extends AbstractAgentTask
     /**
      * Load plan file contents.
      */
-    private function loadPlanFile(string $cwd, string $filename): string
+    private function loadPlanFile(string $filename): string
     {
         if ($filename === '') {
             return '';

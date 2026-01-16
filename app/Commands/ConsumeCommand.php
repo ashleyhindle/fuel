@@ -101,9 +101,6 @@ class ConsumeCommand extends Command
     /** @var array<int, string> Previous line content for differential rendering */
     private array $previousLines = [];
 
-    /** Spinner characters for activity animation */
-    private const SPINNER_CHARS = ['⠇', '⠏', '⠛', '⠹', '⠸', '⠼', '⠴', '⠦'];
-
     /** Input buffer for batched reading */
     private string $inputBuffer = '';
 
@@ -311,6 +308,7 @@ class ConsumeCommand extends Command
                         usleep(100000); // 100ms
                         $waited++;
                     }
+
                     // Force kill if still alive
                     if (ProcessManager::isProcessAlive($pid)) {
                         posix_kill($pid, SIGKILL);
@@ -470,6 +468,7 @@ class ConsumeCommand extends Command
                 if ($this->lastConnectionState !== null && $currentConnectionState !== $this->lastConnectionState) {
                     $this->forceRefresh = true;
                 }
+
                 $this->lastConnectionState = $currentConnectionState;
 
                 // Sync pause state from runner

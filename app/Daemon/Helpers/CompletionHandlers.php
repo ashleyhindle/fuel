@@ -89,7 +89,7 @@ final class CompletionHandlers
             try {
                 $this->taskService->reopen($taskId);
             } catch (\RuntimeException $e) {
-                $this->logWarning("Failed to reopen task {$taskId} in handleFailure: {$e->getMessage()}");
+                $this->logWarning(sprintf('Failed to reopen task %s in handleFailure: %s', $taskId, $e->getMessage()));
             }
         }
     }
@@ -112,7 +112,7 @@ final class CompletionHandlers
             try {
                 $this->taskService->reopen($taskId);
             } catch (\RuntimeException $e) {
-                $this->logWarning("Failed to reopen task {$taskId} in handleNetworkError: {$e->getMessage()}");
+                $this->logWarning(sprintf('Failed to reopen task %s in handleNetworkError: %s', $taskId, $e->getMessage()));
             }
         }
     }
@@ -146,8 +146,8 @@ final class CompletionHandlers
         try {
             $this->taskService->addDependency($taskId, $humanTask->short_id);
             $this->taskService->reopen($taskId);
-        } catch (\RuntimeException $e) {
-            $this->logWarning("Failed to add dependency or reopen task {$taskId} in handlePermissionBlocked: {$e->getMessage()}");
+        } catch (\RuntimeException $runtimeException) {
+            $this->logWarning(sprintf('Failed to add dependency or reopen task %s in handlePermissionBlocked: %s', $taskId, $runtimeException->getMessage()));
         }
     }
 
@@ -159,8 +159,8 @@ final class CompletionHandlers
                 'ids' => [$taskId],
                 '--reason' => 'Auto-completed by consume (agent exit 0)',
             ]);
-        } catch (\RuntimeException $e) {
-            $this->logWarning("Failed to auto-complete task {$taskId} in fallbackAutoComplete: {$e->getMessage()}");
+        } catch (\RuntimeException $runtimeException) {
+            $this->logWarning(sprintf('Failed to auto-complete task %s in fallbackAutoComplete: %s', $taskId, $runtimeException->getMessage()));
         }
     }
 

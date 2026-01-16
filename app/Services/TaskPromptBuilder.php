@@ -67,22 +67,6 @@ CRITICAL - If you worked on the same file as another agent:
 PROTOCOL;
     }
 
-    /**
-     * Format task list for commit prompt.
-     *
-     * @param  array<int, Task>  $tasks
-     */
-    private function formatTaskSummaryForCommit(array $tasks): string
-    {
-        $lines = [];
-        foreach ($tasks as $task) {
-            $commit = $task->commit_hash ?? 'no commit';
-            $lines[] = sprintf('- %s: %s [%s]', $task->short_id, $task->title, $commit);
-        }
-
-        return implode("\n", $lines);
-    }
-
     private function formatTaskForPrompt(Task $task): string
     {
         $status = $task->status instanceof TaskStatus ? $task->status->value : $task->status;

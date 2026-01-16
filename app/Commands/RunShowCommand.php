@@ -141,7 +141,7 @@ class RunShowCommand extends Command
     private function getRunOutput(Run $run, ?FuelContext $fuelContext): ?string
     {
         // Try reading from stdout.log file first (has full output)
-        if ($fuelContext !== null && $run->run_id !== null) {
+        if ($fuelContext instanceof FuelContext && $run->run_id !== null) {
             $stdoutPath = $fuelContext->getProcessesPath().'/'.$run->run_id.'/stdout.log';
             if (file_exists($stdoutPath)) {
                 return file_get_contents($stdoutPath);

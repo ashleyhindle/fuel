@@ -98,9 +98,10 @@ REALITY;
         if (! is_dir($promptsDir)) {
             mkdir($promptsDir, 0755, true);
         }
+
         $written = $promptService->writeDefaultPrompts();
         if ($written !== []) {
-            $this->info(sprintf('Wrote %d new prompt%s: %s', count($written), count($written) === 1 ? '' : 's', implode(', ', array_map(fn ($n) => $n.'.md', $written))));
+            $this->info(sprintf('Wrote %d new prompt%s: %s', count($written), count($written) === 1 ? '' : 's', implode(', ', array_map(fn ($n): string => $n.'.md', $written))));
         }
 
         // Check for outdated prompts and write .new files
@@ -116,6 +117,7 @@ REALITY;
                     $name
                 ));
             }
+
             if ($upgraded !== []) {
                 $this->line('Run: diff .fuel/prompts/<name>.md .fuel/prompts/<name>.md.new');
             }
@@ -262,14 +264,14 @@ REALITY;
 
             $added = [];
             foreach ($entries as $entry) {
-                if (! str_contains($content, $entry)) {
-                    $content = rtrim($content)."\n".$entry;
+                if (! str_contains((string) $content, $entry)) {
+                    $content = rtrim((string) $content)."\n".$entry;
                     $added[] = $entry;
                 }
             }
 
             if ($added !== []) {
-                file_put_contents($gitignorePath, rtrim($content)."\n");
+                file_put_contents($gitignorePath, rtrim((string) $content)."\n");
                 $this->info('Updated .gitignore with fuel entries');
             }
         } else {

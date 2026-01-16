@@ -58,10 +58,10 @@ class BrowserGotoCommand extends BrowserCommand
             url: $this->url,
             waitUntil: $this->waitUntil,
             timeout: $this->timeout,
-            html: $this->html,
             timestamp: $timestamp,
             instanceId: $instanceId,
-            requestId: $requestId
+            requestId: $requestId,
+            html: $this->html
         );
     }
 
@@ -89,6 +89,7 @@ class BrowserGotoCommand extends BrowserCommand
             if ($this->html && isset($response->result['html'])) {
                 $output['html'] = $response->result['html'];
             }
+
             $this->outputJson($output);
         } else {
             $this->info(sprintf("Page '%s' navigated to '%s' successfully", $this->pageId, $this->url));

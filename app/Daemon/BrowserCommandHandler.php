@@ -46,7 +46,7 @@ final readonly class BrowserCommandHandler
             "[%s] handleBrowserCreate called - message type: %s, class: %s\n",
             date('H:i:s'),
             $message->type(),
-            get_class($message)
+            $message::class
         ), FILE_APPEND);
 
         if ($message instanceof BrowserCreateCommand) {
