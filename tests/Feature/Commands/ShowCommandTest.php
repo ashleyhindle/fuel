@@ -72,9 +72,9 @@ describe('show command', function (): void {
             ->expectsOutputToContain('Task: '.$task->short_id)
             ->expectsOutputToContain('Title: Test task')
             ->expectsOutputToContain('Status: open')
-            ->expectsOutputToContain('Description: Test description')
+            ->expectsOutputToContain('Test description')
             ->expectsOutputToContain('Type: feature')
-            ->expectsOutputToContain('Priority: 3')
+            ->expectsOutputToContain('Priority: P3')
             ->expectsOutputToContain('Labels: frontend, backend')
             ->assertExitCode(0);
     });
@@ -88,7 +88,8 @@ describe('show command', function (): void {
         Artisan::call('show', ['id' => $task->short_id]);
         $output = Artisan::output();
 
-        expect($output)->toContain('Description: Line 1');
+        expect($output)->toContain('── Description ──');
+        expect($output)->toContain('  Line 1');
         expect($output)->toContain('  Line 2');
         expect($output)->toContain('  Line 3');
     });
@@ -103,8 +104,8 @@ describe('show command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Title: Multi-line task title');
-        expect($output)->toContain('  Second line');
-        expect($output)->toContain('  Third line');
+        expect($output)->toContain('         Second line');
+        expect($output)->toContain('         Third line');
     });
 
     it('shows task with blockers in blocked_by array', function (): void {
@@ -123,6 +124,15 @@ describe('show command', function (): void {
 
         $this->artisan('show', ['id' => $task->short_id])
             ->expectsOutputToContain('Reason: Fixed the issue')
+            ->assertExitCode(0);
+    });
+
+    it('shows commit hash when present', function (): void {
+        $task = $this->taskService->create(['title' => 'Task with commit']);
+        $this->taskService->done($task->short_id, 'Completed', 'abc123456');
+
+        $this->artisan('show', ['id' => $task->short_id])
+            ->expectsOutputToContain('Commit: abc123456')
             ->assertExitCode(0);
     });
 
@@ -145,6 +155,18 @@ describe('show command', function (): void {
         expect($result['type'])->toBe('bug');
         expect($result['priority'])->toBe(4);
         expect($result['labels'])->toBe(['critical']);
+    });
+
+    it('includes commit hash in JSON output when present', function (): void {
+        $task = $this->taskService->create(['title' => 'Task with commit']);
+        $this->taskService->done($task->short_id, 'Completed', 'abc123456');
+
+        Artisan::call('show', ['id' => $task->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        expect($result)->toHaveKey('commit_hash');
+        expect($result['commit_hash'])->toBe('abc123456');
     });
 
     it('shows error for non-existent task', function (): void {
@@ -396,5 +418,87 @@ describe('show command', function (): void {
 
         expect($output)->toContain('Run: '.$runId);
         expect($output)->toContain('Test output');
+    });
+
+    it('shows task cost when runs have cost data', function (): void {
+        $task = $this->taskService->create(['title' => 'Task with costs']);
+        $this->taskService->start($task->short_id);
+
+        // Create multiple runs with costs
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.1234,
+            'output' => 'Run 1',
+        ]);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.2345,
+            'output' => 'Run 2',
+        ]);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => null,  // Run without cost
+            'output' => 'Run 3',
+        ]);
+
+        Artisan::call('show', ['id' => $task->short_id]);
+        $output = Artisan::output();
+
+        expect($output)->toContain('── Cost ──');
+        expect($output)->toContain('Total: $0.3579');  // 0.1234 + 0.2345
+    });
+
+    it('does not show cost when no runs have cost data', function (): void {
+        $task = $this->taskService->create(['title' => 'Task without costs']);
+        $this->taskService->start($task->short_id);
+
+        // Create runs without costs
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => null,
+            'output' => 'Run 1',
+        ]);
+
+        Artisan::call('show', ['id' => $task->short_id]);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('── Cost ──');
+    });
+
+    it('includes cost in JSON output', function (): void {
+        $task = $this->taskService->create(['title' => 'Task with costs']);
+        $this->taskService->start($task->short_id);
+
+        // Create runs with costs
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.5,
+            'output' => 'Run 1',
+        ]);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.25,
+            'output' => 'Run 2',
+        ]);
+
+        Artisan::call('show', ['id' => $task->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $json = json_decode($output, true);
+
+        expect($json)->toHaveKey('cost_usd');
+        expect($json['cost_usd'])->toBe(0.75);
+    });
+
+    it('does not include cost in JSON when no cost data', function (): void {
+        $task = $this->taskService->create(['title' => 'Task without costs']);
+
+        Artisan::call('show', ['id' => $task->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $json = json_decode($output, true);
+
+        expect($json)->not->toHaveKey('cost_usd');
     });
 });

@@ -99,9 +99,26 @@ class ShowCommand extends Command
                     ];
                 }
 
+                // Include cost in JSON output
+                $taskCost = $runService->getTaskCost($task->short_id);
+                if ($taskCost !== null) {
+                    $taskData['cost_usd'] = $taskCost;
+                }
+
+                // commit_hash is already in toArray(), but ensure it's present
+                if (! isset($taskData['commit_hash'])) {
+                    $taskData['commit_hash'] = $task->commit_hash ?? null;
+                }
+
                 $this->outputJson($taskData);
             } else {
+                // Header
+                $this->newLine();
                 $this->info('Task: '.$task->short_id);
+                $this->newLine();
+
+                // Basic Information Section
+                $this->line('<fg=cyan>── Basic Info ──</>');
 
                 // Handle multiline titles by splitting and indenting each line
                 $titleLines = explode("\n", (string) $task->title);
@@ -111,32 +128,22 @@ class ShowCommand extends Command
                         $this->line('  Title: '.$line);
                         $firstLine = false;
                     } else {
-                        $this->line('  '.$line);
+                        $this->line('         '.$line);
                     }
                 }
 
                 $this->line('  Status: '.($task->status instanceof TaskStatus ? $task->status->value : $task->status));
-
-                if (isset($task->description) && $task->description !== null) {
-                    // Handle multiline descriptions by splitting and indenting each line
-                    $descriptionLines = explode("\n", (string) $task->description);
-                    $firstLine = true;
-                    foreach ($descriptionLines as $line) {
-                        if ($firstLine) {
-                            $this->line('  Description: '.$line);
-                            $firstLine = false;
-                        } else {
-                            $this->line('  '.$line);
-                        }
-                    }
-                }
 
                 if (isset($task->type)) {
                     $this->line('  Type: '.$task->type);
                 }
 
                 if (isset($task->priority)) {
-                    $this->line('  Priority: '.$task->priority);
+                    $this->line('  Priority: P'.$task->priority);
+                }
+
+                if (isset($task->complexity)) {
+                    $this->line('  Complexity: '.$task->complexity);
                 }
 
                 if (isset($task->labels) && ! empty($task->labels)) {
@@ -144,19 +151,54 @@ class ShowCommand extends Command
                     $this->line('  Labels: '.$labels);
                 }
 
-                if (isset($task->blocked_by) && ! empty($task->blocked_by)) {
+                if ($epic instanceof Epic) {
+                    $this->line('  Epic: '.$epic->short_id.' - '.($epic->title ?? 'Untitled').' ('.$epicStatus.')');
+                }
+
+                // Description Section (only if present)
+                if (isset($task->description) && $task->description !== null && $task->description !== '') {
+                    $this->newLine();
+                    $this->line('<fg=cyan>── Description ──</>');
+                    // Handle multiline descriptions by splitting and indenting each line
+                    $descriptionLines = explode("\n", (string) $task->description);
+                    foreach ($descriptionLines as $line) {
+                        $this->line('  '.$line);
+                    }
+                }
+
+                // Dependencies Section (only if present)
+                if ((isset($task->blocked_by) && ! empty($task->blocked_by))) {
+                    $this->newLine();
+                    $this->line('<fg=cyan>── Dependencies ──</>');
                     $blockerIds = is_array($task->blocked_by) ? implode(', ', $task->blocked_by) : '';
                     if ($blockerIds !== '') {
                         $this->line('  Blocked by: '.$blockerIds);
                     }
                 }
 
-                if ($epic instanceof Epic) {
-                    $this->line('  Epic: '.$epic->short_id.' - '.($epic->title ?? 'Untitled').' ('.$epicStatus.')');
+                // Completion Info Section (only if relevant)
+                $hasCompletionInfo = (isset($task->reason) && $task->reason !== null && $task->reason !== '') ||
+                                     (isset($task->commit_hash) && $task->commit_hash !== null && $task->commit_hash !== '');
+
+                if ($hasCompletionInfo) {
+                    $this->newLine();
+                    $this->line('<fg=cyan>── Completion Info ──</>');
+
+                    if (isset($task->commit_hash) && $task->commit_hash !== null && $task->commit_hash !== '') {
+                        $this->line('  Commit: '.$task->commit_hash);
+                    }
+
+                    if (isset($task->reason) && $task->reason !== null && $task->reason !== '') {
+                        $this->line('  Reason: '.$task->reason);
+                    }
                 }
 
-                if (isset($task->reason)) {
-                    $this->line('  Reason: '.$task->reason);
+                // Cost Section (only if available)
+                $taskCost = $runService->getTaskCost($task->short_id);
+                if ($taskCost !== null) {
+                    $this->newLine();
+                    $this->line('<fg=cyan>── Cost ──</>');
+                    $this->line(sprintf('  Total: $%.4f', $taskCost));
                 }
 
                 // Consume command fields
@@ -339,7 +381,9 @@ class ShowCommand extends Command
                     }
                 }
 
+                // Timestamps Section
                 $this->newLine();
+                $this->line('<fg=cyan>── Timestamps ──</>');
                 $this->line('  Created: '.$this->formatDateTime($task->created_at));
                 $this->line('  Updated: '.$this->formatDateTime($task->updated_at));
             }
