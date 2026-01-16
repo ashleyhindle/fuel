@@ -16,6 +16,9 @@ class NotificationService
     /** Default volume (0.0 - 1.0) */
     private const DEFAULT_VOLUME = 0.6;
 
+    /** Relative path to notification icon */
+    private const ICON_PATH = 'resources/images/fuel-icon.png';
+
     public function __construct(
         private readonly ConfigService $configService
     ) {}
@@ -107,10 +110,14 @@ class NotificationService
     {
         // Try terminal-notifier first (better experience, needs to be installed)
         if ($this->commandExists('terminal-notifier')) {
+            $iconPath = $this->getIconPath();
+            $iconArg = $iconPath ? sprintf('-appIcon %s ', escapeshellarg('file://' . $iconPath)) : '';
+
             exec(sprintf(
-                'terminal-notifier -title %s -message %s -group fuel > /dev/null 2>&1 &',
+                'terminal-notifier -title %s -message %s %s-group fuel > /dev/null 2>&1 &',
                 escapeshellarg($title),
-                escapeshellarg($message)
+                escapeshellarg($message),
+                $iconArg
             ));
 
             return;
@@ -132,8 +139,12 @@ class NotificationService
             return;
         }
 
+        $iconPath = $this->getIconPath();
+        $iconArg = $iconPath ? sprintf('-i %s ', escapeshellarg($iconPath)) : '';
+
         exec(sprintf(
-            'notify-send %s %s > /dev/null 2>&1 &',
+            'notify-send %s%s %s > /dev/null 2>&1 &',
+            $iconArg,
             escapeshellarg($title),
             escapeshellarg($message)
         ));
@@ -220,5 +231,12 @@ class NotificationService
         $result = shell_exec(sprintf('which %s 2>/dev/null', escapeshellarg($command)));
 
         return $result !== null && trim($result) !== '';
+    }
+
+    private function getIconPath(): ?string
+    {
+        $path = base_path(self::ICON_PATH);
+
+        return file_exists($path) ? $path : null;
     }
 }
