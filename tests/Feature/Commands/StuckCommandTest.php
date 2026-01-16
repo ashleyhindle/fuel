@@ -82,6 +82,7 @@ describe('stuck command', function (): void {
 
         $failedTask = $this->taskService->create(['title' => 'Failed task']);
         $this->taskService->update($failedTask->short_id, [
+            'status' => 'in_progress',
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_output' => 'Error: Something went wrong',
@@ -102,6 +103,7 @@ describe('stuck command', function (): void {
 
         $task = $this->taskService->create(['title' => 'Stuck task']);
         $this->taskService->update($task->short_id, [
+            'status' => 'in_progress',
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_output' => 'Error message here',
@@ -122,6 +124,7 @@ describe('stuck command', function (): void {
         $longOutput = str_repeat('x', 600); // 600 characters
         $task = $this->taskService->create(['title' => 'Task with long output']);
         $this->taskService->update($task->short_id, [
+            'status' => 'in_progress',
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_output' => $longOutput,
@@ -183,6 +186,7 @@ describe('stuck command', function (): void {
 
         $task = $this->taskService->create(['title' => 'Stuck task']);
         $this->taskService->update($task->short_id, [
+            'status' => 'in_progress',
             'consumed' => true,
             'consumed_at' => date('c'),
             'consumed_output' => 'Error output',
@@ -210,10 +214,31 @@ describe('stuck command', function (): void {
         expect($data)->toBeEmpty();
     });
 
+    it('excludes tasks manually marked as done even with non-zero exit code', function (): void {
+
+        $task = $this->taskService->create(['title' => 'Manually resolved task']);
+        $this->taskService->update($task->short_id, [
+            'status' => 'in_progress',
+            'consumed' => true,
+            'consumed_at' => date('c'),
+        ]);
+        $this->runService->logRun($task->short_id, ['agent' => 'test', 'exit_code' => 1]);
+
+        // Manually mark as done
+        $this->taskService->update($task->short_id, ['status' => 'done']);
+
+        Artisan::call('stuck', []);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Manually resolved task');
+        expect($output)->toContain('No stuck tasks found');
+    });
+
     it('sorts stuck tasks by consumed_at descending', function (): void {
 
         $task1 = $this->taskService->create(['title' => 'First stuck task']);
         $this->taskService->update($task1->short_id, [
+            'status' => 'in_progress',
             'consumed' => true,
             'consumed_at' => date('c', time() - 100),
         ]);
@@ -223,6 +248,7 @@ describe('stuck command', function (): void {
 
         $task2 = $this->taskService->create(['title' => 'Second stuck task']);
         $this->taskService->update($task2->short_id, [
+            'status' => 'in_progress',
             'consumed' => true,
             'consumed_at' => date('c'),
         ]);

@@ -542,7 +542,8 @@ class TaskService
         $pid = $latestRun?->pid;
 
         // Case 1: Explicit failure (consumed with non-zero exit code from latest run)
-        if ($consumed) {
+        // Only applies if task is still in_progress (not manually marked done/cancelled)
+        if ($consumed && $status === TaskStatus::InProgress) {
             $exitCode = $latestRun?->exit_code;
             if ($exitCode !== null && $exitCode !== 0) {
                 return true;
