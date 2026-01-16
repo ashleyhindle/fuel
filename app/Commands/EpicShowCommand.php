@@ -135,7 +135,17 @@ class EpicShowCommand extends Command
                 }, $sortedTasks);
 
                 $table = new Table;
-                $table->render($headers, $rows, $this->output);
+                $terminalWidth = $this->getTerminalWidth();
+
+                // Configure columns that can be truncated (with minimum widths and priorities)
+                $table->setTruncatable([
+                    'Title' => ['min' => 15, 'priority' => 1],
+                ]);
+
+                // Configure columns that can be omitted if needed (in order of priority)
+                $table->setOmittable(['Type', 'Priority']);
+
+                $table->render($headers, $rows, $this->output, $terminalWidth);
             }
 
             return self::SUCCESS;
@@ -144,5 +154,18 @@ class EpicShowCommand extends Command
         } catch (\Exception $e) {
             return $this->outputError('Failed to fetch epic: '.$e->getMessage());
         }
+    }
+
+    private function getTerminalWidth(): int
+    {
+        // Try to get terminal width using tput
+        $width = (int) shell_exec('tput cols 2>/dev/null');
+
+        // Fallback to environment variable or default
+        if ($width <= 0) {
+            $width = (int) ($_ENV['COLUMNS'] ?? 80);
+        }
+
+        return max(40, $width); // Ensure minimum width
     }
 }
