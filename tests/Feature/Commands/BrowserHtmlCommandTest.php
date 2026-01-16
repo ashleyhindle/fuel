@@ -37,7 +37,7 @@ it('sends html command with selector to daemon for outerHTML', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserHtmlCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBe('#content');
@@ -47,7 +47,7 @@ it('sends html command with selector to daemon for outerHTML', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
+    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new BrowserResponseEvent(
             success: true,
             result: null,
@@ -58,7 +58,7 @@ it('sends html command with selector to daemon for outerHTML', function () {
             requestId: $requestIdToMatch
         ),
     ]);
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
+    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new class($requestIdToMatch)
         {
             public $requestId;
@@ -91,7 +91,7 @@ it('sends html command with inner flag for innerHTML', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserHtmlCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBe('#content');
@@ -101,7 +101,7 @@ it('sends html command with inner flag for innerHTML', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
+    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new class($requestIdToMatch)
         {
             public $requestId;
@@ -135,7 +135,7 @@ it('sends html command with element ref to daemon', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserHtmlCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBeNull();
@@ -145,7 +145,7 @@ it('sends html command with element ref to daemon', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
+    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new class($requestIdToMatch)
         {
             public $requestId;
@@ -178,12 +178,12 @@ it('outputs JSON when json flag is provided', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         $requestIdToMatch = $cmd->getRequestId();
 
         return true;
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
+    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new class($requestIdToMatch)
         {
             public $requestId;
@@ -219,12 +219,12 @@ it('handles error responses from daemon', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         $requestIdToMatch = $cmd->getRequestId();
 
         return true;
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
+    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new class($requestIdToMatch)
         {
             public $requestId;
@@ -282,7 +282,7 @@ it('handles inner flag with element ref', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
-    $ipcClient->shouldReceive('send')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserHtmlCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBeNull();
@@ -292,7 +292,7 @@ it('handles inner flag with element ref', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('receive')->once()->andReturn([
+    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new class($requestIdToMatch)
         {
             public $requestId;

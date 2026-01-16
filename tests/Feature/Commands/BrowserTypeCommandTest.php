@@ -76,7 +76,7 @@ it('sends type command to daemon with selector', function () {
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
         'selector' => 'input#search',
-        'text' => 'Hello World',
+        '--text' =>'Hello World',
     ])
         ->expectsOutputToContain('Typed into input#search: Hello World')
         ->assertExitCode(0);
@@ -126,7 +126,7 @@ it('sends type command to daemon with element ref', function () {
     // Execute command with ref
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
-        'text' => 'Search query',
+        '--text' =>'Search query',
         '--ref' => '@e5',
     ])
         ->expectsOutputToContain('Typed into @e5: Search query')
@@ -177,7 +177,7 @@ it('supports delay option for typing', function () {
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
         'selector' => 'textarea',
-        'text' => 'Slow typing',
+        '--text' =>'Slow typing',
         '--delay' => '100',
     ])
         ->expectsOutputToContain('Typed into textarea: Slow typing')
@@ -225,7 +225,7 @@ it('truncates long text in output', function () {
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
         'selector' => 'input',
-        'text' => $longText,
+        '--text' =>$longText,
     ])
         ->expectsOutputToContain(str_repeat('a', 47) . '...')
         ->assertExitCode(0);
@@ -270,7 +270,7 @@ it('outputs JSON when --json flag is provided', function () {
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
         'selector' => 'input',
-        'text' => 'test text',
+        '--text' =>'test text',
         '--json' => true,
     ])
         ->assertExitCode(0)
@@ -292,7 +292,7 @@ it('shows error when daemon is not running', function () {
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
         'selector' => 'input',
-        'text' => 'test',
+        '--text' =>'test',
     ])
         ->expectsOutputToContain('Consume daemon is not running')
         ->assertExitCode(1);
@@ -308,7 +308,7 @@ it('requires either selector or ref option', function () {
     // Execute command without selector or ref - should fail validation
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
-        'text' => 'test',
+        '--text' =>'test',
     ])
         ->expectsOutputToContain('Must provide either a selector or --ref option')
         ->assertExitCode(1);
@@ -325,7 +325,7 @@ it('cannot provide both selector and ref', function () {
     $this->artisan('browser:type', [
         'page_id' => 'test-page',
         'selector' => 'input',
-        'text' => 'test',
+        '--text' =>'test',
         '--ref' => '@e1',
     ])
         ->expectsOutputToContain('Cannot provide both selector and --ref option')

@@ -98,14 +98,9 @@ class TasksCommand extends Command
 
             $table = new Table;
 
-            // Configure columns that can be truncated (Title should be truncated first)
-            $table->setTruncatable([
-                'Title' => ['min' => 20, 'priority' => 1],
-                'Labels' => ['min' => 10, 'priority' => 2],
-            ]);
-
-            // Configure columns that can be omitted if needed (in order of priority)
-            $table->setOmittable(['Agent', 'Labels', 'Type']);
+            // Column priorities: all columns are important
+            // Headers: ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Agent', 'Created']
+            $columnPriorities = [];
 
             $table->render(
                 ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Agent', 'Created'],
@@ -125,6 +120,7 @@ class TasksCommand extends Command
                     ];
                 })->toArray(),
                 $this->output,
+                $columnPriorities,
                 $terminalWidth
             );
         }

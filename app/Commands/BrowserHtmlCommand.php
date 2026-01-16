@@ -122,7 +122,7 @@ class BrowserHtmlCommand extends Command
             $timeout = 5; // 5 seconds timeout
             $start = time();
             while (time() - $start < $timeout) {
-                $messages = $ipcClient->receive();
+                $messages = $ipcClient->pollEvents();
                 foreach ($messages as $message) {
                     // Check if this response matches our request
                     $messageRequestId = null;

@@ -50,6 +50,7 @@ class ReadyCommand extends Command
                     $this->formatDate((string) $t->created_at),
                 ])->toArray(),
                 $this->output,
+                [],
                 $terminalWidth
             );
         }

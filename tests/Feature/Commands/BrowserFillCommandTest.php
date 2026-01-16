@@ -75,7 +75,7 @@ it('sends fill command to daemon with selector', function () {
     $this->artisan('browser:fill', [
         'page_id' => 'test-page',
         'selector' => 'input#email',
-        'value' => 'test@example.com',
+        '--value' => 'test@example.com',
     ])
         ->expectsOutputToContain('Filled input#email with: test@example.com')
         ->assertExitCode(0);
@@ -124,7 +124,7 @@ it('sends fill command to daemon with element ref', function () {
     // Execute command with ref
     $this->artisan('browser:fill', [
         'page_id' => 'test-page',
-        'value' => 'test@example.com',
+        '--value' => 'test@example.com',
         '--ref' => '@e3',
     ])
         ->expectsOutputToContain('Filled @e3 with: test@example.com')
@@ -170,7 +170,7 @@ it('outputs JSON when --json flag is provided', function () {
     $this->artisan('browser:fill', [
         'page_id' => 'test-page',
         'selector' => 'input',
-        'value' => 'test value',
+        '--value' => 'test value',
         '--json' => true,
     ])
         ->assertExitCode(0)
@@ -192,7 +192,7 @@ it('shows error when daemon is not running', function () {
     $this->artisan('browser:fill', [
         'page_id' => 'test-page',
         'selector' => 'input',
-        'value' => 'test',
+        '--value' => 'test',
     ])
         ->expectsOutputToContain('Consume daemon is not running')
         ->assertExitCode(1);
@@ -208,7 +208,7 @@ it('requires either selector or ref option', function () {
     // Execute command without selector or ref - should fail validation
     $this->artisan('browser:fill', [
         'page_id' => 'test-page',
-        'value' => 'test',
+        '--value' => 'test',
     ])
         ->expectsOutputToContain('Must provide either a selector or --ref option')
         ->assertExitCode(1);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
@@ -471,6 +472,15 @@ class TaskService
                 }
 
                 return ! in_array('needs-human', $labels, true);
+            })
+            ->filter(function (Task $t): bool {
+                // Exclude tasks from paused epics
+                if ($t->epic_id === null) {
+                    return true;
+                }
+                $epic = $t->epic;
+
+                return $epic === null || $epic->status !== EpicStatus::Paused;
             })
             ->sortBy([
                 ['priority', 'asc'],

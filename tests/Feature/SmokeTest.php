@@ -251,7 +251,7 @@ it('runs a basic command flow', function (): void {
     expect($promotedTaskId)->not->toBeNull();
 
     Artisan::call('remove', [
-        'id' => $blockedId,
+        'ids' => [$blockedId],
         '--json' => true,
     ]);
     $removed = json_decode(Artisan::output(), true);

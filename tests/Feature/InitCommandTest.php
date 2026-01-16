@@ -79,13 +79,12 @@ describe('init command', function (): void {
         expect(file_exists($gitignorePath))->toBeTrue();
 
         $content = file_get_contents($gitignorePath);
-        expect($content)->toContain('.fuel/*.lock');
-        expect($content)->toContain('.fuel/agent.db');
-        expect($content)->toContain('.fuel/config.yaml');
-        expect($content)->toContain('.fuel/processes/');
-        expect($content)->toContain('.fuel/runs/');
-        // plans/ should NOT be ignored (committed to git)
-        expect($content)->not->toContain('.fuel/plans/');
+        // Uses wildcard with explicit allows for tracked files
+        expect($content)->toContain('.fuel/*');
+        expect($content)->toContain('!.fuel/reality.md');
+        expect($content)->toContain('!.fuel/plans/');
+        expect($content)->toContain('!.fuel/prompts/');
+        expect($content)->toContain('.fuel/prompts/*.new');
     });
 
     it('creates new .gitignore if it does not exist', function (): void {
@@ -95,10 +94,10 @@ describe('init command', function (): void {
         expect(file_exists($gitignorePath))->toBeTrue();
 
         $content = file_get_contents($gitignorePath);
-        expect($content)->toContain('.fuel/*.lock');
-        expect($content)->toContain('.fuel/agent.db');
-        expect($content)->toContain('.fuel/processes/');
-        expect($content)->toContain('.fuel/runs/');
+        expect($content)->toContain('.fuel/*');
+        expect($content)->toContain('!.fuel/reality.md');
+        expect($content)->toContain('!.fuel/plans/');
+        expect($content)->toContain('!.fuel/prompts/');
     });
 
     it('appends fuel entries to existing .gitignore without duplicating', function (): void {
@@ -109,13 +108,13 @@ describe('init command', function (): void {
         $content = file_get_contents($this->testDir.'/.gitignore');
         expect($content)->toContain('node_modules');
         expect($content)->toContain('vendor');
-        expect($content)->toContain('.fuel/*.lock');
-        expect($content)->toContain('.fuel/agent.db');
+        expect($content)->toContain('.fuel/*');
+        expect($content)->toContain('!.fuel/reality.md');
 
         // Run init again - should not duplicate entries
         Artisan::call('init', []);
         $content2 = file_get_contents($this->testDir.'/.gitignore');
-        expect(substr_count($content2, '.fuel/*.lock'))->toBe(1);
+        expect(substr_count($content2, '.fuel/*'))->toBe(1);
     });
 
     it('updates AGENTS.md with guidelines', function (): void {

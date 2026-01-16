@@ -79,15 +79,11 @@ class EpicsCommand extends Command
 
             $table = new Table;
 
-            // Configure columns that can be truncated (with minimum widths and priorities)
-            $table->setTruncatable([
-                'Title' => ['min' => 20, 'priority' => 1],
-            ]);
+            // Column priorities: all columns are important
+            // Headers: ['ID', 'Title', 'Status', 'Progress', 'Mode', 'Created']
+            $columnPriorities = [];
 
-            // Configure columns that can be omitted if needed (in order of priority)
-            $table->setOmittable(['Mode', 'Progress']);
-
-            $table->render($headers, $rows, $this->output, $terminalWidth);
+            $table->render($headers, $rows, $this->output, $columnPriorities, $terminalWidth);
 
             $this->newLine();
             $this->line("Use 'fuel epic:show <id>' for detailed view.");

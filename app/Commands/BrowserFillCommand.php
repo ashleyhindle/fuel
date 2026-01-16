@@ -20,7 +20,7 @@ class BrowserFillCommand extends Command
     protected $signature = 'browser:fill
         {page_id : Page ID to fill input on}
         {selector? : CSS selector of input to fill}
-        {value : Value to fill into the input}
+        {--value= : Value to fill into the input (required)}
         {--ref= : Element ref from snapshot (e.g. @e2)}
         {--json : Output as JSON}';
 
@@ -33,8 +33,13 @@ class BrowserFillCommand extends Command
     {
         $pageId = $this->argument('page_id');
         $selector = $this->argument('selector');
-        $value = $this->argument('value');
+        $value = $this->option('value');
         $ref = $this->option('ref');
+
+        // Validate value is provided
+        if (! $value) {
+            return $this->outputError('--value option is required');
+        }
 
         // Validate that either selector or ref is provided
         if (! $selector && ! $ref) {

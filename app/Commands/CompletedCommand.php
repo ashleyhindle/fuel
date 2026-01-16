@@ -62,17 +62,8 @@ class CompletedCommand extends Command
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority', 'Agent', 'Commit'];
 
-            // Column priorities: lower number = more important, kept longer
-            // Drop order: Priority (5), Type (4), Agent (3), Commit (2), Completed (1), Title (0), ID (-1)
-            $columnPriorities = [
-                -1, // ID - never drop
-                0,  // Title - keep as long as possible
-                1,  // Completed - somewhat important
-                4,  // Type - drop earlier
-                5,  // Priority - drop first
-                3,  // Agent - drop mid-way
-                2,  // Commit - keep but can drop before core info
-            ];
+            // Column priorities: all columns are important
+            $columnPriorities = [];
 
             $rows = $tasks->map(function (Task $t) use ($runService): array {
                 $latestRun = $runService->getLatestRun($t->short_id);

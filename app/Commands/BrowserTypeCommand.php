@@ -20,7 +20,7 @@ class BrowserTypeCommand extends Command
     protected $signature = 'browser:type
         {page_id : Page ID to type on}
         {selector? : CSS selector of element to type into}
-        {text : Text to type}
+        {--text= : Text to type (required)}
         {--ref= : Element ref from snapshot (e.g. @e2)}
         {--delay=0 : Delay between keystrokes in milliseconds}
         {--json : Output as JSON}';
@@ -34,9 +34,14 @@ class BrowserTypeCommand extends Command
     {
         $pageId = $this->argument('page_id');
         $selector = $this->argument('selector');
-        $text = $this->argument('text');
+        $text = $this->option('text');
         $ref = $this->option('ref');
         $delay = (int) $this->option('delay');
+
+        // Validate text is provided
+        if (! $text) {
+            return $this->outputError('--text option is required');
+        }
 
         // Validate that either selector or ref is provided
         if (! $selector && ! $ref) {

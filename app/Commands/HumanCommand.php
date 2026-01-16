@@ -76,8 +76,8 @@ class HumanCommand extends Command
             return $this->handleJsonOutput();
         }
 
-        // Handle non-interactive mode (--once)
-        if ($this->option('once')) {
+        // Handle non-interactive mode (--once or non-TTY)
+        if ($this->option('once') || ! stream_isatty(STDIN)) {
             return $this->handleOnceMode();
         }
 
