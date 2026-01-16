@@ -62,8 +62,16 @@ class CompletedCommand extends Command
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority', 'Agent', 'Commit'];
 
-            // Column priorities: all columns are important
-            $columnPriorities = [];
+            // Column priorities: lower = more important, higher gets dropped first
+            $columnPriorities = [
+                1,  // ID - keep
+                1,  // Title - keep
+                2,  // Completed - keep
+                4,  // Type - drop if needed
+                5,  // Priority - drop if needed
+                3,  // Agent - drop if needed
+                6,  // Commit - drop first
+            ];
 
             $rows = $tasks->map(function (Task $t) use ($runService): array {
                 $latestRun = $runService->getLatestRun($t->short_id);
@@ -75,9 +83,15 @@ class CompletedCommand extends Command
                     $commitHash = substr($commitHash, 0, 7);
                 }
 
+                // Get first line of title, then truncate if needed
+                $title = strtok($t->title, "\r\n") ?: $t->title;
+                if (mb_strlen($title) > 60) {
+                    $title = mb_substr($title, 0, 57).'...';
+                }
+
                 return [
                     $t->short_id,
-                    $t->title,
+                    $title,
                     $this->formatDate($t->updated_at),
                     $t->type ?? 'task',
                     $t->priority ?? 2,
