@@ -37,6 +37,8 @@ it('sends text command with selector to daemon', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserTextCommand::class);
         expect($cmd->pageId)->toBe('test-page');
@@ -75,6 +77,8 @@ it('sends text command with element ref to daemon', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserTextCommand::class);
         expect($cmd->pageId)->toBe('test-page');
@@ -113,6 +117,8 @@ it('outputs JSON when json flag is provided', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         $requestIdToMatch = $cmd->getRequestId();
 
@@ -151,6 +157,8 @@ it('handles error responses from daemon', function () {
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         $requestIdToMatch = $cmd->getRequestId();
 
@@ -180,11 +188,10 @@ it('handles error responses from daemon', function () {
 });
 
 it('fails when daemon is not running', function () {
-    // Create mock IPC client that simulates daemon not running
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(false);
-
-    app()->instance(ConsumeIpcClient::class, $ipcClient);
+    // Remove PID file to simulate daemon not running
+    if (file_exists($this->pidFilePath)) {
+        unlink($this->pidFilePath);
+    }
 
     $this->artisan('browser:text', [
         'page_id' => 'test-page',

@@ -34,6 +34,8 @@ it('sends snapshot command to daemon', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserSnapshotCommand::class);
         expect($cmd->pageId)->toBe('test-page');
@@ -86,6 +88,8 @@ it('sends snapshot command with interactive-only flag', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserSnapshotCommand::class);
         expect($cmd->pageId)->toBe('test-page');
@@ -135,6 +139,8 @@ it('outputs JSON when --json flag is provided', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         $capturedRequestId['id'] = $cmd->requestId();
     });
@@ -181,6 +187,8 @@ it('handles empty snapshot gracefully', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         $capturedRequestId['id'] = $cmd->requestId();
     });
@@ -220,6 +228,8 @@ it('handles daemon errors gracefully', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         $capturedRequestId['id'] = $cmd->requestId();
     });
@@ -252,12 +262,12 @@ it('handles daemon errors gracefully', function () {
 });
 
 it('shows error when daemon is not running', function () {
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(false);
-
-    app()->instance(ConsumeIpcClient::class, $ipcClient);
+    // Remove PID file to simulate daemon not running
+    if (file_exists($this->pidFilePath)) {
+        unlink($this->pidFilePath);
+    }
 
     $this->artisan('browser:snapshot', ['page_id' => 'test-page'])
-        ->expectsOutputToContain('Consume daemon is not running')
+        ->expectsOutputToContain('Fuel consume is not running')
         ->assertExitCode(1);
 });

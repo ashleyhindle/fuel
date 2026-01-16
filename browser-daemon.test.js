@@ -383,14 +383,12 @@ describe('Browser Integration Tests', { skip: process.env.CI }, () => {
     expect(response.ok).toBe(true);
     expect(response.result).toHaveProperty('snapshot');
 
-    // Check if snapshot has structure with refs
+    // Check if snapshot has text representation with embedded refs
     const snapshot = response.result.snapshot;
-    expect(snapshot).toHaveProperty('ref');
-    expect(snapshot.ref).toMatch(/^@e\d+$/);
-    expect(snapshot).toHaveProperty('role');
-
-    // Store in page memory for ref-based actions
-    expect(response.result).toHaveProperty('refCount');
+    expect(snapshot).toHaveProperty('text');
+    expect(snapshot.text).toMatch(/\[ref=@e\d+\]/);
+    expect(snapshot).toHaveProperty('refCount');
+    expect(snapshot.refCount).toBeGreaterThan(0);
   });
 
   it('should get interactive-only snapshot', async () => {
@@ -403,12 +401,10 @@ describe('Browser Integration Tests', { skip: process.env.CI }, () => {
     expect(response.ok).toBe(true);
     expect(response.result).toHaveProperty('snapshot');
 
-    // Snapshot should have fewer elements with interactiveOnly
+    // Snapshot should have text with refs (only interactive elements)
     const snapshot = response.result.snapshot;
-    if (snapshot) {
-      expect(snapshot).toHaveProperty('ref');
-      // Interactive elements like buttons, links, inputs should be included
-    }
+    expect(snapshot).toHaveProperty('text');
+    expect(snapshot).toHaveProperty('refCount');
   });
 
   it('should handle page expiry gracefully', async () => {
