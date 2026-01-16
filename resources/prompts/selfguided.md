@@ -1,4 +1,4 @@
-<fuel-prompt version="1" />
+<fuel-prompt version="2" />
 
 == SELF-GUIDED EPIC EXECUTION ==
 Iteration {{ iteration }} of {{ max_iterations }}
@@ -28,9 +28,16 @@ Review the acceptance criteria in the epic plan above. Check off what's already 
 Pick the next unchecked criterion and implement it fully:
 - Write code
 - Run tests for affected code
-- Fix any issues
+- **Smoke test it yourself** - actually run/use what you built:
+  - CLI command? Run it
+  - Web feature? Load it in browser
+  - API endpoint? Call it with curl
+  - Figure out a safe way to use it
+- Fix any issues found
 
 You MUST execute only one task / criterion. Do not implement everything.
+
+**WARNING: Unit tests passing ≠ feature works.** Tests may mock, stub, or early-return. You must verify the real thing works.
 
 ### 3. Commit Your Changes
 ```bash
@@ -44,6 +51,8 @@ Edit `{{ epic_plan_filename }}` to:
 - Append to Progress Log section: `- Iteration {{ iteration }}: [what you did]`
 
 ### 5. Decide Next Action
+
+**CRITICAL: You MUST run ONE of these commands before exiting. Do NOT exit without running one of these:**
 
 **All acceptance criteria complete?**
 ```bash
@@ -60,13 +69,16 @@ fuel selfguided:continue {{ task.short_id }} --notes='Completed X, next is Y'
 fuel selfguided:blocked {{ task.short_id }} --reason='Why you are blocked'
 ```
 
+**REMINDER: Your session will end after this. You MUST run one of the above commands NOW.**
+
 == QUALITY GATES ==
 Before marking any criterion complete:
 - [ ] Code has no errors
 - [ ] Relevant tests pass
+- [ ] **You ran/used the feature and it actually works** (not just tests!)
+- [ ] Other quality gates passed
 - [ ] Formatters ran
 - [ ] Style checkers ran
-- [ ] Other quality gates passed
 - [ ] Browser tests verified (if web page)
 - [ ] No debug statements left (dd, var_dump, console.log)
 - [ ] Changes committed with descriptive message
