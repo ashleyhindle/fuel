@@ -11,9 +11,11 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 
 ## Approach
 
-### 1. Database: Add `commit_hash` to runs table
-- Create migration adding `commit_hash VARCHAR(40) NULLABLE` to `runs` table
+### 1. Database: Add `commit_hash` to runs table ✅
+- ✅ Create migration adding `commit_hash VARCHAR(40) NULLABLE` to `runs` table
 - 40 chars = full SHA-1 hash length
+- Migration file: `database/migrations/2026_01_16_102931_add_commit_hash_to_runs_table.php`
+- Migration tested and verified working
 
 ### 2. RunService: Support commit_hash updates
 - Add `commit_hash` to the fields handled by `updateRun()` and `updateLatestRun()`
@@ -36,7 +38,7 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 
 | File | Change |
 |------|--------|
-| `database/migrations/xxxx_add_commit_hash_to_runs_table.php` | New migration |
+| `database/migrations/2026_01_16_102931_add_commit_hash_to_runs_table.php` | ✅ Migration created and tested |
 | `app/Services/RunService.php` | Handle commit_hash in update methods |
 | `app/Commands/SelfGuidedContinueCommand.php` | Add --commit flag, update run |
 | `app/Commands/DoneCommand.php` | Also store commit_hash on latest run |
@@ -55,7 +57,12 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 4. Manual: Run a selfguided epic, verify commits appear on runs
 
 ## Implementation Notes
-<!-- Tasks update this as they work -->
+
+### Migration: Add commit_hash to runs table (f-c76d8e)
+- Migration adds `commit_hash` column as `string(40)->nullable()` to `runs` table
+- Column is nullable to support existing runs and runs that don't have commits
+- Migration includes proper `down()` method to drop the column on rollback
+- Migration tested successfully with `./fuel migrate`
 
 ## Interfaces Created
 <!-- Tasks add interfaces/contracts they create -->
