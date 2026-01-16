@@ -8,6 +8,7 @@ it('is registered and has correct signature', function (): void {
     expect($commands)->toHaveKey('consume:runner');
     expect($commands['consume:runner']->getDefinition()->hasOption('interval'))->toBeTrue();
     expect($commands['consume:runner']->getDefinition()->hasOption('review'))->toBeTrue();
+    expect($commands['consume:runner']->getDefinition()->hasOption('port'))->toBeTrue();
 });
 
 it('is hidden from command list', function (): void {
@@ -35,4 +36,11 @@ it('accepts review option', function (): void {
     $definition = $command->getDefinition();
 
     expect($definition->hasOption('review'))->toBeTrue();
+});
+
+it('accepts port option', function (): void {
+    $command = Artisan::all()['consume:runner'];
+    $definition = $command->getDefinition();
+
+    expect($definition->hasOption('port'))->toBeTrue();
 });

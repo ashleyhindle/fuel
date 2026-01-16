@@ -58,7 +58,8 @@ class ConsumeCommand extends Command
         {--start : Start the runner daemon in the background and exit}
         {--restart : Restart the runner daemon (stop and start)}
         {--fresh : Kill existing runner and start fresh}
-        {--ip=127.0.0.1 : IP address of the runner to connect to}';
+        {--ip=127.0.0.1 : IP address of the runner to connect to}
+        {--port= : Port number to connect to (overrides config)}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 
@@ -329,7 +330,7 @@ class ConsumeCommand extends Command
             $ip = $this->option('ip');
             $this->ipcClient = new ConsumeIpcClient($ip);
             $pidFilePath = $this->fuelContext->getPidFilePath();
-            $port = $this->configService->getConsumePort();
+            $port = $this->option('port') ? (int) $this->option('port') : $this->configService->getConsumePort();
             $isRemote = $ip !== '127.0.0.1';
 
             // Only start local runner if not connecting to a remote runner
@@ -340,7 +341,7 @@ class ConsumeCommand extends Command
                     $this->renderConnectingFrame($frame++, 'Starting runner');
                 }
 
-                $this->ipcClient->startRunner($this->fuelContext->getFuelBinaryPath());
+                $this->ipcClient->startRunner($this->fuelContext->getFuelBinaryPath(), $port);
 
                 // Wait for server with animation
                 if (! $singleIteration) {
@@ -3387,7 +3388,7 @@ class ConsumeCommand extends Command
         $ip = $this->option('ip');
         $this->ipcClient = new ConsumeIpcClient($ip);
         $pidFilePath = $this->fuelContext->getPidFilePath();
-        $port = $this->configService->getConsumePort();
+        $port = $this->option('port') ? (int) $this->option('port') : $this->configService->getConsumePort();
         $isRemote = $ip !== '127.0.0.1';
 
         // Check if runner is alive (skip for remote runners - PID file is local only)
@@ -3456,7 +3457,7 @@ class ConsumeCommand extends Command
     {
         $ipcClient = new ConsumeIpcClient($this->option('ip'));
         $pidFilePath = $this->fuelContext->getPidFilePath();
-        $port = $this->configService->getConsumePort();
+        $port = $this->option('port') ? (int) $this->option('port') : $this->configService->getConsumePort();
 
         // Check if already running
         if ($ipcClient->isRunnerAlive($pidFilePath)) {
@@ -3469,7 +3470,7 @@ class ConsumeCommand extends Command
 
         // Start runner in background
         $this->info('Starting runner daemon...');
-        $ipcClient->startRunner($this->fuelContext->getFuelBinaryPath());
+        $ipcClient->startRunner($this->fuelContext->getFuelBinaryPath(), $port);
 
         // Wait for runner to be ready
         try {
@@ -3561,7 +3562,7 @@ class ConsumeCommand extends Command
         // Start the runner again
         $this->info('Starting runner...');
         try {
-            $this->ipcClient->startRunner($this->fuelContext->getFuelBinaryPath());
+            $this->ipcClient->startRunner($this->fuelContext->getFuelBinaryPath(), $port);
 
             // Wait for server to be ready
             $this->ipcClient->waitForServer($port, 10);
