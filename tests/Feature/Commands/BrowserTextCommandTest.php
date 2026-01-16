@@ -197,7 +197,7 @@ it('fails when daemon is not running', function () {
         'page_id' => 'test-page',
         'selector' => 'h1',
     ])
-        ->expectsOutputToContain('Fuel consume is not running')
+        ->expectsOutputToContain('Consume daemon is not running')
         ->assertExitCode(1);
 });
 

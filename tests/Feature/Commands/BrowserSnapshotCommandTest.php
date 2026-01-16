@@ -268,6 +268,6 @@ it('shows error when daemon is not running', function () {
     }
 
     $this->artisan('browser:snapshot', ['page_id' => 'test-page'])
-        ->expectsOutputToContain('Fuel consume is not running')
+        ->expectsOutputToContain('Consume daemon is not running')
         ->assertExitCode(1);
 });

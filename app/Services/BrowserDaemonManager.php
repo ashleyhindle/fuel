@@ -326,7 +326,7 @@ class BrowserDaemonManager
 
         // Debug: Log what we're sending
         @file_put_contents(getcwd().'/.fuel/browser-send-debug.log', sprintf(
-            "[%s] Sending to daemon: %s",
+            '[%s] Sending to daemon: %s',
             date('H:i:s'),
             $json
         ), FILE_APPEND);

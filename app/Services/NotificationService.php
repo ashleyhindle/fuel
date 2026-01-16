@@ -111,7 +111,7 @@ class NotificationService
         // Try terminal-notifier first (better experience, needs to be installed)
         if ($this->commandExists('terminal-notifier')) {
             $iconPath = $this->getIconPath();
-            $iconArg = $iconPath ? sprintf('-appIcon %s ', escapeshellarg('file://' . $iconPath)) : '';
+            $iconArg = $iconPath ? sprintf('-appIcon %s ', escapeshellarg('file://'.$iconPath)) : '';
 
             exec(sprintf(
                 'terminal-notifier -title %s -message %s %s-group fuel > /dev/null 2>&1 &',

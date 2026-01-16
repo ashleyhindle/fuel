@@ -92,12 +92,20 @@ abstract class BrowserCommand extends Command
             $protocol = new ConsumeIpcProtocol;
             $requestId = $protocol->generateRequestId();
 
-            // Build and send the specific IPC command
-            $command = $this->buildIpcCommand(
-                $requestId,
-                $client->getInstanceId(),
-                new DateTimeImmutable
-            );
+            // Build the IPC command (may throw InvalidArgumentException for validation errors)
+            try {
+                $command = $this->buildIpcCommand(
+                    $requestId,
+                    $client->getInstanceId(),
+                    new DateTimeImmutable
+                );
+            } catch (\InvalidArgumentException $e) {
+                // Return validation errors directly without wrapping
+                $client->detach();
+                $client->disconnect();
+
+                return $this->outputError($e->getMessage());
+            }
 
             $client->sendCommand($command);
 

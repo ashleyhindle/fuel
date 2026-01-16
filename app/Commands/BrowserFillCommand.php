@@ -4,19 +4,13 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Commands\Concerns\HandlesJsonOutput;
 use App\Ipc\Commands\BrowserFillCommand as BrowserFillIpcCommand;
 use App\Ipc\Events\BrowserResponseEvent;
-use App\Services\ConsumeIpcClient;
-use App\Services\ConsumeIpcProtocol;
-use App\Services\FuelContext;
+use App\Ipc\IpcMessage;
 use DateTimeImmutable;
-use LaravelZero\Framework\Commands\Command;
 
-class BrowserFillCommand extends Command
+class BrowserFillCommand extends BrowserCommand
 {
-    use HandlesJsonOutput;
-
     protected $signature = 'browser:fill
         {page_id : Page ID to fill input on}
         {selector? : CSS selector of input to fill}
@@ -27,10 +21,18 @@ class BrowserFillCommand extends Command
     protected $description = 'Fill an input field on a browser page';
 
     /**
-     * Handle the command.
+     * Build the IPC command to send to the daemon.
+     *
+     * @param  string  $requestId  The unique request ID
+     * @param  string  $instanceId  The instance ID of the client
+     * @param  DateTimeImmutable  $timestamp  The timestamp for the command
+     * @return IpcMessage The IPC command to send to the daemon
      */
-    public function handle(): int
-    {
+    protected function buildIpcCommand(
+        string $requestId,
+        string $instanceId,
+        DateTimeImmutable $timestamp
+    ): IpcMessage {
         $pageId = $this->argument('page_id');
         $selector = $this->argument('selector');
         $value = $this->option('value');
@@ -38,101 +40,41 @@ class BrowserFillCommand extends Command
 
         // Validate value is provided
         if (! $value) {
-            return $this->outputError('--value option is required');
+            throw new \InvalidArgumentException('--value option is required');
         }
 
         // Validate that either selector or ref is provided
         if (! $selector && ! $ref) {
-            return $this->outputError('Must provide either a selector or --ref option');
+            throw new \InvalidArgumentException('Must provide either a selector or --ref option');
         }
 
         if ($selector && $ref) {
-            return $this->outputError('Cannot provide both selector and --ref option');
+            throw new \InvalidArgumentException('Cannot provide both selector and --ref option');
         }
 
-        $client = app(ConsumeIpcClient::class);
-        $protocol = new ConsumeIpcProtocol;
-
-        // Check if daemon is running
-        $pidFilePath = app(FuelContext::class)->getPidFilePath();
-        if (! $client->isRunnerAlive($pidFilePath)) {
-            return $this->outputError('Consume daemon is not running. Start it with: fuel consume');
-        }
-
-        try {
-            $pidData = json_decode(file_get_contents($pidFilePath), true);
-            $port = $pidData['port'] ?? 0;
-            if ($port === 0) {
-                return $this->outputError('Invalid port in PID file');
-            }
-
-            $client->connect($port);
-            $client->attach();
-
-            $requestId = $protocol->generateRequestId();
-            $client->sendCommand(new BrowserFillIpcCommand(
-                pageId: $pageId,
-                selector: $selector,
-                value: $value,
-                ref: $ref,
-                timestamp: new DateTimeImmutable,
-                instanceId: $client->getInstanceId(),
-                requestId: $requestId
-            ));
-
-            $response = $this->waitForResponse($client, $requestId, 30);
-
-            $client->detach();
-            $client->disconnect();
-
-            if (! $response instanceof BrowserResponseEvent) {
-                return $this->outputError('Timeout waiting for browser response');
-            }
-
-            if (! $response->success) {
-                return $this->outputError($response->error ?? 'Fill failed');
-            }
-
-            $this->outputFillSuccess($selector ?? $ref, $value);
-
-            return self::SUCCESS;
-
-        } catch (\Throwable $e) {
-            return $this->outputError('Failed to communicate with daemon: '.$e->getMessage());
-        }
+        return new BrowserFillIpcCommand(
+            pageId: $pageId,
+            selector: $selector,
+            value: $value,
+            ref: $ref,
+            timestamp: $timestamp,
+            instanceId: $instanceId,
+            requestId: $requestId
+        );
     }
 
     /**
-     * Wait for a BrowserResponseEvent with matching request ID.
+     * Handle a successful response from the browser.
+     *
+     * @param  BrowserResponseEvent  $response  The successful response from the browser
      */
-    private function waitForResponse(ConsumeIpcClient $client, string $requestId, int $timeout): ?BrowserResponseEvent
+    protected function handleSuccess(BrowserResponseEvent $response): void
     {
-        $deadline = time() + $timeout;
+        $selector = $this->argument('selector');
+        $ref = $this->option('ref');
+        $value = $this->option('value');
+        $target = $selector ?? $ref;
 
-        while (time() < $deadline) {
-            $events = $client->pollEvents();
-
-            foreach ($events as $event) {
-                if ($event instanceof BrowserResponseEvent && $event->requestId() === $requestId) {
-                    return $event;
-                }
-
-                if (! $event instanceof BrowserResponseEvent) {
-                    $client->applyEvent($event);
-                }
-            }
-
-            usleep(50000); // 50ms
-        }
-
-        return null;
-    }
-
-    /**
-     * Output fill success message.
-     */
-    private function outputFillSuccess(string $target, string $value): void
-    {
         if ($this->option('json')) {
             $this->outputJson([
                 'success' => true,

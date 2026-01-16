@@ -65,6 +65,7 @@ it('sends html command with selector to daemon for outerHTML', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('disconnect')->once();
@@ -248,7 +249,7 @@ it('fails when daemon is not running', function () {
         'page_id' => 'test-page',
         'selector' => 'body',
     ])
-        ->expectsOutputToContain('Fuel consume is not running')
+        ->expectsOutputToContain('Consume daemon is not running')
         ->assertExitCode(1);
 });
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
+use App\Services\FuelContext;
 
 beforeEach(function () {
     // Create a temporary PID file for testing
@@ -309,9 +310,22 @@ it('shows error when daemon is not running', function () {
 });
 
 it('requires either selector or ref option', function () {
+    // Create PID file for the test
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $pidDir = dirname($pidFile);
+    if (! is_dir($pidDir)) {
+        mkdir($pidDir, 0755, true);
+    }
+    file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
+
     // Create mock IPC client
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $ipcClient->shouldReceive('connect')->once();
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
@@ -322,12 +336,28 @@ it('requires either selector or ref option', function () {
     ])
         ->expectsOutputToContain('Must provide either a selector or --ref option')
         ->assertExitCode(1);
+
+    // Clean up
+    @unlink($pidFile);
 });
 
 it('cannot provide both selector and ref', function () {
+    // Create PID file for the test
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $pidDir = dirname($pidFile);
+    if (! is_dir($pidDir)) {
+        mkdir($pidDir, 0755, true);
+    }
+    file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
+
     // Create mock IPC client
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $ipcClient->shouldReceive('connect')->once();
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
@@ -340,4 +370,7 @@ it('cannot provide both selector and ref', function () {
     ])
         ->expectsOutputToContain('Cannot provide both selector and --ref option')
         ->assertExitCode(1);
+
+    // Clean up
+    @unlink($pidFile);
 });

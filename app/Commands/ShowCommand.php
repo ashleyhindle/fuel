@@ -227,6 +227,7 @@ class ShowCommand extends Command
 
                 // Check for live output if task is in_progress (even if no runs exist)
                 $liveOutput = $this->getLiveOutput($task->short_id, $task->status->value, $runService);
+                $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
 
                 if ($runs !== []) {
                     $this->newLine();
@@ -277,20 +278,18 @@ class ShowCommand extends Command
 
                         // Show output only for latest run
                         if ($isLatest) {
-                            $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
-
-                            if ($this->option('tail') && $liveOutput !== null) {
-                                if ($stdoutPath !== null) {
-                                    $this->line('    <fg=gray>Path: '.$stdoutPath.'</>');
-                                    // Check if process is still running using run's pid
-                                    $runPid = $run->pid ?? null;
-                                    if ($runPid !== null && ! ProcessManager::isProcessAlive($runPid)) {
-                                        $this->line('    <fg=red>(agent not running - PID '.$runPid.' not found)</>');
+                            if ($this->option('tail') && $stdoutPath !== null) {
+                                $this->line('    <fg=gray>Path: '.$stdoutPath.'</>');
+                                // Check if process is still running using run's pid
+                                $runPid = $run->pid ?? null;
+                                if ($runPid !== null && ! ProcessManager::isProcessAlive($runPid)) {
+                                    $this->line('    <fg=red>(agent not running - PID '.$runPid.' not found)</>');
+                                    if ($liveOutput !== null) {
                                         $this->outputChunk($liveOutput, $this->option('raw'));
-                                    } else {
-                                        $this->line('    <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
-                                        $this->tailFile($stdoutPath, $task->short_id, $runService);
                                     }
+                                } else {
+                                    $this->line('    <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
+                                    $this->tailFile($stdoutPath, $task->short_id, $runService);
                                 }
                             } elseif ($liveOutput !== null) {
                                 if ($stdoutPath !== null) {
@@ -305,28 +304,27 @@ class ShowCommand extends Command
                             }
                         }
                     }
-                } elseif ($liveOutput !== null) {
+                } elseif ($liveOutput !== null || ($this->option('tail') && $stdoutPath !== null)) {
                     $this->newLine();
                     $this->line('  <fg=cyan>── Run Output (live) ──</>');
-                    $stdoutPath = $this->getStdoutPath($task->short_id, $task->status->value, $runService);
                     if ($stdoutPath !== null) {
                         $this->line('  <fg=gray>Path: '.$stdoutPath.'</>');
                     }
 
-                    if ($this->option('tail')) {
-                        if ($stdoutPath !== null) {
-                            // Check if process is still running using latest run's pid
-                            $latestRun = $runService->getLatestRun($task->short_id);
-                            $latestPid = $latestRun?->pid;
-                            if ($latestPid !== null && ! ProcessManager::isProcessAlive($latestPid)) {
-                                $this->line('  <fg=red>(agent not running - PID '.$latestPid.' not found)</>');
+                    if ($this->option('tail') && $stdoutPath !== null) {
+                        // Check if process is still running using latest run's pid
+                        $latestRun = $runService->getLatestRun($task->short_id);
+                        $latestPid = $latestRun?->pid;
+                        if ($latestPid !== null && ! ProcessManager::isProcessAlive($latestPid)) {
+                            $this->line('  <fg=red>(agent not running - PID '.$latestPid.' not found)</>');
+                            if ($liveOutput !== null) {
                                 $this->outputChunk($liveOutput, $this->option('raw'));
-                            } else {
-                                $this->line('  <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
-                                $this->tailFile($stdoutPath, $task->short_id, $runService);
                             }
+                        } else {
+                            $this->line('  <fg=yellow>(live output - tailing, press Ctrl+C to exit)</>');
+                            $this->tailFile($stdoutPath, $task->short_id, $runService);
                         }
-                    } else {
+                    } elseif ($liveOutput !== null) {
                         $this->line('  <fg=gray>Showing live output (tail)...</>');
                         $this->outputChunk($liveOutput, $this->option('raw'));
                     }
@@ -586,6 +584,8 @@ class ShowCommand extends Command
                 }
 
                 // Check if file exists and get new content
+                // Clear stat cache to get accurate file size (PHP caches filesize results)
+                clearstatcache(true, $filePath);
                 if (File::exists($filePath)) {
                     $currentSize = File::size($filePath);
 
