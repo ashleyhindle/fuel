@@ -33,19 +33,7 @@ abstract class TestCase extends BaseTestCase
         @mkdir($this->testDir.'/.fuel', 0755, true);
 
         // Create minimal config file for tests
-        $minimalConfig = <<<'YAML'
-primary: test-agent
-complexity:
-  trivial: test-agent
-  simple: test-agent
-  moderate: test-agent
-  complex: test-agent
-agents:
-  test-agent:
-    driver: claude
-    command: echo
-YAML;
-        file_put_contents($this->testDir.'/.fuel/config.yaml', $minimalConfig);
+        file_put_contents($this->testDir.'/.fuel/config.yaml', $this->getDefaultConfigYaml());
 
         // Configure FuelContext to use the isolated temp directory
         // Use forgetInstance + instance to properly override the AppServiceProvider binding
@@ -80,5 +68,40 @@ YAML;
         }
 
         parent::tearDown();
+    }
+
+    /**
+     * Get the default minimal config YAML for tests.
+     */
+    protected function getDefaultConfigYaml(): string
+    {
+        return <<<'YAML'
+primary: test-agent
+complexity:
+  trivial: test-agent
+  simple: test-agent
+  moderate: test-agent
+  complex: test-agent
+agents:
+  test-agent:
+    driver: claude
+    command: echo
+YAML;
+    }
+
+    /**
+     * Set custom config YAML and reset ConfigService to use it.
+     *
+     * @param  string  $yaml  The YAML config content to write
+     */
+    protected function setConfig(string $yaml): void
+    {
+        // Write config to test directory
+        file_put_contents($this->testDir.'/.fuel/config.yaml', $yaml);
+
+        // Reset ConfigService in container to pick up new config
+        $this->app->forgetInstance(ConfigService::class);
+        $configService = new ConfigService($this->testContext);
+        $this->app->instance(ConfigService::class, $configService);
     }
 }
