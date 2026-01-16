@@ -87,6 +87,20 @@ The `--generate-notes` flag auto-generates release notes from commits since the 
 gh release view <version>
 ```
 
+### 9. Wait for Binaries
+GitHub Actions builds binaries for all platforms. Poll until assets appear:
+```bash
+gh release view <version> --json assets --jq '.assets[].name'
+```
+
+Expected assets (4 binaries):
+- `fuel-darwin-arm64`
+- `fuel-darwin-x64`
+- `fuel-linux-arm64`
+- `fuel-linux-x64`
+
+If empty, wait ~1-2 minutes and check again. Once all 4 appear, notify the user that binaries are ready for download.
+
 ## Example Full Run
 
 ```bash
@@ -112,6 +126,14 @@ gh release create 0.6.5 --title "0.6.5 - streaming stays stable" --generate-note
 
 # Verify
 gh release view 0.6.5
+
+# Check for binaries (poll until 4 assets appear)
+gh release view 0.6.5 --json assets --jq '.assets[].name'
+# Output when ready:
+# fuel-darwin-arm64
+# fuel-darwin-x64
+# fuel-linux-arm64
+# fuel-linux-x64
 ```
 
 ## Notes
