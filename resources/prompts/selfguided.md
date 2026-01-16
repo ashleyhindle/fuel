@@ -66,6 +66,7 @@ Before marking any criterion complete:
 - [ ] Relevant tests pass
 - [ ] Formatters ran
 - [ ] Style checkers ran
+- [ ] Other quality gates passed
 - [ ] Browser tests verified (if web page)
 - [ ] No debug statements left (dd, var_dump, console.log)
 - [ ] Changes committed with descriptive message
