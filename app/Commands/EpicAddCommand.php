@@ -67,7 +67,7 @@ class EpicAddCommand extends Command
         $filename = Str::kebab($title).'-'.$epicId.'.md';
         $planPath = $plansDir.'/'.$filename;
 
-        $descriptionSection = $description ? PHP_EOL . $description . PHP_EOL : '';
+        $descriptionSection = $description ? PHP_EOL.$description.PHP_EOL : '';
 
         if ($selfGuided) {
             $content = <<<MARKDOWN

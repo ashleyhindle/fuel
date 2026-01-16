@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Commands\Concerns\RendersBoardColumns;
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Commands\Concerns\RendersBoardColumns;
 use App\Models\Task;
 use App\Services\RunService;
 use App\Services\TaskService;
@@ -14,8 +14,8 @@ use LaravelZero\Framework\Commands\Command;
 
 class TasksCommand extends Command
 {
-    use RendersBoardColumns;
     use HandlesJsonOutput;
+    use RendersBoardColumns;
 
     protected $signature = 'tasks
         {--cwd= : Working directory (defaults to current directory)}

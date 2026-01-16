@@ -33,7 +33,7 @@ final class DaemonLogger
      */
     public static function getInstance(?string $logPath = null): self
     {
-        if (!self::$instance instanceof \App\Daemon\DaemonLogger) {
+        if (! self::$instance instanceof \App\Daemon\DaemonLogger) {
             $path = $logPath ?? getcwd().'/.fuel/daemon.log';
             self::$instance = new self($path);
         }

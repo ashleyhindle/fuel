@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Commands\Concerns\RendersBoardColumns;
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Commands\Concerns\RendersBoardColumns;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Services\RunService;
@@ -15,8 +15,8 @@ use LaravelZero\Framework\Commands\Command;
 
 class CompletedCommand extends Command
 {
-    use RendersBoardColumns;
     use HandlesJsonOutput;
+    use RendersBoardColumns;
 
     protected $signature = 'completed
         {--cwd= : Working directory (defaults to current directory)}

@@ -24,7 +24,7 @@ class HealthResetCommand extends Command
         // If specific agent provided
         if ($agent !== null) {
             $healthTracker->clearHealth($agent);
-            $this->info('Health status reset for agent: ' . $agent);
+            $this->info('Health status reset for agent: '.$agent);
 
             return self::SUCCESS;
         }

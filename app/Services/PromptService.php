@@ -60,12 +60,12 @@ class PromptService
     {
         $path = $this->getBundledPromptPath($name);
         if (! file_exists($path)) {
-            throw new RuntimeException('Bundled prompt not found: ' . $name);
+            throw new RuntimeException('Bundled prompt not found: '.$name);
         }
 
         $content = file_get_contents($path);
         if ($content === false) {
-            throw new RuntimeException('Failed to read bundled prompt: ' . $name);
+            throw new RuntimeException('Failed to read bundled prompt: '.$name);
         }
 
         return $content;

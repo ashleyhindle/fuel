@@ -383,7 +383,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
         );
 
         expect($agentTask->getTaskId())->toBe('f-abc123');
@@ -397,7 +396,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
             $epic,
         );
 
@@ -415,7 +413,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
         );
 
         expect($agentTask->getAgentName($this->configService))->toBe('reality-agent');
@@ -432,7 +429,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
         );
 
         expect($agentTask->getAgentName($this->configService))->toBe('primary-agent');
@@ -464,7 +460,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
         );
 
         $prompt = $agentTask->buildPrompt('/test/cwd');
@@ -484,7 +479,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
         );
 
         expect($agentTask->getProcessType())->toBe(ProcessType::Task);
@@ -501,7 +495,7 @@ describe('UpdateRealityAgentTask', function (): void {
             ->once()
             ->andReturn(new Task(['short_id' => 'f-def456', 'title' => 'Update reality: Test Task', 'type' => 'reality', 'status' => 'in_progress']));
 
-        $agentTask = UpdateRealityAgentTask::fromTask($task, '/test/cwd');
+        $agentTask = UpdateRealityAgentTask::fromTask($task);
 
         expect($agentTask->getTaskId())->toBe('f-def456');
         expect($agentTask->getTask()->type)->toBe('reality');
@@ -518,7 +512,7 @@ describe('UpdateRealityAgentTask', function (): void {
             ->once()
             ->andReturn(new Task(['short_id' => 'f-ghi789', 'title' => 'Update reality: Test Epic', 'type' => 'reality', 'status' => 'in_progress']));
 
-        $agentTask = UpdateRealityAgentTask::fromEpic($epic, '/test/cwd');
+        $agentTask = UpdateRealityAgentTask::fromEpic($epic);
 
         expect($agentTask->getTaskId())->toBe('f-ghi789');
         expect($agentTask->getTask()->type)->toBe('reality');
@@ -535,7 +529,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
         );
 
         $completion = new CompletionResult(
@@ -565,7 +558,6 @@ describe('UpdateRealityAgentTask', function (): void {
             $task,
             $this->taskService,
             $this->promptService,
-            '/test/cwd',
         );
 
         $completion = new CompletionResult(
@@ -711,7 +703,7 @@ describe('SelfGuidedAgentTask', function (): void {
             ->once();
 
         $this->taskService->shouldReceive('create')
-            ->with(Mockery::on(fn($data): bool => $data['title'] === 'Self-guided task stuck after 3 consecutive failures'
+            ->with(Mockery::on(fn ($data): bool => $data['title'] === 'Self-guided task stuck after 3 consecutive failures'
                 && in_array('needs-human', $data['labels'], true)
                 && $data['epic_id'] === 5))
             ->once()

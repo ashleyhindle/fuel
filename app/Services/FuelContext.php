@@ -108,7 +108,7 @@ class FuelContext
         if (filesize($dbPath) === 0) {
             throw new \RuntimeException(
                 "Database file exists but is empty (likely from interrupted init).\n".
-                ('Delete it manually to start fresh: rm ' . $dbPath)
+                ('Delete it manually to start fresh: rm '.$dbPath)
             );
         }
 
@@ -118,7 +118,7 @@ class FuelContext
             }
         } catch (\Throwable $throwable) {
             throw new \RuntimeException(sprintf('Database file exists but appears corrupt: %s%s', $throwable->getMessage(), PHP_EOL).
-            ('Delete it manually to start fresh: rm ' . $dbPath), $throwable->getCode(), $throwable);
+            ('Delete it manually to start fresh: rm '.$dbPath), $throwable->getCode(), $throwable);
         }
 
         $version = (int) (DB::table('schema_version')->value('version') ?? 0);

@@ -36,7 +36,7 @@ class UpdateRealityAgentTask extends AbstractAgentTask
     /**
      * Create from a solo task completion (task with no epic).
      */
-    public static function fromTask(Task $task, string $cwd): self
+    public static function fromTask(Task $task): self
     {
         $taskService = app(TaskService::class);
         $realityTask = $taskService->create([
@@ -50,7 +50,6 @@ class UpdateRealityAgentTask extends AbstractAgentTask
             $realityTask,
             $taskService,
             app(PromptService::class),
-            $cwd,
             null,
             $task,
         );
@@ -59,7 +58,7 @@ class UpdateRealityAgentTask extends AbstractAgentTask
     /**
      * Create from epic approval.
      */
-    public static function fromEpic(Epic $epic, string $cwd): self
+    public static function fromEpic(Epic $epic): self
     {
         $taskService = app(TaskService::class);
         $realityTask = $taskService->create([
@@ -73,7 +72,6 @@ class UpdateRealityAgentTask extends AbstractAgentTask
             $realityTask,
             $taskService,
             app(PromptService::class),
-            $cwd,
             $epic,
         );
     }

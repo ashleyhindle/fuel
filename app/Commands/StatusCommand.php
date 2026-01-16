@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use Illuminate\Support\Collection;
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Commands\Concerns\RendersBoardColumns;
 use App\Enums\TaskStatus;
@@ -14,6 +13,7 @@ use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
 use App\Services\TaskService;
 use App\TUI\Table;
+use Illuminate\Support\Collection;
 use LaravelZero\Framework\Commands\Command;
 
 class StatusCommand extends Command
@@ -285,7 +285,7 @@ class StatusCommand extends Command
      */
     private function getRunningTime(?Run $run): string
     {
-        if (!$run instanceof Run || $run->started_at === null) {
+        if (! $run instanceof Run || $run->started_at === null) {
             return '-';
         }
 

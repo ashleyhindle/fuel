@@ -31,7 +31,7 @@ class DatabaseService
         if (file_exists($this->dbPath) && filesize($this->dbPath) === 0) {
             throw new RuntimeException(
                 "Database file exists but is empty (likely from interrupted init).\n".
-                ('Delete it manually to start fresh: rm ' . $this->dbPath)
+                ('Delete it manually to start fresh: rm '.$this->dbPath)
             );
         }
 

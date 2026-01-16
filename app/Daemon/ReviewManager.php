@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
-use App\Models\Task;
 use App\Contracts\ReviewServiceInterface;
 use App\Enums\TaskStatus;
 use App\Ipc\Events\ReviewCompletedEvent;
 use App\Models\Review;
+use App\Models\Task;
 use App\Process\ReviewResult;
 use App\Services\ConsumeIpcServer;
 use App\Services\TaskService;
