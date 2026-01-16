@@ -955,3 +955,82 @@ it('defer() preserves task metadata when changing status', function (): void {
     expect($deferred->labels)->toBe(['backend', 'urgent']);
     expect($deferred->complexity)->toBe('moderate');
 });
+
+// =============================================================================
+// pause() Method Tests
+// =============================================================================
+
+it('pause() changes task status to paused', function (): void {
+    $task = $this->taskService->create(['title' => 'Task to pause']);
+
+    $paused = $this->taskService->pause($task->short_id);
+
+    expect($paused->status)->toBe(TaskStatus::Paused);
+    expect($paused->title)->toBe('Task to pause');
+
+    // Verify it's persisted
+    $reloaded = $this->taskService->find($task->short_id);
+    expect($reloaded->status)->toBe(TaskStatus::Paused);
+});
+
+it('pause() works with partial ID', function (): void {
+    $task = $this->taskService->create(['title' => 'Task to pause']);
+    $partialId = substr((string) $task->short_id, 2, 3);
+
+    $paused = $this->taskService->pause($partialId);
+
+    expect($paused->short_id)->toBe($task->short_id);
+    expect($paused->status)->toBe(TaskStatus::Paused);
+});
+
+it('pause() works on already paused tasks (idempotent)', function (): void {
+    $task = $this->taskService->create(['title' => 'Already paused']);
+    $this->taskService->update($task->short_id, ['status' => 'paused']);
+
+    $paused = $this->taskService->pause($task->short_id);
+
+    expect($paused->status)->toBe(TaskStatus::Paused);
+});
+
+it('pause() throws exception when task not found', function (): void {
+    $this->taskService->pause('f-nonexistent');
+})->throws(RuntimeException::class, "Task 'f-nonexistent' not found");
+
+it('pause() preserves task metadata when changing status', function (): void {
+    $task = $this->taskService->create([
+        'title' => 'Complex task',
+        'description' => 'Detailed description',
+        'type' => 'feature',
+        'priority' => 3,
+        'labels' => ['backend', 'urgent'],
+        'complexity' => 'moderate',
+    ]);
+
+    $paused = $this->taskService->pause($task->short_id);
+
+    expect($paused->status)->toBe(TaskStatus::Paused);
+    expect($paused->title)->toBe('Complex task');
+    expect($paused->description)->toBe('Detailed description');
+    expect($paused->type)->toBe('feature');
+    expect($paused->priority)->toBe(3);
+    expect($paused->labels)->toBe(['backend', 'urgent']);
+    expect($paused->complexity)->toBe('moderate');
+});
+
+it('pause() can pause task from any status', function (): void {
+    $statuses = [
+        TaskStatus::Open,
+        TaskStatus::InProgress,
+        TaskStatus::Review,
+        TaskStatus::Someday,
+    ];
+
+    foreach ($statuses as $status) {
+        $task = $this->taskService->create(['title' => "Task in {$status->value}"]);
+        $this->taskService->update($task->short_id, ['status' => $status->value]);
+
+        $paused = $this->taskService->pause($task->short_id);
+
+        expect($paused->status)->toBe(TaskStatus::Paused);
+    }
+});

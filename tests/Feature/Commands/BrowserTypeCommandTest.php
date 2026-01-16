@@ -7,7 +7,7 @@ use App\Services\ConsumeIpcClient;
 
 beforeEach(function () {
     // Create a temporary PID file for testing
-    $pidFilePath = sys_get_temp_dir() . '/fuel-test-' . uniqid() . '.pid';
+    $pidFilePath = sys_get_temp_dir().'/fuel-test-'.uniqid().'.pid';
     $pidData = [
         'pid' => 12345,
         'port' => 9876,
@@ -48,6 +48,7 @@ it('sends type command to daemon with selector', function () {
         expect($cmd->ref)->toBeNull();
         expect($cmd->delay)->toBe(0);
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -65,6 +66,7 @@ it('sends type command to daemon with selector', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -99,6 +101,7 @@ it('sends type command to daemon with element ref', function () {
         expect($cmd->ref)->toBe('@e5');
         expect($cmd->delay)->toBe(0);
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -116,6 +119,7 @@ it('sends type command to daemon with element ref', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -149,6 +153,7 @@ it('supports delay option for typing', function () {
         expect($cmd->text)->toBe('Slow typing');
         expect($cmd->delay)->toBe(100);
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -166,6 +171,7 @@ it('supports delay option for typing', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -197,6 +203,7 @@ it('truncates long text in output', function () {
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch, $longText) {
         expect($cmd->text)->toBe($longText);
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -214,6 +221,7 @@ it('truncates long text in output', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -227,7 +235,7 @@ it('truncates long text in output', function () {
         'selector' => 'input',
         'text' => $longText,
     ])
-        ->expectsOutputToContain(str_repeat('a', 47) . '...')
+        ->expectsOutputToContain(str_repeat('a', 47).'...')
         ->assertExitCode(0);
 });
 
@@ -242,6 +250,7 @@ it('outputs JSON when --json flag is provided', function () {
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -259,6 +268,7 @@ it('outputs JSON when --json flag is provided', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();

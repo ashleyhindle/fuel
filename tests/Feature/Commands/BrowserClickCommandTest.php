@@ -7,7 +7,7 @@ use App\Services\ConsumeIpcClient;
 
 beforeEach(function () {
     // Create a temporary PID file for testing
-    $pidFilePath = sys_get_temp_dir() . '/fuel-test-' . uniqid() . '.pid';
+    $pidFilePath = sys_get_temp_dir().'/fuel-test-'.uniqid().'.pid';
     $pidData = [
         'pid' => 12345,
         'port' => 9876,
@@ -46,6 +46,7 @@ it('sends click command to daemon with selector', function () {
         expect($cmd->selector)->toBe('button#submit');
         expect($cmd->ref)->toBeNull();
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -63,6 +64,7 @@ it('sends click command to daemon with selector', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -94,6 +96,7 @@ it('sends click command to daemon with element ref', function () {
         expect($cmd->selector)->toBeNull();
         expect($cmd->ref)->toBe('@e2');
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -111,6 +114,7 @@ it('sends click command to daemon with element ref', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -138,6 +142,7 @@ it('outputs JSON when --json flag is provided', function () {
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -155,6 +160,7 @@ it('outputs JSON when --json flag is provided', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -186,6 +192,7 @@ it('handles daemon errors gracefully', function () {
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
         $requestIdToMatch = $cmd->requestId();
+
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
@@ -203,6 +210,7 @@ it('handles daemon errors gracefully', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();

@@ -1054,6 +1054,21 @@ describe('consume command options and aliases', function (): void {
         expect($definition->hasOption('resume'))->toBeTrue();
         expect($definition->hasOption('unpause'))->toBeTrue();
     });
+
+    it('accepts --port option', function (): void {
+        $command = Artisan::all()['consume'];
+        $definition = $command->getDefinition();
+
+        expect($definition->hasOption('port'))->toBeTrue();
+    });
+
+    it('accepts --ip option', function (): void {
+        $command = Artisan::all()['consume'];
+        $definition = $command->getDefinition();
+
+        expect($definition->hasOption('ip'))->toBeTrue();
+        expect($definition->getOption('ip')->getDefault())->toBe('127.0.0.1');
+    });
 });
 
 describe('consume command task card display', function (): void {

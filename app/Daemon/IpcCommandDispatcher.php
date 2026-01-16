@@ -181,12 +181,14 @@ final readonly class IpcCommandDispatcher
         callable $onRequestBlockedTasks,
         callable $onRequestCompletedTasks,
     ): void {
-        // Debug: Log incoming command
+        // Debug: Log incoming command with client and instance info for tracing
         @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
-            "[%s] IpcCommandDispatcher received: type=%s, class=%s\n",
+            "[%s] IpcCommandDispatcher received: type=%s, class=%s, clientId=%s, instanceId=%s\n",
             date('H:i:s'),
             $message->type(),
-            get_class($message)
+            get_class($message),
+            $clientId,
+            $message->instanceId()
         ), FILE_APPEND);
 
         // Handle commands based on message type
@@ -270,6 +272,15 @@ final readonly class IpcCommandDispatcher
      */
     private function handleStopCommand(IpcMessage $message, callable $onStop): void
     {
+        // Log stop command with full context for debugging rogue stop sources
+        @file_put_contents(getcwd().'/.fuel/browser-debug.log', sprintf(
+            "[%s] *** STOP COMMAND RECEIVED *** instanceId=%s, mode=%s, timestamp=%s\n",
+            date('H:i:s'),
+            $message->instanceId(),
+            $message instanceof StopCommand ? $message->mode : 'unknown',
+            $message->timestamp()->format('H:i:s.u')
+        ), FILE_APPEND);
+
         // Cast to StopCommand to access mode property
         if ($message instanceof StopCommand) {
             $graceful = $message->mode === 'graceful';

@@ -486,3 +486,81 @@ it('throws exception when approving non-existent epic', function (): void {
 it('throws exception when rejecting non-existent epic', function (): void {
     $this->service->rejectEpic('e-000000');
 })->throws(RuntimeException::class, "Epic 'e-000000' not found");
+
+// =============================================================================
+// pause() Method Tests
+// =============================================================================
+
+it('pause() sets paused_at timestamp on epic', function (): void {
+    $epic = $this->service->createEpic('Epic to pause', 'Description');
+
+    $paused = $this->service->pause($epic->short_id);
+
+    expect($paused)->toBeInstanceOf(Epic::class);
+    expect($paused->paused_at)->not->toBeNull();
+    expect($paused->status)->toBe(EpicStatus::Paused);
+    expect($paused->title)->toBe('Epic to pause');
+    expect($paused->description)->toBe('Description');
+});
+
+it('pause() works with partial ID', function (): void {
+    $epic = $this->service->createEpic('Epic to pause');
+    $partialId = substr((string) $epic->short_id, 2, 3);
+
+    $paused = $this->service->pause($partialId);
+
+    expect($paused->short_id)->toBe($epic->short_id);
+    expect($paused->paused_at)->not->toBeNull();
+    expect($paused->status)->toBe(EpicStatus::Paused);
+});
+
+it('pause() is idempotent (can pause already paused epic)', function (): void {
+    $epic = $this->service->createEpic('Already paused');
+
+    // Pause once
+    $first = $this->service->pause($epic->short_id);
+    $firstPausedAt = $first->paused_at;
+
+    // Pause again
+    $second = $this->service->pause($epic->short_id);
+
+    expect($second->paused_at)->not->toBeNull();
+    expect($second->status)->toBe(EpicStatus::Paused);
+});
+
+it('pause() throws exception when epic not found', function (): void {
+    $this->service->pause('e-nonexistent');
+})->throws(RuntimeException::class, "Epic 'e-nonexistent' not found");
+
+it('pause() persists paused status to database', function (): void {
+    $epic = $this->service->createEpic('Epic to pause');
+
+    $this->service->pause($epic->short_id);
+
+    // Reload from database
+    $reloaded = $this->service->getEpic($epic->short_id);
+    expect($reloaded->paused_at)->not->toBeNull();
+    expect($reloaded->status)->toBe(EpicStatus::Paused);
+});
+
+it('paused epic status overrides computed status from tasks', function (): void {
+    $epic = $this->service->createEpic('Paused epic with tasks');
+
+    // Create some tasks
+    $task1 = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
+    $task2 = $this->taskService->create(['title' => 'Task 2', 'epic_id' => $epic->short_id]);
+
+    // Complete tasks (would normally make epic completed)
+    $this->taskService->done($task1->short_id);
+    $this->taskService->done($task2->short_id);
+
+    // Pause the epic
+    $paused = $this->service->pause($epic->short_id);
+
+    // Status should be Paused, not Completed
+    expect($paused->status)->toBe(EpicStatus::Paused);
+
+    // Verify it persists
+    $reloaded = $this->service->getEpic($epic->short_id);
+    expect($reloaded->status)->toBe(EpicStatus::Paused);
+});

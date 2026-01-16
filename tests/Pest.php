@@ -25,6 +25,7 @@ use Tests\TestCase;
 
 uses(TestCase::class)->in('Feature');
 uses(TestCase::class)->in('Unit');
+// E2E tests use their own BrowserE2ETestCase via uses() in each test file
 
 /*
 |--------------------------------------------------------------------------
