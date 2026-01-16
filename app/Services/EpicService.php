@@ -145,6 +145,29 @@ class EpicService
         return $epic;
     }
 
+    /**
+     * Unpause an epic (clear paused_at, status returns to in_progress).
+     */
+    public function unpause(string $id): Epic
+    {
+        $epic = Epic::findByPartialId($id);
+        if (! $epic instanceof Epic) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $now = Carbon::now('UTC')->toIso8601String();
+
+        // Clear paused_at to unpause
+        $epic->update([
+            'paused_at' => null,
+            'updated_at' => $now,
+        ]);
+        $epic->refresh();
+        $epic->status = $this->getEpicStatus($epic->short_id);
+
+        return $epic;
+    }
+
     public function markAsReviewed(string $id): Epic
     {
         $epic = Epic::findByPartialId($id);

@@ -300,6 +300,14 @@ class TaskService
     }
 
     /**
+     * Unpause a task (paused -> open).
+     */
+    public function unpause(string $id): Task
+    {
+        return $this->update($id, ['status' => TaskStatus::Open->value]);
+    }
+
+    /**
      * Defer a task to backlog (any status -> someday).
      */
     public function defer(string $id): Task
