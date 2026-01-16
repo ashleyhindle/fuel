@@ -12,8 +12,8 @@ Improve browser commands to match Vercel agent-browser patterns: accessibility s
 - [x] `browser:text`, `browser:html` query commands
 - [x] `browser:wait` command for selector/URL/text
 - [x] Element ref support (daemon-side memory, resolve @e1 to locator)
-- [ ] Updated skill documentation in `resources/skills/fuel-browser/SKILL.md`
-- [x] All new commands have feature tests (in progress: click, fill done; type, text, html, wait remaining)
+- [x] Updated skill documentation in `resources/skills/fuel-browser/SKILL.md`
+- [x] All new commands have feature tests (click, fill, type, text, html, wait all complete)
 
 ---
 
@@ -251,6 +251,8 @@ Add sections for:
 - Iteration 11: Added feature tests for browser:click and browser:fill commands
 - Iteration 12: Added feature test for browser:type command with selector, ref, delay, and JSON output support
 - Iteration 13: Added feature test for browser:text command and fixed namespace import bugs in BrowserTextCommand and BrowserHtmlCommand
+- Iteration 14: Added feature test for browser:html command and fixed critical bugs in both browser:text and browser:html commands (port passing, IPC interface implementation, response handling)
+- Iteration 15: Updated skill documentation in resources/skills/fuel-browser/SKILL.md with comprehensive documentation for all new browser commands, including element ref usage examples, 4 workflow patterns for AI agents, and best practices tips
 
 ## Implementation Notes
 
