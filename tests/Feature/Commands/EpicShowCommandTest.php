@@ -26,6 +26,7 @@ beforeEach(function (): void {
     $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
         $this->app->make(TaskService::class)
     ));
+    $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
 
     $this->databaseService = $this->app->make(DatabaseService::class);
 });
@@ -355,5 +356,110 @@ describe('epic:show command', function (): void {
         expect($output)->toContain('blocked');
         expect($output)->toContain($blockedTask->short_id);
         expect($output)->toContain('Blocked Task');
+    });
+
+    it('shows epic cost when tasks have runs with costs', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(RunService::class);
+
+        // Create epic with tasks
+        $epic = $epicService->createEpic('Epic with costs', 'Epic that has costs');
+
+        $task1 = $taskService->create([
+            'title' => 'Task 1',
+            'epic_id' => $epic->id,
+        ]);
+        $task2 = $taskService->create([
+            'title' => 'Task 2',
+            'epic_id' => $epic->id,
+        ]);
+
+        // Create runs with costs for the tasks
+        $runService->logRun($task1->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.5,
+            'output' => 'Run 1',
+        ]);
+        $runService->logRun($task1->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.25,
+            'output' => 'Run 2',
+        ]);
+        $runService->logRun($task2->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 1.0,
+            'output' => 'Run 3',
+        ]);
+
+        $this->artisan('epic:show', ['id' => $epic->short_id])
+            ->expectsOutputToContain('Cost: $1.7500')  // 0.5 + 0.25 + 1.0
+            ->assertExitCode(0);
+    });
+
+    it('does not show epic cost when no tasks have cost data', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(RunService::class);
+
+        // Create epic with tasks but no costs
+        $epic = $epicService->createEpic('Epic without costs', 'Epic that has no costs');
+
+        $task = $taskService->create([
+            'title' => 'Task without cost',
+            'epic_id' => $epic->id,
+        ]);
+
+        // Create run without cost
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => null,
+            'output' => 'Run without cost',
+        ]);
+
+        Artisan::call('epic:show', ['id' => $epic->short_id]);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Cost:');
+    });
+
+    it('includes epic cost in JSON output', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(RunService::class);
+
+        // Create epic with tasks
+        $epic = $epicService->createEpic('Epic with costs', 'Epic that has costs');
+
+        $task = $taskService->create([
+            'title' => 'Task 1',
+            'epic_id' => $epic->id,
+        ]);
+
+        // Create runs with costs
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 2.5,
+            'output' => 'Run 1',
+        ]);
+
+        Artisan::call('epic:show', ['id' => $epic->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $json = json_decode($output, true);
+
+        expect($json)->toHaveKey('cost_usd');
+        expect($json['cost_usd'])->toBe(2.5);
+    });
+
+    it('does not include cost in JSON when epic has no cost data', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+
+        $epic = $epicService->createEpic('Epic without costs', 'Epic that has no costs');
+
+        Artisan::call('epic:show', ['id' => $epic->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $json = json_decode($output, true);
+
+        expect($json)->not->toHaveKey('cost_usd');
     });
 });

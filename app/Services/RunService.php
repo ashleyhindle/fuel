@@ -464,6 +464,51 @@ class RunService
     }
 
     /**
+     * Get the total cost in USD for a task by summing all its runs' costs.
+     *
+     * @param  string  $taskId  Task ID
+     * @return float|null Total cost in USD, or null if no cost data
+     */
+    public function getTaskCost(string $taskId): ?float
+    {
+        // Resolve task short_id to integer id
+        $taskIntId = $this->resolveTaskId($taskId);
+        if ($taskIntId === null) {
+            return null;
+        }
+
+        $totalCost = Run::where('task_id', $taskIntId)
+            ->whereNotNull('cost_usd')
+            ->sum('cost_usd');
+
+        return $totalCost > 0 ? (float) $totalCost : null;
+    }
+
+    /**
+     * Get the total cost in USD for an epic by summing all its tasks' runs' costs.
+     *
+     * @param  int  $epicId  Epic integer ID
+     * @return float|null Total cost in USD, or null if no cost data
+     */
+    public function getEpicCost(int $epicId): ?float
+    {
+        // Get all task IDs for this epic
+        $taskIds = DB::table('tasks')
+            ->where('epic_id', $epicId)
+            ->pluck('id');
+
+        if ($taskIds->isEmpty()) {
+            return null;
+        }
+
+        $totalCost = Run::whereIn('task_id', $taskIds)
+            ->whereNotNull('cost_usd')
+            ->sum('cost_usd');
+
+        return $totalCost > 0 ? (float) $totalCost : null;
+    }
+
+    /**
      * Resolve a task short_id to its integer id.
      *
      * @param  string  $taskShortId  The task short_id (e.g., 'f-xxxxxx')

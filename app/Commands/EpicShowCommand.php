@@ -78,6 +78,13 @@ class EpicShowCommand extends Command
                 }, $sortedTasks);
                 $epicArray['task_count'] = $totalCount;
                 $epicArray['completed_count'] = $completedCount;
+
+                // Include cost in JSON output
+                $epicCost = $runService->getEpicCost($epic->id);
+                if ($epicCost !== null) {
+                    $epicArray['cost_usd'] = $epicCost;
+                }
+
                 $this->outputJson($epicArray);
 
                 return self::SUCCESS;
@@ -96,6 +103,12 @@ class EpicShowCommand extends Command
 
             if (isset($epic->description) && $epic->description !== null) {
                 $this->line('  Description: '.$epic->description);
+            }
+
+            // Display cost if available
+            $epicCost = $runService->getEpicCost($epic->id);
+            if ($epicCost !== null) {
+                $this->line(sprintf('  Cost: $%.4f', $epicCost));
             }
 
             $this->line('  Created: '.($epic->created_at ?? ''));
