@@ -34,6 +34,10 @@ fuel consume
 
 This displays a live Kanban board and spawns agents for each ready task based on the complexity routing in `.fuel/config.yaml`.
 
+### Remote Visualization
+
+Connect to a remote Fuel daemon with `fuel consume --ip=192.168.1.100 --port=9400` to view and control tasks running on another machine.
+
 ### Agent Permissions
 
 **All drivers include autonomous mode by default** - they skip permission prompts to enable headless execution during `fuel consume`, for example with `--dangerously-skip-permissions`.
