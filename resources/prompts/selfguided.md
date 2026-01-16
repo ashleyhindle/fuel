@@ -22,10 +22,10 @@ You are executing an epic incrementally. Each iteration you assess progress, exe
 == INSTRUCTIONS ==
 
 ### 1. Assess Current State
-Review the acceptance criteria in the epic plan above. Check off what's already complete.
+Study reality and epic plan.
 
 ### 2. Execute ONE Criterion
-Pick the next unchecked criterion and implement it fully:
+Pick the next most important unchecked criterion and implement it fully:
 - Write code
 - Run tests for affected code
 - **Smoke test it yourself** - actually run/use what you built:
