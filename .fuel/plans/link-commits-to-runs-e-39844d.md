@@ -35,9 +35,11 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 - ✅ Keep existing behavior of storing on task for backward compatibility
 - ✅ Gracefully handles case where no run exists (standalone tasks without daemon)
 
-### 5. Update selfguided.md prompt
-- Update the prompt to instruct agents to use `--commit` with `selfguided:continue`
-- Format: `fuel selfguided:continue <id> --commit=<hash> --notes='Progress'`
+### 5. Update selfguided.md prompt ✅
+- ✅ Update the prompt to instruct agents to use `--commit` with `selfguided:continue`
+- ✅ Format: `fuel selfguided:continue <id> --commit=<hash> --notes='Progress'`
+- ✅ Updated version tag to version 3
+- ✅ Added clear instruction that agents must pass --commit flag to track per-iteration commits
 
 ## Files to Modify
 
@@ -47,7 +49,7 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 | `app/Services/RunService.php` | ✅ Handle commit_hash in update methods |
 | `app/Commands/SelfGuidedContinueCommand.php` | ✅ Add --commit flag, update run |
 | `app/Commands/DoneCommand.php` | ✅ Also store commit_hash on latest run |
-| `resources/prompts/selfguided.md` | Update prompt with new flag usage |
+| `resources/prompts/selfguided.md` | ✅ Update prompt with new flag usage |
 | `tests/Unit/Services/RunServiceTest.php` | Test commit_hash handling |
 | `tests/Feature/Commands/SelfGuidedContinueCommandTest.php` | Test --commit flag |
 

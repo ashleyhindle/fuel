@@ -1,4 +1,4 @@
-<fuel-prompt version="2" />
+<fuel-prompt version="3" />
 
 == SELF-GUIDED EPIC EXECUTION ==
 Iteration {{ iteration }} of {{ max_iterations }}
@@ -61,8 +61,10 @@ fuel done {{ task.short_id }} --commit=[hash from step 3]
 
 **More work to do?**
 ```bash
-fuel selfguided:continue {{ task.short_id }} --notes='Completed X, next is Y'
+fuel selfguided:continue {{ task.short_id }} --commit=[git_hash] --notes='Progress summary'
 ```
+
+**IMPORTANT:** Always pass the `--commit` flag with the commit hash from step 3. This tracks which commit was made in this iteration, enabling proper commit history across selfguided task iterations.
 
 **Stuck or need human input?**
 ```bash
