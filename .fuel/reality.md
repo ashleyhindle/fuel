@@ -19,7 +19,7 @@
 
 ## Entry Points
 - `fuel` binary at root - CLI entry point
-- 61 commands in `app/Commands/`: task mgmt (`add`, `start`, `done`, `ready`), epics (`epic:add`, `epic:show`), daemon (`consume`), deps (`dep:add`), browser automation (`browser:create`, `browser:goto`, `browser:screenshot`, etc.)
+- 62 commands in `app/Commands/`: task mgmt (`add`, `start`, `done`, `ready`, `unpause`), epics (`epic:add`, `epic:show`), daemon (`consume`), deps (`dep:add`), browser automation (`browser:create`, `browser:goto`, `browser:screenshot`, etc.)
 
 ## Patterns
 - **Strict types** - All files declare `strict_types=1` (enforced by Rector)
@@ -43,10 +43,10 @@
 | Test Coverage | `composer test:coverage` | Min 60% coverage |
 
 ## Recent Changes
+- 2026-01-16: Added `fuel unpause` command to resume paused tasks/epics
 - 2026-01-16: Added browser automation integration - 7 browser:* commands, BrowserDaemonManager, IPC browser protocol
 - 2026-01-15: Added `fuel close` command to mark tasks closed (reason `closed`)
 - 2026-01-15: Added in-progress tasks display to `fuel status` command (task ID, title, agent, runtime, complexity, epic)
 - 2026-01-15: Improved `fuel init` output - now directs to config.yaml + consume workflow
-- 2026-01-15: Initialized reality.md with codebase architecture index
 
 _Last updated: 2026-01-16 by UpdateReality_

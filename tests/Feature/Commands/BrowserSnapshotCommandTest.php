@@ -58,6 +58,7 @@ it('sends snapshot command to daemon', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -97,7 +98,7 @@ it('sends snapshot command with interactive-only flag', function () {
                     success: true,
                     result: [
                         'snapshot' => [
-                            'text' => "- button \"Submit\" [ref=@e1]",
+                            'text' => '- button "Submit" [ref=@e1]',
                             'refCount' => 1,
                         ],
                     ],
@@ -109,6 +110,7 @@ it('sends snapshot command with interactive-only flag', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -154,6 +156,7 @@ it('outputs JSON when --json flag is provided', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -194,6 +197,7 @@ it('handles empty snapshot gracefully', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
@@ -232,6 +236,7 @@ it('handles daemon errors gracefully', function () {
                 ),
             ];
         }
+
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();

@@ -186,6 +186,10 @@ final readonly class BrowserCommandHandler
                     $options['timeout'] = $message->timeout;
                 }
 
+                if ($message->html) {
+                    $options['html'] = true;
+                }
+
                 // Navigate to URL
                 $result = $this->browserManager->goto($message->pageId, $message->url, $options);
 

@@ -49,28 +49,13 @@ it('sends text command with selector to daemon', function () {
     $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
         new BrowserResponseEvent(
             success: true,
-            result: null,
+            result: ['text' => 'Welcome to Example'],
             error: null,
             errorCode: null,
             timestamp: new DateTimeImmutable,
             instanceId: 'test-instance-id',
             requestId: $requestIdToMatch
         ),
-    ]);
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
-
-            public $error = null;
-
-            public $data = ['text' => 'Welcome to Example'];
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
     ]);
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -100,19 +85,15 @@ it('sends text command with element ref to daemon', function () {
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
-
-            public $error = null;
-
-            public $data = ['text' => 'Button Text'];
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
+        new BrowserResponseEvent(
+            success: true,
+            result: ['text' => 'Button Text'],
+            error: null,
+            errorCode: null,
+            timestamp: new DateTimeImmutable,
+            instanceId: 'test-instance-id',
+            requestId: $requestIdToMatch
+        ),
     ]);
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -138,19 +119,15 @@ it('outputs JSON when json flag is provided', function () {
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
-
-            public $error = null;
-
-            public $data = ['text' => 'Test Content'];
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
+        new BrowserResponseEvent(
+            success: true,
+            result: ['text' => 'Test Content'],
+            error: null,
+            errorCode: null,
+            timestamp: new DateTimeImmutable,
+            instanceId: 'test-instance-id',
+            requestId: $requestIdToMatch
+        ),
     ]);
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -162,7 +139,8 @@ it('outputs JSON when json flag is provided', function () {
         '--json' => true,
     ])
         ->expectsOutput(json_encode([
-            'text' => 'Test Content',
+            'success' => true,
+            'data' => ['text' => 'Test Content'],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES))
         ->assertExitCode(0);
 });
@@ -179,19 +157,15 @@ it('handles error responses from daemon', function () {
         return true;
     });
     $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new class($requestIdToMatch)
-        {
-            public $requestId;
-
-            public $error = 'Element not found: .nonexistent';
-
-            public $data = null;
-
-            public function __construct($requestId)
-            {
-                $this->requestId = $requestId;
-            }
-        },
+        new BrowserResponseEvent(
+            success: false,
+            result: null,
+            error: 'Element not found: .nonexistent',
+            errorCode: 'ELEMENT_NOT_FOUND',
+            timestamp: new DateTimeImmutable,
+            instanceId: 'test-instance-id',
+            requestId: $requestIdToMatch
+        ),
     ]);
     $ipcClient->shouldReceive('disconnect')->once();
 

@@ -1,4 +1,4 @@
-<fuel-prompt version="4" />
+<fuel-prompt version="1" />
 
 == SELF-GUIDED EPIC EXECUTION ==
 Iteration {{ iteration }} of {{ max_iterations }}
@@ -22,10 +22,10 @@ You are executing an epic incrementally. Each iteration you assess progress, exe
 == INSTRUCTIONS ==
 
 ### 1. Assess Current State
-Study reality and epic plan.
+Review the acceptance criteria in the epic plan above. Check off what's already complete.
 
 ### 2. Execute ONE Criterion
-Pick the next most important unchecked criterion and implement it fully:
+Pick the next unchecked criterion and implement it fully:
 - Write code
 - Run tests for affected code
 - **Smoke test it yourself** - actually run/use what you built:
@@ -33,7 +33,6 @@ Pick the next most important unchecked criterion and implement it fully:
   - Web feature? Load it in browser
   - API endpoint? Call it with curl
   - Library code? Write a quick test script
-  - Figure out a safe way to use it
 - Fix any issues found
 
 You MUST execute only one task / criterion. Do not implement everything.
@@ -62,10 +61,8 @@ fuel done {{ task.short_id }} --commit=[hash from step 3]
 
 **More work to do?**
 ```bash
-fuel selfguided:continue {{ task.short_id }} --commit=[git_hash] --notes='Progress summary'
+fuel selfguided:continue {{ task.short_id }} --notes='Completed X, next is Y'
 ```
-
-**IMPORTANT:** Always pass the `--commit` flag with the commit hash from step 3. This tracks which commit was made in this iteration, enabling proper commit history across selfguided task iterations.
 
 **Stuck or need human input?**
 ```bash
@@ -79,7 +76,6 @@ Before marking any criterion complete:
 - [ ] Code has no errors
 - [ ] Relevant tests pass
 - [ ] **You ran/used the feature and it actually works** (not just tests!)
-- [ ] Other quality gates passed
 - [ ] Formatters ran
 - [ ] Style checkers ran
 - [ ] Browser tests verified (if web page)

@@ -307,7 +307,9 @@ describe('Browser Integration Tests', { skip: process.env.CI }, () => {
 
   it('should create context and page', async () => {
     // Create context
+    contextId = 'integration-test-' + Date.now();
     const ctxResponse = await client.request('newContext', {
+      contextId,
       session: 'integration-test',
       viewport: { width: 1280, height: 720 },
       userAgent: 'Test Browser',
@@ -315,7 +317,7 @@ describe('Browser Integration Tests', { skip: process.env.CI }, () => {
       colorScheme: 'dark'
     });
     expect(ctxResponse.ok).toBe(true);
-    contextId = ctxResponse.result.contextId;
+    expect(ctxResponse.result.contextId).toBe(contextId);
 
     // Create page
     pageId = 'test-page-' + Date.now();
