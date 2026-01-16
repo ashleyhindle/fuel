@@ -69,8 +69,8 @@ class TasksCommand extends Command
             $tasks = $tasks->filter(fn (Task $t): bool => ($t->selfguided_iteration ?? 0) > 0);
         }
 
-        // Sort by created_at
-        $tasks = $tasks->sortBy('created_at')->values();
+        // Sort by updated_at descending (most recent first)
+        $tasks = $tasks->sortByDesc('updated_at')->values();
 
         // Apply limit
         if ($limit = $this->option('limit')) {

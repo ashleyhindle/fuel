@@ -40,17 +40,35 @@ class ReadyCommand extends Command
             $terminalWidth = $this->getTerminalWidth();
 
             $table = new Table;
+
+            // Column priorities: lower = more important, higher gets dropped first
+            $columnPriorities = [
+                1,  // ID - keep
+                1,  // Title - keep
+                3,  // Complexity - drop if needed
+                2,  // Epic - keep if possible
+                4,  // Created - drop first
+            ];
+
             $table->render(
                 ['ID', 'Title', 'Complexity', 'Epic', 'Created'],
-                $tasks->map(fn (Task $t): array => [
-                    $t->short_id,
-                    ($t->agent === 'selfguided' ? '∞ ' : '').$t->title,
-                    $t->complexity ?? '-',
-                    $t->epic?->title ?? '-',
-                    $this->formatDate((string) $t->created_at),
-                ])->toArray(),
+                $tasks->map(function (Task $t): array {
+                    // Get first line of title, then truncate if needed
+                    $title = strtok($t->title, "\r\n") ?: $t->title;
+                    if (mb_strlen($title) > 60) {
+                        $title = mb_substr($title, 0, 57).'...';
+                    }
+
+                    return [
+                        $t->short_id,
+                        ($t->agent === 'selfguided' ? '∞ ' : '').$title,
+                        $t->complexity ?? '-',
+                        $t->epic?->title ?? '-',
+                        $this->formatDate((string) $t->created_at),
+                    ];
+                })->toArray(),
                 $this->output,
-                [],
+                $columnPriorities,
                 $terminalWidth
             );
         }

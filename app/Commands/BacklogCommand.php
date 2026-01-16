@@ -61,6 +61,9 @@ class BacklogCommand extends Command
 
     private function truncateTitle(string $title, int $maxWidth): string
     {
+        // Get first line only
+        $title = strtok($title, "\r\n") ?: $title;
+
         // Use mb_strwidth for accurate width calculation (handles emoji, multibyte chars)
         if (mb_strwidth($title) <= $maxWidth) {
             return $title;
