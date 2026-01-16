@@ -1,9 +1,6 @@
 <?php
 
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
-use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -13,56 +10,7 @@ use Illuminate\Support\Facades\Artisan;
 
 describe('human command', function (): void {
     beforeEach(function (): void {
-        $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-
-        $context = new FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-        $this->dbPath = $context->getDatabasePath();
-
-        $context->configureDatabase();
-        $databaseService = new DatabaseService($context->getDatabasePath());
-        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-        Artisan::call('migrate', ['--force' => true]);
-
-        $taskService = makeTaskService();
-        $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
-        $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($taskService));
-
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
-        $this->taskService = $taskService;
-    });
-
-    afterEach(function (): void {
-        $deleteDir = function (string $dir) use (&$deleteDir): void {
-            if (! is_dir($dir)) {
-                return;
-            }
-
-            $items = scandir($dir);
-            foreach ($items as $item) {
-                if ($item === '.') {
-                    continue;
-                }
-
-                if ($item === '..') {
-                    continue;
-                }
-
-                $path = $dir.'/'.$item;
-                if (is_dir($path)) {
-                    $deleteDir($path);
-                } elseif (file_exists($path)) {
-                    unlink($path);
-                }
-            }
-
-            rmdir($dir);
-        };
-
-        $deleteDir($this->tempDir);
+        $this->taskService = app(TaskService::class);
     });
 
     it('shows empty when no tasks with needs-human label', function (): void {

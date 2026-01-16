@@ -38,5 +38,20 @@ $this->setConfig($customYaml);
 
 **Key Decision:** setConfig() resets ConfigService using the same pattern as setUp() - it forgets the instance, creates a new ConfigService with testContext, and rebinds it. This ensures consistency with the test isolation pattern.
 
+### Batch 3: Epics-Init Tests Migrated (f-8fc3db)
+Migrated 9 test files to use TestCase's `$this->testDir`:
+
+1. **EpicsCommandTest.php** - Removed file-level and describe-level beforeEach/afterEach
+2. **EpicShowCommandTest.php** - Removed file-level and describe-level beforeEach/afterEach
+3. **EpicUpdateCommandTest.php** - Kept beforeEach for `$this->epicService` assignment only
+4. **GuidelinesCommandTest.php** - Kept beforeEach for AGENTS.md cleanup, changed tempDir→testDir
+5. **HealthCommandTest.php** - Simplified to just get tracker from container
+6. **HealthResetCommandTest.php** - Simplified to just get tracker from container
+7. **HumanCommandTest.php** - Kept beforeEach for taskService assignment
+8. **InitCommandTest.php (Commands/)** - Kept beforeEach for taskService/dbPath
+9. **InitCommandTest.php (Feature/)** - Removed all beforeEach/afterEach
+
+**Pattern established:** Tests that need specific service instances can use `app(ServiceClass::class)` in a minimal beforeEach. The TestCase handles all temp directory creation, database setup, and cleanup.
+
 ## Interfaces Created
 None - added helper methods to existing TestCase class.

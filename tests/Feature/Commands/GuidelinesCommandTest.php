@@ -1,9 +1,5 @@
 <?php
 
-use App\Services\DatabaseService;
-use App\Services\FuelContext;
-use App\Services\RunService;
-use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
 uses()->group('feature');
@@ -13,59 +9,8 @@ uses()->group('feature');
 
 describe('guidelines command', function (): void {
     beforeEach(function (): void {
-        $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-
-        $context = new FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-        $this->dbPath = $context->getDatabasePath();
-
-        $context->configureDatabase();
-        $databaseService = new DatabaseService($context->getDatabasePath());
-        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-        Artisan::call('migrate', ['--force' => true]);
-
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
-
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
-        $this->taskService = $this->app->make(TaskService::class);
-    });
-
-    afterEach(function (): void {
-        $deleteDir = function (string $dir) use (&$deleteDir): void {
-            if (! is_dir($dir)) {
-                return;
-            }
-
-            $items = scandir($dir);
-            foreach ($items as $item) {
-                if ($item === '.') {
-                    continue;
-                }
-
-                if ($item === '..') {
-                    continue;
-                }
-
-                $path = $dir.'/'.$item;
-                if (is_dir($path)) {
-                    $deleteDir($path);
-                } elseif (file_exists($path)) {
-                    unlink($path);
-                }
-            }
-
-            rmdir($dir);
-        };
-
-        $deleteDir($this->tempDir);
-    });
-
-    beforeEach(function (): void {
-        // Clean up AGENTS.md in tempDir before each test
-        $agentsMdPath = $this->tempDir.'/AGENTS.md';
+        // Clean up AGENTS.md in testDir before each test
+        $agentsMdPath = $this->testDir.'/AGENTS.md';
         if (file_exists($agentsMdPath)) {
             unlink($agentsMdPath);
         }
@@ -80,8 +25,8 @@ describe('guidelines command', function (): void {
     });
 
     it('creates AGENTS.md and CLAUDE.md when they do not exist with --add flag', function (): void {
-        $agentsMdPath = $this->tempDir.'/AGENTS.md';
-        $claudeMdPath = $this->tempDir.'/CLAUDE.md';
+        $agentsMdPath = $this->testDir.'/AGENTS.md';
+        $claudeMdPath = $this->testDir.'/CLAUDE.md';
 
         expect(file_exists($agentsMdPath))->toBeFalse();
         expect(file_exists($claudeMdPath))->toBeFalse();
@@ -105,7 +50,7 @@ describe('guidelines command', function (): void {
     });
 
     it('replaces existing <fuel> section in AGENTS.md with --add flag', function (): void {
-        $agentsMdPath = $this->tempDir.'/AGENTS.md';
+        $agentsMdPath = $this->testDir.'/AGENTS.md';
         $oldContent = "# Agent Instructions\n\n<fuel>\nOld content here\n</fuel>\n\nSome other content";
         file_put_contents($agentsMdPath, $oldContent);
 
@@ -124,7 +69,7 @@ describe('guidelines command', function (): void {
     });
 
     it('appends <fuel> section when AGENTS.md exists but has no fuel section with --add flag', function (): void {
-        $agentsMdPath = $this->tempDir.'/AGENTS.md';
+        $agentsMdPath = $this->testDir.'/AGENTS.md';
         $existingContent = "# Agent Instructions\n\nSome existing content here";
         file_put_contents($agentsMdPath, $existingContent);
 

@@ -2,42 +2,10 @@
 
 use App\Enums\FailureType;
 use App\Services\AgentHealthTracker;
-use App\Services\DatabaseService;
 use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-    $this->dbPath = $this->tempDir.'/.fuel/agent.db';
-
-    $this->database = new DatabaseService($this->dbPath);
-    config(['database.connections.sqlite.database' => $this->dbPath]);
-    Artisan::call('migrate', ['--force' => true]);
-
-    $this->tracker = new AgentHealthTracker($this->database);
-
-    // Bind our test instances
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $this->database);
-    $this->app->singleton(AgentHealthTracker::class, fn (): AgentHealthTracker => $this->tracker);
-});
-
-afterEach(function (): void {
-    // Clean up temp files - SQLite may create .db-shm and .db-wal files
-    $fuelDir = $this->tempDir.'/.fuel';
-    if (is_dir($fuelDir)) {
-        $files = glob($fuelDir.'/*');
-        foreach ($files as $file) {
-            if (is_file($file)) {
-                unlink($file);
-            }
-        }
-
-        rmdir($fuelDir);
-    }
-
-    if (is_dir($this->tempDir)) {
-        rmdir($this->tempDir);
-    }
+    $this->tracker = app(AgentHealthTracker::class);
 });
 
 it('resets health for specific agent', function (): void {
