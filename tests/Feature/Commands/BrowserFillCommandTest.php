@@ -60,7 +60,7 @@ it('sends fill command to daemon with selector', function () {
                     result: ['message' => 'Filled successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -112,7 +112,7 @@ it('sends fill command to daemon with element ref', function () {
                     result: ['message' => 'Filled successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -159,7 +159,7 @@ it('outputs JSON when --json flag is provided', function () {
                     result: ['message' => 'Filled successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),

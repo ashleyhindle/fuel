@@ -60,7 +60,7 @@ describe('browser:run command', function (): void {
                         result: ['value' => 'Example Domain'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -114,7 +114,7 @@ describe('browser:run command', function (): void {
                         result: null,
                         error: 'Code execution failed',
                         errorCode: 'RUN_ERROR',
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -168,7 +168,7 @@ describe('browser:run command', function (): void {
                         result: ['value' => 'Example Domain'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),

@@ -5,8 +5,6 @@ declare(strict_types=1);
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
-use DateTimeImmutable;
-use Mockery;
 
 beforeEach(function () {
     // Create a temporary PID file for testing
@@ -63,7 +61,7 @@ it('sends html command with selector to daemon for outerHTML', function () {
                     result: ['html' => '<div id="content">Hello World</div>'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -114,7 +112,7 @@ it('sends html command with inner flag for innerHTML', function () {
                     result: ['html' => 'Hello World'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -166,7 +164,7 @@ it('sends html command with element ref to daemon', function () {
                     result: ['html' => '<button>Click Me</button>'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -202,17 +200,25 @@ it('outputs JSON when json flag is provided', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: true,
-            result: ['html' => '<p>Test paragraph</p>'],
-            error: null,
-            errorCode: null,
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
+    $pollCount = 0;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$pollCount) {
+        $pollCount++;
+        if ($pollCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['html' => '<p>Test paragraph</p>'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -244,17 +250,25 @@ it('handles error responses from daemon', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: false,
-            result: null,
-            error: 'Element not found: .missing',
-            errorCode: 'ELEMENT_NOT_FOUND',
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
+    $pollCount = 0;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$pollCount) {
+        $pollCount++;
+        if ($pollCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: false,
+                    result: null,
+                    error: 'Element not found: .missing',
+                    errorCode: 'ELEMENT_NOT_FOUND',
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -311,17 +325,25 @@ it('handles inner flag with element ref', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: true,
-            result: ['html' => 'Inner content only'],
-            error: null,
-            errorCode: null,
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
+    $pollCount = 0;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$pollCount) {
+        $pollCount++;
+        if ($pollCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['html' => 'Inner content only'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 

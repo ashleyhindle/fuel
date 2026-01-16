@@ -61,7 +61,7 @@ it('sends type command to daemon with selector', function () {
                     result: ['message' => 'Typed successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -114,7 +114,7 @@ it('sends type command to daemon with element ref', function () {
                     result: ['message' => 'Typed successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -166,7 +166,7 @@ it('supports delay option for typing', function () {
                     result: ['message' => 'Typed successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -216,7 +216,7 @@ it('truncates long text in output', function () {
                     result: ['message' => 'Typed successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -263,7 +263,7 @@ it('outputs JSON when --json flag is provided', function () {
                     result: ['message' => 'Typed successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),

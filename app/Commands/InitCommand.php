@@ -37,10 +37,9 @@ class InitCommand extends Command
 
     private function doInit(FuelContext $context, TaskService $taskService, ConfigService $configService, SkillService $skillService, PromptService $promptService): int
     {
-        // Use FuelContext as source of truth, --cwd option only overrides if explicitly set
-        if ($this->option('cwd')) {
-            $context->basePath = $this->option('cwd').'/.fuel';
-        }
+        // For init: --cwd uses exact path, otherwise find git root from cwd (ignore existing .fuel)
+        $startDir = $this->option('cwd') ?? getcwd();
+        $context->basePath = $this->findGitRoot($startDir).'/.fuel';
 
         $cwd = $context->getProjectPath();
 
@@ -172,6 +171,31 @@ REALITY;
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Find git root by traversing upward, ignoring existing .fuel directories.
+     */
+    private function findGitRoot(string $startDir): string
+    {
+        $currentDir = $startDir;
+        $maxLevels = 5;
+
+        for ($i = 0; $i < $maxLevels; $i++) {
+            if (is_dir($currentDir.'/.git')) {
+                return $currentDir;
+            }
+
+            $parentDir = dirname($currentDir);
+            if ($parentDir === $currentDir) {
+                break;
+            }
+
+            $currentDir = $parentDir;
+        }
+
+        // No git root found, use starting directory
+        return $startDir;
     }
 
     /**

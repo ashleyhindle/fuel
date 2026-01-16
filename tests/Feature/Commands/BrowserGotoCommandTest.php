@@ -60,7 +60,7 @@ describe('browser:goto command', function (): void {
                         result: ['url' => 'https://example.com'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -114,7 +114,7 @@ describe('browser:goto command', function (): void {
                         result: ['url' => 'https://example.com'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -172,7 +172,7 @@ describe('browser:goto command', function (): void {
                         result: ['url' => 'https://example.com'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -230,7 +230,7 @@ describe('browser:goto command', function (): void {
                         result: null,
                         error: 'Navigation timeout exceeded',
                         errorCode: 'NAVIGATION_TIMEOUT',
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -284,7 +284,7 @@ describe('browser:goto command', function (): void {
                         result: ['url' => 'https://example.com'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),

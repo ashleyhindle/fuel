@@ -62,7 +62,7 @@ describe('browser:create command', function (): void {
                         result: ['contextId' => 'test-ctx'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -118,7 +118,7 @@ describe('browser:create command', function (): void {
                         result: ['contextId' => 'test-ctx', 'viewport' => ['width' => 1920, 'height' => 1080]],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -184,7 +184,7 @@ describe('browser:create command', function (): void {
                         result: null,
                         error: 'Browser context creation failed',
                         errorCode: 'CREATE_FAILED',
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -238,7 +238,7 @@ describe('browser:create command', function (): void {
                         result: ['contextId' => 'test-ctx'],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),

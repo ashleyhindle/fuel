@@ -5,8 +5,6 @@ declare(strict_types=1);
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
-use DateTimeImmutable;
-use Mockery;
 
 beforeEach(function () {
     // Create a temporary PID file for testing
@@ -52,17 +50,25 @@ it('sends text command with selector to daemon', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: true,
-            result: ['text' => 'Welcome to Example'],
-            error: null,
-            errorCode: null,
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
+    $pollCount = 0;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$pollCount) {
+        $pollCount++;
+        if ($pollCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['text' => 'Welcome to Example'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -94,17 +100,25 @@ it('sends text command with element ref to daemon', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: true,
-            result: ['text' => 'Button Text'],
-            error: null,
-            errorCode: null,
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
+    $pollCount = 0;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$pollCount) {
+        $pollCount++;
+        if ($pollCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['text' => 'Button Text'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -132,17 +146,25 @@ it('outputs JSON when json flag is provided', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: true,
-            result: ['text' => 'Test Content'],
-            error: null,
-            errorCode: null,
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
+    $pollCount = 0;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$pollCount) {
+        $pollCount++;
+        if ($pollCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['text' => 'Test Content'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
@@ -174,17 +196,25 @@ it('handles error responses from daemon', function () {
 
         return true;
     });
-    $ipcClient->shouldReceive('pollEvents')->once()->andReturn([
-        new BrowserResponseEvent(
-            success: false,
-            result: null,
-            error: 'Element not found: .nonexistent',
-            errorCode: 'ELEMENT_NOT_FOUND',
-            timestamp: new DateTimeImmutable,
-            instanceId: 'test-instance-id',
-            requestId: $requestIdToMatch
-        ),
-    ]);
+    $pollCount = 0;
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$pollCount) {
+        $pollCount++;
+        if ($pollCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: false,
+                    result: null,
+                    error: 'Element not found: .nonexistent',
+                    errorCode: 'ELEMENT_NOT_FOUND',
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 

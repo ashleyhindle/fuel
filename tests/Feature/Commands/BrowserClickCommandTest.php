@@ -59,7 +59,7 @@ it('sends click command to daemon with selector', function () {
                     result: ['message' => 'Clicked successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -109,7 +109,7 @@ it('sends click command to daemon with element ref', function () {
                     result: ['message' => 'Clicked successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -155,7 +155,7 @@ it('outputs JSON when --json flag is provided', function () {
                     result: ['message' => 'Clicked successfully'],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),
@@ -205,7 +205,7 @@ it('handles daemon errors gracefully', function () {
                     result: null,
                     error: 'Element not found: button#nonexistent',
                     errorCode: 'ELEMENT_NOT_FOUND',
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $requestIdToMatch
                 ),

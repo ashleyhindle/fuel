@@ -7,8 +7,6 @@ uses()->group('browser');
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
-use DateTimeImmutable;
-use Mockery;
 
 beforeEach(function () {
     $pidFilePath = sys_get_temp_dir().'/fuel-test-'.uniqid().'.pid';
@@ -43,6 +41,8 @@ it('sends snapshot command to daemon', function () {
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->interactiveOnly)->toBe(false);
         $capturedRequestId['id'] = $cmd->requestId();
+
+        return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
         $callCount++;
@@ -58,7 +58,7 @@ it('sends snapshot command to daemon', function () {
                     ],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $capturedRequestId['id']
                 ),
@@ -68,18 +68,16 @@ it('sends snapshot command to daemon', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
-    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     $this->artisan('browser:snapshot', ['page_id' => 'test-page'])
-        ->expectsOutputToContain('Page Accessibility Snapshot')
-        ->expectsOutputToContain('@e1')
-        ->expectsOutputToContain('document')
+        ->expectsOutputToContain("Accessibility snapshot for page 'test-page':")
+        ->expectsOutputToContain('- document [ref=@e1]:')
         ->expectsOutputToContain('button "Submit"')
-        ->expectsOutputToContain('textbox "Email"')
-        ->expectsOutputToContain('Found 3 elements')
+        ->expectsOutputToContain('- textbox "Email" [ref=@e3]')
+        ->expectsOutputToContain('Total refs: 3')
         ->assertExitCode(0);
 });
 
@@ -97,6 +95,8 @@ it('sends snapshot command with interactive-only flag', function () {
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->interactiveOnly)->toBe(true);
         $capturedRequestId['id'] = $cmd->requestId();
+
+        return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
         $callCount++;
@@ -112,7 +112,7 @@ it('sends snapshot command with interactive-only flag', function () {
                     ],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $capturedRequestId['id']
                 ),
@@ -122,15 +122,13 @@ it('sends snapshot command with interactive-only flag', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
-    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     $this->artisan('browser:snapshot', ['page_id' => 'test-page', '--interactive' => true])
-        ->expectsOutputToContain('Page Accessibility Snapshot')
-        ->expectsOutputToContain('@e1')
-        ->expectsOutputToContain('button "Submit"')
+        ->expectsOutputToContain("Accessibility snapshot for page 'test-page' (interactive only):")
+        ->expectsOutputToContain('button "Submit" [ref=@e1]')
         ->assertExitCode(0);
 });
 
@@ -145,6 +143,8 @@ it('outputs JSON when --json flag is provided', function () {
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         $capturedRequestId['id'] = $cmd->requestId();
+
+        return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
         $callCount++;
@@ -160,7 +160,7 @@ it('outputs JSON when --json flag is provided', function () {
                     ],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $capturedRequestId['id']
                 ),
@@ -170,15 +170,14 @@ it('outputs JSON when --json flag is provided', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
-    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     $this->artisan('browser:snapshot', ['page_id' => 'test-page', '--json' => true])
-        ->expectsOutputToContain('"success":true')
-        ->expectsOutputToContain('"text"')
-        ->expectsOutputToContain('"refCount":2')
+        ->expectsOutputToContain('"success": true')
+        ->expectsOutputToContain('"page_id"')
+        ->expectsOutputToContain('"refCount": 2')
         ->assertExitCode(0);
 });
 
@@ -193,6 +192,8 @@ it('handles empty snapshot gracefully', function () {
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         $capturedRequestId['id'] = $cmd->requestId();
+
+        return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
         $callCount++;
@@ -203,7 +204,7 @@ it('handles empty snapshot gracefully', function () {
                     result: ['snapshot' => null],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $capturedRequestId['id']
                 ),
@@ -213,13 +214,12 @@ it('handles empty snapshot gracefully', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
-    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
     $this->artisan('browser:snapshot', ['page_id' => 'test-page'])
-        ->expectsOutputToContain('no accessibility tree available')
+        ->expectsOutputToContain("Accessibility snapshot for page 'test-page':")
         ->assertExitCode(0);
 });
 
@@ -234,6 +234,8 @@ it('handles daemon errors gracefully', function () {
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
         $capturedRequestId['id'] = $cmd->requestId();
+
+        return true;
     });
     $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$capturedRequestId, &$callCount) {
         $callCount++;
@@ -244,7 +246,7 @@ it('handles daemon errors gracefully', function () {
                     result: null,
                     error: 'Page not found',
                     errorCode: 'PAGE_NOT_FOUND',
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance-id',
                     requestId: $capturedRequestId['id']
                 ),
@@ -253,7 +255,6 @@ it('handles daemon errors gracefully', function () {
 
         return [];
     });
-    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 

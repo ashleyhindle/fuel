@@ -24,19 +24,19 @@ describe('init command', function (): void {
             File::deleteDirectory($fuelDir);
         }
 
-        Artisan::call('init');
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         expect(is_dir($fuelDir))->toBeTrue();
     });
 
     it('creates agent.db database file', function (): void {
-        Artisan::call('init');
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         expect(file_exists($this->dbPath))->toBeTrue();
     });
 
     it('creates a starter task', function (): void {
-        Artisan::call('init');
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         // Verify database was created with a starter task
         expect(file_exists($this->dbPath))->toBeTrue();
@@ -46,11 +46,11 @@ describe('init command', function (): void {
 
     it('does not create duplicate starter tasks when run multiple times', function (): void {
         // First init
-        Artisan::call('init');
+        Artisan::call('init', ['--cwd' => $this->testDir]);
         $firstTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t): bool => str_contains($t, 'reality.md'))->count();
 
         // Second init
-        Artisan::call('init');
+        Artisan::call('init', ['--cwd' => $this->testDir]);
         $secondTaskCount = $this->taskService->all()->pluck('title')->filter(fn ($t): bool => str_contains($t, 'reality.md'))->count();
 
         // Should have same number of starter tasks
@@ -66,7 +66,7 @@ describe('init command', function (): void {
             unlink($agentsMdPath);
         }
 
-        Artisan::call('init');
+        Artisan::call('init', ['--cwd' => $this->testDir]);
 
         expect(file_exists($agentsMdPath))->toBeTrue();
         $content = file_get_contents($agentsMdPath);
@@ -102,7 +102,7 @@ describe('init command', function (): void {
             File::deleteDirectory($promptsDir);
         }
 
-        $this->artisan('init')
+        $this->artisan('init', ['--cwd' => $this->testDir])
             ->expectsOutputToContain('Wrote 5 new prompts')
             ->assertExitCode(0);
 
@@ -123,7 +123,7 @@ describe('init command', function (): void {
         // Write an outdated prompt (version 0)
         file_put_contents($promptsDir.'/work.md', 'Old prompt without version tag');
 
-        $this->artisan('init')
+        $this->artisan('init', ['--cwd' => $this->testDir])
             ->expectsOutputToContain('outdated')
             ->assertExitCode(0);
 

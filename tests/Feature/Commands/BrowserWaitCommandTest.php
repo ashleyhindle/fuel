@@ -5,8 +5,6 @@ declare(strict_types=1);
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
-use DateTimeImmutable;
-use Mockery;
 
 it('sends wait command with selector to daemon', function () {
     // Create PID file for the test
@@ -48,7 +46,7 @@ it('sends wait command with selector to daemon', function () {
                     ],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance',
                     requestId: $requestIdToMatch
                 ),
@@ -111,7 +109,7 @@ it('sends wait command with URL to daemon', function () {
                     ],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance',
                     requestId: $requestIdToMatch
                 ),
@@ -176,7 +174,7 @@ it('sends wait command with text to daemon', function () {
                     ],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance',
                     requestId: $requestIdToMatch
                 ),
@@ -253,7 +251,7 @@ it('outputs JSON when --json flag is provided', function () {
                     ],
                     error: null,
                     errorCode: null,
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance',
                     requestId: $requestIdToMatch
                 ),
@@ -314,7 +312,7 @@ it('handles timeout errors gracefully', function () {
                     result: null,
                     error: 'Timeout waiting for selector .not-found',
                     errorCode: 'TIMEOUT',
-                    timestamp: new DateTimeImmutable,
+                    timestamp: new \DateTimeImmutable,
                     instanceId: 'test-instance',
                     requestId: $requestIdToMatch
                 ),

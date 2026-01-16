@@ -64,7 +64,7 @@ describe('browser:status command', function (): void {
                         ],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -125,7 +125,7 @@ describe('browser:status command', function (): void {
                         ],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -181,7 +181,7 @@ describe('browser:status command', function (): void {
                         result: null,
                         error: 'Failed to get browser status',
                         errorCode: 'STATUS_ERROR',
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),
@@ -239,7 +239,7 @@ describe('browser:status command', function (): void {
                         ],
                         error: null,
                         errorCode: null,
-                        timestamp: new DateTimeImmutable,
+                        timestamp: new \DateTimeImmutable,
                         instanceId: 'test-instance-id',
                         requestId: $requestIdToMatch
                     ),

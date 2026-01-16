@@ -44,7 +44,7 @@ Fix all broken browser commands and improve consistency across the browser comma
 - [x] `browser:goto page_id url --html` returns HTML in response
 - [x] All browser commands have consistent error handling
 - [ ] Run `./vendor/bin/pest tests/Feature/Commands/Browser*` - all tests pass
-- [ ] Run `./vendor/bin/pint` - code formatted
+- [x] Run `./vendor/bin/pint` - code formatted
 
 ## Progress Log
 
@@ -53,6 +53,7 @@ Fix all broken browser commands and improve consistency across the browser comma
 - Iteration 3: Added --html flag support to browser:goto command, verified --ref and --inner flags work for html/text commands, started updating tests to use BrowserResponseEvent (commit 5bbb2da)
 - Iteration 4: Verified browser:goto --html flag works correctly (returns HTML content after navigation), refactored BrowserSnapshotCommand to extend base class for consistency, partially updated tests but they need more work (commit 884a500)
 - Iteration 5: Standardized error handling across all browser commands - refactored BrowserClickCommand, BrowserFillCommand, BrowserTypeCommand to extend BrowserCommand base class, unified validation error handling, updated tests to match new flow (commit a6c03d2)
+- Iteration 6: Fixed browser command tests to match BrowserCommand base class implementation - updated mocks to expect isRunnerAlive() with pidFile parameter, added missing detach() calls, fixed pollEvents to support polling loop, 56 of 68 tests passing, code formatted with Pint (commit e145be0)
 
 ## Implementation Notes
 
