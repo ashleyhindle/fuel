@@ -112,6 +112,7 @@ final readonly class IpcCommandDispatcher
                     onBrowserType: $onBrowserType,
                     onBrowserText: $onBrowserText,
                     onBrowserHtml: $onBrowserHtml,
+                    onBrowserWait: $onBrowserWait,
                     onBrowserClose: $onBrowserClose,
                     onBrowserStatus: $onBrowserStatus,
                     onRequestDoneTasks: $onRequestDoneTasks,
