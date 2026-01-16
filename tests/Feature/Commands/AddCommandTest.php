@@ -1,10 +1,7 @@
 <?php
 
 use App\Enums\TaskStatus;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
-use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -47,56 +44,12 @@ function runCommandWithPipedInput(string $command, string $stdinContent, string 
 // Add Command Tests
 describe('add command', function (): void {
     beforeEach(function (): void {
-        $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-        mkdir($this->tempDir.'/.fuel', 0755, true);
+        $this->dbPath = $this->testContext->getDatabasePath();
 
-        $context = new FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-        $this->dbPath = $context->getDatabasePath();
-
-        $context->configureDatabase();
-        $databaseService = new DatabaseService($context->getDatabasePath());
-        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-        Artisan::call('migrate', ['--force' => true]);
-
-        $taskService = makeTaskService();
-        $this->app->singleton(TaskService::class, fn (): TaskService => $taskService);
+        $taskService = app(TaskService::class);
         $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService($taskService));
 
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
         $this->taskService = $taskService;
-    });
-
-    afterEach(function (): void {
-        $deleteDir = function (string $dir) use (&$deleteDir): void {
-            if (! is_dir($dir)) {
-                return;
-            }
-
-            $items = scandir($dir);
-            foreach ($items as $item) {
-                if ($item === '.') {
-                    continue;
-                }
-
-                if ($item === '..') {
-                    continue;
-                }
-
-                $path = $dir.'/'.$item;
-                if (is_dir($path)) {
-                    $deleteDir($path);
-                } elseif (file_exists($path)) {
-                    unlink($path);
-                }
-            }
-
-            rmdir($dir);
-        };
-
-        $deleteDir($this->tempDir);
     });
 
     it('creates a task via CLI', function (): void {
@@ -401,8 +354,6 @@ describe('add command', function (): void {
     });
 
     it('creates task with --epic flag', function (): void {
-        $databaseService = $this->app->make(DatabaseService::class);
-
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
 
@@ -419,8 +370,6 @@ describe('add command', function (): void {
     });
 
     it('creates task with -e flag (epic shortcut)', function (): void {
-        $databaseService = $this->app->make(DatabaseService::class);
-
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
 
@@ -446,8 +395,6 @@ describe('add command', function (): void {
     });
 
     it('creates task with --epic and other flags', function (): void {
-        $databaseService = $this->app->make(DatabaseService::class);
-
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
 
@@ -473,8 +420,6 @@ describe('add command', function (): void {
     });
 
     it('supports partial epic IDs in --epic flag', function (): void {
-        $databaseService = $this->app->make(DatabaseService::class);
-
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic');
         $partialId = substr((string) $epic->short_id, 2, 3); // Just hash part
@@ -587,9 +532,9 @@ describe('add command', function (): void {
     it('creates task from piped input without title argument', function (): void {
         $pipedContent = "Task title from pipe\nThis is the description from piped input";
         $fuelPath = realpath(__DIR__.'/../../../fuel');
-        $command = sprintf('%s %s add --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+        $command = sprintf('%s %s add --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->testDir));
 
-        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->testDir);
         $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
@@ -600,9 +545,9 @@ describe('add command', function (): void {
     it('creates task from piped input with title argument', function (): void {
         $pipedContent = 'This entire content becomes the description';
         $fuelPath = realpath(__DIR__.'/../../../fuel');
-        $command = sprintf('%s %s add "Title from argument" --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+        $command = sprintf('%s %s add "Title from argument" --json --cwd=%s', escapeshellarg(PHP_BINARY), escapeshellarg($fuelPath), escapeshellarg($this->testDir));
 
-        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->testDir);
         $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
@@ -613,9 +558,9 @@ describe('add command', function (): void {
     it('creates task from piped input with only title (no description)', function (): void {
         $pipedContent = 'Task title only';
         $fuelPath = realpath(__DIR__.'/../../../fuel');
-        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->testDir));
 
-        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->testDir);
         $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
@@ -626,9 +571,9 @@ describe('add command', function (): void {
     it('creates task from piped input with multi-line description', function (): void {
         $pipedContent = "Task Title\nLine 1 of description\nLine 2 of description\nLine 3 of description";
         $fuelPath = realpath(__DIR__.'/../../../fuel');
-        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->tempDir));
+        $command = sprintf('php %s add --json --cwd=%s', escapeshellarg($fuelPath), escapeshellarg($this->testDir));
 
-        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->testDir);
         $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);
@@ -642,10 +587,10 @@ describe('add command', function (): void {
         $command = sprintf(
             'php %s add --type=feature --priority=3 --labels=test,piped --complexity=moderate --json --cwd=%s',
             escapeshellarg($fuelPath),
-            escapeshellarg($this->tempDir)
+            escapeshellarg($this->testDir)
         );
 
-        $result = runCommandWithPipedInput($command, $pipedContent, $this->tempDir);
+        $result = runCommandWithPipedInput($command, $pipedContent, $this->testDir);
         $task = json_decode((string) $result['stdout'], true);
 
         expect($result['exitCode'])->toBe(0);

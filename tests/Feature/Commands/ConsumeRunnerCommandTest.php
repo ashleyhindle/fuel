@@ -2,38 +2,6 @@
 
 use Illuminate\Support\Facades\Artisan;
 
-beforeEach(function (): void {
-    // Use isolated temp directory for tests
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    // Change to test directory
-    $this->originalDir = getcwd();
-    chdir($this->tempDir);
-});
-
-afterEach(function (): void {
-    // Return to original directory
-    chdir($this->originalDir);
-
-    // Clean up test directory
-    if (is_dir($this->tempDir)) {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($this->tempDir, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($iterator as $file) {
-            if ($file->isDir()) {
-                rmdir($file->getPathname());
-            } else {
-                unlink($file->getPathname());
-            }
-        }
-
-        rmdir($this->tempDir);
-    }
-});
-
 it('is registered and has correct signature', function (): void {
     $commands = Artisan::all();
 

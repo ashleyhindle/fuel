@@ -5,12 +5,14 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
 it('shows error when database does not exist', function (): void {
+    // Create a separate temp dir without running migrations (no database)
     $tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($tempDir.'/.fuel', 0755, true);
 
-    // Bind FuelContext to use the test directory
+    // Rebind FuelContext to use the directory without a database
     $context = new FuelContext($tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+    $this->app->forgetInstance(FuelContext::class);
+    $this->app->instance(FuelContext::class, $context);
 
     $this->artisan('db')
         ->expectsOutputToContain('Database not found')
@@ -21,12 +23,14 @@ it('shows error when database does not exist', function (): void {
 });
 
 it('shows error in JSON format when database does not exist', function (): void {
+    // Create a separate temp dir without running migrations (no database)
     $tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($tempDir.'/.fuel', 0755, true);
 
-    // Bind FuelContext to use the test directory
+    // Rebind FuelContext to use the directory without a database
     $context = new FuelContext($tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+    $this->app->forgetInstance(FuelContext::class);
+    $this->app->instance(FuelContext::class, $context);
 
     Artisan::call('db', ['--json' => true]);
     $output = Artisan::output();
@@ -43,35 +47,14 @@ it('shows error in JSON format when database does not exist', function (): void 
 });
 
 it('outputs success message when database exists', function (): void {
-    $tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($tempDir.'/.fuel', 0755, true);
-
-    // Create a dummy database file
-    touch($tempDir.'/.fuel/agent.db');
-
-    // Bind FuelContext to use the test directory
-    $context = new FuelContext($tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
+    // TestCase already creates the database in testDir via migrations
     $this->artisan('db')
         ->expectsOutputToContain('Opening database in TablePlus')
         ->assertExitCode(0);
-
-    // Cleanup
-    File::deleteDirectory($tempDir);
 });
 
 it('outputs JSON success when database exists', function (): void {
-    $tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($tempDir.'/.fuel', 0755, true);
-
-    // Create a dummy database file
-    touch($tempDir.'/.fuel/agent.db');
-
-    // Bind FuelContext to use the test directory
-    $context = new FuelContext($tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
+    // TestCase already creates the database in testDir via migrations
     Artisan::call('db', ['--json' => true]);
     $output = Artisan::output();
 
@@ -83,7 +66,4 @@ it('outputs JSON success when database exists', function (): void {
     expect($data['success'])->toBeTrue();
     expect($data['message'])->toBe('Opening database in TablePlus');
     expect($data['path'])->toContain('agent.db');
-
-    // Cleanup
-    File::deleteDirectory($tempDir);
 });

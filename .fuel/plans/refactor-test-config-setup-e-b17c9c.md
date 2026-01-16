@@ -53,5 +53,22 @@ Migrated 9 test files to use TestCase's `$this->testDir`:
 
 **Pattern established:** Tests that need specific service instances can use `app(ServiceClass::class)` in a minimal beforeEach. The TestCase handles all temp directory creation, database setup, and cleanup.
 
+### Batch 1: Add-Db Tests Migrated (f-409cdf)
+Migrated 8 test files to use TestCase's `$this->testDir`:
+
+1. **AddCommandTest.php** - Kept minimal beforeEach for dbPath/taskService/epicService. Changed tempDir→testDir. Removed unused DatabaseService imports and variables.
+2. **AvailableCommandTest.php** - Kept minimal beforeEach for taskService only
+3. **BacklogCommandTest.php** - Removed all beforeEach/afterEach entirely
+4. **BlockedCommandTest.php** - Kept minimal beforeEach for taskService only
+5. **CloseCommandTest.php** - Kept minimal beforeEach for taskService only
+6. **CompletedCommandTest.php** - Kept minimal beforeEach for taskService only
+7. **ConsumeRunnerCommandTest.php** - Removed all beforeEach/afterEach (tests only check command registration)
+8. **DbCommandTest.php** - Special case: "database exists" tests use testDir; "database not found" tests create their own temp dir without database
+
+**Key patterns:**
+- Most tests just need `$this->taskService = app(TaskService::class)` in beforeEach
+- Tests that need no database (DbCommandTest error cases) must create separate temp dir
+- Unused DatabaseService variables from old boilerplate were removed
+
 ## Interfaces Created
 None - added helper methods to existing TestCase class.
