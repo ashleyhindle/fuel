@@ -31,6 +31,7 @@ class Epic extends Model
         'description',
         'self_guided',
         'status',
+        'paused_at',
         'reviewed_at',
         'approved_at',
         'approved_by',
@@ -40,6 +41,7 @@ class Epic extends Model
     protected $casts = [
         'status' => EpicStatus::class,
         'self_guided' => 'boolean',
+        'paused_at' => 'datetime',
         'reviewed_at' => 'datetime',
         'approved_at' => 'datetime',
         'changes_requested_at' => 'datetime',
@@ -80,6 +82,11 @@ class Epic extends Model
         }
 
         // Future Eloquent usage: compute status from tasks and review state
+        // Check paused status first
+        if ($this->paused_at !== null) {
+            return EpicStatus::Paused;
+        }
+
         // Check approval/rejection status first (these override computed status)
         if ($this->approved_at !== null) {
             return EpicStatus::Approved;

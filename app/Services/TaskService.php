@@ -291,6 +291,14 @@ class TaskService
     }
 
     /**
+     * Pause a task (any status -> paused).
+     */
+    public function pause(string $id): Task
+    {
+        return $this->update($id, ['status' => TaskStatus::Paused->value]);
+    }
+
+    /**
      * Defer a task to backlog (any status -> someday).
      */
     public function defer(string $id): Task

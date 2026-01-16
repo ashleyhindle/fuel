@@ -122,6 +122,29 @@ class EpicService
         return $epic;
     }
 
+    /**
+     * Pause an epic (set status to paused).
+     */
+    public function pause(string $id): Epic
+    {
+        $epic = Epic::findByPartialId($id);
+        if (! $epic instanceof Epic) {
+            throw new RuntimeException(sprintf("Epic '%s' not found", $id));
+        }
+
+        $now = Carbon::now('UTC')->toIso8601String();
+
+        // Set paused_at to indicate paused status
+        $epic->update([
+            'paused_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $epic->refresh();
+        $epic->status = EpicStatus::Paused;
+
+        return $epic;
+    }
+
     public function markAsReviewed(string $id): Epic
     {
         $epic = Epic::findByPartialId($id);
@@ -237,6 +260,11 @@ class EpicService
         $epic = Epic::findByPartialId($epicId);
         if (! $epic instanceof Epic) {
             throw new RuntimeException(sprintf("Epic '%s' not found", $epicId));
+        }
+
+        // Check paused status first
+        if ($epic->paused_at !== null) {
+            return EpicStatus::Paused;
         }
 
         // Check approval/rejection status first (these override computed status)
