@@ -151,7 +151,8 @@ describe('completed command', function (): void {
         $output = Artisan::output();
 
         expect($output)->toContain('Commit');
-        expect($output)->toContain($commitHash);
+        // Commit hash is truncated to 7 chars
+        expect($output)->toContain(substr($commitHash, 0, 7));
     });
 
     it('displays empty commit column when no commit hash', function (): void {

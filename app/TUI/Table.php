@@ -17,14 +17,16 @@ class Table
      * @param  array<string>  $headers  Column headers
      * @param  array<array<string>>  $rows  Table rows (each row is an array of cell values)
      * @param  OutputInterface  $output  Output interface to write to
+     * @param  array<int>  $columnPriorities  Column priorities (lower = more important, dropped first if space needed)
+     * @param  int|null  $maxWidth  Maximum table width (defaults to terminal width)
      */
-    public function render(array $headers, array $rows, OutputInterface $output): void
+    public function render(array $headers, array $rows, OutputInterface $output, array $columnPriorities = [], ?int $maxWidth = null): void
     {
         if ($headers === []) {
             return;
         }
 
-        $lines = $this->buildTable($headers, $rows);
+        $lines = $this->buildTable($headers, $rows, $columnPriorities, $maxWidth);
         foreach ($lines as $line) {
             $output->writeln($line);
         }
@@ -35,13 +37,25 @@ class Table
      *
      * @param  array<string>  $headers  Column headers
      * @param  array<array<string>>  $rows  Table rows
+     * @param  array<int>  $columnPriorities  Column priorities (lower = more important)
+     * @param  int|null  $maxWidth  Maximum table width
      * @return array<string> Array of table lines ready to render
      */
-    public function buildTable(array $headers, array $rows): array
+    public function buildTable(array $headers, array $rows, array $columnPriorities = [], ?int $maxWidth = null): array
     {
         if ($headers === []) {
             return [];
         }
+
+        $numColumns = count($headers);
+
+        // Get terminal width if not specified
+        if ($maxWidth === null) {
+            $maxWidth = $this->getTerminalWidth();
+        }
+
+        // Fit columns to width
+        [$headers, $rows] = $this->fitToWidth($headers, $rows, $columnPriorities, $maxWidth);
 
         $numColumns = count($headers);
         $columnWidths = $this->calculateColumnWidths($headers, $rows, $numColumns);
@@ -243,5 +257,107 @@ class Table
         $text = preg_replace('/\e\[[0-9;]*m/', '', $text) ?? $text;
 
         return $text;
+    }
+
+    /**
+     * Fit table to specified width by dropping low-priority columns.
+     *
+     * @param  array<string>  $headers  Column headers
+     * @param  array<array<string>>  $rows  Table rows
+     * @param  array<int>  $columnPriorities  Column priorities (lower = more important)
+     * @param  int  $maxWidth  Maximum width
+     * @return array{array<string>, array<array<string>>} [headers, rows] with columns removed if needed
+     */
+    private function fitToWidth(array $headers, array $rows, array $columnPriorities, int $maxWidth): array
+    {
+        if ($columnPriorities === []) {
+            return [$headers, $rows];
+        }
+
+        $numColumns = count($headers);
+
+        // Calculate total table width
+        $tableWidth = $this->calculateTableWidth($headers, $rows, $numColumns);
+
+        // If it fits, return as-is
+        if ($tableWidth <= $maxWidth) {
+            return [$headers, $rows];
+        }
+
+        // Drop columns by priority (highest priority first = lowest importance)
+        // Build index => priority map
+        $columnMap = [];
+        for ($i = 0; $i < $numColumns; $i++) {
+            $columnMap[$i] = $columnPriorities[$i] ?? 999; // Default to low priority
+        }
+
+        // Sort by priority DESC (drop highest priority numbers first)
+        arsort($columnMap);
+
+        $columnsToKeep = range(0, $numColumns - 1);
+
+        foreach ($columnMap as $colIndex => $_priority) {
+            // Try removing this column
+            $testKeep = array_values(array_diff($columnsToKeep, [$colIndex]));
+            $testHeaders = array_values(array_intersect_key($headers, array_flip($testKeep)));
+            $testRows = array_map(fn ($row) => array_values(array_intersect_key($row, array_flip($testKeep))), $rows);
+
+            $testWidth = $this->calculateTableWidth($testHeaders, $testRows, count($testHeaders));
+
+            if ($testWidth <= $maxWidth) {
+                // Found a fit
+                return [$testHeaders, $testRows];
+            }
+
+            // Remove this column and continue
+            $columnsToKeep = $testKeep;
+        }
+
+        // Return whatever we have left
+        $keepHeaders = array_values(array_intersect_key($headers, array_flip($columnsToKeep)));
+        $keepRows = array_map(fn ($row) => array_values(array_intersect_key($row, array_flip($columnsToKeep))), $rows);
+
+        return [$keepHeaders, $keepRows];
+    }
+
+    /**
+     * Calculate total table width.
+     *
+     * @param  array<string>  $headers  Column headers
+     * @param  array<array<string>>  $rows  Table rows
+     * @param  int  $numColumns  Number of columns
+     * @return int Total width
+     */
+    private function calculateTableWidth(array $headers, array $rows, int $numColumns): int
+    {
+        $widths = $this->calculateColumnWidths($headers, $rows, $numColumns);
+
+        // Sum column widths + padding (2 per column) + borders (1 per column + 1 for start)
+        return array_sum($widths) + ($numColumns * 2) + ($numColumns + 1);
+    }
+
+    /**
+     * Get terminal width.
+     *
+     * @return int Terminal width in characters
+     */
+    private function getTerminalWidth(): int
+    {
+        // Try to get from tput
+        $width = @shell_exec('tput cols');
+        if ($width !== null && $width !== false) {
+            $width = (int) trim($width);
+            if ($width > 0) {
+                return $width;
+            }
+        }
+
+        // Try environment variables
+        if (isset($_SERVER['COLUMNS'])) {
+            return (int) $_SERVER['COLUMNS'];
+        }
+
+        // Default fallback
+        return 120;
     }
 }

@@ -62,29 +62,41 @@ class CompletedCommand extends Command
 
             $headers = ['ID', 'Title', 'Completed', 'Type', 'Priority', 'Agent', 'Commit'];
 
-            // Calculate max title width based on terminal width
-            // Terminal width - ID (10) - Completed (11) - Type (8) - Priority (10) - Agent (16) - Commit (10) - borders/padding (20)
-            $terminalWidth = $this->getTerminalWidth();
-            $fixedColumnsWidth = 10 + 11 + 8 + 10 + 16 + 10 + 20; // ID, Completed, Type, Priority, Agent, Commit columns + borders
-            $maxTitleWidth = max(20, $terminalWidth - $fixedColumnsWidth); // Minimum 20 chars for title
+            // Column priorities: lower number = more important, kept longer
+            // Drop order: Priority (5), Type (4), Agent (3), Commit (2), Completed (1), Title (0), ID (-1)
+            $columnPriorities = [
+                -1, // ID - never drop
+                0,  // Title - keep as long as possible
+                1,  // Completed - somewhat important
+                4,  // Type - drop earlier
+                5,  // Priority - drop first
+                3,  // Agent - drop mid-way
+                2,  // Commit - keep but can drop before core info
+            ];
 
-            $rows = $tasks->map(function (Task $t) use ($runService, $maxTitleWidth): array {
+            $rows = $tasks->map(function (Task $t) use ($runService): array {
                 $latestRun = $runService->getLatestRun($t->short_id);
                 $agent = $latestRun?->agent ?? '';
 
+                // Truncate commit hash to 7 chars
+                $commitHash = $t->commit_hash ?? '';
+                if (strlen($commitHash) > 7) {
+                    $commitHash = substr($commitHash, 0, 7);
+                }
+
                 return [
                     $t->short_id,
-                    $this->truncate($t->title, $maxTitleWidth),
+                    $t->title,
                     $this->formatDate($t->updated_at),
                     $t->type ?? 'task',
                     $t->priority ?? 2,
                     $agent,
-                    $t->commit_hash ?? '',
+                    $commitHash,
                 ];
             })->toArray();
 
             $table = new Table;
-            $table->render($headers, $rows, $this->output);
+            $table->render($headers, $rows, $this->output, $columnPriorities);
         }
 
         return self::SUCCESS;
