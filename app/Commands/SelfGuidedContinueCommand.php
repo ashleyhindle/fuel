@@ -40,11 +40,12 @@ class SelfGuidedContinueCommand extends Command
                 return $this->outputError(sprintf("Task '%s' is not a selfguided task (agent='%s')", $task->short_id, $task->agent ?? 'null'));
             }
 
-            // Increment iteration
-            $newIteration = ($task->selfguided_iteration ?? 0) + 1;
+            // Calculate the iteration we just completed (for notes and max check)
+            // Note: We don't update the iteration here - onSuccess() handles that
+            $completedIteration = ($task->selfguided_iteration ?? 0) + 1;
 
             // Check max iterations (50)
-            if ($newIteration >= 50) {
+            if ($completedIteration >= 50) {
                 // Create needs-human task
                 $needsHumanTask = $taskService->create([
                     'title' => sprintf('Max iterations reached for %s', $task->title),
@@ -63,7 +64,7 @@ class SelfGuidedContinueCommand extends Command
                         'status' => 'max_iterations_reached',
                         'task' => $task->toArray(),
                         'needs_human_task' => $needsHumanTask->toArray(),
-                        'iteration' => $newIteration,
+                        'iteration' => $completedIteration,
                     ]);
                 } else {
                     $this->warn(sprintf('Max iterations (50) reached for task: %s', $task->short_id));
@@ -74,19 +75,16 @@ class SelfGuidedContinueCommand extends Command
                 return self::SUCCESS;
             }
 
-            // Update task: increment iteration, reset stuck count
-            $updates = [
-                'selfguided_iteration' => $newIteration,
-                'selfguided_stuck_count' => 0,
-            ];
-
             // Append notes to description if provided
+            // Note: We don't update iteration or stuck_count here - onSuccess() handles that
+            // Note: We don't reopen() here - that caused a race condition with the daemon
+            // The task stays in_progress; onSuccess() will reopen after the run completes
             if ($notes !== null) {
                 $description = $task->description ?? '';
-                $updates['description'] = $description."\n\n--- Iteration {$newIteration} notes ---\n".$notes;
+                $task = $taskService->update($task->short_id, [
+                    'description' => $description."\n\n--- Iteration {$completedIteration} notes ---\n".$notes,
+                ]);
             }
-
-            $task = $taskService->update($task->short_id, $updates);
 
             // Update latest run with commit hash if provided
             if ($commit !== null) {
@@ -97,14 +95,10 @@ class SelfGuidedContinueCommand extends Command
                     // No run exists - task may have been created without daemon
                 }
             }
-
-            // Reopen the task
-            $task = $taskService->reopen($task->short_id);
-
             if ($this->option('json')) {
                 $this->outputJson($task->toArray());
             } else {
-                $this->info(sprintf('Task reopened for iteration %d: %s', $newIteration, $task->short_id));
+                $this->info(sprintf('Continuing selfguided task after iteration %d: %s', $completedIteration, $task->short_id));
                 $this->line('  Title: '.$task->title);
             }
 

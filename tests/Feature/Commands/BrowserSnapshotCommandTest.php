@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+uses()->group('browser');
+
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 

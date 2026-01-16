@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Agents\Tasks;
 
 use App\Daemon\DaemonLogger;
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\ProcessType;
@@ -83,6 +84,8 @@ class SelfGuidedAgentTask extends AbstractAgentTask
      * Handle successful completion.
      *
      * Increment iteration, reset stuck count.
+     * Reopen task for next iteration if agent called selfguided:continue (task still in_progress).
+     * If agent called `done`, task status is already Done - don't reopen.
      */
     public function onSuccess(CompletionResult $result): void
     {
@@ -90,12 +93,22 @@ class SelfGuidedAgentTask extends AbstractAgentTask
             'selfguided_iteration' => ($this->task->selfguided_iteration ?? 0) + 1,
             'selfguided_stuck_count' => 0,
         ]);
+
+        // Refresh task to get current status (may have changed during run)
+        $task = $this->taskService->find($this->task->short_id);
+
+        // If task is still in_progress (continue was called, not done), reopen for next iteration
+        // This prevents race condition: reopen happens AFTER run completes, not during
+        if ($task && $task->status === TaskStatus::InProgress) {
+            $this->taskService->reopen($this->task->short_id);
+        }
     }
 
     /**
      * Handle failed completion.
      *
      * Increment stuck count. If >= 3, create needs-human task.
+     * Otherwise, reopen for retry.
      */
     public function onFailure(CompletionResult $result): void
     {
@@ -111,6 +124,10 @@ class SelfGuidedAgentTask extends AbstractAgentTask
                 'Task '.$this->task->short_id.' has failed '.$newStuckCount.' times in a row. '.
                 'Please investigate and either fix the issue or provide guidance.'
             );
+            // Task will be blocked by the needs-human dependency
+        } else {
+            // Reopen for retry - task stays on same iteration until successful
+            $this->taskService->reopen($this->task->short_id);
         }
     }
 
