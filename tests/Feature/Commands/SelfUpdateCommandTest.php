@@ -3,9 +3,7 @@
 use App\Commands\SelfUpdateCommand;
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir, 0755, true);
-    $this->homeDir = $this->tempDir.'/home';
+    $this->homeDir = $this->testDir.'/home';
     mkdir($this->homeDir, 0755, true);
     $this->targetDir = $this->homeDir.'/.fuel';
     $this->targetPath = $this->targetDir.'/fuel';
@@ -31,10 +29,6 @@ afterEach(function (): void {
 
     if (is_dir($this->homeDir)) {
         @rmdir($this->homeDir);
-    }
-
-    if (is_dir($this->tempDir)) {
-        @rmdir($this->tempDir);
     }
 
     // Restore environment

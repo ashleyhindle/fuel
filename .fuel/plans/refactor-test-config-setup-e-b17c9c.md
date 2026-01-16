@@ -141,5 +141,16 @@ Migrated 9 test files to use TestCase's `$this->testDir`:
 **Special note on SelfUpdateCommandTest:**
 This test file has a unique structure - it tests SelfUpdateCommand methods using reflection without actually running commands through the framework. The file-level beforeEach/afterEach creates a mock HOME directory structure for testing the `getHomeDirectory()` method. The describe-level database setup was completely unnecessary and removed (780+ lines of boilerplate eliminated across all 9 files).
 
+### Remaining tempDir Usage - Final (f-e011f1)
+Migrated SelfUpdateCommandTest.php to use `$this->testDir` instead of creating its own `$this->tempDir`.
+
+**Remaining sys_get_temp_dir() usage (INTENTIONAL - special cases):**
+1. **DbCommandTest.php** (lines 9, 27) - Two tests that verify error handling when database does NOT exist. These must create a separate temp dir without migrations/database.
+2. **InitCommandTest.php** (line 78) - Test that verifies error handling for orphaned WAL files. Creates separate temp dir for isolated WAL file testing.
+
+These 3 remaining usages are INTENTIONAL and NECESSARY for testing edge cases where the TestCase's pre-configured database would interfere with the test scenario.
+
+**Verification:** `rg 'tempDir.*=.*sys_get_temp_dir' tests/Feature` now returns only these 3 intentional cases.
+
 ## Interfaces Created
 None - added helper methods to existing TestCase class.
