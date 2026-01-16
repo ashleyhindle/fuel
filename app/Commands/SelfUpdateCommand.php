@@ -342,8 +342,8 @@ class SelfUpdateCommand extends Command
             ));
         }
 
-        if ($written !== []) {
-            $this->line('Run: diff .fuel/prompts/<name>.md .fuel/prompts/<name>.md.new');
+        foreach ($written as $name) {
+            $this->line(sprintf('Run: diff .fuel/prompts/%s.md .fuel/prompts/%s.md.new', $name, $name));
         }
     }
 

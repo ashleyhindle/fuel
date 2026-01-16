@@ -118,8 +118,8 @@ REALITY;
                 ));
             }
 
-            if ($upgraded !== []) {
-                $this->line('Run: diff .fuel/prompts/<name>.md .fuel/prompts/<name>.md.new');
+            foreach ($upgraded as $name) {
+                $this->line(sprintf('Run: diff .fuel/prompts/%s.md .fuel/prompts/%s.md.new', $name, $name));
             }
         }
 
@@ -242,14 +242,12 @@ REALITY;
     {
         $gitignorePath = $cwd.'/.gitignore';
 
-        // Selective ignores - plans/ and prompts/ are committed, transient files ignored
+        // Ignore .fuel/* then allow tracked paths (reality.md, plans/, prompts/)
         $entries = [
-            '.fuel/*.lock',
-            '.fuel/*.log',
-            '.fuel/agent.db',
-            '.fuel/config.yaml',
-            '.fuel/processes/',
-            '.fuel/runs/',
+            '.fuel/*',
+            '!.fuel/reality.md',
+            '!.fuel/plans/',
+            '!.fuel/prompts/',
             '.fuel/prompts/*.new',
         ];
 
@@ -259,8 +257,22 @@ REALITY;
                 throw new RuntimeException('Failed to read .gitignore file: '.$gitignorePath);
             }
 
-            // Remove old blanket .fuel/ ignore if present
-            $content = preg_replace('/^\.fuel\/\s*$/m', '', $content);
+            // Remove old selective ignores and blanket .fuel/ ignore
+            $oldPatterns = [
+                '/^\.fuel\/\s*$/m',
+                '/^\.fuel\/\*\.lock\s*$/m',
+                '/^\.fuel\/\*\.log\s*$/m',
+                '/^\.fuel\/agent\.db\s*$/m',
+                '/^\.fuel\/config\.yaml\s*$/m',
+                '/^\.fuel\/processes\/\s*$/m',
+                '/^\.fuel\/runs\/\s*$/m',
+            ];
+            foreach ($oldPatterns as $pattern) {
+                $content = preg_replace($pattern, '', $content);
+            }
+
+            // Clean up multiple blank lines
+            $content = preg_replace('/\n{3,}/', "\n\n", (string) $content);
 
             $added = [];
             foreach ($entries as $entry) {
