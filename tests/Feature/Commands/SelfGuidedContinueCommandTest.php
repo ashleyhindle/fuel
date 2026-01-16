@@ -138,6 +138,54 @@ describe('selfguided:continue command', function (): void {
         expect($updated->description)->toContain('Made some progress on feature X');
     });
 
+    it('stores commit hash on latest run when --commit is provided', function (): void {
+        $task = $this->taskService->create([
+            'title' => 'Selfguided task with commit',
+            'agent' => 'selfguided',
+            'selfguided_iteration' => 1,
+        ]);
+        $this->taskService->done($task->short_id);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'selfguided',
+            'model' => 'test-model',
+        ]);
+
+        $commitHash = 'abc123def456';
+        $this->artisan('selfguided:continue', [
+            'id' => $task->short_id,
+            '--commit' => $commitHash,
+        ])
+            ->assertExitCode(0);
+
+        $latestRun = $runService->getLatestRun($task->short_id);
+        expect($latestRun)->not->toBeNull();
+        expect($latestRun->commit_hash)->toBe($commitHash);
+    });
+
+    it('continues without --commit and leaves run commit_hash null', function (): void {
+        $task = $this->taskService->create([
+            'title' => 'Selfguided task without commit',
+            'agent' => 'selfguided',
+            'selfguided_iteration' => 2,
+        ]);
+        $this->taskService->done($task->short_id);
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'selfguided',
+            'model' => 'test-model',
+        ]);
+
+        $this->artisan('selfguided:continue', ['id' => $task->short_id])
+            ->assertExitCode(0);
+
+        $latestRun = $runService->getLatestRun($task->short_id);
+        expect($latestRun)->not->toBeNull();
+        expect($latestRun->commit_hash)->toBeNull();
+    });
+
     it('fails when task is not selfguided', function (): void {
         $task = $this->taskService->create([
             'title' => 'Regular task',

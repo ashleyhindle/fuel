@@ -50,8 +50,9 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 | `app/Commands/SelfGuidedContinueCommand.php` | ✅ Add --commit flag, update run |
 | `app/Commands/DoneCommand.php` | ✅ Also store commit_hash on latest run |
 | `resources/prompts/selfguided.md` | ✅ Update prompt with new flag usage |
-| `tests/Unit/Services/RunServiceTest.php` | Test commit_hash handling |
-| `tests/Feature/Commands/SelfGuidedContinueCommandTest.php` | Test --commit flag |
+| `tests/Unit/Services/RunServiceTest.php` | ✅ Test commit_hash handling |
+| `tests/Feature/Commands/SelfGuidedContinueCommandTest.php` | ✅ Test --commit flag |
+| `tests/Feature/Commands/DoneCommandTest.php` | ✅ Test commit_hash on runs |
 
 ## Edge Cases
 - No run exists when `done` is called (standalone task without daemon) - skip run update gracefully
@@ -87,3 +88,9 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 - Gracefully handles RuntimeException when no run exists (standalone tasks without daemon)
 - Pattern: Wraps `updateLatestRun()` in try-catch, silently continues if no run exists
 - Location: `app/Commands/DoneCommand.php` lines ~43-51
+
+### Tests for commit_hash handling (f-642446)
+- `tests/Unit/Services/RunServiceTest.php` covers `updateRun()` and `updateLatestRun()` commit_hash updates
+- `tests/Feature/Commands/SelfGuidedContinueCommandTest.php` covers `--commit` storing on latest run and no-commit behavior
+- `tests/Feature/Commands/DoneCommandTest.php` covers `--commit` storing on task + run, and no-run graceful handling
+- `app/Models/Run.php` needs `commit_hash` in `$fillable` for updates to persist

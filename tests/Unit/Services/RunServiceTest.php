@@ -363,6 +363,39 @@ it('updates the latest run with completion data', function (): void {
     expect($runs[0]->output)->toBe('Test output');
 });
 
+it('updates a run with commit hash', function (): void {
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]);
+
+    $runs = $this->runService->getRuns($this->taskId);
+    $runId = $runs[0]->run_id;
+
+    $this->runService->updateRun($runId, [
+        'commit_hash' => 'abc123def456',
+    ]);
+
+    $updatedRun = $this->runService->findRun($runId);
+    expect($updatedRun)->not->toBeNull();
+    expect($updatedRun->commit_hash)->toBe('abc123def456');
+});
+
+it('updates the latest run with commit hash', function (): void {
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]);
+
+    $this->runService->updateLatestRun($this->taskId, [
+        'commit_hash' => 'fed321cba654',
+    ]);
+
+    $latestRun = $this->runService->getLatestRun($this->taskId);
+    expect($latestRun)->not->toBeNull();
+    expect($latestRun->commit_hash)->toBe('fed321cba654');
+});
+
 it('throws exception when updating non-existent run', function (): void {
     expect(fn () => $this->runService->updateLatestRun($this->taskId, [
         'ended_at' => '2026-01-07T10:05:00+00:00',

@@ -163,6 +163,30 @@ describe('done command', function (): void {
         expect($updated->commit_hash)->toBe($commitHash);
     });
 
+    it('stores commit hash on latest run when --commit is provided', function (): void {
+        $task = $this->taskService->create(['title' => 'Task with run commit']);
+        $commitHash = 'feed1234beef';
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'model' => 'test-model',
+        ]);
+
+        $this->artisan('done', [
+            'ids' => [$task->short_id],
+            '--commit' => $commitHash,
+        ])
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task->short_id);
+        expect($updated->commit_hash)->toBe($commitHash);
+
+        $latestRun = $runService->getLatestRun($task->short_id);
+        expect($latestRun)->not->toBeNull();
+        expect($latestRun->commit_hash)->toBe($commitHash);
+    });
+
     it('outputs commit hash in JSON when --commit flag is used with --json', function (): void {
         $task = $this->taskService->create(['title' => 'JSON task with commit']);
         $commitHash = 'xyz789abc123';
@@ -177,6 +201,20 @@ describe('done command', function (): void {
 
         expect($result['status'])->toBe('done');
         expect($result['commit_hash'])->toBe($commitHash);
+    });
+
+    it('handles --commit when no run exists', function (): void {
+        $task = $this->taskService->create(['title' => 'Task without run']);
+        $commitHash = '1234deadbeef';
+
+        $this->artisan('done', [
+            'ids' => [$task->short_id],
+            '--commit' => $commitHash,
+        ])
+            ->assertExitCode(0);
+
+        $updated = $this->taskService->find($task->short_id);
+        expect($updated->commit_hash)->toBe($commitHash);
     });
 
     it('does not add commit_hash field when --commit is not provided', function (): void {

@@ -18,6 +18,7 @@ class Run extends Model
         'short_id', 'task_id', 'agent', 'status', 'exit_code',
         'started_at', 'ended_at', 'duration_seconds', 'session_id',
         'error_type', 'model', 'output', 'cost_usd', 'pid', 'runner_instance_id',
+        'commit_hash',
     ];
 
     protected $casts = [
