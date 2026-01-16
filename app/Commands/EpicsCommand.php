@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Commands\Concerns\RendersBoardColumns;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
@@ -15,6 +16,7 @@ use LaravelZero\Framework\Commands\Command;
 class EpicsCommand extends Command
 {
     use HandlesJsonOutput;
+    use RendersBoardColumns;
 
     protected $signature = 'epics
         {--cwd= : Working directory (defaults to current directory)}
@@ -73,8 +75,19 @@ class EpicsCommand extends Command
                 ];
             }, $epics);
 
+            $terminalWidth = $this->getTerminalWidth();
+
             $table = new Table;
-            $table->render($headers, $rows, $this->output);
+
+            // Configure columns that can be truncated (with minimum widths and priorities)
+            $table->setTruncatable([
+                'Title' => ['min' => 20, 'priority' => 1],
+            ]);
+
+            // Configure columns that can be omitted if needed (in order of priority)
+            $table->setOmittable(['Mode', 'Progress']);
+
+            $table->render($headers, $rows, $this->output, $terminalWidth);
 
             $this->newLine();
             $this->line("Use 'fuel epic:show <id>' for detailed view.");
