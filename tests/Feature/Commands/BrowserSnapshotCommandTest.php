@@ -6,6 +6,9 @@ uses()->group('browser');
 
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
+use App\Services\FuelContext;
+use DateTimeImmutable;
+use Mockery;
 
 beforeEach(function () {
     $pidFilePath = sys_get_temp_dir().'/fuel-test-'.uniqid().'.pid';
@@ -30,10 +33,9 @@ it('sends snapshot command to daemon', function () {
     $capturedRequestId = ['id' => null];
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once();
-    $ipcClient->shouldReceive('attach')->once();
-    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
@@ -66,6 +68,7 @@ it('sends snapshot command to daemon', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -84,10 +87,9 @@ it('sends snapshot command with interactive-only flag', function () {
     $capturedRequestId = ['id' => null];
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once();
-    $ipcClient->shouldReceive('attach')->once();
-    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
@@ -120,6 +122,7 @@ it('sends snapshot command with interactive-only flag', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -135,10 +138,9 @@ it('outputs JSON when --json flag is provided', function () {
     $capturedRequestId = ['id' => null];
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once();
-    $ipcClient->shouldReceive('attach')->once();
-    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
@@ -168,6 +170,7 @@ it('outputs JSON when --json flag is provided', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -183,10 +186,9 @@ it('handles empty snapshot gracefully', function () {
     $capturedRequestId = ['id' => null];
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once();
-    $ipcClient->shouldReceive('attach')->once();
-    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
@@ -211,6 +213,7 @@ it('handles empty snapshot gracefully', function () {
         return [];
     });
     $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -224,10 +227,9 @@ it('handles daemon errors gracefully', function () {
     $capturedRequestId = ['id' => null];
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once();
-    $ipcClient->shouldReceive('attach')->once();
-    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
     $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$capturedRequestId) {
@@ -251,6 +253,7 @@ it('handles daemon errors gracefully', function () {
 
         return [];
     });
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 

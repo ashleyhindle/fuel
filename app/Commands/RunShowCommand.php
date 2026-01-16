@@ -58,6 +58,12 @@ class RunShowCommand extends Command
                 $output = $this->getRunOutput($run, $fuelContext);
                 $useScrollRegion = $this->shouldUseScrollRegion($output);
 
+                if ($useScrollRegion) {
+                    // Clear screen and position cursor at home for scroll region mode
+                    echo "\033[2J";  // Clear screen
+                    echo "\033[H";   // Cursor home
+                }
+
                 $this->info(sprintf('Run: %s', $run->run_id));
                 $this->newLine();
                 $headerLines = $this->displayRunDetails($run, $duration, false, $fuelContext);
@@ -279,37 +285,39 @@ class RunShowCommand extends Command
     {
         $termHeight = $this->getTerminalHeight();
 
-        // Output header for scroll region
-        $this->newLine();
-        $this->line('  <fg=cyan>── Output ──</> <fg=gray>(scroll region active)</>');
-        $headerLines += 2; // Account for newline and output header
-
-        // Set scroll region from after header to bottom of terminal
-        // \033[{top};{bottom}r sets scroll region
-        $scrollTop = $headerLines + 1;
+        // Add 2 for the "── Output ──" header and blank line
+        $scrollTop = $headerLines + 3;
         $scrollBottom = $termHeight;
 
         // Only use scroll region if there's enough space
         if ($scrollBottom <= $scrollTop + 3) {
             // Not enough space, fall back to normal output
+            $this->newLine();
+            $this->line('  <fg=cyan>── Output ──</>');
             $this->outputChunk($output, $this->option('raw'));
 
             return;
         }
 
-        // Set scroll region
+        // Output the "Output" header (this will be just above the scroll region)
+        $this->newLine();
+        $this->line('  <fg=cyan>── Output ──</>');
+
+        // Set scroll region from after header to bottom of terminal
+        // \033[{top};{bottom}r sets scroll region (DECSTBM)
         echo "\033[{$scrollTop};{$scrollBottom}r";
 
         // Move cursor to start of scroll region
         echo "\033[{$scrollTop};1H";
 
-        // Output the content
+        // Output the content - it will scroll within the region
         $this->outputChunk($output, $this->option('raw'));
 
         // Reset scroll region to full screen
         echo "\033[r";
 
-        // Move cursor to end
+        // Move cursor below all content
         echo "\033[{$termHeight};1H";
+        $this->newLine();
     }
 }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
+use App\Services\FuelContext;
+use DateTimeImmutable;
+use Mockery;
 
 beforeEach(function () {
     // Create a temporary PID file for testing
@@ -35,7 +38,8 @@ it('sends text command with selector to daemon', function () {
     // Create mock IPC client
     $requestIdToMatch = null;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->once()->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
@@ -59,6 +63,7 @@ it('sends text command with selector to daemon', function () {
             requestId: $requestIdToMatch
         ),
     ]);
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -75,7 +80,8 @@ it('sends text command with element ref to daemon', function () {
     // Create mock IPC client
     $requestIdToMatch = null;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->once()->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
@@ -99,6 +105,7 @@ it('sends text command with element ref to daemon', function () {
             requestId: $requestIdToMatch
         ),
     ]);
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -115,7 +122,8 @@ it('outputs JSON when json flag is provided', function () {
     // Create mock IPC client
     $requestIdToMatch = null;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->once()->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
@@ -135,6 +143,7 @@ it('outputs JSON when json flag is provided', function () {
             requestId: $requestIdToMatch
         ),
     ]);
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
@@ -155,7 +164,8 @@ it('handles error responses from daemon', function () {
     // Create mock IPC client
     $requestIdToMatch = null;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
-    $ipcClient->shouldReceive('isRunnerAlive')->once()->andReturn(true);
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $ipcClient->shouldReceive('isRunnerAlive')->once()->with($pidFile)->andReturn(true);
     $ipcClient->shouldReceive('connect')->once()->with(9876);
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
@@ -175,6 +185,7 @@ it('handles error responses from daemon', function () {
             requestId: $requestIdToMatch
         ),
     ]);
+    $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
