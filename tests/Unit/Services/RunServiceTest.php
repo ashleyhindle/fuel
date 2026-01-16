@@ -576,3 +576,166 @@ it('returns null when finding non-existent run', function (): void {
 
     expect($foundRun)->toBeNull();
 });
+
+it('calculates task cost correctly from multiple runs', function (): void {
+    // Create runs with various cost values
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => 0.1234,
+        'output' => 'Run 1',
+    ]);
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => 0.5678,
+        'output' => 'Run 2',
+    ]);
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => null,  // Run without cost
+        'output' => 'Run 3',
+    ]);
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => 1.0,
+        'output' => 'Run 4',
+    ]);
+
+    $totalCost = $this->runService->getTaskCost($this->taskId);
+
+    expect($totalCost)->toBe(1.6912);  // 0.1234 + 0.5678 + 1.0
+});
+
+it('returns null for task cost when no runs have cost data', function (): void {
+    // Create runs without costs
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => null,
+        'output' => 'Run 1',
+    ]);
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'output' => 'Run 2',  // No cost_usd field
+    ]);
+
+    $totalCost = $this->runService->getTaskCost($this->taskId);
+
+    expect($totalCost)->toBeNull();
+});
+
+it('returns null for task cost when task does not exist', function (): void {
+    $totalCost = $this->runService->getTaskCost('f-nonexistent');
+
+    expect($totalCost)->toBeNull();
+});
+
+it('returns null for task cost when task has no runs', function (): void {
+    $totalCost = $this->runService->getTaskCost($this->taskId);
+
+    expect($totalCost)->toBeNull();
+});
+
+it('calculates epic cost correctly from multiple tasks', function (): void {
+    // Create an epic first
+    $this->databaseService->query(
+        'INSERT INTO epics (short_id, title, status) VALUES (?, ?, ?)',
+        ['e-test01', 'Test Epic', 'in_progress']
+    );
+    $epicId = $this->databaseService->lastInsertId();
+
+    // Create another task
+    $taskId2 = 'f-test02';
+    $this->databaseService->query(
+        'INSERT INTO tasks (short_id, title, status, epic_id) VALUES (?, ?, ?, ?)',
+        [$taskId2, 'Test Task 2', 'open', $epicId]
+    );
+
+    // Update first task to belong to epic
+    $this->databaseService->query(
+        'UPDATE tasks SET epic_id = ? WHERE short_id = ?',
+        [$epicId, $this->taskId]
+    );
+
+    // Create runs with costs for both tasks
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => 0.5,
+        'output' => 'Run 1',
+    ]);
+
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => 0.25,
+        'output' => 'Run 2',
+    ]);
+
+    $this->runService->logRun($taskId2, [
+        'agent' => 'test-agent',
+        'cost_usd' => 1.0,
+        'output' => 'Run 3',
+    ]);
+
+    $this->runService->logRun($taskId2, [
+        'agent' => 'test-agent',
+        'cost_usd' => null,  // Run without cost
+        'output' => 'Run 4',
+    ]);
+
+    $totalCost = $this->runService->getEpicCost($epicId);
+
+    expect($totalCost)->toBe(1.75);  // 0.5 + 0.25 + 1.0
+});
+
+it('returns null for epic cost when no tasks have cost data', function (): void {
+    // Create an epic first
+    $this->databaseService->query(
+        'INSERT INTO epics (short_id, title, status) VALUES (?, ?, ?)',
+        ['e-test02', 'Test Epic', 'in_progress']
+    );
+    $epicId = $this->databaseService->lastInsertId();
+
+    // Update task to belong to epic
+    $this->databaseService->query(
+        'UPDATE tasks SET epic_id = ? WHERE short_id = ?',
+        [$epicId, $this->taskId]
+    );
+
+    // Create run without cost
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'cost_usd' => null,
+        'output' => 'Run 1',
+    ]);
+
+    $totalCost = $this->runService->getEpicCost($epicId);
+
+    expect($totalCost)->toBeNull();
+});
+
+it('returns null for epic cost when epic has no tasks', function (): void {
+    $totalCost = $this->runService->getEpicCost(999);
+
+    expect($totalCost)->toBeNull();
+});
+
+it('returns null for epic cost when epic tasks have no runs', function (): void {
+    // Create an epic first
+    $this->databaseService->query(
+        'INSERT INTO epics (short_id, title, status) VALUES (?, ?, ?)',
+        ['e-test03', 'Test Epic', 'in_progress']
+    );
+    $epicId = $this->databaseService->lastInsertId();
+
+    // Update task to belong to epic
+    $this->databaseService->query(
+        'UPDATE tasks SET epic_id = ? WHERE short_id = ?',
+        [$epicId, $this->taskId]
+    );
+
+    $totalCost = $this->runService->getEpicCost($epicId);
+
+    expect($totalCost)->toBeNull();
+});

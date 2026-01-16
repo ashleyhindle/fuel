@@ -2,11 +2,118 @@
 
 declare(strict_types=1);
 
+use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
+use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
+beforeEach(function (): void {
+    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
+    mkdir($this->tempDir.'/.fuel', 0755, true);
+
+    // Create FuelContext pointing to test directory
+    $context = new FuelContext($this->tempDir.'/.fuel');
+    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+
+    // Bind our test service instances
+    $context->configureDatabase();
+    $databaseService = new DatabaseService($context->getDatabasePath());
+    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+    Artisan::call('migrate', ['--force' => true]);
+    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
+    $this->app->singleton(EpicService::class, fn (): EpicService => makeEpicService(
+        $this->app->make(TaskService::class)
+    ));
+    $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
+
+    $this->databaseService = $this->app->make(DatabaseService::class);
+});
+
+afterEach(function (): void {
+    // Recursively delete temp directory
+    $deleteDir = function (string $dir) use (&$deleteDir): void {
+        if (! is_dir($dir)) {
+            return;
+        }
+
+        $items = scandir($dir);
+        foreach ($items as $item) {
+            if ($item === '.') {
+                continue;
+            }
+
+            if ($item === '..') {
+                continue;
+            }
+
+            $path = $dir.'/'.$item;
+            if (is_dir($path)) {
+                $deleteDir($path);
+            } else {
+                unlink($path);
+            }
+        }
+
+        rmdir($dir);
+    };
+
+    $deleteDir($this->tempDir);
+});
+
 describe('epic:show command', function (): void {
+    beforeEach(function (): void {
+        $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
+        mkdir($this->tempDir.'/.fuel', 0755, true);
+
+        $context = new FuelContext($this->tempDir.'/.fuel');
+        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
+
+        $this->dbPath = $context->getDatabasePath();
+
+        $context->configureDatabase();
+        $databaseService = new DatabaseService($context->getDatabasePath());
+        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
+        Artisan::call('migrate', ['--force' => true]);
+
+        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
+
+        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
+
+        $this->taskService = $this->app->make(TaskService::class);
+    });
+
+    afterEach(function (): void {
+        $deleteDir = function (string $dir) use (&$deleteDir): void {
+            if (! is_dir($dir)) {
+                return;
+            }
+
+            $items = scandir($dir);
+            foreach ($items as $item) {
+                if ($item === '.') {
+                    continue;
+                }
+
+                if ($item === '..') {
+                    continue;
+                }
+
+                $path = $dir.'/'.$item;
+                if (is_dir($path)) {
+                    $deleteDir($path);
+                } elseif (file_exists($path)) {
+                    unlink($path);
+                }
+            }
+
+            rmdir($dir);
+        };
+
+        $deleteDir($this->tempDir);
+    });
+
     it('shows error when epic not found', function (): void {
         Artisan::call('epic:show', ['id' => 'e-nonexistent']);
         $output = Artisan::output();
@@ -249,5 +356,110 @@ describe('epic:show command', function (): void {
         expect($output)->toContain('blocked');
         expect($output)->toContain($blockedTask->short_id);
         expect($output)->toContain('Blocked Task');
+    });
+
+    it('shows epic cost when tasks have runs with costs', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(RunService::class);
+
+        // Create epic with tasks
+        $epic = $epicService->createEpic('Epic with costs', 'Epic that has costs');
+
+        $task1 = $taskService->create([
+            'title' => 'Task 1',
+            'epic_id' => $epic->id,
+        ]);
+        $task2 = $taskService->create([
+            'title' => 'Task 2',
+            'epic_id' => $epic->id,
+        ]);
+
+        // Create runs with costs for the tasks
+        $runService->logRun($task1->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.5,
+            'output' => 'Run 1',
+        ]);
+        $runService->logRun($task1->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 0.25,
+            'output' => 'Run 2',
+        ]);
+        $runService->logRun($task2->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 1.0,
+            'output' => 'Run 3',
+        ]);
+
+        $this->artisan('epic:show', ['id' => $epic->short_id])
+            ->expectsOutputToContain('Cost: $1.7500')  // 0.5 + 0.25 + 1.0
+            ->assertExitCode(0);
+    });
+
+    it('does not show epic cost when no tasks have cost data', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(RunService::class);
+
+        // Create epic with tasks but no costs
+        $epic = $epicService->createEpic('Epic without costs', 'Epic that has no costs');
+
+        $task = $taskService->create([
+            'title' => 'Task without cost',
+            'epic_id' => $epic->id,
+        ]);
+
+        // Create run without cost
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => null,
+            'output' => 'Run without cost',
+        ]);
+
+        Artisan::call('epic:show', ['id' => $epic->short_id]);
+        $output = Artisan::output();
+
+        expect($output)->not->toContain('Cost:');
+    });
+
+    it('includes epic cost in JSON output', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+        $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(RunService::class);
+
+        // Create epic with tasks
+        $epic = $epicService->createEpic('Epic with costs', 'Epic that has costs');
+
+        $task = $taskService->create([
+            'title' => 'Task 1',
+            'epic_id' => $epic->id,
+        ]);
+
+        // Create runs with costs
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'cost_usd' => 2.5,
+            'output' => 'Run 1',
+        ]);
+
+        Artisan::call('epic:show', ['id' => $epic->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $json = json_decode($output, true);
+
+        expect($json)->toHaveKey('cost_usd');
+        expect($json['cost_usd'])->toBe(2.5);
+    });
+
+    it('does not include cost in JSON when epic has no cost data', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+
+        $epic = $epicService->createEpic('Epic without costs', 'Epic that has no costs');
+
+        Artisan::call('epic:show', ['id' => $epic->short_id, '--json' => true]);
+        $output = Artisan::output();
+        $json = json_decode($output, true);
+
+        expect($json)->not->toHaveKey('cost_usd');
     });
 });
