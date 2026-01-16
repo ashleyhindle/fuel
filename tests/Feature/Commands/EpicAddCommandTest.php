@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Epic;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -74,5 +75,21 @@ describe('epic:add command', function (): void {
         expect($output)->toContain('Created epic: e-');
         expect($output)->toContain('Title: Test Epic');
         expect($output)->not->toContain('Description:');
+    });
+
+    it('stores plan_filename on epic using slug format', function (): void {
+        Artisan::call('epic:add', [
+            'title' => 'SVG creation for OpenCode',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        $epic = Epic::where('short_id', $data['short_id'])->first();
+
+        // Should use slug format (lowercase, hyphens for spaces)
+        // NOT kebab format (which would split SVG into s-v-g)
+        expect($epic->plan_filename)->toBe('svg-creation-for-opencode-'.$epic->short_id.'.md');
+        expect($epic->plan_filename)->not->toContain('s-v-g');
     });
 });

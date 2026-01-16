@@ -96,3 +96,37 @@ test('isPlanningOrInProgress returns false for other statuses', function (): voi
 
 // Note: findByPartialId tests require database and are covered in Feature tests
 // The TaskTest.php version uses RefreshDatabase correctly via TestCase
+
+test('generatePlanFilename uses slug format preserving acronyms', function (): void {
+    // Acronyms should stay together, not be split
+    expect(Epic::generatePlanFilename('SVG creation for OpenCode', 'e-abc123'))
+        ->toBe('svg-creation-for-opencode-e-abc123.md');
+
+    // Regular words work as expected
+    expect(Epic::generatePlanFilename('Add user authentication', 'e-def456'))
+        ->toBe('add-user-authentication-e-def456.md');
+
+    // Special characters are removed
+    expect(Epic::generatePlanFilename('Fix bug #123 (urgent!)', 'e-ghi789'))
+        ->toBe('fix-bug-123-urgent-e-ghi789.md');
+});
+
+test('getPlanFilename returns stored filename when available', function (): void {
+    $epic = new Epic([
+        'short_id' => 'e-abc123',
+        'title' => 'SVG creation for OpenCode',
+        'plan_filename' => 'my-custom-filename-e-abc123.md',
+    ]);
+
+    expect($epic->getPlanFilename())->toBe('my-custom-filename-e-abc123.md');
+});
+
+test('getPlanPath returns correct path format', function (): void {
+    $epic = new Epic([
+        'short_id' => 'e-abc123',
+        'title' => 'Test Epic',
+        'plan_filename' => 'test-epic-e-abc123.md',
+    ]);
+
+    expect($epic->getPlanPath())->toBe('.fuel/plans/test-epic-e-abc123.md');
+});
