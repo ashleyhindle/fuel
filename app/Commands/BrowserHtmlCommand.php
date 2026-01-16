@@ -4,18 +4,13 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use App\Commands\Concerns\HandlesJsonOutput;
 use App\Ipc\Commands\BrowserHtmlCommand as IpcBrowserHtmlCommand;
 use App\Ipc\Events\BrowserResponseEvent;
-use App\Services\ConsumeIpcClient;
-use App\Services\FuelContext;
-use Illuminate\Console\Scheduling\Schedule;
-use LaravelZero\Framework\Commands\Command;
+use App\Ipc\IpcMessage;
+use DateTimeImmutable;
 
-class BrowserHtmlCommand extends Command
+class BrowserHtmlCommand extends BrowserCommand
 {
-    use HandlesJsonOutput;
-
     /**
      * The signature of the command.
      *
@@ -40,166 +35,58 @@ class BrowserHtmlCommand extends Command
      */
     public function handle(): int
     {
+        $selector = $this->argument('selector');
+        $ref = $this->option('ref');
+
+        // Validate that either selector or ref is provided
+        if (! $selector && ! $ref) {
+            return $this->outputError('Either selector or --ref must be provided');
+        }
+
+        return parent::handle();
+    }
+
+    /**
+     * Build the specific IPC command for this browser operation.
+     */
+    protected function buildIpcCommand(
+        string $requestId,
+        string $instanceId,
+        DateTimeImmutable $timestamp
+    ): IpcMessage {
         $pageId = $this->argument('page_id');
         $selector = $this->argument('selector');
         $ref = $this->option('ref');
         $inner = $this->option('inner');
 
-        // Validate that either selector or ref is provided
-        if (! $selector && ! $ref) {
-            if ($this->option('json')) {
-                $this->outputJson([
-                    'error' => 'Either selector or --ref must be provided',
-                ], self::FAILURE);
-
-                return self::FAILURE;
-            }
-            $this->error('Either selector or --ref must be provided');
-
-            return self::FAILURE;
-        }
-
-        $ipcClient = app(ConsumeIpcClient::class);
-        $pidFilePath = app(FuelContext::class)->getPidFilePath();
-
-        // Ensure fuel consume is running
-        if (! $ipcClient->isRunnerAlive($pidFilePath)) {
-            if ($this->option('json')) {
-                $this->outputJson([
-                    'error' => 'Fuel consume is not running. Start it first with: fuel consume',
-                ], self::FAILURE);
-
-                return self::FAILURE;
-            }
-            $this->error('Fuel consume is not running. Start it first with: fuel consume');
-
-            return self::FAILURE;
-        }
-
-        // Get port from PID file and connect
-        try {
-            $pidData = json_decode(file_get_contents($pidFilePath), true);
-            $port = $pidData['port'] ?? 0;
-            if ($port === 0) {
-                if ($this->option('json')) {
-                    $this->outputJson([
-                        'error' => 'Invalid port in PID file',
-                    ], self::FAILURE);
-
-                    return self::FAILURE;
-                }
-                $this->error('Invalid port in PID file');
-
-                return self::FAILURE;
-            }
-
-            $ipcClient->connect($port);
-        } catch (\Throwable $e) {
-            if ($this->option('json')) {
-                $this->outputJson([
-                    'error' => 'Failed to connect to daemon: '.$e->getMessage(),
-                ], self::FAILURE);
-
-                return self::FAILURE;
-            }
-            $this->error('Failed to connect to daemon: '.$e->getMessage());
-
-            return self::FAILURE;
-        }
-
-        try {
-            // Send browser html command
-            $command = new IpcBrowserHtmlCommand(
-                pageId: $pageId,
-                selector: $selector,
-                ref: $ref,
-                inner: $inner
-            );
-
-            $ipcClient->sendCommand($command);
-
-            // Wait for response
-            $timeout = 5; // 5 seconds timeout
-            $start = time();
-            while (time() - $start < $timeout) {
-                $messages = $ipcClient->pollEvents();
-                foreach ($messages as $message) {
-                    // Check if this response matches our request
-                    $messageRequestId = null;
-                    if ($message instanceof BrowserResponseEvent) {
-                        $messageRequestId = $message->getRequestId();
-                    } elseif (isset($message->requestId)) {
-                        $messageRequestId = $message->requestId;
-                    }
-
-                    if ($messageRequestId === $command->getRequestId()) {
-                        // Handle error response
-                        $error = null;
-                        if ($message instanceof BrowserResponseEvent && $message->error) {
-                            $error = $message->error;
-                        } elseif (isset($message->error) && $message->error) {
-                            $error = $message->error;
-                        }
-
-                        if ($error) {
-                            if ($this->option('json')) {
-                                $this->outputJson([
-                                    'error' => $error,
-                                ], self::FAILURE);
-
-                                return self::FAILURE;
-                            }
-                            $this->error($error);
-
-                            return self::FAILURE;
-                        }
-
-                        // Get data from response
-                        $data = null;
-                        if ($message instanceof BrowserResponseEvent && $message->result) {
-                            $data = $message->result;
-                        } elseif (isset($message->data)) {
-                            $data = $message->data;
-                        }
-
-                        if ($data) {
-                            // Output the HTML content
-                            if ($this->option('json')) {
-                                $this->outputJson($data);
-
-                                return self::SUCCESS;
-                            }
-
-                            $this->info($data['html'] ?? '');
-
-                            return self::SUCCESS;
-                        }
-                    }
-                }
-                usleep(100000); // 100ms
-            }
-
-            // Timeout
-            if ($this->option('json')) {
-                $this->outputJson([
-                    'error' => 'Timeout waiting for response',
-                ], self::FAILURE);
-
-                return self::FAILURE;
-            }
-            $this->error('Timeout waiting for response');
-
-            return self::FAILURE;
-        } finally {
-            $ipcClient->disconnect();
-        }
+        return new IpcBrowserHtmlCommand(
+            pageId: $pageId,
+            selector: $selector,
+            ref: $ref,
+            inner: $inner,
+            timestamp: $timestamp,
+            instanceId: $instanceId,
+            requestId: $requestId
+        );
     }
 
     /**
-     * Define the command's schedule.
+     * Handle the successful response from the browser daemon.
      */
-    public function schedule(Schedule $schedule): void
+    protected function handleSuccess(BrowserResponseEvent $response): void
     {
-        // $schedule->command(static::class)->everyMinute();
+        if ($this->option('json')) {
+            $this->outputJson([
+                'success' => true,
+                'data' => $response->result ?? [],
+            ]);
+        } else {
+            $result = $response->result ?? [];
+            if (isset($result['html'])) {
+                $this->info($result['html']);
+            } else {
+                $this->info('No HTML content found');
+            }
+        }
     }
 }
