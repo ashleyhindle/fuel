@@ -8,6 +8,21 @@ Consolidate duplicate temp dir and config setup across 51 test files. Add setCon
 
 ## Implementation Notes
 
+### Review: Epic completion check (f-ec4f5a)
+Status: not complete yet.
+
+Checks run:
+- `./vendor/bin/pest --parallel --compact` -> pass (6 skipped, 1342 passed).
+- `rg "tempDir.*=.*sys_get_temp_dir" tests/Feature` -> **still matches**:
+  - `tests/Feature/Commands/DbCommandTest.php`
+  - `tests/Feature/Commands/InitCommandTest.php`
+  - `tests/Feature/Commands/SelfUpdateCommandTest.php`
+
+Remaining work:
+- Migrate the three files above to `$this->testDir` (or document exceptions if needed).
+- Re-run the grep to confirm zero matches.
+- CI status still unverified locally.
+
 ### Helper Methods Added (f-8b872d)
 Added two protected helper methods to `tests/TestCase.php`:
 
@@ -104,6 +119,27 @@ Migrated 7 test files to use TestCase's `$this->testDir`:
 - Mockery cleanup kept in afterEach for TriggerReviewCommandTest
 - TriggerReviewCommandTest creates runs directory via FuelContext in beforeEach
 - Custom config uses `$this->setConfig()` with YAML heredoc instead of Yaml::dump()
+
+### Batch 5: Runs-Status Tests Migrated (f-26ba2e)
+Migrated 9 test files to use TestCase's `$this->testDir`:
+
+1. **RunsCommandTest.php** - Kept minimal beforeEach for taskService only
+2. **RunShowCommandTest.php** - Kept minimal beforeEach for taskService and runService only
+3. **SelfGuidedBlockedCommandTest.php** - Kept minimal beforeEach for taskService only
+4. **SelfGuidedContinueCommandTest.php** - Kept minimal beforeEach for taskService only
+5. **SelfUpdateCommandTest.php** - **Special case**: Kept file-level beforeEach/afterEach for HOME environment variable manipulation needed by tests. Removed all describe-level database setup since tests only use reflection to test command methods directly - no database needed.
+6. **ShowCommandTest.php** - Kept minimal beforeEach for taskService only; changed tempDir→testDir for process directory paths
+7. **StartCommandTest.php** - Kept minimal beforeEach for taskService only
+8. **StatsCommandTest.php** - Kept minimal beforeEach for taskService, runService, epicService (via makeEpicService), and databaseService
+9. **StatusCommandTest.php** - Kept minimal beforeEach for taskService only
+
+**Key patterns continued:**
+- Services obtained via `app(ServiceClass::class)`
+- `$this->tempDir` references in tests changed to `$this->testDir`
+- Tests that don't need database (like SelfUpdateCommandTest's command method tests) don't need the boilerplate at all
+
+**Special note on SelfUpdateCommandTest:**
+This test file has a unique structure - it tests SelfUpdateCommand methods using reflection without actually running commands through the framework. The file-level beforeEach/afterEach creates a mock HOME directory structure for testing the `getHomeDirectory()` method. The describe-level database setup was completely unnecessary and removed (780+ lines of boilerplate eliminated across all 9 files).
 
 ## Interfaces Created
 None - added helper methods to existing TestCase class.
