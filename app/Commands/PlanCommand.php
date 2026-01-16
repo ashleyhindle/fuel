@@ -4,6 +4,7 @@ namespace App\Commands;
 
 use App\Models\Epic;
 use LaravelZero\Framework\Commands\Command;
+use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process;
 
 class PlanCommand extends Command
@@ -112,6 +113,10 @@ class PlanCommand extends Command
         // Set working directory to project root
         $process->setWorkingDirectory(getcwd());
 
+        // Create input stream for bidirectional communication
+        $input = new InputStream;
+        $process->setInput($input);
+
         // Track if an epic was created for clean exit handling
         $epicCreated = (bool) $existingEpicId;
 
@@ -174,11 +179,10 @@ class PlanCommand extends Command
                 ],
             ];
 
-            $process->getInput()->write(json_encode($initialMessage)."\n");
-            $process->getInput()->flush();
+            $input->write(json_encode($initialMessage)."\n");
 
             // Main interaction loop
-            $this->runInteractionLoop($process, $existingEpicId, $epicCreated);
+            $this->runInteractionLoop($process, $input, $existingEpicId, $epicCreated);
 
         } catch (\Exception $e) {
             $this->error('Failed to start planning session: '.$e->getMessage());
@@ -192,7 +196,7 @@ class PlanCommand extends Command
     /**
      * Run the main interaction loop with Claude
      */
-    private function runInteractionLoop(Process $process, ?string $existingEpicId = null, bool &$epicCreated = false): void
+    private function runInteractionLoop(Process $process, InputStream $input, ?string $existingEpicId = null, bool &$epicCreated = false): void
     {
         $outputBuffer = '';
         $waitingForInput = false;
@@ -285,8 +289,7 @@ class PlanCommand extends Command
                 // Inject planning constraints with each user message
                 $messageWithConstraints = $this->wrapUserMessage($userInput, $conversationState);
 
-                $process->getInput()->write(json_encode($messageWithConstraints)."\n");
-                $process->getInput()->flush();
+                $input->write(json_encode($messageWithConstraints)."\n");
 
                 $waitingForInput = false;
             }
