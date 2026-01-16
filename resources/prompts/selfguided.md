@@ -29,9 +29,10 @@ Pick the next most important unchecked criterion and implement it fully:
 - Write code
 - Run tests for affected code
 - **Smoke test it yourself** - actually run/use what you built:
-  - CLI command? Run it
+  - CLI command? Run it: `./fuel mycommand`
   - Web feature? Load it in browser
   - API endpoint? Call it with curl
+  - Library code? Write a quick test script
   - Figure out a safe way to use it
 - Fix any issues found
 
