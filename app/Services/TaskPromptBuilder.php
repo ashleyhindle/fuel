@@ -43,7 +43,13 @@ class TaskPromptBuilder
         return <<<PROTOCOL
 == CLOSING PROTOCOL ==
 Before exiting, you MUST:
-1. If you changed code: run tests and linter/formatter
+1. If you changed code: you must ensure your changes pass all quality gates and is tested before moving on to the next step:
+    - Linter
+    - Formatter
+    - Unit tests
+    - Feature tests
+    - Smoke test (use what you've built if possible)
+    - Verify it works and does what's expected
 2. Run `git status` to see modified files
 3. Run `git add <files>` for each file YOU modified (not files from other agents)
 4. VERIFY: `git diff --cached --stat` shows all YOUR changes are staged
