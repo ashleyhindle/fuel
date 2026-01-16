@@ -3,92 +3,25 @@
 declare(strict_types=1);
 
 use App\Contracts\ReviewServiceInterface;
-use App\Services\ConfigService;
-use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
-use Symfony\Component\Yaml\Yaml;
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    // Create FuelContext pointing to test directory
-    $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-    $this->configPath = $context->getConfigPath();
-    $this->runsPath = $context->getRunsPath();
-
-    // Create runs directory
-    mkdir($this->runsPath, 0755, true);
-
-    // Bind test services
-    $context->configureDatabase();
-    $databaseService = new DatabaseService($context->getDatabasePath());
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-    Artisan::call('migrate', ['--force' => true]);
-
-    $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
-
-    $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
-    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
+    // Create runs directory under testDir
+    $context = app(FuelContext::class);
+    mkdir($context->getRunsPath(), 0755, true);
 
     // Create a mock ReviewServiceInterface
     $this->mockReviewService = \Mockery::mock(ReviewServiceInterface::class);
     $this->app->instance(ReviewServiceInterface::class, $this->mockReviewService);
 
-    $this->taskService = $this->app->make(TaskService::class);
-    $this->runService = $this->app->make(RunService::class);
-    $this->configService = $this->app->make(ConfigService::class);
-
-    // Initialize storage
-
-    // Create minimal config (driver-based format)
-    $config = [
-        'agents' => [
-            'test-agent' => ['driver' => 'claude'],
-        ],
-        'complexity' => [
-            'trivial' => 'test-agent',
-        ],
-        'primary' => 'test-agent',
-    ];
-    file_put_contents($this->configPath, Yaml::dump($config));
+    $this->taskService = app(TaskService::class);
+    $this->runService = app(RunService::class);
 });
 
 afterEach(function (): void {
-    // Recursively delete temp directory
-    $deleteDir = function (string $dir) use (&$deleteDir): void {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $items = scandir($dir);
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-
-            if ($item === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $deleteDir($path);
-            } else {
-                unlink($path);
-            }
-        }
-
-        rmdir($dir);
-    };
-
-    $deleteDir($this->tempDir);
     \Mockery::close();
 });
 
@@ -171,23 +104,17 @@ it('uses agent from latest run when available', function (): void {
 
 it('uses config review agent when no run exists', function (): void {
     // Update config with review agent (driver-based format)
-    $config = [
-        'agents' => [
-            'test-agent' => ['driver' => 'claude'],
-            'review-agent' => ['driver' => 'claude'],
-        ],
-        'complexity' => [
-            'trivial' => 'test-agent',
-        ],
-        'primary' => 'test-agent',
-        'review' => 'review-agent',
-    ];
-    file_put_contents($this->configPath, Yaml::dump($config));
-
-    // Reload config service (create new instance to clear cache)
-    $context = $this->app->make(FuelContext::class);
-    $this->app->singleton(ConfigService::class, fn (): ConfigService => new ConfigService($context));
-    $this->configService = $this->app->make(ConfigService::class);
+    $this->setConfig(<<<'YAML'
+primary: test-agent
+review: review-agent
+complexity:
+  trivial: test-agent
+agents:
+  test-agent:
+    driver: claude
+  review-agent:
+    driver: claude
+YAML);
 
     // Create a task without runs and set status to done
     $task = $this->taskService->create([

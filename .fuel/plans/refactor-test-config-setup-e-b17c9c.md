@@ -89,5 +89,21 @@ Migrated 10 test files to use TestCase's `$this->testDir`:
 - Custom config uses `$this->setConfig()` helper instead of manual file writes
 - `$this->tempDir` references in tests changed to `$this->testDir`
 
+### Batch 6: Stuck-Update & EpicCommands Tests Migrated (f-3c814a)
+Migrated 7 test files to use TestCase's `$this->testDir`:
+
+1. **StuckCommandTest.php** - Kept minimal beforeEach for taskService and runService only
+2. **SummaryCommandTest.php** - Kept minimal beforeEach for taskService only
+3. **TasksCommandTest.php** - Kept minimal beforeEach for taskService only
+4. **TreeCommandTest.php** - Kept minimal beforeEach for taskService only
+5. **TriggerReviewCommandTest.php** - Kept minimal beforeEach for taskService, runService, and mock ReviewServiceInterface; creates runs directory; one test uses `$this->setConfig()` for custom config with review agent
+6. **UpdateCommandTest.php** - Kept minimal beforeEach for taskService only
+7. **EpicCommandsTest.php** - Kept minimal beforeEach for taskService and epicService only; changed tempDir→testDir for plan file paths
+
+**Key patterns continued:**
+- Mockery cleanup kept in afterEach for TriggerReviewCommandTest
+- TriggerReviewCommandTest creates runs directory via FuelContext in beforeEach
+- Custom config uses `$this->setConfig()` with YAML heredoc instead of Yaml::dump()
+
 ## Interfaces Created
 None - added helper methods to existing TestCase class.

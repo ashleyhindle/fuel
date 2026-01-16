@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\DatabaseService;
-use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -9,54 +8,7 @@ use Illuminate\Support\Facades\Artisan;
 // Show Command Tests
 describe('show command', function (): void {
     beforeEach(function (): void {
-        $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
-        mkdir($this->tempDir.'/.fuel', 0755, true);
-
-        $context = new FuelContext($this->tempDir.'/.fuel');
-        $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-        $this->dbPath = $context->getDatabasePath();
-
-        $context->configureDatabase();
-        $databaseService = new DatabaseService($context->getDatabasePath());
-        $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $databaseService);
-        Artisan::call('migrate', ['--force' => true]);
-
-        $this->app->singleton(TaskService::class, fn (): TaskService => makeTaskService());
-
-        $this->app->singleton(RunService::class, fn (): RunService => makeRunService());
-
-        $this->taskService = $this->app->make(TaskService::class);
-    });
-
-    afterEach(function (): void {
-        $deleteDir = function (string $dir) use (&$deleteDir): void {
-            if (! is_dir($dir)) {
-                return;
-            }
-
-            $items = scandir($dir);
-            foreach ($items as $item) {
-                if ($item === '.') {
-                    continue;
-                }
-
-                if ($item === '..') {
-                    continue;
-                }
-
-                $path = $dir.'/'.$item;
-                if (is_dir($path)) {
-                    $deleteDir($path);
-                } elseif (file_exists($path)) {
-                    unlink($path);
-                }
-            }
-
-            rmdir($dir);
-        };
-
-        $deleteDir($this->tempDir);
+        $this->taskService = app(TaskService::class);
     });
 
     it('shows task details with all fields', function (): void {
@@ -164,10 +116,6 @@ describe('show command', function (): void {
     });
 
     it('shows epic information when task has epic_id', function (): void {
-
-        // Initialize database for epics
-        $dbService = new DatabaseService($this->tempDir.'/.fuel/agent.db');
-
         $epicService = makeEpicService($this->taskService);
         $epic = $epicService->createEpic('Test Epic', 'Epic description');
 
@@ -190,10 +138,6 @@ describe('show command', function (): void {
     });
 
     it('includes epic information in JSON output when task has epic_id', function (): void {
-
-        // Initialize database for epics
-        $dbService = new DatabaseService($this->tempDir.'/.fuel/agent.db');
-
         $epicService = makeEpicService($this->taskService);
         $epic = $epicService->createEpic('JSON Epic', 'Epic description');
 
@@ -222,7 +166,7 @@ describe('show command', function (): void {
         ]);
 
         // Create processes directory and stdout.log with some content
-        $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
+        $processDir = $this->testDir.'/.fuel/processes/'.$runShortId;
         mkdir($processDir, 0755, true);
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Line 1\nLine 2\nLine 3\n");
@@ -246,7 +190,7 @@ describe('show command', function (): void {
         ]);
 
         // Create processes directory and stdout.log with 60 lines
-        $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
+        $processDir = $this->testDir.'/.fuel/processes/'.$runShortId;
         mkdir($processDir, 0755, true);
         $stdoutPath = $processDir.'/stdout.log';
         $lines = [];
@@ -290,7 +234,7 @@ describe('show command', function (): void {
         );
         $runShortId = $run['short_id'];
 
-        $processDir = $this->tempDir.'/.fuel/processes/'.$runShortId;
+        $processDir = $this->testDir.'/.fuel/processes/'.$runShortId;
         mkdir($processDir, 0755, true);
         $stdoutPath = $processDir.'/stdout.log';
         file_put_contents($stdoutPath, "Live output\n");

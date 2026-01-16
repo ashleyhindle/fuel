@@ -4,58 +4,13 @@ declare(strict_types=1);
 
 use App\Enums\EpicStatus;
 use App\Models\Epic;
-use App\Services\DatabaseService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function (): void {
-    $this->tempDir = sys_get_temp_dir().'/fuel-epic-cmd-test-'.uniqid();
-    mkdir($this->tempDir.'/.fuel', 0755, true);
-
-    // Create FuelContext pointing to test directory
-    $context = new FuelContext($this->tempDir.'/.fuel');
-    $this->app->singleton(FuelContext::class, fn (): FuelContext => $context);
-
-    $this->db = new DatabaseService($context->getDatabasePath());
-    $this->taskService = makeTaskService();
-    $this->epicService = makeEpicService($this->taskService);
-
-    $this->app->singleton(TaskService::class, fn (): TaskService => $this->taskService);
-    $this->app->singleton(DatabaseService::class, fn (): DatabaseService => $this->db);
-    Artisan::call('migrate', ['--force' => true]);
-    $this->app->singleton(EpicService::class, fn (): EpicService => $this->epicService);
-});
-
-afterEach(function (): void {
-    $deleteDir = function (string $dir) use (&$deleteDir): void {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $items = scandir($dir);
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-
-            if ($item === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $deleteDir($path);
-            } else {
-                @unlink($path);
-            }
-        }
-
-        @rmdir($dir);
-    };
-
-    $deleteDir($this->tempDir);
+    $this->taskService = app(TaskService::class);
+    $this->epicService = app(EpicService::class);
 });
 
 describe('epic:add command', function (): void {
@@ -205,7 +160,7 @@ describe('epic:add with selfguided mode', function (): void {
         $epicId = $epic['short_id'];
 
         // Check that plan file was created with correct sections
-        $planPath = $this->tempDir.'/.fuel/plans/self-guided-test-epic-'.$epicId.'.md';
+        $planPath = $this->testDir.'/.fuel/plans/self-guided-test-epic-'.$epicId.'.md';
         expect(file_exists($planPath))->toBeTrue();
 
         $content = file_get_contents($planPath);
@@ -232,7 +187,7 @@ describe('epic:add with selfguided mode', function (): void {
         $epicId = $epic['short_id'];
 
         // Check that plan file was created without selfguided sections
-        $planPath = $this->tempDir.'/.fuel/plans/regular-test-epic-'.$epicId.'.md';
+        $planPath = $this->testDir.'/.fuel/plans/regular-test-epic-'.$epicId.'.md';
         expect(file_exists($planPath))->toBeTrue();
 
         $content = file_get_contents($planPath);
@@ -311,7 +266,7 @@ describe('epic:update with selfguided transition', function (): void {
         $epic = $this->epicService->createEpic('Epic with plan update');
 
         // Ensure plans directory exists
-        $plansDir = $this->tempDir.'/.fuel/plans';
+        $plansDir = $this->testDir.'/.fuel/plans';
         if (! is_dir($plansDir)) {
             mkdir($plansDir, 0755, true);
         }
@@ -362,7 +317,7 @@ MARKDOWN);
         $epic = $this->epicService->createEpic('Epic without plan');
 
         // Delete the auto-created plan file
-        $planPath = $this->tempDir.'/.fuel/plans/epic-without-plan-'.$epic->short_id.'.md';
+        $planPath = $this->testDir.'/.fuel/plans/epic-without-plan-'.$epic->short_id.'.md';
         if (file_exists($planPath)) {
             unlink($planPath);
         }
