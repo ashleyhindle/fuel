@@ -72,6 +72,11 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 - Migration includes proper `down()` method to drop the column on rollback
 - Migration tested successfully with `./fuel migrate`
 
+## Review Notes
+- f-f01e89: verified acceptance criteria 1-8; tests `./vendor/bin/pest --filter='commit_hash'` pass; `./vendor/bin/pint --test` pass
+- Migration verified via test suite (migrate on temp DB)
+- No debug calls found in related files (selfguided:continue, done, RunService)
+
 ## Interfaces Created
 <!-- Tasks add interfaces/contracts they create -->
 
