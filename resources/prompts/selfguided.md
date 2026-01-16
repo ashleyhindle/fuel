@@ -1,4 +1,4 @@
-<fuel-prompt version="3" />
+<fuel-prompt version="4" />
 
 == SELF-GUIDED EPIC EXECUTION ==
 Iteration {{ iteration }} of {{ max_iterations }}
