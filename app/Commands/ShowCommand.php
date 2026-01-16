@@ -579,6 +579,14 @@ class ShowCommand extends Command
                             break;
                         }
 
+                        // Check if process is dead (agent crashed without updating DB)
+                        $runPid = $latestRun->pid ?? null;
+                        if ($runPid !== null && ! ProcessManager::isProcessAlive($runPid)) {
+                            $this->line('  <fg=red>(agent exited - PID '.$runPid.' no longer running)</>');
+                            $this->outputRemainingContent($filePath, $lastPosition);
+                            break;
+                        }
+
                         $fileStableSince = null;
                     }
                 }
