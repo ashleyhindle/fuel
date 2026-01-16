@@ -3001,7 +3001,8 @@ class ConsumeCommand extends Command
     /** Available commands in the command palette */
     private const PALETTE_COMMANDS = [
         'add' => 'Create a new task',
-        'close' => 'Mark a task as done',
+        'close' => 'Mark a task as done (with reason: closed)',
+        'done' => 'Mark a task as done',
         'pause' => 'Pause task consumption',
         'reload' => 'Reload configuration',
         'reopen' => 'Reopen a closed or failed task',
@@ -3034,7 +3035,11 @@ class ConsumeCommand extends Command
         if (isset($selected->short_id) || (is_array($selected) && isset($selected['short_id']))) {
             $shortId = is_object($selected) ? $selected->short_id : $selected['short_id'];
             // Determine which command we're completing for
-            $prefix = str_starts_with($this->commandPaletteInput, 'reopen ') ? 'reopen ' : 'close ';
+            $prefix = match (true) {
+                str_starts_with($this->commandPaletteInput, 'reopen ') => 'reopen ',
+                str_starts_with($this->commandPaletteInput, 'done ') => 'done ',
+                default => 'close ',
+            };
             $this->commandPaletteInput = $prefix.$shortId;
             $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
             $this->updateCommandPaletteSuggestions();
@@ -3051,6 +3056,13 @@ class ConsumeCommand extends Command
         // Check if input matches a command with arguments (e.g., "close ")
         if (str_starts_with($input, 'close ')) {
             $this->updateTaskSuggestions(mb_substr($input, 6));
+
+            return;
+        }
+
+        // Check if input matches done command with arguments
+        if (str_starts_with($input, 'done ')) {
+            $this->updateTaskSuggestions(mb_substr($input, 5));
 
             return;
         }
@@ -3271,10 +3283,52 @@ class ConsumeCommand extends Command
                 return;
             }
 
-            // Execute
-            $this->ipcClient?->sendTaskDone($taskIdInput);
+            // Execute with reason "closed"
+            $this->ipcClient?->sendTaskDone($taskIdInput, 'closed');
             $this->checkEpicCompletionSound($taskIdInput);
             $this->toast?->show('Closed: '.$task->short_id, 'success');
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
+        // Parse /done command
+        if (preg_match('/^done\s+(\S+)/', $input, $matches)) {
+            $taskIdInput = $matches[1];
+
+            // If suggestionIndex >= 0 and valid, use that task's short_id instead
+            if ($this->commandPaletteSuggestionIndex >= 0 && $this->commandPaletteSuggestionIndex < count($this->commandPaletteSuggestions)) {
+                $selected = $this->commandPaletteSuggestions[$this->commandPaletteSuggestionIndex];
+                if (isset($selected['short_id'])) {
+                    $taskIdInput = $selected['short_id'];
+                }
+            }
+
+            // Find task
+            $task = $this->taskService->find($taskIdInput);
+
+            // Validate
+            if (! $task instanceof Task) {
+                $this->toast?->show('Task not found: '.$taskIdInput, 'error');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            if ($task->status === TaskStatus::Done) {
+                $this->toast?->show('Task already done', 'warning');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            // Execute without reason
+            $this->ipcClient?->sendTaskDone($taskIdInput);
+            $this->checkEpicCompletionSound($taskIdInput);
+            $this->toast?->show('Done: '.$task->short_id, 'success');
             $this->deactivateCommandPalette();
             $this->forceRefresh = true;
 
@@ -3324,7 +3378,7 @@ class ConsumeCommand extends Command
         }
 
         // Handle unknown command or empty input
-        if ($input !== '' && ! str_starts_with($input, 'close') && ! str_starts_with($input, 'add') && ! str_starts_with($input, 'reopen')) {
+        if ($input !== '' && ! str_starts_with($input, 'close') && ! str_starts_with($input, 'add') && ! str_starts_with($input, 'done') && ! str_starts_with($input, 'reopen')) {
             $this->toast?->show('Unknown command: '.$input, 'error');
         }
 
