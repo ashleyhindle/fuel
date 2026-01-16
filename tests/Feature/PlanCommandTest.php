@@ -84,13 +84,13 @@ test('plan command handles self-guided vs pre-planned mode selection', function 
     $state = 'ready_to_create';
     $message = $wrapMethod->invokeArgs($planCommand, ['self-guided', &$state]);
     expect($state)->toBe('mode_selected_selfguided');
-    expect($message['content'][0]['text'])->toContain('--selfguided');
+    expect($message['message']['content'])->toContain('--selfguided');
 
     // Test pre-planned selection
     $state = 'ready_to_create';
     $message = $wrapMethod->invokeArgs($planCommand, ['pre-planned', &$state]);
     expect($state)->toBe('mode_selected_preplanned');
-    expect($message['content'][0]['text'])->toContain('no --selfguided');
+    expect($message['message']['content'])->toContain('no --selfguided');
 });
 
 test('plan session tracks selfguided flag in epic creation', function () {

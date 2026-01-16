@@ -196,12 +196,10 @@ class PlanCommand extends Command
             }
 
             $initialMessage = [
-                'type' => 'message',
-                'content' => [
-                    [
-                        'type' => 'text',
-                        'text' => $initialText,
-                    ],
+                'type' => 'user',
+                'message' => [
+                    'role' => 'user',
+                    'content' => $initialText,
                 ],
             ];
 
@@ -566,12 +564,10 @@ class PlanCommand extends Command
         }
 
         return [
-            'type' => 'message',
-            'content' => [
-                [
-                    'type' => 'text',
-                    'text' => $userInput.$reminder,
-                ],
+            'type' => 'user',
+            'message' => [
+                'role' => 'user',
+                'content' => $userInput.$reminder,
             ],
         ];
     }
