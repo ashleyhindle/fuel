@@ -64,7 +64,7 @@ class EpicAddCommand extends Command
             mkdir($plansDir, 0755, true);
         }
 
-        $filename = Str::kebab($title).'-'.$epicId.'.md';
+        $filename = Str::slug($title).'-'.$epicId.'.md';
         $planPath = $plansDir.'/'.$filename;
 
         $descriptionSection = $description ? PHP_EOL.$description.PHP_EOL : '';
