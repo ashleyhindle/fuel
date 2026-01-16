@@ -84,6 +84,9 @@ class ConsumeCommand extends Command
     /** Whether done modal is visible */
     private bool $showDoneModal = false;
 
+    /** Whether epics modal is visible */
+    private bool $showEpicsModal = false;
+
     /** Flag to force refresh on next loop (e.g., after SIGWINCH) */
     private bool $forceRefresh = false;
 
@@ -95,6 +98,9 @@ class ConsumeCommand extends Command
 
     /** Scroll offset for done modal */
     private int $doneModalScroll = 0;
+
+    /** Scroll offset for epics modal */
+    private int $epicsModalScroll = 0;
 
     /** Spinner frame counter for activity indicator */
     private int $spinnerFrame = 0;
@@ -875,7 +881,7 @@ class ConsumeCommand extends Command
         }
 
         // Render command palette if active (overlays status line area)
-        if ($this->commandPaletteActive && ! $this->showBlockedModal && ! $this->showDoneModal) {
+        if ($this->commandPaletteActive && ! $this->showBlockedModal && ! $this->showDoneModal && ! $this->showEpicsModal) {
             $this->captureCommandPalette();
         } else {
             // Status line (centered, above footer)
@@ -906,6 +912,13 @@ class ConsumeCommand extends Command
                 $this->captureLoadingModal('Done Tasks');
             } else {
                 $this->captureModal('Done Tasks', $this->hydrateTasksForModal($doneData), 'done', $this->doneModalScroll);
+            }
+        } elseif ($this->showEpicsModal) {
+            $epicsData = $this->ipcClient?->getEpics();
+            if ($epicsData === null || $epicsData === []) {
+                $this->captureLoadingModal('Epics');
+            } else {
+                $this->captureEpicsModal('Epics', $epicsData, $this->epicsModalScroll);
             }
         }
 
@@ -1077,6 +1090,81 @@ class ConsumeCommand extends Command
 
                 $idColor = $style === 'blocked' ? 'fg=#b36666' : 'fg=#888888';
                 $content = sprintf('<%s>[%s ·%s]</> %s', $idColor, $displayId, $complexityChar, $titleTrunc);
+                $contentLen = $this->visibleLength($content);
+                $padding = max(0, $modalWidth - $contentLen - 3);
+                $modalLines[] = '<fg=cyan>│</> '.$content.str_repeat(' ', $padding).'<fg=cyan>│</>';
+            }
+        }
+
+        $modalLines[] = '<fg=cyan>╰'.str_repeat('─', $modalWidth - 2).'╯</>';
+
+        // Store modal as an overlay layer (layer 1) positioned at startRow, startCol
+        $this->screenBuffer->setOverlay(1, $startRow, $startCol, $modalLines);
+    }
+
+    /**
+     * Capture an epics modal as an overlay layer (does not modify main buffer).
+     *
+     * @param  array<string, array{short_id: string, title: string, status: string}>  $epics
+     */
+    private function captureEpicsModal(string $title, array $epics, int $scrollOffset = 0): void
+    {
+        if (! $this->screenBuffer instanceof ScreenBuffer) {
+            return;
+        }
+
+        // Modal dimensions (centered, 60% width, up to 80% height)
+        $modalWidth = min((int) ($this->terminalWidth * 0.6), $this->terminalWidth - 8);
+        $maxHeight = (int) ($this->terminalHeight * 0.8);
+        $startCol = (int) (($this->terminalWidth - $modalWidth) / 2) + 1; // +1 for 1-indexed
+        $startRow = 3;
+
+        // Calculate visible epic slots (header=3 lines, footer=1 line)
+        $visibleSlots = $maxHeight - 4;
+        $totalEpics = count($epics);
+
+        // Clamp scroll offset to valid range
+        $maxScroll = max(0, $totalEpics - $visibleSlots);
+        $scrollOffset = max(0, min($scrollOffset, $maxScroll));
+
+        // Update the scroll position if it was clamped
+        $this->epicsModalScroll = $scrollOffset;
+
+        // Build modal content (just the lines, no padding)
+        $modalLines = [];
+        $modalLines[] = '<fg=cyan>╭'.str_repeat('─', $modalWidth - 2).'╮</>';
+
+        // Title with scroll indicator
+        $scrollIndicator = $totalEpics > $visibleSlots ? sprintf(' (%d-%d of %d)', $scrollOffset + 1, min($scrollOffset + $visibleSlots, $totalEpics), $totalEpics) : '';
+        $titleWithIndicator = $title.$scrollIndicator;
+        $modalLines[] = '<fg=cyan>│</> <fg=white;options=bold>'.$this->truncate($titleWithIndicator, $modalWidth - 6).'</>'.str_repeat(' ', max(0, $modalWidth - $this->visibleLength($titleWithIndicator) - 3)).'<fg=cyan>│</>';
+        $modalLines[] = '<fg=cyan>├'.str_repeat('─', $modalWidth - 2).'┤</>';
+
+        if ($epics === []) {
+            $emptyMsg = 'No epics';
+            $modalLines[] = '<fg=cyan>│</> <fg=gray>'.$emptyMsg.'</>'.str_repeat(' ', max(0, $modalWidth - strlen($emptyMsg) - 3)).'<fg=cyan>│</>';
+        } else {
+            // Slice epics based on scroll offset
+            $visibleEpics = array_slice($epics, $scrollOffset, $visibleSlots, true);
+
+            foreach ($visibleEpics as $epic) {
+                $displayId = substr($epic['short_id'], 2, 6);
+                $titleTrunc = $this->truncate($epic['title'], $modalWidth - 22);
+                $status = $epic['status'] ?? 'unknown';
+
+                // Color based on status
+                $statusColor = match ($status) {
+                    'planning' => 'fg=#888888',
+                    'in_progress' => 'fg=#66b3ff',
+                    'review_pending' => 'fg=#ffaa66',
+                    'reviewed' => 'fg=#aa88ff',
+                    'approved' => 'fg=#66ff66',
+                    'changes_requested' => 'fg=#ff6666',
+                    'paused' => 'fg=#888888',
+                    default => 'fg=#888888',
+                };
+
+                $content = sprintf('<fg=#888888>[%s]</> <%s>%s</> %s', $displayId, $statusColor, $status, $titleTrunc);
                 $contentLen = $this->visibleLength($content);
                 $padding = max(0, $modalWidth - $contentLen - 3);
                 $modalLines[] = '<fg=cyan>│</> '.$content.str_repeat(' ', $padding).'<fg=cyan>│</>';
@@ -1540,6 +1628,14 @@ class ConsumeCommand extends Command
                 $this->info('Loading done tasks...');
             } else {
                 $this->renderModal('Done Tasks', $this->hydrateTasksForModal($doneData), 'done', $this->doneModalScroll);
+            }
+        } elseif ($this->showEpicsModal) {
+            $epicsData = $this->ipcClient?->getEpics();
+            if ($epicsData === null || $epicsData === []) {
+                // No epics or still loading
+                $this->renderModal('Epics', [], 'epics', $this->epicsModalScroll);
+            } else {
+                $this->renderEpicsModal('Epics', $epicsData, $this->epicsModalScroll);
             }
         }
     }
@@ -2026,6 +2122,81 @@ class ConsumeCommand extends Command
     }
 
     /**
+     * Render an epics modal overlay.
+     *
+     * @param  array<string, array{short_id: string, title: string, status: string}>  $epics
+     */
+    private function renderEpicsModal(string $title, array $epics, int $scrollOffset = 0): void
+    {
+        // Modal dimensions (centered, 60% width, up to 80% height)
+        $modalWidth = min((int) ($this->terminalWidth * 0.6), $this->terminalWidth - 8);
+        $maxHeight = (int) ($this->terminalHeight * 0.8);
+        $startCol = (int) (($this->terminalWidth - $modalWidth) / 2);
+        $startRow = 3;
+
+        // Calculate visible epic slots (header=3 lines, footer=1 line)
+        $visibleSlots = $maxHeight - 4;
+        $totalEpics = count($epics);
+
+        // Clamp scroll offset to valid range
+        $maxScroll = max(0, $totalEpics - $visibleSlots);
+        $scrollOffset = max(0, min($scrollOffset, $maxScroll));
+
+        // Update the scroll position if it was clamped
+        $this->epicsModalScroll = $scrollOffset;
+
+        // Build modal content
+        $modalLines = [];
+        $modalLines[] = '<fg=cyan>╭'.str_repeat('─', $modalWidth - 2).'╮</>';
+
+        // Title with scroll indicator
+        $scrollIndicator = $totalEpics > $visibleSlots ? sprintf(' (%d-%d of %d)', $scrollOffset + 1, min($scrollOffset + $visibleSlots, $totalEpics), $totalEpics) : '';
+        $titleWithIndicator = $title.$scrollIndicator;
+        $modalLines[] = '<fg=cyan>│</> <fg=white;options=bold>'.$this->truncate($titleWithIndicator, $modalWidth - 6).'</>'.str_repeat(' ', max(0, $modalWidth - $this->visibleLength($titleWithIndicator) - 3)).'<fg=cyan>│</>';
+        $modalLines[] = '<fg=cyan>├'.str_repeat('─', $modalWidth - 2).'┤</>';
+
+        if ($epics === []) {
+            $emptyMsg = 'No epics';
+            $modalLines[] = '<fg=cyan>│</> <fg=gray>'.$emptyMsg.'</>'.str_repeat(' ', max(0, $modalWidth - strlen($emptyMsg) - 3)).'<fg=cyan>│</>';
+        } else {
+            // Slice epics based on scroll offset
+            $visibleEpics = array_slice($epics, $scrollOffset, $visibleSlots, true);
+
+            foreach ($visibleEpics as $epic) {
+                $displayId = substr($epic['short_id'], 2, 6);
+                $titleTrunc = $this->truncate($epic['title'], $modalWidth - 22);
+                $status = $epic['status'] ?? 'unknown';
+
+                // Color based on status
+                $statusColor = match ($status) {
+                    'planning' => 'fg=#888888',
+                    'in_progress' => 'fg=#66b3ff',
+                    'review_pending' => 'fg=#ffaa66',
+                    'reviewed' => 'fg=#aa88ff',
+                    'approved' => 'fg=#66ff66',
+                    'changes_requested' => 'fg=#ff6666',
+                    'paused' => 'fg=#888888',
+                    default => 'fg=#888888',
+                };
+
+                $content = sprintf('<fg=#888888>[%s]</> <%s>%s</> %s', $displayId, $statusColor, $status, $titleTrunc);
+                $contentLen = $this->visibleLength($content);
+                $padding = max(0, $modalWidth - $contentLen - 3);
+                $modalLines[] = '<fg=cyan>│</> '.$content.str_repeat(' ', $padding).'<fg=cyan>│</>';
+            }
+        }
+
+        $modalLines[] = '<fg=cyan>╰'.str_repeat('─', $modalWidth - 2).'╯</>';
+
+        // Render modal using absolute positioning
+        foreach ($modalLines as $i => $line) {
+            $row = $startRow + $i;
+            // Move cursor to position and draw line
+            $this->getOutput()->write(sprintf("\033[%d;%dH%s", $row, $startCol, $line));
+        }
+    }
+
+    /**
      * Get complexity character for a task.
      */
     private function getComplexityChar(Task $task): string
@@ -2115,11 +2286,13 @@ class ConsumeCommand extends Command
      */
     private function handleBareEscape(): void
     {
-        if ($this->showBlockedModal || $this->showDoneModal) {
+        if ($this->showBlockedModal || $this->showDoneModal || $this->showEpicsModal) {
             $this->showBlockedModal = false;
             $this->showDoneModal = false;
+            $this->showEpicsModal = false;
             $this->blockedModalScroll = 0;
             $this->doneModalScroll = 0;
+            $this->epicsModalScroll = 0;
             $this->forceRefresh = true;
         }
     }
@@ -2201,6 +2374,9 @@ class ConsumeCommand extends Command
                             $this->forceRefresh = true;
                         } elseif ($this->showBlockedModal) {
                             $this->blockedModalScroll = max(0, $this->blockedModalScroll + $scrollDelta);
+                            $this->forceRefresh = true;
+                        } elseif ($this->showEpicsModal) {
+                            $this->epicsModalScroll = max(0, $this->epicsModalScroll + $scrollDelta);
                             $this->forceRefresh = true;
                         }
                     }
@@ -2312,7 +2488,7 @@ class ConsumeCommand extends Command
         $char = $buf[0];
         $this->inputBuffer = substr($buf, 1);
 
-        if ($char === '/' && ! $this->showBlockedModal && ! $this->showDoneModal) {
+        if ($char === '/' && ! $this->showBlockedModal && ! $this->showDoneModal && ! $this->showEpicsModal) {
             $this->activateCommandPalette();
 
             return 1;
@@ -2324,7 +2500,9 @@ class ConsumeCommand extends Command
                 $this->showBlockedModal = ! $this->showBlockedModal;
                 if ($this->showBlockedModal) {
                     $this->showDoneModal = false;
+                    $this->showEpicsModal = false;
                     $this->doneModalScroll = 0;
+                    $this->epicsModalScroll = 0;
                     $this->blockedModalScroll = 0;
                     // Request blocked tasks if not already loaded
                     if ($this->ipcClient?->isConnected() && ! $this->ipcClient->hasBlockedTasks()) {
@@ -2343,7 +2521,9 @@ class ConsumeCommand extends Command
                 $this->showDoneModal = ! $this->showDoneModal;
                 if ($this->showDoneModal) {
                     $this->showBlockedModal = false;
+                    $this->showEpicsModal = false;
                     $this->blockedModalScroll = 0;
+                    $this->epicsModalScroll = 0;
                     $this->doneModalScroll = 0;
                     // Request done tasks if not already loaded
                     if ($this->ipcClient?->isConnected() && ! $this->ipcClient->hasDoneTasks()) {
@@ -2351,6 +2531,23 @@ class ConsumeCommand extends Command
                     }
                 } else {
                     $this->doneModalScroll = 0;
+                }
+
+                $this->forceRefresh = true;
+
+                return 1;
+
+            case 'e':
+            case 'E':
+                $this->showEpicsModal = ! $this->showEpicsModal;
+                if ($this->showEpicsModal) {
+                    $this->showBlockedModal = false;
+                    $this->showDoneModal = false;
+                    $this->blockedModalScroll = 0;
+                    $this->doneModalScroll = 0;
+                    $this->epicsModalScroll = 0;
+                } else {
+                    $this->epicsModalScroll = 0;
                 }
 
                 $this->forceRefresh = true;
