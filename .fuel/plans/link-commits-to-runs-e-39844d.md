@@ -17,9 +17,10 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 - Migration file: `database/migrations/2026_01_16_102931_add_commit_hash_to_runs_table.php`
 - Migration tested and verified working
 
-### 2. RunService: Support commit_hash updates
-- Add `commit_hash` to the fields handled by `updateRun()` and `updateLatestRun()`
+### 2. RunService: Support commit_hash updates ✅
+- ✅ Add `commit_hash` to the fields handled by `updateRun()` and `updateLatestRun()`
 - No changes needed to `createRun()` (commits happen at end of run)
+- Implementation: Added commit_hash handling in both update methods after output truncation
 
 ### 3. SelfGuidedContinueCommand: Add --commit flag
 - Add `--commit=` option to capture the commit made during this iteration
@@ -39,7 +40,7 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 | File | Change |
 |------|--------|
 | `database/migrations/2026_01_16_102931_add_commit_hash_to_runs_table.php` | ✅ Migration created and tested |
-| `app/Services/RunService.php` | Handle commit_hash in update methods |
+| `app/Services/RunService.php` | ✅ Handle commit_hash in update methods |
 | `app/Commands/SelfGuidedContinueCommand.php` | Add --commit flag, update run |
 | `app/Commands/DoneCommand.php` | Also store commit_hash on latest run |
 | `resources/prompts/selfguided.md` | Update prompt with new flag usage |
@@ -66,3 +67,10 @@ Track `commit_hash` per **run** so that each iteration of a selfguided task can 
 
 ## Interfaces Created
 <!-- Tasks add interfaces/contracts they create -->
+
+### RunService commit_hash handling (f-d41bf8)
+- `updateRun(string $runId, array $data)` - Now accepts `commit_hash` in $data array
+- `updateLatestRun(string $taskId, array $data)` - Now accepts `commit_hash` in $data array
+- Both methods handle commit_hash the same way as other optional fields (session_id, cost_usd, etc.)
+- Pattern: Check if key exists in $data, then add to update fields
+- Location: `app/Services/RunService.php` lines ~179 and ~257
