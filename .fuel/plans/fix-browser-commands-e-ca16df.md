@@ -42,7 +42,7 @@ Fix all broken browser commands and improve consistency across the browser comma
 - [x] `browser:text page_id 'h1'` returns text content
 - [x] `browser:text page_id --ref=@e1` returns text using snapshot ref
 - [x] `browser:goto page_id url --html` returns HTML in response
-- [ ] All browser commands have consistent error handling
+- [x] All browser commands have consistent error handling
 - [ ] Run `./vendor/bin/pest tests/Feature/Commands/Browser*` - all tests pass
 - [ ] Run `./vendor/bin/pint` - code formatted
 
@@ -52,6 +52,7 @@ Fix all broken browser commands and improve consistency across the browser comma
 - Iteration 2: Fixed browser:html and browser:text commands by refactoring them to extend BrowserCommand base class, both now working correctly
 - Iteration 3: Added --html flag support to browser:goto command, verified --ref and --inner flags work for html/text commands, started updating tests to use BrowserResponseEvent (commit 5bbb2da)
 - Iteration 4: Verified browser:goto --html flag works correctly (returns HTML content after navigation), refactored BrowserSnapshotCommand to extend base class for consistency, partially updated tests but they need more work (commit 884a500)
+- Iteration 5: Standardized error handling across all browser commands - refactored BrowserClickCommand, BrowserFillCommand, BrowserTypeCommand to extend BrowserCommand base class, unified validation error handling, updated tests to match new flow (commit a6c03d2)
 
 ## Implementation Notes
 
