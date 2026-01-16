@@ -12,6 +12,14 @@ test('plan command starts immediately without arguments', function () {
 });
 
 test('plan command resumes with epic id argument', function () {
+    // Create a paused epic to resume
+    $epic = \App\Models\Epic::create([
+        'short_id' => 'e-12345',
+        'title' => 'Test Epic',
+        'description' => 'Test epic for resuming plan',
+        'status' => \App\Enums\EpicStatus::Paused,
+    ]);
+
     $this->artisan('plan', ['epic-id' => 'e-12345'])
         ->expectsOutput('Resuming planning session for epic: e-12345')
         ->assertExitCode(0);

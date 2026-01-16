@@ -94,12 +94,14 @@ class PlanCommand extends Command
             return;
         }
 
-        // Build the command to spawn Claude with JSON mode
+        // Build the command to spawn Claude with stream-json mode
         $command = [
             'claude',
+            '--print',
+            '--verbose',
             '--model', 'opus-4-5-20250101',
-            '--input-format', 'json',
-            '--output-format', 'json',
+            '--input-format', 'stream-json',
+            '--output-format', 'stream-json',
         ];
 
         $process = new Process($command);

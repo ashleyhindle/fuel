@@ -17,6 +17,14 @@ test('fuel plan command starts immediately with no arguments', function () {
 });
 
 test('fuel plan command can resume with epic-id', function () {
+    // Create a paused epic to resume
+    $epic = \App\Models\Epic::create([
+        'short_id' => 'e-test123',
+        'title' => 'Test Epic',
+        'description' => 'Test epic for resuming plan',
+        'status' => \App\Enums\EpicStatus::Paused,
+    ]);
+
     $this->artisan('plan', ['epic-id' => 'e-test123'])
         ->expectsOutputToContain('Resuming planning session for epic: e-test123')
         ->assertSuccessful();
