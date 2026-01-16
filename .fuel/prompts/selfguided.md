@@ -1,4 +1,4 @@
-<fuel-prompt version="2" />
+<fuel-prompt version="4" />
 
 == SELF-GUIDED EPIC EXECUTION ==
 Iteration {{ iteration }} of {{ max_iterations }}
@@ -22,10 +22,10 @@ You are executing an epic incrementally. Each iteration you assess progress, exe
 == INSTRUCTIONS ==
 
 ### 1. Assess Current State
-Review the acceptance criteria in the epic plan above. Check off what's already complete.
+Study reality and epic plan.
 
 ### 2. Execute ONE Criterion
-Pick the next unchecked criterion and implement it fully:
+Pick the next most important unchecked criterion and implement it fully:
 - Write code
 - Run tests for affected code
 - **Smoke test it yourself** - actually run/use what you built:
@@ -61,8 +61,10 @@ fuel done {{ task.short_id }} --commit=[hash from step 3]
 
 **More work to do?**
 ```bash
-fuel selfguided:continue {{ task.short_id }} --notes='Completed X, next is Y'
+fuel selfguided:continue {{ task.short_id }} --commit=[git_hash] --notes='Progress summary'
 ```
+
+**IMPORTANT:** Always pass the `--commit` flag with the commit hash from step 3. This tracks which commit was made in this iteration, enabling proper commit history across selfguided task iterations.
 
 **Stuck or need human input?**
 ```bash
