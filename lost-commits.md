@@ -108,3 +108,43 @@ These are mock setup issues in browser command tests, not functional problems:
 - `BrowserSnapshotCommandTest` (3 tests)
 - `BrowserWaitCommandTest` (2 tests)
 - `ConsumeIpcServerTest` (1 test)
+
+---
+
+## Second Recovery (2026-01-16)
+
+Found additional dangling commits from orphaned branch ending at `53f73bf`.
+
+### Commits Recovered
+```
+53f73bf fix: prevent selfguided race condition by deferring reopen to onSuccess
+70f4790 feat: improve fuel show command with commit hash display and enhanced UX
+d32a105 feat: add cost display to 'fuel show' command for tasks and epics
+9cb23ba fix: handle multiline titles in board cards to prevent layout issues
+fdce844 feat: add fuel notification icon (includes getIconPath() method)
+f19be01 feat: add E2E test suite for browser commands
+```
+
+### Features Summary
+
+#### Selfguided Race Condition Fix
+- `selfguided:continue` no longer reopens task directly (caused race with daemon)
+- `SelfGuidedAgentTask::onSuccess()` now reopens if task still `in_progress`
+- `SelfGuidedAgentTask::onFailure()` reopens for retry if stuck_count < 3
+
+#### Fuel Show Improvements
+- Commit hash display in task/epic details
+- Cost display for tasks and epics (aggregated from runs)
+- Enhanced UX with better formatting
+
+#### Other Fixes
+- Multiline titles in board cards handled correctly
+- Notification icon added (`resources/images/fuel-icon.png`)
+- E2E test suite for browser commands (7 test files)
+
+### Commits Intentionally Skipped
+- `fuel plan` command (e-ec4ae8) - decided against this approach
+- `f4ee93d` browser:run arrow function fix - may be covered by f-ac8430
+- `9aeb9d8` waitForResponse pattern - may be covered by f-ac8430
+- `0d71879` fuel completed column hiding - HEAD had better implementation
+- `b0fccfe` TUI Table in blocked command - HEAD had better implementation
