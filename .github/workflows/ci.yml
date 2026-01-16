@@ -21,6 +21,12 @@ jobs:
           extensions: mbstring, xml, curl, zip
           coverage: none
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
       - name: Get Composer Cache Directory
         id: composer-cache
         run: |
@@ -34,8 +40,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-composer-
 
-      - name: Install dependencies
+      - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist
+
+      - name: Install Node dependencies
+        run: npm ci
 
       - name: Run Pint (formatter)
         run: composer format
@@ -43,5 +52,8 @@ jobs:
       - name: Run Rector (dry-run to check code quality)
         run: composer rector:check
 
-      - name: Run tests
+      - name: Run PHP tests
         run: composer test
+
+      - name: Run JavaScript tests
+        run: npm test -- --run
