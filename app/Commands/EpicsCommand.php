@@ -65,9 +65,15 @@ class EpicsCommand extends Command
                 $progress = $totalCount > 0 ? sprintf('%d/%d complete', $completedCount, $totalCount) : '0/0 complete';
                 $mode = $epic->self_guided ? 'self-guided' : 'parallel';
 
+                // Get first line of title, then truncate if needed
+                $title = strtok($epic->title ?? '', "\r\n") ?: ($epic->title ?? '');
+                if (mb_strlen($title) > 50) {
+                    $title = mb_substr($title, 0, 47).'...';
+                }
+
                 return [
                     $epic->short_id,
-                    $epic->title ?? '',
+                    $title,
                     $epic->status->value,
                     $progress,
                     $mode,
@@ -79,9 +85,15 @@ class EpicsCommand extends Command
 
             $table = new Table;
 
-            // Column priorities: all columns are important
-            // Headers: ['ID', 'Title', 'Status', 'Progress', 'Mode', 'Created']
-            $columnPriorities = [];
+            // Column priorities: lower = more important, higher gets dropped first
+            $columnPriorities = [
+                1,  // ID - keep
+                1,  // Title - keep
+                2,  // Status - keep
+                2,  // Progress - keep
+                4,  // Mode - drop if needed
+                5,  // Created - drop first
+            ];
 
             $table->render($headers, $rows, $this->output, $columnPriorities, $terminalWidth);
 

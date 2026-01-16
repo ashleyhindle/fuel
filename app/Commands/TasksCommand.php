@@ -98,9 +98,17 @@ class TasksCommand extends Command
 
             $table = new Table;
 
-            // Column priorities: all columns are important
-            // Headers: ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Agent', 'Created']
-            $columnPriorities = [];
+            // Column priorities: lower = more important, higher gets dropped first
+            $columnPriorities = [
+                1,  // ID - keep
+                1,  // Title - keep
+                2,  // Status - keep
+                5,  // Type - drop if needed
+                6,  // Priority - drop if needed
+                4,  // Labels - drop if needed
+                3,  // Agent - drop if needed
+                7,  // Created - drop first
+            ];
 
             $table->render(
                 ['ID', 'Title', 'Status', 'Type', 'Priority', 'Labels', 'Agent', 'Created'],
@@ -108,9 +116,15 @@ class TasksCommand extends Command
                     $latestRun = $runService->getLatestRun($t->short_id);
                     $agent = $latestRun?->agent ?? '';
 
+                    // Get first line of title, then truncate if needed
+                    $title = strtok($t->title, "\r\n") ?: $t->title;
+                    if (mb_strlen($title) > 60) {
+                        $title = mb_substr($title, 0, 57).'...';
+                    }
+
                     return [
                         $t->short_id,
-                        $t->title,
+                        $title,
                         $t->status->value,
                         $t->type ?? 'task',
                         $t->priority ?? 2,
