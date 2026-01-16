@@ -28,9 +28,16 @@ Review the acceptance criteria in the epic plan above. Check off what's already 
 Pick the next unchecked criterion and implement it fully:
 - Write code
 - Run tests for affected code
-- Fix any issues
+- **Smoke test it yourself** - actually run/use what you built:
+  - CLI command? Run it: `./fuel mycommand`
+  - Web feature? Load it in browser
+  - API endpoint? Call it with curl
+  - Library code? Write a quick test script
+- Fix any issues found
 
 You MUST execute only one task / criterion. Do not implement everything.
+
+**WARNING: Unit tests passing ≠ feature works.** Tests may mock, stub, or early-return. You must verify the real thing works.
 
 ### 3. Commit Your Changes
 ```bash
@@ -68,6 +75,7 @@ fuel selfguided:blocked {{ task.short_id }} --reason='Why you are blocked'
 Before marking any criterion complete:
 - [ ] Code has no errors
 - [ ] Relevant tests pass
+- [ ] **You ran/used the feature and it actually works** (not just tests!)
 - [ ] Formatters ran
 - [ ] Style checkers ran
 - [ ] Browser tests verified (if web page)
