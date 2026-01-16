@@ -129,7 +129,6 @@ it('can take screenshots', function () {
     }
 });
 
-// TODO: browser:run returns empty result - needs investigation
 it('can run JavaScript code on page', function () {
     $browser = $this->createTestBrowser();
 
@@ -143,15 +142,28 @@ it('can run JavaScript code on page', function () {
         ]);
 
         expect($result['success'])->toBeTrue();
-        // Result comes back empty - browser:run may have a bug
-        // expect($result['result'])->toBe('Example Domain');
+        expect($result['result']['value'])->toBe('Example Domain');
 
     } finally {
         $this->closeBrowser($browser['contextId']);
     }
-})->skip('browser:run returns empty result - needs investigation');
+});
 
-// TODO: browser:run errors don't set exit code
 it('handles JavaScript errors gracefully', function () {
-    $this->markTestSkipped('browser:run error handling needs investigation');
-})->skip('browser:run error handling needs investigation');
+    $browser = $this->createTestBrowser();
+
+    try {
+        $result = $this->runCommand([
+            'browser:run',
+            $browser['pageId'],
+            'throw new Error("test error")',
+            '--json',
+        ], false);
+
+        expect($result['exitCode'])->toBe(1);
+        expect($result['output'])->toContain('test error');
+
+    } finally {
+        $this->closeBrowser($browser['contextId']);
+    }
+});

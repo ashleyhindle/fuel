@@ -214,10 +214,34 @@ async function handle(method, params) {
       if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
       touchContext(entry.contextId);
-      // Create async function with page in scope
-      const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-      const fn = new AsyncFunction('page', code);
-      const value = await fn(entry.page);
+
+      let value;
+      const trimmedCode = code.trim();
+
+      // Detect if code is browser-context (uses document/window but not page.)
+      // or Playwright-context (uses page. methods)
+      const isBrowserContext = (trimmedCode.match(/\b(document|window)\b/) && !trimmedCode.match(/\bpage\./));
+
+      if (isBrowserContext) {
+        // Run in browser context using page.evaluate()
+        // For string args, page.evaluate wraps them in a function and evaluates them
+        // But for function expressions like '() => document.title', we need to call them
+
+        // If code is a function expression (starts with optional parens and arrow), wrap in IIFE
+        if (trimmedCode.match(/^\(?\s*\(.*?\)\s*=>/)) {
+          // It's an arrow function expression - wrap in IIFE
+          value = await entry.page.evaluate(`(${code})()`);
+        } else {
+          // Direct expression or statement
+          value = await entry.page.evaluate(code);
+        }
+      } else {
+        // Run as Playwright code with page in scope
+        const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+        const fn = new AsyncFunction('page', code);
+        value = await fn(entry.page);
+      }
+
       return { ok: true, result: { value } };
     }
 
@@ -623,8 +647,8 @@ async function handle(method, params) {
         ok: true,
         result: {
           browserLaunched: browser !== null,
-          contexts: Array.from(contexts.keys()),
-          pages: Array.from(pages.keys()),
+          contextsCount: contexts.size,
+          pagesCount: pages.size,
         },
       };
     }
