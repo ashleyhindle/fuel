@@ -79,11 +79,11 @@ YAML;
     public static function tearDownAfterClass(): void
     {
         // Stop daemon
-        if (static::$daemonPid && posix_kill(static::$daemonPid, 0)) {
-            posix_kill(static::$daemonPid, SIGTERM);
+        if (static::$daemonPid && @posix_kill(static::$daemonPid, 0)) {
+            @posix_kill(static::$daemonPid, SIGTERM);
             usleep(500000);
-            if (posix_kill(static::$daemonPid, 0)) {
-                posix_kill(static::$daemonPid, SIGKILL);
+            if (@posix_kill(static::$daemonPid, 0)) {
+                @posix_kill(static::$daemonPid, SIGKILL);
             }
         }
         static::$daemonPid = null;
