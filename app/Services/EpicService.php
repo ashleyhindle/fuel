@@ -448,8 +448,8 @@ class EpicService
         // If mirror path exists, remove it
         if (! empty($epic->mirror_path) && is_dir($epic->mirror_path)) {
             // Use rm -rf to remove the directory recursively
-            $escapedPath = escapeshellarg($epic->mirror_path);
-            exec("rm -rf {$escapedPath}");
+            $escapedPath = escapeshellarg((string) $epic->mirror_path);
+            exec('rm -rf ' . $escapedPath);
         }
 
         // Update status to cleaned
@@ -527,10 +527,12 @@ class EpicService
         }
 
         foreach ($directories as $dir) {
-            if ($dir === '.' || $dir === '..') {
+            if ($dir === '.') {
                 continue;
             }
-
+            if ($dir === '..') {
+                continue;
+            }
             $fullPath = $mirrorsBasePath.'/'.$dir;
             if (! is_dir($fullPath)) {
                 continue;

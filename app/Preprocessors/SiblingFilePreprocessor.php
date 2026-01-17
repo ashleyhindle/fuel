@@ -40,12 +40,12 @@ class SiblingFilePreprocessor implements PreprocessorInterface
             }
 
             // Pick the smallest sibling as template
-            $template = $this->pickBestTemplate($siblings, $cwd);
+            $template = $this->pickBestTemplate($siblings);
             if ($template === null) {
                 continue;
             }
 
-            $content = $this->getFileContent($template, $cwd);
+            $content = $this->getFileContent($template);
             if ($content === null) {
                 continue;
             }
@@ -106,7 +106,7 @@ class SiblingFilePreprocessor implements PreprocessorInterface
             $siblings = glob($pattern);
 
             // Filter out the target itself and non-existent files
-            $siblings = array_filter($siblings, function ($path) use ($targetPath, $cwd) {
+            $siblings = array_filter($siblings, function ($path) use ($targetPath, $cwd): bool {
                 $relative = str_replace($cwd.'/', '', $path);
 
                 return $relative !== $targetPath && is_file($path);
@@ -124,7 +124,7 @@ class SiblingFilePreprocessor implements PreprocessorInterface
             $pattern = $cwd.'/'.$dir.'/*.'.$ext;
             $siblings = glob($pattern);
 
-            $siblings = array_filter($siblings, function ($path) use ($targetPath, $cwd) {
+            $siblings = array_filter($siblings, function ($path) use ($targetPath, $cwd): bool {
                 $relative = str_replace($cwd.'/', '', $path);
 
                 return $relative !== $targetPath && is_file($path);
@@ -141,16 +141,14 @@ class SiblingFilePreprocessor implements PreprocessorInterface
     /**
      * Pick the best template file (prefer smaller files).
      */
-    private function pickBestTemplate(array $siblings, string $cwd): ?string
+    private function pickBestTemplate(array $siblings): ?string
     {
         if ($siblings === []) {
             return null;
         }
 
         // Sort by file size (smallest first)
-        usort($siblings, function ($a, $b) {
-            return filesize($a) <=> filesize($b);
-        });
+        usort($siblings, fn($a, $b): int => filesize($a) <=> filesize($b));
 
         // Return the smallest file that's not too tiny (>10 lines)
         foreach ($siblings as $sibling) {
@@ -167,7 +165,7 @@ class SiblingFilePreprocessor implements PreprocessorInterface
     /**
      * Get file content with line numbers, truncated if needed.
      */
-    private function getFileContent(string $path, string $cwd): ?string
+    private function getFileContent(string $path): ?string
     {
         if (! file_exists($path)) {
             return null;
@@ -246,9 +244,8 @@ class SiblingFilePreprocessor implements PreprocessorInterface
 
         $output = "== TEMPLATE: Sibling file for {$targetPath} ==\n";
         $output .= "Use this existing file as a pattern to follow:\n\n";
-        $output .= "// {$relativePath}\n";
-        $output .= $content;
+        $output .= sprintf('// %s%s', $relativePath, PHP_EOL);
 
-        return $output;
+        return $output . $content;
     }
 }

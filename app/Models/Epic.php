@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\MirrorStatus;
 use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Services\FuelContext;
@@ -48,7 +49,7 @@ class Epic extends Model
 
     protected $casts = [
         'status' => EpicStatus::class,
-        'mirror_status' => \App\Enums\MirrorStatus::class,
+        'mirror_status' => MirrorStatus::class,
         'self_guided' => 'boolean',
         'paused_at' => 'datetime',
         'reviewed_at' => 'datetime',
@@ -205,7 +206,7 @@ class Epic extends Model
      */
     public function isMirrorReady(): bool
     {
-        return $this->mirror_status === \App\Enums\MirrorStatus::Ready;
+        return $this->mirror_status === MirrorStatus::Ready;
     }
 
     /**

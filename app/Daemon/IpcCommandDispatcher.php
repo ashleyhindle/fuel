@@ -24,7 +24,7 @@ use App\Services\ConsumeIpcServer;
  */
 final class IpcCommandDispatcher
 {
-    private $onHealthReset = null;
+    private $onHealthReset;
 
     public function __construct(
         private readonly ConsumeIpcServer $ipcServer,

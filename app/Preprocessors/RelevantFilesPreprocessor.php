@@ -91,7 +91,7 @@ class RelevantFilesPreprocessor implements PreprocessorInterface
         $text = preg_replace('/([a-z])([A-Z])/', '$1 $2', $text);
 
         // Split on non-alphanumeric
-        $words = preg_split('/[^a-zA-Z0-9]+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+        $words = preg_split('/[^a-zA-Z0-9]+/', (string) $text, -1, PREG_SPLIT_NO_EMPTY);
 
         return $words ?: [];
     }
@@ -105,7 +105,7 @@ class RelevantFilesPreprocessor implements PreprocessorInterface
     private function findRelevantFiles(array $keywords, string $cwd): array
     {
         // Build regex pattern: keyword1|keyword2|keyword3
-        $pattern = implode('|', array_map('preg_quote', $keywords));
+        $pattern = implode('|', array_map(preg_quote(...), $keywords));
 
         // Try ripgrep first, fall back to grep
         $command = $this->buildSearchCommand($pattern, $cwd);
@@ -229,11 +229,9 @@ class RelevantFilesPreprocessor implements PreprocessorInterface
         $output .= "Files likely relevant to this task (by match count):\n";
 
         foreach ($files as $file) {
-            $output .= "  - {$file}\n";
+            $output .= sprintf('  - %s%s', $file, PHP_EOL);
         }
 
-        $output .= "\nConsider starting your exploration with these files.\n";
-
-        return $output;
+        return $output . "\nConsider starting your exploration with these files.\n";
     }
 }

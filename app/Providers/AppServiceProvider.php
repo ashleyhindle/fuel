@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Services\PromptService;
 use App\Agents\AgentDriverRegistry;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ProcessManagerInterface;
@@ -14,7 +15,6 @@ use App\Daemon\LifecycleManager;
 use App\Daemon\ReviewManager;
 use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
-use App\Preprocessors\SiblingFilePreprocessor;
 use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
 use App\Services\BrowserDaemonManager;
@@ -157,18 +157,15 @@ class AppServiceProvider extends ServiceProvider
             fuelContext: $app->make(FuelContext::class),
         ));
 
-        $this->app->singleton(TaskPromptBuilder::class, function (Application $app): TaskPromptBuilder {
-            $builder = new TaskPromptBuilder(
-                $app->make(RunService::class),
-                $app->make(\App\Services\PromptService::class)
-            );
-
+        $this->app->singleton(TaskPromptBuilder::class, 
             // Preprocessors disabled by default - benchmarks showed they hurt more than helped
             // without proper infrastructure (AST, semantic search, embeddings, etc.)
             // To enable: $builder->addPreprocessor(new SiblingFilePreprocessor);
 
-            return $builder;
-        });
+            fn(Application $app): TaskPromptBuilder => new TaskPromptBuilder(
+            $app->make(RunService::class),
+            $app->make(PromptService::class)
+        ));
 
         $this->app->singleton(UpdateRealityService::class, fn (Application $app): UpdateRealityService => new UpdateRealityService(
             configService: $app->make(ConfigService::class),

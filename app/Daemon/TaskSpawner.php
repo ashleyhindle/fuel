@@ -122,22 +122,18 @@ final class TaskSpawner
                             break;
                         case MirrorStatus::Pending:
                         case MirrorStatus::Creating:
-                            // Mirror not ready yet, skip this task
-                            return false;
                         case MirrorStatus::MergeFailed:
-                            // Epic blocked due to merge failure, skip task
+                            // Mirror not ready yet, skip this task
                             return false;
                         default:
                             // For other statuses (None, Merging, Merged, Cleaned), use default behavior
                             break;
                     }
                 }
-            } else {
+            } elseif ($this->epicService->hasActiveMerge()) {
                 // For standalone tasks (no epic_id), check if any epic is merging
-                if ($this->epicService->hasActiveMerge()) {
-                    // Skip standalone tasks during merge to prevent git conflicts
-                    return false;
-                }
+                // Skip standalone tasks during merge to prevent git conflicts
+                return false;
             }
         }
 

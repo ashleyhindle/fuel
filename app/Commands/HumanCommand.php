@@ -162,7 +162,7 @@ class HumanCommand extends Command
                 $age = $this->formatAge($epic->updated_at ?? null);
                 $this->line(sprintf('<fg=red>MERGE FAILED:</> <info>%s</info> - %s <comment>(%s)</comment>', $epic->short_id, $epic->title, $age));
                 $this->line(sprintf('  Mirror: <comment>%s</comment>', $epic->mirror_path ?? 'unknown'));
-                $this->line(sprintf('  Action: <comment>Check mirror logs and resolve conflicts</comment>'));
+                $this->line('  Action: <comment>Check mirror logs and resolve conflicts</comment>');
                 $this->newLine();
             }
 
@@ -180,7 +180,7 @@ class HumanCommand extends Command
             foreach ($this->orphanedMirrors as $orphan) {
                 $this->line(sprintf('<fg=yellow>ORPHANED MIRROR:</> <info>%s</info> - %s', $orphan['epic_id'], $orphan['reason']));
                 $this->line(sprintf('  Path: <comment>%s</comment>', $orphan['path']));
-                $this->line(sprintf('  Cleanup: <comment>rm -rf %s</comment>', escapeshellarg($orphan['path'])));
+                $this->line(sprintf('  Cleanup: <comment>rm -rf %s</comment>', escapeshellarg((string) $orphan['path'])));
                 $this->newLine();
             }
         }
@@ -786,7 +786,7 @@ class HumanCommand extends Command
             $title = "\033[1;33m{$orphan['epic_id']}\033[0m - \033[90m{$orphan['reason']}\033[0m";
             $this->screenBuffer->setLine($row++, $title);
             $this->screenBuffer->setLine($row++, "  \033[90mPath: {$orphan['path']}\033[0m");
-            $this->screenBuffer->setLine($row++, "  \033[33mCleanup: rm -rf ".escapeshellarg($orphan['path'])."\033[0m");
+            $this->screenBuffer->setLine($row++, "  \033[33mCleanup: rm -rf ".escapeshellarg((string) $orphan['path'])."\033[0m");
             $this->screenBuffer->setLine($row++, '');
         }
 

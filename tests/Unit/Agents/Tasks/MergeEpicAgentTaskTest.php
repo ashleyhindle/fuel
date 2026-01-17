@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Process\CompletionType;
 use App\Agents\Tasks\MergeEpicAgentTask;
 use App\Enums\MirrorStatus;
 use App\Enums\TaskStatus;
@@ -155,16 +156,14 @@ test('buildPrompt constructs merge prompt with variables', function (): void {
 
     $this->promptService->shouldReceive('render')
         ->once()
-        ->with($template, Mockery::on(function ($vars): bool {
-            return $vars['epic']['id'] === 'e-abc123'
-                && $vars['epic']['title'] === 'Test Epic'
-                && $vars['epic']['plan_file'] === 'test-epic-e-abc123.md'
-                && $vars['mirror']['path'] === '/home/user/.fuel/mirrors/project/e-abc123'
-                && $vars['mirror']['branch'] === 'epic/e-abc123'
-                && $vars['mirror']['base_commit'] === 'abcdef123456'
-                && $vars['project']['path'] === '/project/path'
-                && str_contains($vars['quality_gates'], 'Pest');
-        }))
+        ->with($template, Mockery::on(fn($vars): bool => $vars['epic']['id'] === 'e-abc123'
+            && $vars['epic']['title'] === 'Test Epic'
+            && $vars['epic']['plan_file'] === 'test-epic-e-abc123.md'
+            && $vars['mirror']['path'] === '/home/user/.fuel/mirrors/project/e-abc123'
+            && $vars['mirror']['branch'] === 'epic/e-abc123'
+            && $vars['mirror']['base_commit'] === 'abcdef123456'
+            && $vars['project']['path'] === '/project/path'
+            && str_contains((string) $vars['quality_gates'], 'Pest')))
         ->andReturn('Rendered prompt');
 
     $mergeTask = new MergeEpicAgentTask(
@@ -190,10 +189,8 @@ test('buildPrompt uses default quality gates when reality.md missing', function 
 
     $this->promptService->shouldReceive('render')
         ->once()
-        ->with($template, Mockery::on(function ($vars): bool {
-            return str_contains($vars['quality_gates'], 'Pest')
-                && str_contains($vars['quality_gates'], 'Pint');
-        }))
+        ->with($template, Mockery::on(fn($vars): bool => str_contains((string) $vars['quality_gates'], 'Pest')
+            && str_contains((string) $vars['quality_gates'], 'Pint')))
         ->andReturn('Rendered with defaults');
 
     $mergeTask = new MergeEpicAgentTask(
@@ -234,7 +231,7 @@ test('onSuccess cleans up mirror and marks task done', function (): void {
         sessionId: 'session-123',
         costUsd: 0.5,
         output: 'Merge completed',
-        type: \App\Process\CompletionType::Success,
+        type: CompletionType::Success,
         message: 'Success',
         processType: ProcessType::Task
     );
@@ -264,7 +261,7 @@ test('onSuccess handles cleanup exceptions gracefully', function (): void {
         sessionId: 'session-123',
         costUsd: 0.5,
         output: 'Merge completed',
-        type: \App\Process\CompletionType::Success,
+        type: CompletionType::Success,
         message: 'Success',
         processType: ProcessType::Task
     );
@@ -302,7 +299,7 @@ test('onFailure pauses epic and updates mirror status', function (): void {
         sessionId: 'session-123',
         costUsd: 0.5,
         output: 'Merge failed',
-        type: \App\Process\CompletionType::Failed,
+        type: CompletionType::Failed,
         message: 'Merge conflicts',
         processType: ProcessType::Task
     );
@@ -332,7 +329,7 @@ test('onFailure handles exceptions gracefully', function (): void {
         sessionId: 'session-123',
         costUsd: 0.5,
         output: 'Merge failed',
-        type: \App\Process\CompletionType::Failed,
+        type: CompletionType::Failed,
         message: 'Merge conflicts',
         processType: ProcessType::Task
     );
@@ -371,7 +368,7 @@ REALITY;
 
     $this->promptService->shouldReceive('render')
         ->once()
-        ->with($template, Mockery::on(function ($vars): bool {
+        ->with($template, Mockery::on(function (array $vars): bool {
             $gates = $vars['quality_gates'];
 
             return str_contains($gates, 'Pest - Test runner')

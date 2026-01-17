@@ -733,7 +733,7 @@ it('checks if any epic has active merge', function (): void {
     $epic1 = $this->service->createEpic('Epic 1');
     $this->db->query(
         'UPDATE epics SET mirror_status = ? WHERE short_id = ?',
-        [\App\Enums\MirrorStatus::Merging->value, $epic1->short_id]
+        [MirrorStatus::Merging->value, $epic1->short_id]
     );
 
     // Now should detect active merge
@@ -743,7 +743,7 @@ it('checks if any epic has active merge', function (): void {
     $epic2 = $this->service->createEpic('Epic 2');
     $this->db->query(
         'UPDATE epics SET mirror_status = ? WHERE short_id = ?',
-        [\App\Enums\MirrorStatus::Ready->value, $epic2->short_id]
+        [MirrorStatus::Ready->value, $epic2->short_id]
     );
 
     // Should still detect active merge (epic1 is still merging)
@@ -752,7 +752,7 @@ it('checks if any epic has active merge', function (): void {
     // Update epic1 to Merged status
     $this->db->query(
         'UPDATE epics SET mirror_status = ? WHERE short_id = ?',
-        [\App\Enums\MirrorStatus::Merged->value, $epic1->short_id]
+        [MirrorStatus::Merged->value, $epic1->short_id]
     );
 
     // No longer has active merge

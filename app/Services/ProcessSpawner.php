@@ -24,7 +24,7 @@ class ProcessSpawner
     public function spawnBackground(string $command, array $args = []): void
     {
         $fuelPath = base_path('fuel');
-        $escapedArgs = array_map('escapeshellarg', array_merge([$command], $args));
+        $escapedArgs = array_map(escapeshellarg(...), array_merge([$command], $args));
         $allArgs = implode(' ', $escapedArgs);
 
         $fullCommand = sprintf(

@@ -464,7 +464,7 @@ class EpicReviewCommand extends Command
             }
 
             return $commits;
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             // If query fails, return empty array
             return [];
         }

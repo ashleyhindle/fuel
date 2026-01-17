@@ -14,9 +14,7 @@ beforeEach(function (): void {
     mkdir($fuelDir);
 
     // Bind FuelContext to use our .fuel directory
-    $this->app->bind(FuelContext::class, function () use ($fuelDir) {
-        return new FuelContext($fuelDir);
-    });
+    $this->app->bind(FuelContext::class, fn(): FuelContext => new FuelContext($fuelDir));
 });
 
 afterEach(function (): void {

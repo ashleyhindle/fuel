@@ -9,7 +9,7 @@ use App\Services\EpicService;
 use App\Services\FuelContext;
 use Illuminate\Support\Str;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->fuelContext = app(FuelContext::class);
     $this->epicService = app(EpicService::class);
 
@@ -23,9 +23,9 @@ beforeEach(function () {
     $_SERVER['HOME'] = dirname($this->testMirrorBase);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Clean up test mirror directory
-    if (isset($this->testMirrorBase) && is_dir($this->testMirrorBase)) {
+    if (property_exists($this, 'testMirrorBase') && $this->testMirrorBase !== null && is_dir($this->testMirrorBase)) {
         exec('rm -rf '.escapeshellarg($this->testMirrorBase));
     }
 
@@ -45,19 +45,19 @@ afterEach(function () {
     }
 });
 
-test('mirror:create command requires epic argument', function () {
+test('mirror:create command requires epic argument', function (): void {
     $this->expectException(RuntimeException::class);
     $this->expectExceptionMessage('Not enough arguments (missing: "epic").');
     $this->artisan('mirror:create');
 });
 
-test('mirror:create command fails for non-existent epic', function () {
+test('mirror:create command fails for non-existent epic', function (): void {
     $this->artisan('mirror:create', ['epic' => 'e-999999'])
         ->assertExitCode(1)
         ->expectsOutput("Epic 'e-999999' not found");
 });
 
-test('mirror:create creates mirror directory in correct location', function () {
+test('mirror:create creates mirror directory in correct location', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Mirror');
 
@@ -74,7 +74,7 @@ test('mirror:create creates mirror directory in correct location', function () {
     exec('cd '.escapeshellarg($testSourceDir).' && git add . && git commit -m "Initial" 2>&1');
 
     // Mock FuelContext to return our test directory
-    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir) {
+    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn($testSourceDir);
     });
@@ -93,7 +93,7 @@ test('mirror:create creates mirror directory in correct location', function () {
     exec('rm -rf '.escapeshellarg($expectedMirrorPath));
 });
 
-test('mirror:create symlinks .fuel directory correctly', function () {
+test('mirror:create symlinks .fuel directory correctly', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Symlink');
 
@@ -111,7 +111,7 @@ test('mirror:create symlinks .fuel directory correctly', function () {
     exec('cd '.escapeshellarg($testSourceDir).' && git add . && git commit -m "Initial" 2>&1');
 
     // Mock FuelContext
-    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir) {
+    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn($testSourceDir);
     });
@@ -134,7 +134,7 @@ test('mirror:create symlinks .fuel directory correctly', function () {
     exec('rm -rf '.escapeshellarg($mirrorPath));
 });
 
-test('mirror:create creates git branch with correct name', function () {
+test('mirror:create creates git branch with correct name', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Branch');
 
@@ -151,7 +151,7 @@ test('mirror:create creates git branch with correct name', function () {
     exec('cd '.escapeshellarg($testSourceDir).' && git add . && git commit -m "Initial" 2>&1');
 
     // Mock FuelContext
-    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir) {
+    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn($testSourceDir);
     });
@@ -182,7 +182,7 @@ test('mirror:create creates git branch with correct name', function () {
     exec('rm -rf '.escapeshellarg($mirrorPath));
 });
 
-test('mirror:create updates epic with mirror_path, mirror_branch, and mirror_status=Ready', function () {
+test('mirror:create updates epic with mirror_path, mirror_branch, and mirror_status=Ready', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Updates');
 
@@ -199,7 +199,7 @@ test('mirror:create updates epic with mirror_path, mirror_branch, and mirror_sta
     exec('cd '.escapeshellarg($testSourceDir).' && git add . && git commit -m "Initial" 2>&1');
 
     // Mock FuelContext
-    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir) {
+    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn($testSourceDir);
     });
@@ -219,15 +219,15 @@ test('mirror:create updates epic with mirror_path, mirror_branch, and mirror_sta
 
     // Clean up
     exec('rm -rf '.escapeshellarg($testSourceDir));
-    exec('rm -rf '.escapeshellarg($updatedEpic->mirror_path));
+    exec('rm -rf '.escapeshellarg((string) $updatedEpic->mirror_path));
 });
 
-test('mirror:create handles failure gracefully by setting status to None', function () {
+test('mirror:create handles failure gracefully by setting status to None', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Failure');
 
     // Mock FuelContext to return invalid project path
-    $this->mock(FuelContext::class, function ($mock) {
+    $this->mock(FuelContext::class, function ($mock): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn('/non/existent/path');
     });
@@ -242,13 +242,12 @@ test('mirror:create handles failure gracefully by setting status to None', funct
     expect($epic->mirror_status)->toBe(MirrorStatus::None);
 });
 
-test('mirror:create uses correct copy command for platform', function () {
+test('mirror:create uses correct copy command for platform', function (): void {
     $command = new MirrorCreateCommand;
 
     // Use reflection to test the private buildCopyCommand method
     $reflection = new ReflectionClass($command);
     $method = $reflection->getMethod('buildCopyCommand');
-    $method->setAccessible(true);
 
     $source = '/path/to/source';
     $dest = '/path/to/dest';
@@ -265,7 +264,7 @@ test('mirror:create uses correct copy command for platform', function () {
     expect($copyCommand)->toContain(escapeshellarg($dest));
 });
 
-test('mirror:create uses temp directories and cleans up properly in tearDown', function () {
+test('mirror:create uses temp directories and cleans up properly in tearDown', function (): void {
     // This test verifies that our test setup/teardown works correctly
     $tempDir = sys_get_temp_dir();
 
@@ -288,7 +287,7 @@ test('mirror:create uses temp directories and cleans up properly in tearDown', f
     // The afterEach hook should clean this up
 });
 
-test('mirror:create supports partial ID matching', function () {
+test('mirror:create supports partial ID matching', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Partial ID');
 
@@ -305,7 +304,7 @@ test('mirror:create supports partial ID matching', function () {
     exec('cd '.escapeshellarg($testSourceDir).' && git add . && git commit -m "Initial" 2>&1');
 
     // Mock FuelContext
-    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir) {
+    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn($testSourceDir);
     });
@@ -323,10 +322,10 @@ test('mirror:create supports partial ID matching', function () {
 
     // Clean up
     exec('rm -rf '.escapeshellarg($testSourceDir));
-    exec('rm -rf '.escapeshellarg($updatedEpic->mirror_path));
+    exec('rm -rf '.escapeshellarg((string) $updatedEpic->mirror_path));
 });
 
-test('mirror:create prevents duplicate mirror creation', function () {
+test('mirror:create prevents duplicate mirror creation', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Duplicate Prevention');
 
@@ -337,10 +336,11 @@ test('mirror:create prevents duplicate mirror creation', function () {
     if (! is_dir($mirrorBasePath)) {
         mkdir($mirrorBasePath, 0755, true);
     }
+
     mkdir($mirrorPath, 0755, true);
 
     // Mock FuelContext to avoid real path issues
-    $this->mock(FuelContext::class, function ($mock) {
+    $this->mock(FuelContext::class, function ($mock): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn(getcwd());
     });
@@ -354,7 +354,7 @@ test('mirror:create prevents duplicate mirror creation', function () {
     exec('rm -rf '.escapeshellarg($mirrorPath));
 });
 
-test('mirror:create captures and stores base commit correctly', function () {
+test('mirror:create captures and stores base commit correctly', function (): void {
     // Create an epic
     $epic = $this->epicService->createEpic('Test Epic for Base Commit');
 
@@ -376,7 +376,7 @@ test('mirror:create captures and stores base commit correctly', function () {
     $expectedCommit = trim($output[0]);
 
     // Mock FuelContext
-    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir) {
+    $this->mock(FuelContext::class, function ($mock) use ($testSourceDir): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn($testSourceDir);
     });
@@ -392,19 +392,19 @@ test('mirror:create captures and stores base commit correctly', function () {
 
     // Clean up
     exec('rm -rf '.escapeshellarg($testSourceDir));
-    exec('rm -rf '.escapeshellarg($updatedEpic->mirror_path));
+    exec('rm -rf '.escapeshellarg((string) $updatedEpic->mirror_path));
 });
 
-test('mirror:create sets status to Creating during operation', function () {
+test('mirror:create sets status to Creating during operation', function (): void {
     $epic = $this->epicService->createEpic('Test Epic', 'Test description');
 
     // Track status changes
     $statusChanges = [];
 
     // Partially mock EpicService to track updateMirrorStatus calls
-    $this->partialMock(EpicService::class, function ($mock) use (&$statusChanges) {
+    $this->partialMock(EpicService::class, function ($mock) use (&$statusChanges): void {
         $mock->shouldReceive('updateMirrorStatus')
-            ->andReturnUsing(function ($epic, $status) use (&$statusChanges) {
+            ->andReturnUsing(function ($epic, $status) use (&$statusChanges): void {
                 $statusChanges[] = $status;
                 $epic->mirror_status = $status;
                 $epic->save();
@@ -412,7 +412,7 @@ test('mirror:create sets status to Creating during operation', function () {
     });
 
     // Mock FuelContext to fail so we can see the status changes
-    $this->mock(FuelContext::class, function ($mock) {
+    $this->mock(FuelContext::class, function ($mock): void {
         $mock->shouldReceive('getProjectPath')
             ->andReturn('/non/existent/path');
     });

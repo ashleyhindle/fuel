@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Contracts\AgentHealthTrackerInterface;
 use App\Daemon\BrowserCommandHandler;
 use App\Daemon\CompletionHandler;
 use App\Daemon\DaemonLogger;
@@ -109,7 +110,7 @@ final class ConsumeRunner
 
         // Wire health reset callback
         $this->ipcCommandDispatcher->setOnHealthReset(function (string $agent): void {
-            $healthTracker = app(\App\Contracts\AgentHealthTrackerInterface::class);
+            $healthTracker = app(AgentHealthTrackerInterface::class);
 
             if ($agent === 'all') {
                 foreach (array_keys($healthTracker->getAllHealthStatus()) as $agentName) {

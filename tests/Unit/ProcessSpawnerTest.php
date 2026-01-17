@@ -13,7 +13,7 @@ it('spawns a background process with nohup', function (): void {
         public function spawnBackground(string $command, array $args = []): void
         {
             $fuelPath = base_path('fuel');
-            $escapedArgs = array_map('escapeshellarg', array_merge([$command], $args));
+            $escapedArgs = array_map(escapeshellarg(...), array_merge([$command], $args));
             $allArgs = implode(' ', $escapedArgs);
 
             $this->executedCommand = sprintf(
@@ -44,7 +44,7 @@ it('properly escapes command arguments', function (): void {
         public function spawnBackground(string $command, array $args = []): void
         {
             $fuelPath = base_path('fuel');
-            $escapedArgs = array_map('escapeshellarg', array_merge([$command], $args));
+            $escapedArgs = array_map(escapeshellarg(...), array_merge([$command], $args));
             $allArgs = implode(' ', $escapedArgs);
 
             $this->executedCommand = sprintf(
@@ -70,7 +70,7 @@ it('handles commands with no arguments', function (): void {
         public function spawnBackground(string $command, array $args = []): void
         {
             $fuelPath = base_path('fuel');
-            $escapedArgs = array_map('escapeshellarg', array_merge([$command], $args));
+            $escapedArgs = array_map(escapeshellarg(...), array_merge([$command], $args));
             $allArgs = implode(' ', $escapedArgs);
 
             $this->executedCommand = sprintf(

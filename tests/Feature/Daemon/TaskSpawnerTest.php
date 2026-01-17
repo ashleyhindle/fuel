@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Symfony\Component\Process\Process;
 use App\Daemon\TaskSpawner;
 use App\Enums\MirrorStatus;
 use App\Models\Epic;
@@ -15,7 +16,7 @@ use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     // Create mocks for dependencies
     $this->taskService = \Mockery::mock(TaskService::class);
     $this->configService = \Mockery::mock(ConfigService::class);
@@ -45,23 +46,21 @@ beforeEach(function () {
 
     // Default mock for getAgentForComplexity (used by WorkAgentTask)
     $this->configService->shouldReceive('getAgentForComplexity')
-        ->andReturnUsing(function ($complexity) {
-            return match ($complexity) {
-                'trivial' => 'haiku',
-                'simple' => 'sonnet',
-                'moderate' => 'claude',
-                'complex' => 'opus',
-                default => 'claude',
-            };
+        ->andReturnUsing(fn($complexity): string => match ($complexity) {
+            'trivial' => 'haiku',
+            'simple' => 'sonnet',
+            'moderate' => 'claude',
+            'complex' => 'opus',
+            default => 'claude',
         })
         ->byDefault();
 });
 
-afterEach(function () {
+afterEach(function (): void {
     \Mockery::close();
 });
 
-test('task with epic and Ready mirror uses mirror_path as cwd', function () {
+test('task with epic and Ready mirror uses mirror_path as cwd', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -93,7 +92,7 @@ test('task with epic and Ready mirror uses mirror_path as cwd', function () {
         ->andReturn(true);
 
     // Create a mock Symfony Process
-    $mockSymfonyProcess = \Mockery::mock(\Symfony\Component\Process\Process::class);
+    $mockSymfonyProcess = \Mockery::mock(Process::class);
     $mockSymfonyProcess->shouldReceive('getPid')->andReturn(12345);
 
     // Create real AgentProcess with mocked Symfony Process
@@ -106,9 +105,7 @@ test('task with epic and Ready mirror uses mirror_path as cwd', function () {
 
     // Expect spawnAgentTask to be called with the mirror path as cwd
     $this->processManager->shouldReceive('spawnAgentTask')
-        ->withArgs(function ($agentTask, $cwd, $runId) use ($epic) {
-            return $cwd === $epic->mirror_path;
-        })
+        ->withArgs(fn($agentTask, $cwd, $runId): bool => $cwd === $epic->mirror_path)
         ->andReturn(SpawnResult::success($agentProcess));
 
     // Other required mocks for successful spawn
@@ -125,7 +122,7 @@ test('task with epic and Ready mirror uses mirror_path as cwd', function () {
     expect($result)->toBeTrue();
 });
 
-test('task with epic and Pending mirror is skipped', function () {
+test('task with epic and Pending mirror is skipped', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -149,6 +146,7 @@ test('task with epic and Pending mirror is skipped', function () {
     $this->processManager->shouldNotReceive('spawnAgentTask');
     $this->taskService->shouldNotReceive('start');
     $this->taskService->shouldNotReceive('update');
+
     $this->runService->shouldNotReceive('createRun');
 
     // Try to spawn the task
@@ -157,7 +155,7 @@ test('task with epic and Pending mirror is skipped', function () {
     expect($result)->toBeFalse();
 });
 
-test('task with epic and Creating mirror is skipped', function () {
+test('task with epic and Creating mirror is skipped', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -181,6 +179,7 @@ test('task with epic and Creating mirror is skipped', function () {
     $this->processManager->shouldNotReceive('spawnAgentTask');
     $this->taskService->shouldNotReceive('start');
     $this->taskService->shouldNotReceive('update');
+
     $this->runService->shouldNotReceive('createRun');
 
     // Try to spawn the task
@@ -189,7 +188,7 @@ test('task with epic and Creating mirror is skipped', function () {
     expect($result)->toBeFalse();
 });
 
-test('task with epic and MergeFailed mirror is skipped', function () {
+test('task with epic and MergeFailed mirror is skipped', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -213,6 +212,7 @@ test('task with epic and MergeFailed mirror is skipped', function () {
     $this->processManager->shouldNotReceive('spawnAgentTask');
     $this->taskService->shouldNotReceive('start');
     $this->taskService->shouldNotReceive('update');
+
     $this->runService->shouldNotReceive('createRun');
 
     // Try to spawn the task
@@ -221,7 +221,7 @@ test('task with epic and MergeFailed mirror is skipped', function () {
     expect($result)->toBeFalse();
 });
 
-test('standalone task during active merge is skipped', function () {
+test('standalone task during active merge is skipped', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -241,6 +241,7 @@ test('standalone task during active merge is skipped', function () {
     $this->processManager->shouldNotReceive('spawnAgentTask');
     $this->taskService->shouldNotReceive('start');
     $this->taskService->shouldNotReceive('update');
+
     $this->runService->shouldNotReceive('createRun');
 
     // Try to spawn the task
@@ -249,7 +250,7 @@ test('standalone task during active merge is skipped', function () {
     expect($result)->toBeFalse();
 });
 
-test('standalone task with no active merge uses project path', function () {
+test('standalone task with no active merge uses project path', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -276,7 +277,7 @@ test('standalone task with no active merge uses project path', function () {
         ->andReturn(true);
 
     // Create a mock Symfony Process
-    $mockSymfonyProcess = \Mockery::mock(\Symfony\Component\Process\Process::class);
+    $mockSymfonyProcess = \Mockery::mock(Process::class);
     $mockSymfonyProcess->shouldReceive('getPid')->andReturn(67890);
 
     // Create real AgentProcess with mocked Symfony Process
@@ -289,9 +290,7 @@ test('standalone task with no active merge uses project path', function () {
 
     // Expect spawnAgentTask to be called with the project path as cwd
     $this->processManager->shouldReceive('spawnAgentTask')
-        ->withArgs(function ($agentTask, $cwd, $runId) {
-            return $cwd === $this->projectPath;
-        })
+        ->withArgs(fn($agentTask, $cwd, $runId): bool => $cwd === $this->projectPath)
         ->andReturn(SpawnResult::success($agentProcess));
 
     // Other required mocks for successful spawn
@@ -308,7 +307,7 @@ test('standalone task with no active merge uses project path', function () {
     expect($result)->toBeTrue();
 });
 
-test('when epic_mirrors config is false, all tasks use project path', function () {
+test('when epic_mirrors config is false, all tasks use project path', function (): void {
     // Disable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(false);
 
@@ -340,7 +339,7 @@ test('when epic_mirrors config is false, all tasks use project path', function (
         ->andReturn(true);
 
     // Create a mock Symfony Process
-    $mockSymfonyProcess = \Mockery::mock(\Symfony\Component\Process\Process::class);
+    $mockSymfonyProcess = \Mockery::mock(Process::class);
     $mockSymfonyProcess->shouldReceive('getPid')->andReturn(11111);
 
     // Create real AgentProcess with mocked Symfony Process
@@ -353,9 +352,7 @@ test('when epic_mirrors config is false, all tasks use project path', function (
 
     // Expect spawnAgentTask to be called with the PROJECT path (not mirror path)
     $this->processManager->shouldReceive('spawnAgentTask')
-        ->withArgs(function ($agentTask, $cwd, $runId) {
-            return $cwd === $this->projectPath;
-        })
+        ->withArgs(fn($agentTask, $cwd, $runId): bool => $cwd === $this->projectPath)
         ->andReturn(SpawnResult::success($agentProcess));
 
     // Other required mocks for successful spawn
@@ -372,7 +369,7 @@ test('when epic_mirrors config is false, all tasks use project path', function (
     expect($result)->toBeTrue();
 });
 
-test('task with epic and None mirror status uses project path', function () {
+test('task with epic and None mirror status uses project path', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -403,7 +400,7 @@ test('task with epic and None mirror status uses project path', function () {
         ->andReturn(true);
 
     // Create a mock Symfony Process
-    $mockSymfonyProcess = \Mockery::mock(\Symfony\Component\Process\Process::class);
+    $mockSymfonyProcess = \Mockery::mock(Process::class);
     $mockSymfonyProcess->shouldReceive('getPid')->andReturn(22222);
 
     // Create real AgentProcess with mocked Symfony Process
@@ -416,9 +413,7 @@ test('task with epic and None mirror status uses project path', function () {
 
     // Expect spawnAgentTask to be called with the PROJECT path (not a mirror path)
     $this->processManager->shouldReceive('spawnAgentTask')
-        ->withArgs(function ($agentTask, $cwd, $runId) {
-            return $cwd === $this->projectPath;
-        })
+        ->withArgs(fn($agentTask, $cwd, $runId): bool => $cwd === $this->projectPath)
         ->andReturn(SpawnResult::success($agentProcess));
 
     // Other required mocks for successful spawn
@@ -435,7 +430,7 @@ test('task with epic and None mirror status uses project path', function () {
     expect($result)->toBeTrue();
 });
 
-test('task with epic and Merging mirror status uses project path', function () {
+test('task with epic and Merging mirror status uses project path', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -466,7 +461,7 @@ test('task with epic and Merging mirror status uses project path', function () {
         ->andReturn(true);
 
     // Create a mock Symfony Process
-    $mockSymfonyProcess = \Mockery::mock(\Symfony\Component\Process\Process::class);
+    $mockSymfonyProcess = \Mockery::mock(Process::class);
     $mockSymfonyProcess->shouldReceive('getPid')->andReturn(33333);
 
     // Create real AgentProcess with mocked Symfony Process
@@ -479,9 +474,7 @@ test('task with epic and Merging mirror status uses project path', function () {
 
     // Expect spawnAgentTask to be called with the PROJECT path (not a mirror path)
     $this->processManager->shouldReceive('spawnAgentTask')
-        ->withArgs(function ($agentTask, $cwd, $runId) {
-            return $cwd === $this->projectPath;
-        })
+        ->withArgs(fn($agentTask, $cwd, $runId): bool => $cwd === $this->projectPath)
         ->andReturn(SpawnResult::success($agentProcess));
 
     // Other required mocks for successful spawn
@@ -498,7 +491,7 @@ test('task with epic and Merging mirror status uses project path', function () {
     expect($result)->toBeTrue();
 });
 
-test('task with epic but null mirror_status uses project path', function () {
+test('task with epic but null mirror_status uses project path', function (): void {
     // Enable epic mirrors
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
@@ -529,7 +522,7 @@ test('task with epic but null mirror_status uses project path', function () {
         ->andReturn(true);
 
     // Create a mock Symfony Process
-    $mockSymfonyProcess = \Mockery::mock(\Symfony\Component\Process\Process::class);
+    $mockSymfonyProcess = \Mockery::mock(Process::class);
     $mockSymfonyProcess->shouldReceive('getPid')->andReturn(44444);
 
     // Create real AgentProcess with mocked Symfony Process
@@ -542,9 +535,7 @@ test('task with epic but null mirror_status uses project path', function () {
 
     // Expect spawnAgentTask to be called with the PROJECT path (not a mirror path)
     $this->processManager->shouldReceive('spawnAgentTask')
-        ->withArgs(function ($agentTask, $cwd, $runId) {
-            return $cwd === $this->projectPath;
-        })
+        ->withArgs(fn($agentTask, $cwd, $runId): bool => $cwd === $this->projectPath)
         ->andReturn(SpawnResult::success($agentProcess));
 
     // Other required mocks for successful spawn

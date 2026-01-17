@@ -111,7 +111,7 @@ class MergeEpicAgentTask extends AbstractAgentTask
 
         // Build plan file name
         $epicTitleSlug = Str::slug($this->epic->title);
-        $planFileName = "{$epicTitleSlug}-{$this->epic->short_id}.md";
+        $planFileName = sprintf('%s-%s.md', $epicTitleSlug, $this->epic->short_id);
 
         $variables = [
             'epic' => [
@@ -175,7 +175,7 @@ class MergeEpicAgentTask extends AbstractAgentTask
                 }
             }
 
-            if (! empty($commands)) {
+            if ($commands !== []) {
                 return "```bash\n".implode("\n\n", $commands)."\n```";
             }
         }
@@ -217,9 +217,9 @@ GATES;
 
             // Mark the task as done
             $this->taskService->done($this->task->short_id, 'Successfully merged epic');
-        } catch (\RuntimeException $e) {
+        } catch (\RuntimeException $runtimeException) {
             // Log but don't fail - merge was successful
-            DaemonLogger::getInstance()->warning('Failed to cleanup after merge', ['error' => $e->getMessage()]);
+            DaemonLogger::getInstance()->warning('Failed to cleanup after merge', ['error' => $runtimeException->getMessage()]);
         }
     }
 
@@ -230,16 +230,16 @@ GATES;
     {
         try {
             // Pause the epic
-            $this->epicService->pause($this->epic->short_id, 'Merge failed - needs human attention');
+            $this->epicService->pause($this->epic->short_id);
 
             // Update mirror status to MergeFailed
             $this->epicService->updateMirrorStatus($this->epic, MirrorStatus::MergeFailed);
 
             // Delete the merge task (it failed)
             $this->taskService->delete($this->task->short_id);
-        } catch (\RuntimeException $e) {
+        } catch (\RuntimeException $runtimeException) {
             // Log but don't fail catastrophically
-            DaemonLogger::getInstance()->error('Failed to handle merge failure', ['error' => $e->getMessage()]);
+            DaemonLogger::getInstance()->error('Failed to handle merge failure', ['error' => $runtimeException->getMessage()]);
         }
     }
 }

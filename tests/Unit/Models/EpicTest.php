@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\MirrorStatus;
 use App\Enums\EpicStatus;
 use App\Models\Epic;
 
@@ -142,17 +143,17 @@ test('hasMirror returns false when mirror_path is null', function (): void {
 });
 
 test('isMirrorReady returns true when mirror_status is Ready', function (): void {
-    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::Ready]);
+    $epic = new Epic(['mirror_status' => MirrorStatus::Ready]);
     expect($epic->isMirrorReady())->toBeTrue();
 });
 
 test('isMirrorReady returns false when mirror_status is not Ready', function (): void {
-    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::Pending]);
+    $epic = new Epic(['mirror_status' => MirrorStatus::Pending]);
     expect($epic->isMirrorReady())->toBeFalse();
 
-    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::Creating]);
+    $epic = new Epic(['mirror_status' => MirrorStatus::Creating]);
     expect($epic->isMirrorReady())->toBeFalse();
 
-    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::None]);
+    $epic = new Epic(['mirror_status' => MirrorStatus::None]);
     expect($epic->isMirrorReady())->toBeFalse();
 });

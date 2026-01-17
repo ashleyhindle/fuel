@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Services\RunService;
 use App\Services\EpicService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -84,7 +85,7 @@ describe('epic:review command', function (): void {
     it('shows commit information when tasks have commit hashes', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
-        $runService = $this->app->make(\App\Services\RunService::class);
+        $runService = $this->app->make(RunService::class);
 
         $epic = $epicService->createEpic('Commit Epic', 'Epic with commits');
 
@@ -159,7 +160,7 @@ describe('epic:review command', function (): void {
     it('includes diff stats in JSON output', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
-        $runService = $this->app->make(\App\Services\RunService::class);
+        $runService = $this->app->make(RunService::class);
 
         $epic = $epicService->createEpic('Stats Epic');
 
@@ -188,7 +189,7 @@ describe('epic:review command', function (): void {
     it('includes full diff when --diff flag is used', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
-        $runService = $this->app->make(\App\Services\RunService::class);
+        $runService = $this->app->make(RunService::class);
 
         $epic = $epicService->createEpic('Diff Epic');
 
@@ -216,7 +217,7 @@ describe('epic:review command', function (): void {
     it('shows diff stats in text output when tasks have commits', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
-        $runService = $this->app->make(\App\Services\RunService::class);
+        $runService = $this->app->make(RunService::class);
 
         $epic = $epicService->createEpic('Stats Text Epic');
 
@@ -243,7 +244,7 @@ describe('epic:review command', function (): void {
     it('shows full diff in text output when --diff flag is used', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
-        $runService = $this->app->make(\App\Services\RunService::class);
+        $runService = $this->app->make(RunService::class);
 
         $epic = $epicService->createEpic('Diff Text Epic');
 

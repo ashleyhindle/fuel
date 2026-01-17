@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Process\AgentHealth;
+use App\TUI\Toast;
+use App\Daemon\IpcCommandDispatcher;
 use App\Commands\ConsumeCommand;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Contracts\ReviewServiceInterface;
@@ -64,12 +67,11 @@ describe('ConsumeCommand health functionality', function (): void {
         // Use reflection to set private ipcClient property
         $reflection = new ReflectionClass($command);
         $property = $reflection->getProperty('ipcClient');
-        $property->setAccessible(true);
         $property->setValue($command, $mockClient);
 
         // Use reflection to call private getHealthStatusLines method
         $method = $reflection->getMethod('getHealthStatusLines');
-        $method->setAccessible(true);
+
         $result = $method->invoke($command);
 
         // Verify we get health status lines from IPC data
@@ -87,6 +89,7 @@ describe('ConsumeCommand health functionality', function (): void {
                 break;
             }
         }
+
         expect($foundCursor)->toBeTrue();
     });
 
@@ -100,7 +103,7 @@ describe('ConsumeCommand health functionality', function (): void {
         // Remove the expectation for getAllHealthStatus as it may not be called
 
         // Create a real AgentHealth object (since it's final and can't be mocked)
-        $agentHealth = new \App\Process\AgentHealth(
+        $agentHealth = new AgentHealth(
             agent: 'claude',
             lastSuccessAt: new \DateTimeImmutable,
             lastFailureAt: null,
@@ -136,16 +139,14 @@ describe('ConsumeCommand health functionality', function (): void {
         $reflection = new ReflectionClass($command);
 
         $ipcProperty = $reflection->getProperty('ipcClient');
-        $ipcProperty->setAccessible(true);
         $ipcProperty->setValue($command, $mockClient);
 
         $healthProperty = $reflection->getProperty('healthTracker');
-        $healthProperty->setAccessible(true);
         $healthProperty->setValue($command, $mockHealthTracker);
 
         // Call getHealthStatusLines
         $method = $reflection->getMethod('getHealthStatusLines');
-        $method->setAccessible(true);
+
         $result = $method->invoke($command);
 
         // Should get empty result when no health data
@@ -198,17 +199,15 @@ describe('ConsumeCommand health functionality', function (): void {
         $reflection = new ReflectionClass($command);
 
         $property = $reflection->getProperty('ipcClient');
-        $property->setAccessible(true);
         $property->setValue($command, $mockClient);
 
         // Call updateHealthClearSuggestions
         $method = $reflection->getMethod('updateHealthClearSuggestions');
-        $method->setAccessible(true);
         $method->invoke($command, '');
 
         // Get suggestions
         $suggestionsProperty = $reflection->getProperty('commandPaletteSuggestions');
-        $suggestionsProperty->setAccessible(true);
+
         $suggestions = $suggestionsProperty->getValue($command);
 
         // Should have 3 suggestions: cursor, sonnet, and 'all'
@@ -228,6 +227,7 @@ describe('ConsumeCommand health functionality', function (): void {
             if ($suggestion['agent'] === 'cursor') {
                 expect($suggestion['description'])->toContain('3 failures');
             }
+
             if ($suggestion['agent'] === 'sonnet') {
                 expect($suggestion['description'])->toContain('10 failures');
             }
@@ -270,17 +270,15 @@ describe('ConsumeCommand health functionality', function (): void {
 
         $reflection = new ReflectionClass($command);
         $property = $reflection->getProperty('ipcClient');
-        $property->setAccessible(true);
         $property->setValue($command, $mockClient);
 
         // Call with search term 'cla'
         $method = $reflection->getMethod('updateHealthClearSuggestions');
-        $method->setAccessible(true);
         $method->invoke($command, 'cla');
 
         // Get filtered suggestions
         $suggestionsProperty = $reflection->getProperty('commandPaletteSuggestions');
-        $suggestionsProperty->setAccessible(true);
+
         $suggestions = $suggestionsProperty->getValue($command);
 
         // Should only have claude (matches 'cla')
@@ -321,17 +319,14 @@ describe('ConsumeCommand health functionality', function (): void {
 
         $reflection = new ReflectionClass($command);
         $ipcProperty = $reflection->getProperty('ipcClient');
-        $ipcProperty->setAccessible(true);
         $ipcProperty->setValue($command, $mockClient);
 
         // Set command palette input
         $inputProperty = $reflection->getProperty('commandPaletteInput');
-        $inputProperty->setAccessible(true);
         $inputProperty->setValue($command, 'health-clear cursor');
 
         // Call executeCommandPalette
         $method = $reflection->getMethod('executeCommandPalette');
-        $method->setAccessible(true);
         $method->invoke($command);
 
         // Verify sendHealthReset was called (checked by mock expectation)
@@ -373,17 +368,15 @@ describe('ConsumeCommand health functionality', function (): void {
 
         $reflection = new ReflectionClass($command);
         $property = $reflection->getProperty('ipcClient');
-        $property->setAccessible(true);
         $property->setValue($command, $mockClient);
 
         // Call updateHealthClearSuggestions
         $method = $reflection->getMethod('updateHealthClearSuggestions');
-        $method->setAccessible(true);
         $method->invoke($command, '');
 
         // Get suggestions
         $suggestionsProperty = $reflection->getProperty('commandPaletteSuggestions');
-        $suggestionsProperty->setAccessible(true);
+
         $suggestions = $suggestionsProperty->getValue($command);
 
         // Should have no suggestions when all agents are healthy
@@ -430,17 +423,14 @@ describe('ConsumeCommand health functionality', function (): void {
 
         $reflection = new ReflectionClass($command);
         $ipcProperty = $reflection->getProperty('ipcClient');
-        $ipcProperty->setAccessible(true);
         $ipcProperty->setValue($command, $mockClient);
 
         // Set command for 'all' agents
         $inputProperty = $reflection->getProperty('commandPaletteInput');
-        $inputProperty->setAccessible(true);
         $inputProperty->setValue($command, 'health-clear all');
 
         // Execute command
         $method = $reflection->getMethod('executeCommandPalette');
-        $method->setAccessible(true);
         $method->invoke($command);
 
         // Verify sendHealthReset('all') was called (checked by mock expectation)
@@ -460,7 +450,7 @@ describe('ConsumeCommand health functionality', function (): void {
         ]);
 
         // Mock toast to verify error message
-        $mockToast = m::mock(\App\TUI\Toast::class);
+        $mockToast = m::mock(Toast::class);
         $mockToast->shouldReceive('show')
             ->once()
             ->with('No agents need clearing', 'info');
@@ -482,21 +472,17 @@ describe('ConsumeCommand health functionality', function (): void {
         $reflection = new ReflectionClass($command);
 
         $ipcProperty = $reflection->getProperty('ipcClient');
-        $ipcProperty->setAccessible(true);
         $ipcProperty->setValue($command, $mockClient);
 
         $toastProperty = $reflection->getProperty('toast');
-        $toastProperty->setAccessible(true);
         $toastProperty->setValue($command, $mockToast);
 
         // Set command without agent argument
         $inputProperty = $reflection->getProperty('commandPaletteInput');
-        $inputProperty->setAccessible(true);
         $inputProperty->setValue($command, 'health-clear');
 
         // Execute command
         $method = $reflection->getMethod('executeCommandPalette');
-        $method->setAccessible(true);
         $method->invoke($command);
 
         // Toast mock will verify the message was shown
@@ -552,7 +538,7 @@ describe('IPC health reset flow', function (): void {
 
     it('verifies IpcCommandDispatcher has setOnHealthReset method', function (): void {
         // Verify the dispatcher class has the method we added
-        $reflection = new ReflectionClass(\App\Daemon\IpcCommandDispatcher::class);
+        $reflection = new ReflectionClass(IpcCommandDispatcher::class);
 
         expect($reflection->hasMethod('setOnHealthReset'))->toBeTrue();
 

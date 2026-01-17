@@ -241,6 +241,7 @@ class ConsumeCommand extends Command
                         foreach ($events as $event) {
                             $this->ipcClient->applyEvent($event);
                         }
+
                         usleep(50000); // 50ms
                     }
                 } catch (\RuntimeException $e) {
@@ -3517,7 +3518,7 @@ class ConsumeCommand extends Command
         }
 
         // Add 'all' option if there are unhealthy agents
-        if (! empty($suggestions)) {
+        if ($suggestions !== []) {
             array_unshift($suggestions, [
                 'agent' => 'all',
                 'description' => 'Clear health for all agents',
@@ -3527,9 +3528,9 @@ class ConsumeCommand extends Command
         // Filter by search term if provided
         if ($searchTerm !== '') {
             $searchTermLower = mb_strtolower($searchTerm);
-            $suggestions = array_filter($suggestions, function ($suggestion) use ($searchTermLower) {
-                $agentLower = mb_strtolower($suggestion['agent']);
-                $descriptionLower = mb_strtolower($suggestion['description']);
+            $suggestions = array_filter($suggestions, function (array $suggestion) use ($searchTermLower): bool {
+                $agentLower = mb_strtolower((string) $suggestion['agent']);
+                $descriptionLower = mb_strtolower((string) $suggestion['description']);
 
                 return str_contains($agentLower, $searchTermLower) ||
                        str_contains($descriptionLower, $searchTermLower);
@@ -3757,7 +3758,7 @@ class ConsumeCommand extends Command
             // Check if there are any unhealthy agents
             $healthSummary = $this->ipcClient?->getHealthSummary() ?? [];
             $hasUnhealthy = false;
-            foreach ($healthSummary as $agentName => $health) {
+            foreach ($healthSummary as $health) {
                 $consecutive_failures = $health['consecutive_failures'] ?? 0;
                 $is_dead = $health['is_dead'] ?? false;
                 $in_backoff = $health['in_backoff'] ?? false;
@@ -3789,7 +3790,7 @@ class ConsumeCommand extends Command
         if ($input === 'health-clear') {
             $healthSummary = $this->ipcClient?->getHealthSummary() ?? [];
             $hasUnhealthy = false;
-            foreach ($healthSummary as $agentName => $health) {
+            foreach ($healthSummary as $health) {
                 $consecutive_failures = $health['consecutive_failures'] ?? 0;
                 $is_dead = $health['is_dead'] ?? false;
                 $in_backoff = $health['in_backoff'] ?? false;
@@ -3804,6 +3805,7 @@ class ConsumeCommand extends Command
             } else {
                 $this->toast?->show('Specify an agent or "all"', 'warning');
             }
+
             $this->deactivateCommandPalette();
             $this->forceRefresh = true;
 

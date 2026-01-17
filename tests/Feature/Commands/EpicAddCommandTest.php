@@ -109,9 +109,7 @@ describe('epic:add command', function (): void {
         $this->mock(ProcessSpawner::class, function (MockInterface $mock): void {
             $mock->shouldReceive('spawnBackground')
                 ->once()
-                ->withArgs(function (string $command, array $args): bool {
-                    return $command === 'mirror:create' && count($args) === 1 && str_starts_with($args[0], 'e-');
-                });
+                ->withArgs(fn(string $command, array $args): bool => $command === 'mirror:create' && count($args) === 1 && str_starts_with((string) $args[0], 'e-'));
         });
 
         Artisan::call('epic:add', [

@@ -48,7 +48,7 @@ class MirrorCreateCommand extends Command
         // Step 1: Find epic by short_id
         $epic = Epic::findByPartialId($epicId);
         if (! $epic instanceof Epic) {
-            $this->error("Epic '{$epicId}' not found");
+            $this->error(sprintf("Epic '%s' not found", $epicId));
 
             return self::FAILURE;
         }
@@ -68,19 +68,17 @@ class MirrorCreateCommand extends Command
             $mirrorPath = $mirrorBasePath.'/'.$epic->short_id;
 
             // Step 4: Create parent dirs
-            if (! is_dir($mirrorBasePath)) {
-                if (! mkdir($mirrorBasePath, 0755, true)) {
-                    throw new RuntimeException("Failed to create mirror base directory: {$mirrorBasePath}");
-                }
+            if (!is_dir($mirrorBasePath) && ! mkdir($mirrorBasePath, 0755, true)) {
+                throw new RuntimeException('Failed to create mirror base directory: ' . $mirrorBasePath);
             }
 
             // Ensure mirror doesn't already exist
             if (is_dir($mirrorPath)) {
-                throw new RuntimeException("Mirror directory already exists: {$mirrorPath}");
+                throw new RuntimeException('Mirror directory already exists: ' . $mirrorPath);
             }
 
             // Step 5: Copy project using platform-specific command
-            $this->info("Creating mirror for epic {$epic->short_id}...");
+            $this->info(sprintf('Creating mirror for epic %s...', $epic->short_id));
             $copyCommand = $this->buildCopyCommand($projectPath, $mirrorPath);
 
             $output = [];
@@ -89,7 +87,7 @@ class MirrorCreateCommand extends Command
 
             if ($returnCode !== 0) {
                 throw new RuntimeException(
-                    "Failed to copy project to mirror. Command: {$copyCommand}\n".
+                    sprintf('Failed to copy project to mirror. Command: %s%s', $copyCommand, PHP_EOL).
                     'Output: '.implode("\n", $output)
                 );
             }
@@ -130,6 +128,7 @@ class MirrorCreateCommand extends Command
                     'Failed to get current HEAD commit: '.implode("\n", $output)
                 );
             }
+
             $baseCommit = trim($output[count($output) - 1]);
 
             // Create and checkout new branch
@@ -144,16 +143,16 @@ class MirrorCreateCommand extends Command
 
             if ($returnCode !== 0) {
                 throw new RuntimeException(
-                    "Failed to create git branch '{$branchName}': ".implode("\n", $output)
+                    sprintf("Failed to create git branch '%s': ", $branchName).implode("\n", $output)
                 );
             }
 
             // Step 8: Call epicService->setMirrorReady with path, branch, current HEAD commit
             $epicService->setMirrorReady($epic, $mirrorPath, $branchName, $baseCommit);
 
-            $this->info("Mirror created successfully at: {$mirrorPath}");
-            $this->info("Branch: {$branchName}");
-            $this->info("Base commit: {$baseCommit}");
+            $this->info('Mirror created successfully at: ' . $mirrorPath);
+            $this->info('Branch: ' . $branchName);
+            $this->info('Base commit: ' . $baseCommit);
 
             return self::SUCCESS;
 
@@ -194,9 +193,8 @@ class MirrorCreateCommand extends Command
         if (PHP_OS_FAMILY === 'Darwin') {
             // macOS: use cp with clonefile
             return sprintf('cp -cR %s %s', $escapedSource, $escapedDestination);
-        } else {
-            // Linux: use cp with reflink for copy-on-write
-            return sprintf('cp --reflink=auto -R %s %s', $escapedSource, $escapedDestination);
         }
+        // Linux: use cp with reflink for copy-on-write
+        return sprintf('cp --reflink=auto -R %s %s', $escapedSource, $escapedDestination);
     }
 }
