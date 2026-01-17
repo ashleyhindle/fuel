@@ -45,11 +45,17 @@ trait RendersBoardColumns
 
     private function truncate(string $value, int $length): string
     {
-        if (mb_strlen($value) <= $length) {
+        if ($this->visibleLength($value) <= $length) {
             return $value;
         }
 
-        return mb_substr($value, 0, $length - 3).'...';
+        // Truncate by character until visible length fits
+        $truncated = $value;
+        while ($this->visibleLength($truncated.'...') > $length && mb_strlen($truncated) > 0) {
+            $truncated = mb_substr($truncated, 0, -1);
+        }
+
+        return $truncated.'...';
     }
 
     private function getTerminalWidth(): int

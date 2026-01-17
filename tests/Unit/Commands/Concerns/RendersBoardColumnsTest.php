@@ -128,6 +128,45 @@ describe('truncate', function (): void {
         expect($this->renderer->testTruncate('abcdefghij', 5))->toBe('ab...');
         expect($this->renderer->testTruncate('abc', 3))->toBe('abc');
     });
+
+    it('truncates strings with emojis based on visible length', function (): void {
+        // "test ⚡" has visible length 7 (5 chars + 2 for emoji)
+        // Truncating to 10 should keep it as-is
+        expect($this->renderer->testTruncate('test ⚡', 10))->toBe('test ⚡');
+
+        // Truncating to 7 should keep it exactly
+        expect($this->renderer->testTruncate('test ⚡', 7))->toBe('test ⚡');
+
+        // Truncating to 6 should remove the emoji
+        $result = $this->renderer->testTruncate('test ⚡', 6);
+        expect($result)->toEndWith('...');
+        expect($this->renderer->testVisibleLength($result))->toBeLessThanOrEqual(6);
+    });
+
+    it('truncates strings with color codes based on visible length', function (): void {
+        // "<fg=red>hello</>" has visible length 5
+        expect($this->renderer->testTruncate('<fg=red>hello</>', 10))->toBe('<fg=red>hello</>');
+
+        // Truncating to 5 should keep it
+        expect($this->renderer->testTruncate('<fg=red>hello</>', 5))->toBe('<fg=red>hello</>');
+
+        // Truncating to 4 should truncate the visible text
+        $result = $this->renderer->testTruncate('<fg=red>hello</>', 4);
+        expect($result)->toEndWith('...');
+        expect($this->renderer->testVisibleLength($result))->toBeLessThanOrEqual(4);
+    });
+
+    it('truncates long titles with emojis properly', function (): void {
+        // Very long title with emoji - simulating the actual task title
+        $longTitle = 'This is a really really really really really really really really really long title ⚡';
+        $result = $this->renderer->testTruncate($longTitle, 30);
+
+        // Result should end with ...
+        expect($result)->toEndWith('...');
+
+        // Result's visible length should not exceed 30
+        expect($this->renderer->testVisibleLength($result))->toBeLessThanOrEqual(30);
+    });
 });
 
 describe('padLine', function (): void {
