@@ -436,7 +436,7 @@ describe('UpdateRealityAgentTask', function (): void {
 
     it('builds prompt for solo task (pre-rendered context)', function (): void {
         // Reality tasks consumed from queue have pre-rendered context in description
-        $preRenderedContext = <<<CONTEXT
+        $preRenderedContext = <<<'CONTEXT'
 Task: Add new feature (f-abc123)
 Type: feature
 Description: Implement feature X

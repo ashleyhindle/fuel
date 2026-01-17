@@ -1,6 +1,8 @@
 <?php
 
 use App\Commands\StatusCommand;
+use App\Enums\EpicStatus;
+use App\Services\EpicService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -173,6 +175,29 @@ describe('status command', function (): void {
         $this->artisan('status', [])
             ->expectsOutputToContain('Browser')
             ->assertExitCode(0);
+    });
+
+    it('excludes tasks from paused epics from ready count', function (): void {
+        $epicService = app(EpicService::class);
+
+        // Create a paused epic
+        $pausedEpic = $epicService->createEpic('Paused epic', 'On hold');
+        $pausedEpic->status = EpicStatus::Paused;
+        $pausedEpic->save();
+
+        // Create tasks
+        $pausedEpicTask = $this->taskService->create([
+            'title' => 'Task in paused epic',
+            'epic_id' => $pausedEpic->id,
+        ]);
+        $standaloneTask = $this->taskService->create(['title' => 'Standalone task']);
+
+        Artisan::call('status', ['--json' => true]);
+        $output = Artisan::output();
+        $result = json_decode($output, true);
+
+        // Should only count standalone task as ready, not paused epic task
+        expect($result['board']['ready'])->toBe(1);
     });
 
     it('derives browser status from runner IPC response', function (): void {

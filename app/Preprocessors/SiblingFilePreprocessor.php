@@ -24,7 +24,7 @@ class SiblingFilePreprocessor implements PreprocessorInterface
 
     public function process(Task $task, string $cwd): ?string
     {
-        $description = $task->title . ' ' . ($task->description ?? '');
+        $description = $task->title.' '.($task->description ?? '');
 
         // Extract file paths from description
         $targetPaths = $this->extractFilePaths($description);
@@ -102,12 +102,13 @@ class SiblingFilePreprocessor implements PreprocessorInterface
         // src/app/api/search/route.ts -> src/app/api/*/route.ts
         $parentDir = dirname($dir);
         if ($parentDir !== '.') {
-            $pattern = $cwd . '/' . $parentDir . '/*/' . $filename;
+            $pattern = $cwd.'/'.$parentDir.'/*/'.$filename;
             $siblings = glob($pattern);
 
             // Filter out the target itself and non-existent files
             $siblings = array_filter($siblings, function ($path) use ($targetPath, $cwd) {
-                $relative = str_replace($cwd . '/', '', $path);
+                $relative = str_replace($cwd.'/', '', $path);
+
                 return $relative !== $targetPath && is_file($path);
             });
 
@@ -120,11 +121,12 @@ class SiblingFilePreprocessor implements PreprocessorInterface
         // src/lib/newHelper.ts -> src/lib/*.ts
         $ext = pathinfo($filename, PATHINFO_EXTENSION);
         if ($ext !== '') {
-            $pattern = $cwd . '/' . $dir . '/*.' . $ext;
+            $pattern = $cwd.'/'.$dir.'/*.'.$ext;
             $siblings = glob($pattern);
 
             $siblings = array_filter($siblings, function ($path) use ($targetPath, $cwd) {
-                $relative = str_replace($cwd . '/', '', $path);
+                $relative = str_replace($cwd.'/', '', $path);
+
                 return $relative !== $targetPath && is_file($path);
             });
 
@@ -167,7 +169,7 @@ class SiblingFilePreprocessor implements PreprocessorInterface
      */
     private function getFileContent(string $path, string $cwd): ?string
     {
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             return null;
         }
 
@@ -186,12 +188,12 @@ class SiblingFilePreprocessor implements PreprocessorInterface
 
         $output = '';
         foreach ($lines as $i => $line) {
-            $lineNum = str_pad((string)($i + 1), 3, ' ', STR_PAD_LEFT);
-            $output .= $lineNum . ' | ' . rtrim($line) . "\n";
+            $lineNum = str_pad((string) ($i + 1), 3, ' ', STR_PAD_LEFT);
+            $output .= $lineNum.' | '.rtrim($line)."\n";
         }
 
         if ($truncated) {
-            $output .= "... (" . ($totalLines - self::MAX_CONTENT_LINES) . " more lines)\n";
+            $output .= '... ('.($totalLines - self::MAX_CONTENT_LINES)." more lines)\n";
         }
 
         return $output;
