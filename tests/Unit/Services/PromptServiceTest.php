@@ -170,25 +170,27 @@ describe('PromptService writeDefaultPrompts', function (): void {
 
         $written = $this->promptService->writeDefaultPrompts();
 
-        expect($written)->toHaveCount(5);
+        expect($written)->toHaveCount(6);
         expect($written)->toContain('work');
         expect($written)->toContain('review');
         expect($written)->toContain('verify');
         expect($written)->toContain('reality');
         expect($written)->toContain('selfguided');
+        expect($written)->toContain('merge');
 
         expect(file_exists($promptsDir.'/work.md'))->toBeTrue();
         expect(file_exists($promptsDir.'/review.md'))->toBeTrue();
         expect(file_exists($promptsDir.'/verify.md'))->toBeTrue();
         expect(file_exists($promptsDir.'/reality.md'))->toBeTrue();
         expect(file_exists($promptsDir.'/selfguided.md'))->toBeTrue();
+        expect(file_exists($promptsDir.'/merge.md'))->toBeTrue();
 
         // Verify content has version tag
         $workContent = file_get_contents($promptsDir.'/work.md');
         expect($workContent)->toContain('<fuel-prompt version="1" />');
 
         // Cleanup
-        foreach (['work.md', 'review.md', 'verify.md', 'reality.md', 'selfguided.md'] as $file) {
+        foreach (['work.md', 'review.md', 'verify.md', 'reality.md', 'selfguided.md', 'merge.md'] as $file) {
             unlink($promptsDir.'/'.$file);
         }
     });
@@ -208,13 +210,13 @@ describe('PromptService writeDefaultPrompts', function (): void {
         // Custom prompt should not be overwritten
         expect(file_get_contents($promptsDir.'/work.md'))->toBe($customContent);
 
-        // Should have written 4 prompts (all except work)
-        expect($written)->toHaveCount(4);
+        // Should have written 5 prompts (all except work)
+        expect($written)->toHaveCount(5);
         expect($written)->not->toContain('work');
 
         // Cleanup
         unlink($promptsDir.'/work.md');
-        foreach (['review.md', 'verify.md', 'reality.md', 'selfguided.md'] as $file) {
+        foreach (['review.md', 'verify.md', 'reality.md', 'selfguided.md', 'merge.md'] as $file) {
             $path = $promptsDir.'/'.$file;
             if (file_exists($path)) {
                 unlink($path);
@@ -256,5 +258,6 @@ describe('PromptService getPromptNames', function (): void {
         expect($names)->toContain('verify');
         expect($names)->toContain('reality');
         expect($names)->toContain('selfguided');
+        expect($names)->toContain('merge');
     });
 });

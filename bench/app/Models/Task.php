@@ -7,14 +7,23 @@ namespace App\Models;
 class Task
 {
     public int $id;
+
     public string $title;
+
     public ?string $description;
+
     public string $status;
+
     public string $priority;
+
     public int $user_id;
+
     public ?string $due_date;
+
     public ?string $completed_at;
+
     public ?string $created_at;
+
     public ?string $updated_at;
 
     public static function find(int $id): ?self
@@ -24,7 +33,7 @@ class Task
 
     public static function where(string $column, mixed $value): self
     {
-        return new self();
+        return new self;
     }
 
     public function orderBy(string $column, string $direction = 'asc'): self
@@ -39,7 +48,7 @@ class Task
 
     public static function create(array $data): self
     {
-        $task = new self();
+        $task = new self;
         $task->id = rand(1, 10000);
         $task->title = $data['title'];
         $task->description = $data['description'] ?? null;

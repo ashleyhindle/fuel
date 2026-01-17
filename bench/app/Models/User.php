@@ -7,10 +7,15 @@ namespace App\Models;
 class User
 {
     public int $id;
+
     public string $name;
+
     public string $email;
+
     public string $password_hash;
+
     public ?string $created_at;
+
     public ?string $updated_at;
 
     public static function find(int $id): ?self
@@ -21,7 +26,7 @@ class User
 
     public static function where(string $column, mixed $value): self
     {
-        return new self();
+        return new self;
     }
 
     public function first(): ?self
@@ -31,7 +36,7 @@ class User
 
     public static function create(array $data): self
     {
-        $user = new self();
+        $user = new self;
         $user->id = rand(1, 10000);
         $user->name = $data['name'];
         $user->email = $data['email'];

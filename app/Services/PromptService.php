@@ -8,7 +8,7 @@ use RuntimeException;
 
 class PromptService
 {
-    private const PROMPT_NAMES = ['work', 'review', 'verify', 'reality', 'selfguided'];
+    private const PROMPT_NAMES = ['work', 'review', 'verify', 'reality', 'selfguided', 'merge'];
 
     public function __construct(
         private readonly FuelContext $context
