@@ -1010,3 +1010,42 @@ it('registry throws exception when no driver matches agent name', function (): v
     expect(fn (): AgentDriverInterface => $registry->getForAgentName('unknown-agent-name'))
         ->toThrow(RuntimeException::class, "No driver found for agent name: 'unknown-agent-name'");
 });
+
+// =============================================================================
+// getEpicMirrorsEnabled() Tests
+// =============================================================================
+
+it('returns false when epic_mirrors is not set', function (): void {
+    $config = makeConfig();
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect($this->configService->getEpicMirrorsEnabled())->toBeFalse();
+});
+
+it('returns false when epic_mirrors is explicitly false', function (): void {
+    $config = makeConfig();
+    $config['epic_mirrors'] = false;
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect($this->configService->getEpicMirrorsEnabled())->toBeFalse();
+});
+
+it('returns true when epic_mirrors is explicitly true', function (): void {
+    $config = makeConfig();
+    $config['epic_mirrors'] = true;
+
+    file_put_contents($this->configPath, Yaml::dump($config));
+
+    expect($this->configService->getEpicMirrorsEnabled())->toBeTrue();
+});
+
+it('default config includes epic_mirrors set to false', function (): void {
+    $this->configService->createDefaultConfig();
+
+    $config = Yaml::parseFile($this->configPath);
+
+    expect($config)->toHaveKey('epic_mirrors');
+    expect($config['epic_mirrors'])->toBeFalse();
+});

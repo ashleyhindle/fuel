@@ -263,6 +263,14 @@ Created `app/Services/ProcessSpawner.php` for fire-and-forget background process
 - **Mockability**: Tests extend ProcessSpawner and override the method to avoid actual exec calls
 - **Usage**: `app(ProcessSpawner::class)->spawnBackground('mirror:create', ['e-abc123'])`
 
+### ✅ Epic Mirrors Config Flag (f-7f3a16)
+Added configuration flag to control epic mirrors feature in `app/Services/ConfigService.php`:
+- New method: `getEpicMirrorsEnabled(): bool` - reads 'epic_mirrors' from config.yaml, defaults to false
+- Updated `createDefaultConfig()` to include `epic_mirrors: false` with descriptive comment
+- Fully tested in `tests/Unit/Services/ConfigServiceTest.php` with 4 test cases
+- **Purpose**: Safe rollout flag for enabling/disabling mirror creation
+- **Usage**: `app(ConfigService::class)->getEpicMirrorsEnabled()` in EpicAddCommand and TaskSpawner
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
 

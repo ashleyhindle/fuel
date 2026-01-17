@@ -596,6 +596,9 @@ port: 9981
 max_concurrent: 5
 desktop_notifications: false
 
+# Epic isolation via mirrors - each epic gets its own directory copy (experimental)
+epic_mirrors: false
+
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
 review: claude-opus
@@ -694,5 +697,17 @@ YAML;
         }
 
         return $config['desktop_notifications'] === true;
+    }
+
+    /**
+     * Get epic mirrors enabled setting.
+     * Controls whether epic:add spawns mirror creation and whether TaskSpawner routes to mirrors.
+     * Returns false if not set (default disabled for safe rollout).
+     */
+    public function getEpicMirrorsEnabled(): bool
+    {
+        $config = $this->loadConfig();
+
+        return $config['epic_mirrors'] ?? false;
     }
 }
