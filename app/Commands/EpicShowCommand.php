@@ -11,7 +11,6 @@ use App\Models\Task;
 use App\Services\EpicService;
 use App\Services\RunService;
 use App\Services\TaskService;
-use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -113,48 +112,30 @@ class EpicShowCommand extends Command
 
             $this->line('  Created: '.($epic->created_at ?? ''));
 
-            // Display linked tasks in table format
+            // Display linked tasks in compact format (like tree command)
             $this->newLine();
             if (empty($sortedTasks)) {
                 $this->line('  <fg=yellow>No tasks linked to this epic.</>');
             } else {
                 $this->line(sprintf('  Linked Tasks (%d):', count($sortedTasks)));
-                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Agent', 'Run ID', 'Exit Code', 'Commit'];
-                $rows = array_map(function (Task $task) use ($blockedIds, $runService): array {
+                $this->newLine();
+                foreach ($sortedTasks as $task) {
                     $isBlocked = in_array($task->short_id, $blockedIds, true);
+                    $priority = $task->priority ?? 2;
+                    $complexity = $this->getComplexityChar($task);
+                    $displayStatus = $this->getDisplayStatus($task, $isBlocked);
+                    $statusColor = $this->hasNeedsHumanLabel($task) ? 'magenta' : 'gray';
 
-                    // Add visual indicator for blocked tasks (like tree command)
-                    $statusDisplay = $isBlocked && $task->status === TaskStatus::Open
-                        ? '<fg=yellow>blocked</>'
-                        : $task->status->value;
-
-                    // Get latest run for this task
-                    $latestRun = $runService->getLatestRun($task->short_id);
-                    $runId = $latestRun?->short_id ?? '';
-                    $exitCode = $latestRun?->exit_code !== null ? (string) $latestRun->exit_code : '';
-                    $agent = $latestRun?->agent ?? '';
-
-                    return [
+                    $this->line(sprintf(
+                        '  <fg=cyan>[P%d·%s]</> %s %s <fg=%s>(%s)</>',
+                        $priority,
+                        $complexity,
                         $task->short_id,
-                        $task->title ?? '',
-                        $statusDisplay,
-                        $task->type ?? 'task',
-                        isset($task->priority) ? (string) $task->priority : '',
-                        $agent,
-                        $runId,
-                        $exitCode,
-                        $task->commit_hash ?? '',
-                    ];
-                }, $sortedTasks);
-
-                $table = new Table;
-                $terminalWidth = $this->getTerminalWidth();
-
-                // Column priorities: all columns are important
-                // Headers: ['ID', 'Title', 'Status', 'Type', 'Priority', 'Agent', 'Run ID', 'Exit Code', 'Commit']
-                $columnPriorities = [];
-
-                $table->render($headers, $rows, $this->output, $columnPriorities, $terminalWidth);
+                        $task->title,
+                        $statusColor,
+                        $displayStatus
+                    ));
+                }
             }
 
             return self::SUCCESS;
@@ -165,16 +146,47 @@ class EpicShowCommand extends Command
         }
     }
 
-    private function getTerminalWidth(): int
+    /**
+     * Get the display status for a task.
+     */
+    private function getDisplayStatus(Task $task, bool $isBlocked): string
     {
-        // Try to get terminal width using tput
-        $width = (int) shell_exec('tput cols 2>/dev/null');
-
-        // Fallback to environment variable or default
-        if ($width <= 0) {
-            $width = (int) ($_ENV['COLUMNS'] ?? 80);
+        // Check for needs-human label first
+        if ($this->hasNeedsHumanLabel($task)) {
+            return '👤 needs human';
         }
 
-        return max(40, $width); // Ensure minimum width
+        // Check if blocked
+        if ($isBlocked && $task->status === TaskStatus::Open) {
+            return 'blocked';
+        }
+
+        return $task->status->value;
+    }
+
+    /**
+     * Check if a task has the needs-human label.
+     */
+    private function hasNeedsHumanLabel(Task $task): bool
+    {
+        $labels = $task->labels ?? [];
+
+        return in_array('needs-human', $labels, true);
+    }
+
+    /**
+     * Get a single character representing task complexity.
+     */
+    private function getComplexityChar(Task $task): string
+    {
+        $complexity = $task->complexity ?? 'simple';
+
+        return match ($complexity) {
+            'trivial' => 't',
+            'simple' => 's',
+            'moderate' => 'm',
+            'complex' => 'c',
+            default => 's',
+        };
     }
 }

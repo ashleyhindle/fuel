@@ -168,15 +168,13 @@ describe('epic:show command', function (): void {
         expect($output)->toContain('Task 1');
         expect($output)->toContain($task2->short_id);
         expect($output)->toContain('Task 2');
-        expect($output)->toContain('ID');
-        expect($output)->toContain('Title');
-        expect($output)->toContain('Status');
-        expect($output)->toContain('Type');
-        expect($output)->toContain('Priority');
+
+        // Verify compact format with priority and complexity indicators
+        expect($output)->toMatch('/\[P\d·[tsmc]\]/'); // [P1·s] format
 
         // Verify both task statuses are in the output (checking for status values)
         expect($output)->toContain('open');
-        // Note: "done" may be formatted differently in table output, so we verify task2 exists instead
+        expect($output)->toContain('done');
         expect($output)->toContain('Progress: 1/2 complete'); // 1 completed out of 2 total
     });
 
