@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Enums\MirrorStatus;
 use App\Models\Epic;
+use App\Services\ConfigService;
+use App\Services\ProcessSpawner;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
+use Mockery\MockInterface;
 
 describe('epic:add command', function (): void {
     beforeEach(function (): void {
@@ -91,5 +95,61 @@ describe('epic:add command', function (): void {
         // NOT kebab format (which would split SVG into s-v-g)
         expect($epic->plan_filename)->toBe('svg-creation-for-opencode-'.$epic->short_id.'.md');
         expect($epic->plan_filename)->not->toContain('s-v-g');
+    });
+
+    it('spawns mirror creation when epic mirrors are enabled', function (): void {
+        // Mock ConfigService to return true for epic mirrors
+        $this->mock(ConfigService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('getEpicMirrorsEnabled')
+                ->once()
+                ->andReturn(true);
+        });
+
+        // Mock ProcessSpawner to verify spawnBackground is called
+        $this->mock(ProcessSpawner::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('spawnBackground')
+                ->once()
+                ->withArgs(function (string $command, array $args): bool {
+                    return $command === 'mirror:create' && count($args) === 1 && str_starts_with($args[0], 'e-');
+                });
+        });
+
+        Artisan::call('epic:add', [
+            'title' => 'Test Epic with Mirrors',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        $epic = Epic::where('short_id', $data['short_id'])->first();
+
+        // Verify mirror_status was set to Pending
+        expect($epic->mirror_status)->toBe(MirrorStatus::Pending);
+    });
+
+    it('does not spawn mirror creation when epic mirrors are disabled', function (): void {
+        // Mock ConfigService to return false for epic mirrors
+        $this->mock(ConfigService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('getEpicMirrorsEnabled')
+                ->once()
+                ->andReturn(false);
+        });
+
+        // Mock ProcessSpawner to verify spawnBackground is NOT called
+        $this->mock(ProcessSpawner::class, function (MockInterface $mock): void {
+            $mock->shouldNotReceive('spawnBackground');
+        });
+
+        Artisan::call('epic:add', [
+            'title' => 'Test Epic without Mirrors',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $data = json_decode($output, true);
+
+        $epic = Epic::where('short_id', $data['short_id'])->first();
+
+        // Verify mirror_status is None (default)
+        expect($epic->mirror_status)->toBe(MirrorStatus::None);
     });
 });

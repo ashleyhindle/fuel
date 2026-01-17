@@ -128,11 +128,18 @@ class ProcessSpawner
   2. Set mirror_status='merge_failed'
   3. Surface in `fuel human`
 
-### Modified: EpicAddCommand
+### ✅ Modified: EpicAddCommand (f-392427)
 
 `app/Commands/EpicAddCommand.php`:
-- After creating epic, spawn mirror creation via ProcessSpawner
-- Set mirror_status='pending' on new epic
+- ✅ After creating epic, checks ConfigService::getEpicMirrorsEnabled()
+- ✅ If enabled: Updates mirror_status to Pending via EpicService::updateMirrorStatus()
+- ✅ If enabled: Spawns mirror creation via ProcessSpawner::spawnBackground('mirror:create', [epic_id])
+- ✅ Injected ConfigService and ProcessSpawner via constructor parameters
+- ✅ Added comprehensive tests in EpicAddCommandTest.php:
+  - Test mirror creation spawns when enabled
+  - Test mirror creation does NOT spawn when disabled
+  - Test mirror_status set to Pending when enabled
+  - Test mirror_status remains None when disabled
 
 ### ✅ Modified: EpicService (f-375c87)
 

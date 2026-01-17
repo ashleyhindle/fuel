@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Enums\MirrorStatus;
 use App\Models\Epic;
+use App\Services\ConfigService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
+use App\Services\ProcessSpawner;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -24,8 +27,12 @@ class EpicAddCommand extends Command
 
     protected $description = 'Add a new epic';
 
-    public function handle(EpicService $epicService, FuelContext $context): int
-    {
+    public function handle(
+        EpicService $epicService,
+        FuelContext $context,
+        ConfigService $configService,
+        ProcessSpawner $processSpawner
+    ): int {
         $title = $this->argument('title');
         $description = $this->option('description');
         $selfGuided = $this->option('selfguided');
@@ -38,6 +45,12 @@ class EpicAddCommand extends Command
 
         // Create stub plan file and store filename on epic
         $planFilename = $this->createPlanFile($context, $epic, $description, $selfGuided);
+
+        // If epic mirrors are enabled, set status to Pending and spawn mirror creation
+        if ($configService->getEpicMirrorsEnabled()) {
+            $epicService->updateMirrorStatus($epic, MirrorStatus::Pending);
+            $processSpawner->spawnBackground('mirror:create', [$epic->short_id]);
+        }
 
         if ($this->option('json')) {
             $this->outputJson($epic->toArray());
