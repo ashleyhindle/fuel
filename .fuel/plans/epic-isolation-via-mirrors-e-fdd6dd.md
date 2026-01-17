@@ -1,5 +1,29 @@
 # Epic: Epic isolation via mirrors (e-fdd6dd)
 
+## ✅ EPIC COMPLETE - All acceptance criteria verified
+
+**Review Summary (f-9f84e0):**
+All acceptance criteria have been successfully verified:
+
+1. ✅ `epic_mirrors: true` in config enables mirror creation on `epic:add`
+2. ✅ Mirror created in `~/.fuel/mirrors/{slug}/{epic-id}/` with correct structure (symlinked .fuel/, epic branch)
+3. ✅ Tasks with epic run in mirror cwd when `mirror_status=Ready`
+4. ✅ Tasks skip when mirror `Pending`/`Creating`/`MergeFailed`
+5. ✅ Standalone tasks pause during merge
+6. ✅ `epic:reviewed` creates merge task that runs in main dir
+7. ✅ Merge success cleans up mirror
+8. ✅ `fuel human` shows mirror issues (merge failed, stale, orphaned)
+9. ✅ All tests pass:
+   - `tests/Unit/Enums/MirrorStatusTest.php` - 4/4 passing
+   - `tests/Unit/Services/ProcessSpawnerTest.php` - 6/6 passing
+   - `tests/Feature/Commands/MirrorCreateCommandTest.php` - 13/13 passing
+   - `tests/Unit/Agents/Tasks/MergeEpicAgentTaskTest.php` - 10/10 passing
+   - `tests/Feature/Daemon/TaskSpawnerTest.php` - 10/10 passing
+
+Total: 43 tests, 135 assertions - **ALL PASSING**
+
+The epic isolation via mirrors feature is fully functional and ready for use. Enable with `epic_mirrors: true` in config.yaml.
+
 ## Plan
 
 Isolate epics in separate directory mirrors so agents work without stepping on each other's toes. Each epic gets a copy-on-write clone of the project, tasks run in that mirror, and merge happens via git at epic completion.
