@@ -217,7 +217,50 @@ class ConsumeCommand extends Command
         // Handle --once flag: show board once and exit (no spawning)
         if ($this->option('once')) {
             $this->updateTerminalSize();
+
+            // Try to connect to daemon for snapshot
+            $pidFilePath = $this->fuelContext->getPidFilePath();
+            $port = $this->option('port') ? (int) $this->option('port') : $this->configService->getConsumePort();
+            $ip = $this->option('ip');
+            $isRemote = $ip !== '127.0.0.1';
+
+            // Check if daemon is running and try to connect
+            $this->ipcClient = new ConsumeIpcClient($ip);
+            if ($isRemote || $this->ipcClient->isRunnerAlive($pidFilePath)) {
+                try {
+                    $this->ipcClient->connect($port);
+                    $this->ipcClient->attach();
+
+                    // Request a fresh snapshot
+                    $this->ipcClient->requestSnapshot();
+
+                    // Wait briefly for snapshot response
+                    $deadline = time() + 1;
+                    while (time() < $deadline) {
+                        $events = $this->ipcClient->pollEvents();
+                        foreach ($events as $event) {
+                            $this->ipcClient->applyEvent($event);
+                        }
+                        usleep(50000); // 50ms
+                    }
+                } catch (\RuntimeException $e) {
+                    // Failed to connect - will fall back to DB query
+                    $this->warn('Could not connect to daemon, using database directly: ' . $e->getMessage());
+                    $this->ipcClient = null;
+                }
+            } else {
+                // Daemon not running - will fall back to DB query
+                $this->warn('Daemon is not running, using database directly');
+                $this->ipcClient = null;
+            }
+
+            // Render the board (will use IPC data if connected, DB otherwise)
             $this->renderKanbanBoard();
+
+            // Disconnect if we connected
+            if ($this->ipcClient?->isConnected()) {
+                $this->ipcClient->disconnect();
+            }
 
             return self::SUCCESS;
         }
