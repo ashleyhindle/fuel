@@ -13,6 +13,7 @@ use App\Ipc\Events\OutputChunkEvent;
 use App\Ipc\Events\SnapshotEvent;
 use App\Ipc\Events\TaskCompletedEvent;
 use App\Ipc\Events\TaskSpawnedEvent;
+use App\Process\AgentHealth;
 use App\Process\CompletionType;
 use App\Services\ConsumeIpcServer;
 
@@ -102,12 +103,16 @@ final readonly class EventBroadcaster
         $this->ipcServer->broadcast($event);
     }
 
-    public function broadcastHealthChange(string $agent, string $status): void
+    public function broadcastHealthChange(AgentHealth $health): void
     {
         $instanceId = $this->lifecycleManager?->getInstanceId() ?? 'unknown';
         $event = new HealthChangeEvent(
-            agent: $agent,
-            status: $status,
+            agent: $health->agent,
+            status: $health->getStatus(),
+            consecutiveFailures: $health->consecutiveFailures,
+            inBackoff: ! $health->isAvailable(),
+            isDead: $health->consecutiveFailures >= 5, // Default threshold
+            backoffSeconds: $health->getBackoffSeconds(),
             instanceId: $instanceId
         );
         $this->ipcServer->broadcast($event);

@@ -184,7 +184,7 @@ final class SnapshotManager
             $previousStatus = $this->previousHealthStatus[$agent] ?? null;
 
             if ($previousStatus !== $currentStatus) {
-                $this->broadcaster->broadcastHealthChange($agent, $currentStatus);
+                $this->broadcaster->broadcastHealthChange($health);
                 $this->previousHealthStatus[$agent] = $currentStatus;
             }
         }

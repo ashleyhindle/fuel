@@ -49,6 +49,7 @@ class MirrorCreateCommand extends Command
         $epic = Epic::findByPartialId($epicId);
         if (! $epic instanceof Epic) {
             $this->error("Epic '{$epicId}' not found");
+
             return self::FAILURE;
         }
 
@@ -63,8 +64,8 @@ class MirrorCreateCommand extends Command
             }
 
             $projectSlug = Str::slug(basename($projectPath));
-            $mirrorBasePath = $_SERVER['HOME'] . '/.fuel/mirrors/' . $projectSlug;
-            $mirrorPath = $mirrorBasePath . '/' . $epic->short_id;
+            $mirrorBasePath = $_SERVER['HOME'].'/.fuel/mirrors/'.$projectSlug;
+            $mirrorPath = $mirrorBasePath.'/'.$epic->short_id;
 
             // Step 4: Create parent dirs
             if (! is_dir($mirrorBasePath)) {
@@ -84,49 +85,49 @@ class MirrorCreateCommand extends Command
 
             $output = [];
             $returnCode = 0;
-            exec($copyCommand . ' 2>&1', $output, $returnCode);
+            exec($copyCommand.' 2>&1', $output, $returnCode);
 
             if ($returnCode !== 0) {
                 throw new RuntimeException(
-                    "Failed to copy project to mirror. Command: {$copyCommand}\n" .
-                    "Output: " . implode("\n", $output)
+                    "Failed to copy project to mirror. Command: {$copyCommand}\n".
+                    'Output: '.implode("\n", $output)
                 );
             }
 
             // Step 6: Remove .fuel/ from mirror and create symlink to original
-            $mirrorFuelPath = $mirrorPath . '/.fuel';
-            $originalFuelPath = $projectPath . '/.fuel';
+            $mirrorFuelPath = $mirrorPath.'/.fuel';
+            $originalFuelPath = $projectPath.'/.fuel';
 
             if (is_dir($mirrorFuelPath)) {
                 // Remove the copied .fuel directory
                 $rmCommand = sprintf('rm -rf %s', escapeshellarg($mirrorFuelPath));
-                exec($rmCommand . ' 2>&1', $output, $returnCode);
+                exec($rmCommand.' 2>&1', $output, $returnCode);
 
                 if ($returnCode !== 0) {
                     throw new RuntimeException(
-                        "Failed to remove .fuel from mirror: " . implode("\n", $output)
+                        'Failed to remove .fuel from mirror: '.implode("\n", $output)
                     );
                 }
             }
 
             // Create symlink to original .fuel
             if (! symlink($originalFuelPath, $mirrorFuelPath)) {
-                throw new RuntimeException("Failed to create symlink to original .fuel directory");
+                throw new RuntimeException('Failed to create symlink to original .fuel directory');
             }
 
             // Step 7: In mirror, create git branch
-            $branchName = 'epic/' . $epic->short_id;
+            $branchName = 'epic/'.$epic->short_id;
 
             // Get current HEAD commit before creating branch
             $getCurrentCommitCommand = sprintf(
                 'cd %s && git rev-parse HEAD',
                 escapeshellarg($mirrorPath)
             );
-            exec($getCurrentCommitCommand . ' 2>&1', $output, $returnCode);
+            exec($getCurrentCommitCommand.' 2>&1', $output, $returnCode);
 
             if ($returnCode !== 0) {
                 throw new RuntimeException(
-                    "Failed to get current HEAD commit: " . implode("\n", $output)
+                    'Failed to get current HEAD commit: '.implode("\n", $output)
                 );
             }
             $baseCommit = trim($output[count($output) - 1]);
@@ -139,11 +140,11 @@ class MirrorCreateCommand extends Command
             );
 
             $output = [];
-            exec($createBranchCommand . ' 2>&1', $output, $returnCode);
+            exec($createBranchCommand.' 2>&1', $output, $returnCode);
 
             if ($returnCode !== 0) {
                 throw new RuntimeException(
-                    "Failed to create git branch '{$branchName}': " . implode("\n", $output)
+                    "Failed to create git branch '{$branchName}': ".implode("\n", $output)
                 );
             }
 
@@ -158,7 +159,7 @@ class MirrorCreateCommand extends Command
 
         } catch (Throwable $throwable) {
             // On failure: set mirror_status to Failed (if exists) and log error
-            $this->error("Mirror creation failed: " . $throwable->getMessage());
+            $this->error('Mirror creation failed: '.$throwable->getMessage());
 
             // Check if Failed status exists in enum, otherwise use None
             try {
@@ -175,7 +176,7 @@ class MirrorCreateCommand extends Command
             $epicService->updateMirrorStatus($epic, $failureStatus);
 
             // Log the full error for debugging
-            $this->error("Stack trace:");
+            $this->error('Stack trace:');
             $this->error($throwable->getTraceAsString());
 
             return self::FAILURE;

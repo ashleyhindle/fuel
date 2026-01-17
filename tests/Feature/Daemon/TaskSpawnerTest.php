@@ -6,14 +6,14 @@ use App\Daemon\TaskSpawner;
 use App\Enums\MirrorStatus;
 use App\Models\Epic;
 use App\Models\Task;
+use App\Process\AgentProcess;
+use App\Process\SpawnResult;
 use App\Services\ConfigService;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
-use App\Process\SpawnResult;
-use App\Process\AgentProcess;
 
 beforeEach(function () {
     // Create mocks for dependencies
@@ -45,8 +45,8 @@ beforeEach(function () {
 
     // Default mock for getAgentForComplexity (used by WorkAgentTask)
     $this->configService->shouldReceive('getAgentForComplexity')
-        ->andReturnUsing(function($complexity) {
-            return match($complexity) {
+        ->andReturnUsing(function ($complexity) {
+            return match ($complexity) {
                 'trivial' => 'haiku',
                 'simple' => 'sonnet',
                 'moderate' => 'claude',
@@ -66,7 +66,7 @@ test('task with epic and Ready mirror uses mirror_path as cwd', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create and save epic with Ready mirror
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test01';
     $epic->mirror_status = MirrorStatus::Ready;
@@ -74,7 +74,7 @@ test('task with epic and Ready mirror uses mirror_path as cwd', function () {
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-abc123';
     $task->epic_id = $epic->id;
@@ -130,14 +130,14 @@ test('task with epic and Pending mirror is skipped', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create and save epic with Pending mirror
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test02';
     $epic->mirror_status = MirrorStatus::Pending;
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-def456';
     $task->epic_id = $epic->id;
@@ -162,14 +162,14 @@ test('task with epic and Creating mirror is skipped', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create and save epic with Creating mirror
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test03';
     $epic->mirror_status = MirrorStatus::Creating;
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-ghi789';
     $task->epic_id = $epic->id;
@@ -194,14 +194,14 @@ test('task with epic and MergeFailed mirror is skipped', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create and save epic with MergeFailed mirror
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test04';
     $epic->mirror_status = MirrorStatus::MergeFailed;
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-jkl012';
     $task->epic_id = $epic->id;
@@ -226,7 +226,7 @@ test('standalone task during active merge is skipped', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create standalone task (no epic_id)
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Standalone Task';
     $task->short_id = 'f-mno345';
     $task->epic_id = null; // Standalone task
@@ -254,7 +254,7 @@ test('standalone task with no active merge uses project path', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create standalone task (no epic_id)
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Standalone Task';
     $task->short_id = 'f-pqr678';
     $task->epic_id = null; // Standalone task
@@ -313,7 +313,7 @@ test('when epic_mirrors config is false, all tasks use project path', function (
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(false);
 
     // Create and save epic (even though mirrors are disabled)
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test05';
     $epic->mirror_status = MirrorStatus::Ready;
@@ -321,7 +321,7 @@ test('when epic_mirrors config is false, all tasks use project path', function (
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-stu901';
     $task->epic_id = $epic->id;
@@ -377,14 +377,14 @@ test('task with epic and None mirror status uses project path', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create and save epic with None mirror status
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test06';
     $epic->mirror_status = MirrorStatus::None;
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-vwx234';
     $task->epic_id = $epic->id;
@@ -440,14 +440,14 @@ test('task with epic and Merging mirror status uses project path', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create and save epic with Merging mirror status
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test07';
     $epic->mirror_status = MirrorStatus::Merging;
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-yz0567';
     $task->epic_id = $epic->id;
@@ -503,14 +503,14 @@ test('task with epic but null mirror_status uses project path', function () {
     $this->configService->shouldReceive('getEpicMirrorsEnabled')->andReturn(true);
 
     // Create and save epic with default mirror_status (which is 'none')
-    $epic = new Epic();
+    $epic = new Epic;
     $epic->title = 'Test Epic';
     $epic->short_id = 'e-test08';
     // Don't set mirror_status, let it use the default
     $epic->save();
 
     // Create task with epic
-    $task = new Task();
+    $task = new Task;
     $task->title = 'Test Task';
     $task->short_id = 'f-abc890';
     $task->epic_id = $epic->id;

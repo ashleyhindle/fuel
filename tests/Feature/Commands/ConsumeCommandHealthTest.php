@@ -9,7 +9,6 @@ use App\Ipc\Commands\HealthResetCommand;
 use App\Services\BackoffStrategy;
 use App\Services\ConfigService;
 use App\Services\ConsumeIpcClient;
-use App\Services\ConsumeRunner;
 use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\NotificationService;
@@ -17,7 +16,6 @@ use App\Services\ProcessManager;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Mockery as m;
-use Tests\TestCase;
 
 describe('ConsumeCommand health functionality', function (): void {
     afterEach(function (): void {
@@ -104,7 +102,7 @@ describe('ConsumeCommand health functionality', function (): void {
         // Create a real AgentHealth object (since it's final and can't be mocked)
         $agentHealth = new \App\Process\AgentHealth(
             agent: 'claude',
-            lastSuccessAt: new \DateTimeImmutable(),
+            lastSuccessAt: new \DateTimeImmutable,
             lastFailureAt: null,
             consecutiveFailures: 0,
             backoffUntil: null,
@@ -531,7 +529,7 @@ describe('IPC health reset flow', function (): void {
 
     it('verifies HealthResetCommand exists and has correct structure', function (): void {
         // Create a HealthResetCommand and verify its properties
-        $now = new \DateTimeImmutable();
+        $now = new \DateTimeImmutable;
         $command = new HealthResetCommand('cursor', $now, 'test-instance', 'test-request');
 
         expect($command->agent)->toBe('cursor');
