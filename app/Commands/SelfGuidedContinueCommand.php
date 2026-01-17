@@ -95,6 +95,7 @@ class SelfGuidedContinueCommand extends Command
                     // No run exists - task may have been created without daemon
                 }
             }
+
             if ($this->option('json')) {
                 $this->outputJson($task->toArray());
             } else {

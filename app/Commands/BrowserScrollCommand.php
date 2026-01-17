@@ -59,12 +59,12 @@ class BrowserScrollCommand extends BrowserCommand
         if ($this->option('json')) {
             $this->outputJson([
                 'success' => true,
-                'message' => "Scrolled {$direction} {$amount}px",
+                'message' => sprintf('Scrolled %s %spx', $direction, $amount),
                 'direction' => $direction,
                 'amount' => (int) $amount,
             ]);
         } else {
-            $this->info("✓ Scrolled {$direction} {$amount}px");
+            $this->info(sprintf('✓ Scrolled %s %spx', $direction, $amount));
         }
     }
 }

@@ -292,7 +292,7 @@ REALITY;
                 '/^\.fuel\/runs\/\s*$/m',
             ];
             foreach ($oldPatterns as $pattern) {
-                $content = preg_replace($pattern, '', $content);
+                $content = preg_replace($pattern, '', (string) $content);
             }
 
             // Clean up multiple blank lines

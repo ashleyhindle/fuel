@@ -1,5 +1,6 @@
 <?php
 
+use App\Commands\StatusCommand;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -176,10 +177,9 @@ describe('status command', function (): void {
 
     it('detects orphaned browser daemon processes', function (): void {
         // Create a mock StatusCommand to test the private method
-        $command = new \App\Commands\StatusCommand;
+        $command = new StatusCommand;
         $reflection = new ReflectionClass($command);
         $method = $reflection->getMethod('getBrowserDaemonStatus');
-        $method->setAccessible(true);
 
         // Test with runner not running (should check for orphaned daemons)
         $result = $method->invoke($command, false);

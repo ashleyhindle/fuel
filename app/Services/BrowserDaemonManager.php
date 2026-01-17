@@ -307,8 +307,10 @@ class BrowserDaemonManager
 
     /**
      * Send a request to the daemon and wait for response
+     *
+     * @param  int  $timeoutSeconds  Timeout in seconds (default 30)
      */
-    public function sendRequest(string $method, array $params): array
+    public function sendRequest(string $method, array $params, int $timeoutSeconds = 30): array
     {
         if (! $this->isRunning()) {
             $this->start();
@@ -339,7 +341,7 @@ class BrowserDaemonManager
         fflush($this->pipes[0]);
 
         // Read response (with timeout)
-        $timeout = 30; // seconds
+        $timeout = $timeoutSeconds;
         $startTime = time();
         $response = null;
         $buffer = '';
@@ -604,14 +606,19 @@ class BrowserDaemonManager
         if ($selector !== null) {
             $params['selector'] = $selector;
         }
+
         if ($url !== null) {
             $params['url'] = $url;
         }
+
         if ($text !== null) {
             $params['text'] = $text;
         }
 
-        return $this->sendRequest('wait', $params);
+        // Add buffer to PHP timeout to ensure JS daemon times out first with proper error
+        $phpTimeoutSeconds = (int) ceil($timeout / 1000) + 5;
+
+        return $this->sendRequest('wait', $params, $phpTimeoutSeconds);
     }
 
     /**

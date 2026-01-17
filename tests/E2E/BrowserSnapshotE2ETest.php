@@ -7,7 +7,7 @@ namespace Tests\E2E;
 uses(BrowserE2ETestCase::class);
 uses()->group('e2e', 'browser', 'snapshot');
 
-it('can get accessibility snapshot of a page', function () {
+it('can get accessibility snapshot of a page', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -29,9 +29,10 @@ it('can get accessibility snapshot of a page', function () {
         // Parse refs
         $refs = $this->parseSnapshotRefs($snapshotText);
         expect(count($refs))->toBe($snapshot['refCount']);
+        $counter = count($refs);
 
         // Refs should be sequential
-        for ($i = 0; $i < count($refs); $i++) {
+        for ($i = 0; $i < $counter; $i++) {
             expect($refs[$i])->toBe('@e'.($i + 1));
         }
 
@@ -40,7 +41,7 @@ it('can get accessibility snapshot of a page', function () {
     }
 });
 
-it('can filter snapshot to interactive elements only', function () {
+it('can filter snapshot to interactive elements only', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -68,7 +69,7 @@ it('can filter snapshot to interactive elements only', function () {
     }
 });
 
-it('assigns unique refs to duplicate elements', function () {
+it('assigns unique refs to duplicate elements', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -98,8 +99,8 @@ it('assigns unique refs to duplicate elements', function () {
 
         // Find all button refs
         $buttonLines = array_filter(
-            explode("\n", $snapshotText),
-            fn ($line) => stripos($line, 'button "Click Me"') !== false
+            explode("\n", (string) $snapshotText),
+            fn ($line): bool => stripos((string) $line, 'button "Click Me"') !== false
         );
 
         // Should have 2 buttons with different refs
@@ -117,8 +118,8 @@ it('assigns unique refs to duplicate elements', function () {
 
         // Find all link refs
         $linkLines = array_filter(
-            explode("\n", $snapshotText),
-            fn ($line) => stripos($line, 'link "Link"') !== false
+            explode("\n", (string) $snapshotText),
+            fn ($line): bool => stripos((string) $line, 'link "Link"') !== false
         );
 
         expect(count($linkLines))->toBe(2);
@@ -143,7 +144,7 @@ it('assigns unique refs to duplicate elements', function () {
     }
 });
 
-it('handles empty pages gracefully', function () {
+it('handles empty pages gracefully', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -167,7 +168,7 @@ it('handles empty pages gracefully', function () {
     }
 });
 
-it('snapshot refs remain stable across multiple calls', function () {
+it('snapshot refs remain stable across multiple calls', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -206,7 +207,7 @@ it('snapshot refs remain stable across multiple calls', function () {
     }
 });
 
-it('can get snapshot in JSON format', function () {
+it('can get snapshot in JSON format', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -231,7 +232,7 @@ it('can get snapshot in JSON format', function () {
     }
 });
 
-it('provides meaningful error for non-existent page', function () {
+it('provides meaningful error for non-existent page', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -244,17 +245,17 @@ it('provides meaningful error for non-existent page', function () {
 
         expect($result['exitCode'])->not->toBe(0);
 
-        $json = json_decode($result['output'], true);
+        $json = json_decode((string) $result['output'], true);
         expect($json['success'])->toBeFalse();
         expect($json)->toHaveKey('error');
-        expect(strtolower($json['error']))->toContain('not found');
+        expect(strtolower((string) $json['error']))->toContain('not found');
 
     } finally {
         $this->closeBrowser($browser['contextId']);
     }
 });
 
-it('snapshot works with complex real-world pages', function () {
+it('snapshot works with complex real-world pages', function (): void {
     $browser = $this->createTestBrowser();
 
     try {

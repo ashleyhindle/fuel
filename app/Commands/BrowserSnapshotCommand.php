@@ -13,7 +13,8 @@ class BrowserSnapshotCommand extends BrowserCommand
 {
     protected $signature = 'browser:snapshot
         {page_id : Page ID to take accessibility snapshot of}
-        {--interactive : Only include interactive elements}
+        {--i|interactive : Only include interactive elements}
+        {--s|scope= : Scope snapshot to CSS selector}
         {--json : Output as JSON}';
 
     protected $description = 'Get accessibility snapshot of a browser page with element refs';
@@ -22,6 +23,8 @@ class BrowserSnapshotCommand extends BrowserCommand
 
     private bool $interactiveOnly = false;
 
+    private ?string $scope = null;
+
     /**
      * Prepare command arguments before building IPC command.
      */
@@ -29,6 +32,7 @@ class BrowserSnapshotCommand extends BrowserCommand
     {
         $this->pageId = $this->argument('page_id');
         $this->interactiveOnly = (bool) $this->option('interactive');
+        $this->scope = $this->option('scope');
 
         return parent::handle();
     }
@@ -44,6 +48,7 @@ class BrowserSnapshotCommand extends BrowserCommand
         return new BrowserSnapshotIpcCommand(
             pageId: $this->pageId,
             interactiveOnly: $this->interactiveOnly,
+            scope: $this->scope,
             timestamp: $timestamp,
             instanceId: $instanceId,
             requestId: $requestId

@@ -17,6 +17,7 @@ final class BrowserSnapshotCommand implements IpcMessage, JsonSerializable
     public function __construct(
         public string $pageId,
         public ?bool $interactiveOnly,
+        public ?string $scope,
         DateTimeImmutable $timestamp,
         string $instanceId,
         ?string $requestId = null
@@ -31,6 +32,7 @@ final class BrowserSnapshotCommand implements IpcMessage, JsonSerializable
         return new self(
             pageId: $data['pageId'],
             interactiveOnly: $data['interactiveOnly'] ?? null,
+            scope: $data['scope'] ?? null,
             timestamp: new DateTimeImmutable($data['timestamp'] ?? 'now'),
             instanceId: $data['instance_id'] ?? '',
             requestId: $data['request_id'] ?? null
@@ -56,6 +58,7 @@ final class BrowserSnapshotCommand implements IpcMessage, JsonSerializable
             'request_id' => $this->requestId,
             'pageId' => $this->pageId,
             'interactiveOnly' => $this->interactiveOnly,
+            'scope' => $this->scope,
         ];
     }
 }

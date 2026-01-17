@@ -363,7 +363,7 @@ it('shows error when daemon is not running', function (): void {
         ->assertExitCode(1);
 });
 
-it('waits for element ref from snapshot', function () {
+it('waits for element ref from snapshot', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
@@ -381,8 +381,8 @@ it('waits for element ref from snapshot', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
-        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
+        expect($command)->toBeInstanceOf(BrowserWaitCommand::class);
         expect($command->pageId)->toBe('test-page');
         expect($command->ref)->toBe('@e1');
         expect($command->selector)->toBeNull();
@@ -390,7 +390,7 @@ it('waits for element ref from snapshot', function () {
 
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -428,7 +428,7 @@ it('waits for element ref from snapshot', function () {
         ->assertExitCode(0);
 });
 
-it('waits for milliseconds when target is numeric', function () {
+it('waits for milliseconds when target is numeric', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
@@ -446,8 +446,8 @@ it('waits for milliseconds when target is numeric', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
-        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
+        expect($command)->toBeInstanceOf(BrowserWaitCommand::class);
         expect($command->pageId)->toBe('test-page');
         expect($command->delay)->toBe(2000);
         expect($command->selector)->toBeNull();
@@ -455,7 +455,7 @@ it('waits for milliseconds when target is numeric', function () {
 
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -493,7 +493,7 @@ it('waits for milliseconds when target is numeric', function () {
         ->assertExitCode(0);
 });
 
-it('waits for CSS selector when target is string', function () {
+it('waits for CSS selector when target is string', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
@@ -511,8 +511,8 @@ it('waits for CSS selector when target is string', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
-        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
+        expect($command)->toBeInstanceOf(BrowserWaitCommand::class);
         expect($command->pageId)->toBe('test-page');
         expect($command->selector)->toBe('div.loading');
         expect($command->ref)->toBeNull();
@@ -520,7 +520,7 @@ it('waits for CSS selector when target is string', function () {
 
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -558,7 +558,7 @@ it('waits for CSS selector when target is string', function () {
         ->assertExitCode(0);
 });
 
-it('fails when target and options are mixed', function () {
+it('fails when target and options are mixed', function (): void {
     $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         'target' => '@e1',

@@ -6,7 +6,6 @@ namespace App\Agents\Tasks;
 
 use App\Daemon\DaemonLogger;
 use App\Enums\TaskStatus;
-use App\Models\Task;
 use App\Process\CompletionResult;
 use App\Process\ProcessType;
 use App\Services\ConfigService;

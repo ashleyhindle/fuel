@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
@@ -76,7 +77,7 @@ class Task extends EloquentModel
                     ->orWhere('labels', 'not like', '%needs-human%');
             })
             ->whereDoesntHave('epic', function (Builder $query): void {
-                $query->where('status', \App\Enums\EpicStatus::Paused->value);
+                $query->where('status', EpicStatus::Paused->value);
             });
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\DetectsElementTarget;
 use App\Ipc\Commands\BrowserHtmlCommand as IpcBrowserHtmlCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\IpcMessage;
@@ -11,68 +12,46 @@ use DateTimeImmutable;
 
 class BrowserHtmlCommand extends BrowserCommand
 {
-    /**
-     * The signature of the command.
-     *
-     * @var string
-     */
+    use DetectsElementTarget;
+
     protected $signature = 'browser:html
         {page_id : The ID of the page to get HTML from}
-        {selector? : CSS selector to target element}
-        {--ref= : Element reference from snapshot (e.g. @e1)}
+        {target : Element ref (@e1) or CSS selector}
         {--inner : Return innerHTML instead of outerHTML}
         {--json : Output as JSON}';
 
-    /**
-     * The description of the command.
-     *
-     * @var string
-     */
     protected $description = 'Get HTML content from an element on a page';
 
-    /**
-     * Execute the console command.
-     */
+    protected string $target;
+
+    protected ?string $selector = null;
+
+    protected ?string $ref = null;
+
     public function handle(): int
     {
-        $selector = $this->argument('selector');
-        $ref = $this->option('ref');
-
-        // Validate that either selector or ref is provided
-        if (! $selector && ! $ref) {
-            return $this->outputError('Either selector or --ref must be provided');
-        }
+        $this->target = $this->argument('target');
+        ['selector' => $this->selector, 'ref' => $this->ref] = $this->parseTarget($this->target);
 
         return parent::handle();
     }
 
-    /**
-     * Build the specific IPC command for this browser operation.
-     */
     protected function buildIpcCommand(
         string $requestId,
         string $instanceId,
         DateTimeImmutable $timestamp
     ): IpcMessage {
-        $pageId = $this->argument('page_id');
-        $selector = $this->argument('selector');
-        $ref = $this->option('ref');
-        $inner = $this->option('inner');
-
         return new IpcBrowserHtmlCommand(
-            pageId: $pageId,
-            selector: $selector,
-            ref: $ref,
-            inner: $inner,
+            pageId: $this->argument('page_id'),
+            selector: $this->selector,
+            ref: $this->ref,
+            inner: $this->option('inner'),
             timestamp: $timestamp,
             instanceId: $instanceId,
             requestId: $requestId
         );
     }
 
-    /**
-     * Handle the successful response from the browser daemon.
-     */
     protected function handleSuccess(BrowserResponseEvent $response): void
     {
         if ($this->option('json')) {

@@ -296,11 +296,11 @@ class Table
 
         $columnsToKeep = range(0, $numColumns - 1);
 
-        foreach ($columnMap as $colIndex => $_priority) {
+        foreach (array_keys($columnMap) as $colIndex) {
             // Try removing this column
             $testKeep = array_values(array_diff($columnsToKeep, [$colIndex]));
             $testHeaders = array_values(array_intersect_key($headers, array_flip($testKeep)));
-            $testRows = array_map(fn ($row) => array_values(array_intersect_key($row, array_flip($testKeep))), $rows);
+            $testRows = array_map(fn (array $row): array => array_values(array_intersect_key($row, array_flip($testKeep))), $rows);
 
             $testWidth = $this->calculateTableWidth($testHeaders, $testRows, count($testHeaders));
 
@@ -315,7 +315,7 @@ class Table
 
         // Return whatever we have left
         $keepHeaders = array_values(array_intersect_key($headers, array_flip($columnsToKeep)));
-        $keepRows = array_map(fn ($row) => array_values(array_intersect_key($row, array_flip($columnsToKeep))), $rows);
+        $keepRows = array_map(fn (array $row): array => array_values(array_intersect_key($row, array_flip($columnsToKeep))), $rows);
 
         return [$keepHeaders, $keepRows];
     }

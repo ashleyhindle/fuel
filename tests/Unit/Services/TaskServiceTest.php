@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\EpicStatus;
 use App\Enums\TaskStatus;
 use App\Services\DatabaseService;
+use App\Services\EpicService;
 use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function (): void {
@@ -525,14 +527,14 @@ it('excludes paused tasks from ready()', function (): void {
 });
 
 it('excludes tasks from paused epics from ready()', function (): void {
-    $epicService = app(\App\Services\EpicService::class);
+    $epicService = app(EpicService::class);
 
     // Create a normal epic and a paused epic
     $normalEpic = $epicService->createEpic('Normal epic', 'Active work');
     $pausedEpic = $epicService->createEpic('Paused epic', 'On hold');
 
     // Update the paused epic status directly (updateEpic doesn't support status)
-    $pausedEpic->status = \App\Enums\EpicStatus::Paused;
+    $pausedEpic->status = EpicStatus::Paused;
     $pausedEpic->save();
 
     // Create tasks for each epic
@@ -550,7 +552,7 @@ it('excludes tasks from paused epics from ready()', function (): void {
 
     // Verify the paused epic is actually saved with Paused status
     $pausedEpic->refresh();
-    expect($pausedEpic->status)->toBe(\App\Enums\EpicStatus::Paused);
+    expect($pausedEpic->status)->toBe(EpicStatus::Paused);
 
     $ready = $this->taskService->ready();
 

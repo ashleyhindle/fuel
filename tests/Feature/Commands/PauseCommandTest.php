@@ -158,7 +158,7 @@ describe('pause command', function (): void {
         ];
 
         foreach ($statuses as $status) {
-            $task = $this->taskService->create(['title' => "Task in {$status->value}"]);
+            $task = $this->taskService->create(['title' => 'Task in '.$status->value]);
             $this->taskService->update($task->short_id, ['status' => $status->value]);
 
             Artisan::call('pause', [

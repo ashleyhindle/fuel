@@ -7,7 +7,7 @@ namespace Tests\E2E;
 uses(BrowserE2ETestCase::class);
 uses()->group('e2e', 'browser');
 
-it('can check browser daemon status', function () {
+it('can check browser daemon status', function (): void {
     $result = $this->runJsonCommand(['browser:status']);
 
     expect($result)->toHaveKey('success');
@@ -16,7 +16,7 @@ it('can check browser daemon status', function () {
     expect($result)->toHaveKey('pagesCount');
 });
 
-it('can create and close a browser context', function () {
+it('can create and close a browser context', function (): void {
     // Create context with generated ID
     $contextId = 'context-'.uniqid();
     $pageId = 'page-'.uniqid();
@@ -34,7 +34,7 @@ it('can create and close a browser context', function () {
     expect($closeResult['success'])->toBeTrue();
 });
 
-it('can create multiple pages in a context', function () {
+it('can create multiple pages in a context', function (): void {
     // Create context with generated ID (includes one page automatically)
     $contextId = 'context-'.uniqid();
     $pageId1 = 'page-'.uniqid();
@@ -54,7 +54,7 @@ it('can create multiple pages in a context', function () {
     }
 });
 
-it('reports closed false when closing non-existent context', function () {
+it('reports closed false when closing non-existent context', function (): void {
     $result = $this->runJsonCommand(['browser:close', 'nonexistent-context']);
 
     // Command succeeds but reports closed: false for non-existent context
@@ -62,7 +62,7 @@ it('reports closed false when closing non-existent context', function () {
     expect($result['result']['closed'])->toBeFalse();
 });
 
-it('can navigate to a URL and take screenshot', function () {
+it('can navigate to a URL and take screenshot', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -82,7 +82,7 @@ it('can navigate to a URL and take screenshot', function () {
     }
 });
 
-it('handles navigation errors gracefully', function () {
+it('handles navigation errors gracefully', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -102,7 +102,7 @@ it('handles navigation errors gracefully', function () {
     }
 });
 
-it('can take screenshots', function () {
+it('can take screenshots', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -130,7 +130,7 @@ it('can take screenshots', function () {
 });
 
 // TODO: browser:run returns empty result - needs investigation
-it('can run JavaScript code on page', function () {
+it('can run JavaScript code on page', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -152,6 +152,6 @@ it('can run JavaScript code on page', function () {
 })->skip('browser:run returns empty result - needs investigation');
 
 // TODO: browser:run errors don't set exit code
-it('handles JavaScript errors gracefully', function () {
+it('handles JavaScript errors gracefully', function (): void {
     $this->markTestSkipped('browser:run error handling needs investigation');
 })->skip('browser:run error handling needs investigation');

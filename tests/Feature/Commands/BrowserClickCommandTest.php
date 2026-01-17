@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Ipc\Commands\BrowserClickCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
+use Mockery\MockInterface;
 
-beforeEach(function () {
+beforeEach(function (): void {
     // Create a temporary PID file for testing
     $pidFilePath = sys_get_temp_dir().'/fuel-test-'.uniqid().'.pid';
     $pidData = [
@@ -17,23 +19,23 @@ beforeEach(function () {
     file_put_contents($pidFilePath, json_encode($pidData));
 
     // Mock FuelContext to return our test PID file path
-    $fuelContext = Mockery::mock(\App\Services\FuelContext::class);
+    $fuelContext = Mockery::mock(FuelContext::class);
     $fuelContext->shouldReceive('getPidFilePath')->andReturn($pidFilePath);
-    app()->instance(\App\Services\FuelContext::class, $fuelContext);
+    app()->instance(FuelContext::class, $fuelContext);
 
     $this->pidFilePath = $pidFilePath;
 });
 
-afterEach(function () {
+afterEach(function (): void {
     // Clean up test PID file
-    if (isset($this->pidFilePath) && file_exists($this->pidFilePath)) {
+    if (property_exists($this, 'pidFilePath') && $this->pidFilePath !== null && file_exists($this->pidFilePath)) {
         unlink($this->pidFilePath);
     }
+
     Mockery::close();
 });
 
-it('sends click command to daemon with selector', function () {
-    // Create mock IPC client
+it('sends click command to daemon with selector', function (): void {
     $requestIdToMatch = null;
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
@@ -41,11 +43,12 @@ it('sends click command to daemon with selector', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
-        expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserClickCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): true {
+        expect($cmd)->toBeInstanceOf(BrowserClickCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBe('button#submit');
         expect($cmd->ref)->toBeNull();
+
         $requestIdToMatch = $cmd->requestId();
 
         return true;
@@ -73,17 +76,16 @@ it('sends click command to daemon with selector', function () {
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
-    // Execute command
+    // Execute command with selector (auto-detected)
     $this->artisan('browser:click', [
         'page_id' => 'test-page',
-        'selector' => 'button#submit',
+        'target' => 'button#submit',
     ])
         ->expectsOutputToContain('Clicked on: button#submit')
         ->assertExitCode(0);
 });
 
-it('sends click command to daemon with element ref', function () {
-    // Create mock IPC client
+it('sends click command to daemon with element ref', function (): void {
     $requestIdToMatch = null;
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
@@ -91,11 +93,12 @@ it('sends click command to daemon with element ref', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
-        expect($cmd)->toBeInstanceOf(App\Ipc\Commands\BrowserClickCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): true {
+        expect($cmd)->toBeInstanceOf(BrowserClickCommand::class);
         expect($cmd->pageId)->toBe('test-page');
         expect($cmd->selector)->toBeNull();
         expect($cmd->ref)->toBe('@e2');
+
         $requestIdToMatch = $cmd->requestId();
 
         return true;
@@ -123,17 +126,16 @@ it('sends click command to daemon with element ref', function () {
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
-    // Execute command with ref
+    // Execute command with ref (auto-detected via @ prefix)
     $this->artisan('browser:click', [
         'page_id' => 'test-page',
-        '--ref' => '@e2',
+        'target' => '@e2',
     ])
         ->expectsOutputToContain('Clicked on: @e2')
         ->assertExitCode(0);
 });
 
-it('outputs JSON when --json flag is provided', function () {
-    // Create mock IPC client
+it('outputs JSON when --json flag is provided', function (): void {
     $requestIdToMatch = null;
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
@@ -141,7 +143,7 @@ it('outputs JSON when --json flag is provided', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): true {
         $requestIdToMatch = $cmd->requestId();
 
         return true;
@@ -172,7 +174,7 @@ it('outputs JSON when --json flag is provided', function () {
     // Execute command with JSON output
     $this->artisan('browser:click', [
         'page_id' => 'test-page',
-        'selector' => 'button',
+        'target' => 'button',
         '--json' => true,
     ])
         ->assertExitCode(0)
@@ -182,8 +184,7 @@ it('outputs JSON when --json flag is provided', function () {
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 });
 
-it('handles daemon errors gracefully', function () {
-    // Create mock IPC client
+it('handles daemon errors gracefully', function (): void {
     $requestIdToMatch = null;
     $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
@@ -191,7 +192,7 @@ it('handles daemon errors gracefully', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): true {
         $requestIdToMatch = $cmd->requestId();
 
         return true;
@@ -222,15 +223,14 @@ it('handles daemon errors gracefully', function () {
     // Execute command that fails
     $this->artisan('browser:click', [
         'page_id' => 'test-page',
-        'selector' => 'button#nonexistent',
+        'target' => 'button#nonexistent',
     ])
         ->expectsOutputToContain('Element not found: button#nonexistent')
         ->assertExitCode(1);
 });
 
-it('shows error when daemon is not running', function () {
-    // Create mock IPC client that simulates daemon not running
-    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (Mockery\MockInterface $mock) {
+it('shows error when daemon is not running', function (): void {
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class, function (MockInterface $mock): void {
         $mock->shouldReceive('isRunnerAlive')->andReturn(false);
     });
 
@@ -239,39 +239,104 @@ it('shows error when daemon is not running', function () {
     // Execute command
     $this->artisan('browser:click', [
         'page_id' => 'test-page',
-        'selector' => 'button',
+        'target' => 'button',
     ])
         ->expectsOutputToContain('Consume daemon is not running')
         ->assertExitCode(1);
 });
 
-it('requires either selector or ref option', function () {
-    // Create PID file for the test
-    $pidFile = app(FuelContext::class)->getPidFilePath();
-    $pidDir = dirname($pidFile);
-    if (! is_dir($pidDir)) {
-        mkdir($pidDir, 0755, true);
-    }
-    file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
-
-    // Create mock IPC client
+it('auto-detects ref when target starts with @', function (): void {
+    $requestIdToMatch = null;
+    $callCount = 0;
     $ipcClient = Mockery::mock(ConsumeIpcClient::class);
     $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): true {
+        expect($cmd)->toBeInstanceOf(BrowserClickCommand::class);
+        // When target starts with @, it should be detected as ref
+        expect($cmd->ref)->toBe('@e123');
+        expect($cmd->selector)->toBeNull();
+
+        $requestIdToMatch = $cmd->requestId();
+
+        return true;
+    });
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['message' => 'Clicked successfully'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
     $ipcClient->shouldReceive('detach')->once();
     $ipcClient->shouldReceive('disconnect')->once();
 
     app()->instance(ConsumeIpcClient::class, $ipcClient);
 
-    // Execute command without selector or ref - should fail validation
     $this->artisan('browser:click', [
         'page_id' => 'test-page',
+        'target' => '@e123',
     ])
-        ->expectsOutputToContain('Must provide either a selector or --ref option')
-        ->assertExitCode(1);
+        ->assertExitCode(0);
+});
 
-    // Clean up
-    @unlink($pidFile);
+it('auto-detects selector when target does not start with @', function (): void {
+    $requestIdToMatch = null;
+    $callCount = 0;
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class);
+    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $ipcClient->shouldReceive('connect')->once();
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($cmd) use (&$requestIdToMatch): true {
+        expect($cmd)->toBeInstanceOf(BrowserClickCommand::class);
+        // When target doesn't start with @, it should be detected as selector
+        expect($cmd->selector)->toBe('div.container > button');
+        expect($cmd->ref)->toBeNull();
+
+        $requestIdToMatch = $cmd->requestId();
+
+        return true;
+    });
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: ['message' => 'Clicked successfully'],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance-id',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
+    $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('disconnect')->once();
+
+    app()->instance(ConsumeIpcClient::class, $ipcClient);
+
+    $this->artisan('browser:click', [
+        'page_id' => 'test-page',
+        'target' => 'div.container > button',
+    ])
+        ->assertExitCode(0);
 });

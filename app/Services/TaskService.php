@@ -486,6 +486,7 @@ class TaskService
                 if ($t->epic_id === null) {
                     return true;
                 }
+
                 $epic = $t->epic;
 
                 return $epic === null || $epic->status !== EpicStatus::Paused;

@@ -115,7 +115,7 @@ class BrowserLifecycleTest extends E2ETestCase
         $this->assertCount(3, $status['browser']['contexts'][0]['pages']);
 
         $foundPageIds = array_map(
-            fn ($page) => $page['id'],
+            fn (array $page) => $page['id'],
             $status['browser']['contexts'][0]['pages']
         );
         foreach ($pageIds as $pageId) {

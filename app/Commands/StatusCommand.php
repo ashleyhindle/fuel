@@ -254,7 +254,7 @@ class StatusCommand extends Command
             exec($command, $output, $returnCode);
 
             // Check if browser daemon process exists
-            if ($returnCode === 0 && ! empty($output)) {
+            if ($returnCode === 0 && $output !== []) {
                 // If runner is NOT running but browser daemon IS running, it's orphaned
                 if (! $runnerIsRunning) {
                     // Kill orphaned browser daemon
@@ -277,12 +277,12 @@ class StatusCommand extends Command
                             'state' => 'Running',
                             'healthy' => true,
                         ];
-                    } else {
-                        return [
-                            'state' => 'Running (unresponsive)',
-                            'healthy' => false,
-                        ];
                     }
+
+                    return [
+                        'state' => 'Running (unresponsive)',
+                        'healthy' => false,
+                    ];
                 } catch (\Throwable) {
                     // Process exists but can't connect/ping
                     return [
@@ -297,9 +297,9 @@ class StatusCommand extends Command
                 'state' => 'Not running',
                 'healthy' => false,
             ];
-        } catch (\Throwable $e) {
+        } catch (\Throwable $throwable) {
             return [
-                'state' => 'Error: '.$e->getMessage(),
+                'state' => 'Error: '.$throwable->getMessage(),
                 'healthy' => false,
             ];
         }
@@ -315,13 +315,13 @@ class StatusCommand extends Command
         foreach ($psOutput as $line) {
             // Parse PID from ps output
             // Format is typically: user PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-            $parts = preg_split('/\s+/', trim($line));
+            $parts = preg_split('/\s+/', trim((string) $line));
             if (count($parts) >= 2 && is_numeric($parts[1])) {
                 $pid = (int) $parts[1];
                 if ($pid > 0) {
                     // Kill the orphaned browser daemon
                     if (PHP_OS_FAMILY === 'Windows') {
-                        @exec("taskkill /F /PID {$pid} 2>NUL");
+                        @exec(sprintf('taskkill /F /PID %d 2>NUL', $pid));
                     } else {
                         @posix_kill($pid, SIGTERM);
                         usleep(100000); // Give it 100ms to terminate gracefully

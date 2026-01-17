@@ -590,25 +590,18 @@ class ConfigService
 
         $yaml = <<<'YAML'
 # Fuel Agent Configuration
-# Define agents once, reference by name in complexity mappings
-# Each agent uses a driver (claude, cursor-agent, opencode, amp, codex)
-# Drivers provide default args/env; use extra_args/extra_env to extend
-
-# TCP port for runner communication
 port: 9981
 
 # Global maximum concurrent agents (total cap regardless of per-agent limits)
 max_concurrent: 5
-
-# Desktop notifications when tasks complete (default: true)
-desktop_notifications: true
+desktop_notifications: false
 
 # Primary agent for orchestration/decision-making (required)
 primary: claude-opus
 review: claude-opus
-reality: claude-opus
+reality: claude-sonnet
 
-# Map complexity levels to agents
+# Map task complexity levels to agents
 complexity:
   trivial: claude-sonnet
   simple: claude-sonnet
@@ -622,12 +615,6 @@ agents:
     max_concurrent: 3
     max_attempts: 3
 
-  cursor-opus:
-    driver: cursor-agent
-    model: opus-4.5
-    max_concurrent: 2
-    max_attempts: 3
-
   claude-sonnet:
     driver: claude
     model: sonnet
@@ -639,12 +626,6 @@ agents:
     model: opus
     max_concurrent: 3
     max_attempts: 5
-
-  opencode-glm:
-    driver: opencode
-    model: opencode/glm-4.7-free
-    max_concurrent: 2
-    max_attempts: 3
 
   opencode-minimax:
     driver: opencode

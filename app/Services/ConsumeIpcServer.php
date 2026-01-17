@@ -30,7 +30,7 @@ final class ConsumeIpcServer
      */
     public function start(?int $port = null): void
     {
-        $port = $port ?? $this->configService->getConsumePort();
+        $port ??= $this->configService->getConsumePort();
         $this->startTcpSocket($port);
     }
 

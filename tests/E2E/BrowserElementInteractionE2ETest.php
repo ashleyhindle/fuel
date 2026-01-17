@@ -7,7 +7,7 @@ namespace Tests\E2E;
 uses(BrowserE2ETestCase::class);
 uses()->group('e2e', 'browser', 'interaction');
 
-it('can fill text fields using element refs', function () {
+it('can fill text fields using element refs', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -68,7 +68,7 @@ it('can fill text fields using element refs', function () {
     }
 });
 
-it('can click buttons and links using element refs', function () {
+it('can click buttons and links using element refs', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -138,7 +138,7 @@ it('can click buttons and links using element refs', function () {
     }
 });
 
-it('can type text at current focus position', function () {
+it('can type text at current focus position', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -204,7 +204,7 @@ it('can type text at current focus position', function () {
     }
 });
 
-it('handles clicking duplicate elements correctly', function () {
+it('handles clicking duplicate elements correctly', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -235,14 +235,18 @@ it('handles clicking duplicate elements correctly', function () {
         $snapshotText = $snapshot['text'];
 
         // Find all Submit button refs
-        $lines = explode("\n", $snapshotText);
+        $lines = explode("\n", (string) $snapshotText);
         $submitRefs = [];
         foreach ($lines as $line) {
-            if (stripos($line, 'button "Submit"') !== false) {
-                if (preg_match('/\[ref=(@e\d+)\]/', $line, $match)) {
-                    $submitRefs[] = $match[1];
-                }
+            if (stripos($line, 'button "Submit"') === false) {
+                continue;
             }
+
+            if (! preg_match('/\[ref=(@e\d+)\]/', $line, $match)) {
+                continue;
+            }
+
+            $submitRefs[] = $match[1];
         }
 
         // Should have 2 Submit buttons with different refs
@@ -270,11 +274,15 @@ it('handles clicking duplicate elements correctly', function () {
         // Find all Cancel button refs
         $cancelRefs = [];
         foreach ($lines as $line) {
-            if (stripos($line, 'button "Cancel"') !== false) {
-                if (preg_match('/\[ref=(@e\d+)\]/', $line, $match)) {
-                    $cancelRefs[] = $match[1];
-                }
+            if (stripos($line, 'button "Cancel"') === false) {
+                continue;
             }
+
+            if (! preg_match('/\[ref=(@e\d+)\]/', $line, $match)) {
+                continue;
+            }
+
+            $cancelRefs[] = $match[1];
         }
 
         expect(count($cancelRefs))->toBe(2);
@@ -293,7 +301,7 @@ it('handles clicking duplicate elements correctly', function () {
     }
 });
 
-it('handles form submission workflow', function () {
+it('handles form submission workflow', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -362,7 +370,7 @@ it('handles form submission workflow', function () {
     }
 });
 
-it('handles errors for non-existent refs gracefully', function () {
+it('handles errors for non-existent refs gracefully', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -389,7 +397,7 @@ it('handles errors for non-existent refs gracefully', function () {
         ], false);
 
         expect($result['exitCode'])->not->toBe(0);
-        $json = json_decode($result['output'], true);
+        $json = json_decode((string) $result['output'], true);
         expect($json['success'])->toBeFalse();
         expect($json['error'])->toContain('not found');
 
@@ -404,7 +412,7 @@ it('handles errors for non-existent refs gracefully', function () {
         ], false);
 
         expect($result2['exitCode'])->not->toBe(0);
-        $json2 = json_decode($result2['output'], true);
+        $json2 = json_decode((string) $result2['output'], true);
         expect($json2['success'])->toBeFalse();
         expect($json2['error'])->toContain('not found');
 

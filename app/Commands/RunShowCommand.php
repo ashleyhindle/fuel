@@ -244,11 +244,8 @@ class RunShowCommand extends Command
 
         // Check if terminal supports scrolling regions (most modern terminals do)
         $term = getenv('TERM');
-        if ($term === false || $term === '' || $term === 'dumb') {
-            return false;
-        }
 
-        return true;
+        return ! in_array($term, [false, '', 'dumb'], true);
     }
 
     /**

@@ -7,7 +7,7 @@ namespace Tests\E2E;
 uses(BrowserE2ETestCase::class);
 uses()->group('e2e', 'browser', 'wait');
 
-it('can wait for page load', function () {
+it('can wait for page load', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -26,7 +26,7 @@ it('can wait for page load', function () {
     }
 });
 
-it('can wait for element to appear', function () {
+it('can wait for element to appear', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -84,7 +84,7 @@ it('can wait for element to appear', function () {
     }
 });
 
-it('can wait for text to appear', function () {
+it('can wait for text to appear', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -131,7 +131,7 @@ it('can wait for text to appear', function () {
     }
 });
 
-it('can wait for element to be visible', function () {
+it('can wait for element to be visible', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -173,7 +173,7 @@ it('can wait for element to be visible', function () {
     }
 });
 
-it('handles wait timeout gracefully', function () {
+it('handles wait timeout gracefully', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -191,16 +191,16 @@ it('handles wait timeout gracefully', function () {
         ], false);
 
         expect($result['exitCode'])->not->toBe(0);
-        $json = json_decode($result['output'], true);
+        $json = json_decode((string) $result['output'], true);
         expect($json['success'])->toBeFalse();
-        expect(strtolower($json['error']))->toContain('timeout');
+        expect(strtolower((string) $json['error']))->toContain('timeout');
 
     } finally {
         $this->closeBrowser($browser['contextId']);
     }
 });
 
-it('can wait with custom timeout', function () {
+it('can wait with custom timeout', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -237,7 +237,7 @@ it('can wait with custom timeout', function () {
         ], false);
 
         expect($failResult['exitCode'])->not->toBe(0);
-        $failJson = json_decode($failResult['output'], true);
+        $failJson = json_decode((string) $failResult['output'], true);
         expect($failJson['success'])->toBeFalse();
 
         // Now wait with longer timeout - should succeed
@@ -256,7 +256,7 @@ it('can wait with custom timeout', function () {
     }
 });
 
-it('can wait for multiple conditions in sequence', function () {
+it('can wait for multiple conditions in sequence', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -321,7 +321,7 @@ it('can wait for multiple conditions in sequence', function () {
     }
 });
 
-it('can wait for network idle', function () {
+it('can wait for network idle', function (): void {
     $browser = $this->createTestBrowser();
 
     try {
@@ -341,7 +341,7 @@ it('can wait for network idle', function () {
     }
 });
 
-it('can wait for function to return true', function () {
+it('can wait for function to return true', function (): void {
     $browser = $this->createTestBrowser();
 
     try {

@@ -86,12 +86,14 @@ YAML;
                 posix_kill(static::$daemonPid, SIGKILL);
             }
         }
+
         static::$daemonPid = null;
 
         // Clean up class testDir
         if (static::$classTestDir && File::exists(static::$classTestDir)) {
             File::deleteDirectory(static::$classTestDir);
         }
+
         static::$classTestDir = '';
 
         parent::tearDownAfterClass();
@@ -114,7 +116,7 @@ YAML;
 
         if ($exitCode !== 0) {
             $log = @file_get_contents('/tmp/fuel-e2e.log') ?: 'No log';
-            throw new \RuntimeException("Failed to start daemon: $log");
+            throw new \RuntimeException('Failed to start daemon: '.$log);
         }
 
         // Wait for PID file
@@ -129,13 +131,14 @@ YAML;
                     break;
                 }
             }
+
             usleep(100000);
             $attempts++;
         }
 
         if (! static::$daemonPid) {
             $log = @file_get_contents('/tmp/fuel-e2e.log') ?: 'No log';
-            throw new \RuntimeException("No daemon PID: $log");
+            throw new \RuntimeException('No daemon PID: '.$log);
         }
 
         // Wait for ready
@@ -153,9 +156,11 @@ YAML;
             if ($result['exitCode'] === 0) {
                 return;
             }
+
             sleep(1);
             $attempts++;
         }
+
         throw new \RuntimeException('Daemon not ready after 30s');
     }
 
@@ -169,7 +174,7 @@ YAML;
             'cd %s && %s %s 2>&1',
             escapeshellarg(static::$classTestDir),
             escapeshellarg(static::$fuelBinary),
-            implode(' ', array_map('escapeshellarg', $args))
+            implode(' ', array_map(escapeshellarg(...), $args))
         );
 
         exec($command, $output, $exitCode);
@@ -199,7 +204,7 @@ YAML;
         }
 
         $result = $this->runCommand($args);
-        $json = json_decode($result['output'], true);
+        $json = json_decode((string) $result['output'], true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \RuntimeException('Invalid JSON: '.$result['output']);
@@ -241,7 +246,7 @@ YAML;
 
     protected function takeScreenshot(string $pageId, ?string $file = null): string
     {
-        $file = $file ?? '/tmp/fuel-e2e-'.uniqid().'.png';
+        $file ??= '/tmp/fuel-e2e-'.uniqid().'.png';
         $this->runJsonCommand(['browser:screenshot', $pageId, '--path', $file]);
         $this->assertFileExists($file);
 

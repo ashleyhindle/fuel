@@ -108,6 +108,7 @@ abstract class E2ETestCase extends TestCase
             if (time() - $startTime > $this->daemonStartTimeout) {
                 $this->fail('Daemon failed to start within timeout');
             }
+
             usleep(500000); // 0.5 seconds
         }
 
@@ -174,21 +175,19 @@ abstract class E2ETestCase extends TestCase
     {
         $fullCommand = './fuel '.$command;
 
-        if (! empty($args)) {
-            foreach ($args as $key => $value) {
-                if (is_bool($value)) {
-                    if ($value) {
-                        $fullCommand .= ' '.$key;
-                    }
-                } elseif (strpos($key, '--') === 0) {
-                    $fullCommand .= ' '.escapeshellarg($key).'='.escapeshellarg($value);
-                } else {
-                    $fullCommand .= ' '.escapeshellarg($value);
+        foreach ($args as $key => $value) {
+            if (is_bool($value)) {
+                if ($value) {
+                    $fullCommand .= ' '.$key;
                 }
+            } elseif (str_starts_with((string) $key, '--')) {
+                $fullCommand .= ' '.escapeshellarg((string) $key).'='.escapeshellarg((string) $value);
+            } else {
+                $fullCommand .= ' '.escapeshellarg((string) $value);
             }
         }
 
-        $this->debugOutput("Running: $fullCommand");
+        $this->debugOutput('Running: '.$fullCommand);
 
         exec($fullCommand.' 2>&1', $output, $returnCode);
 
@@ -207,7 +206,7 @@ abstract class E2ETestCase extends TestCase
         $result = $this->runBrowserCommand($command, $args);
 
         $this->assertEquals(0, $result['returnCode'],
-            "Command failed: $command\nOutput: ".$result['outputString']);
+            "Command failed: {$command}\nOutput: ".$result['outputString']);
 
         return $result;
     }
@@ -220,7 +219,7 @@ abstract class E2ETestCase extends TestCase
         $result = $this->runBrowserCommand($command, $args);
 
         $this->assertNotEquals(0, $result['returnCode'],
-            "Command unexpectedly succeeded: $command\nOutput: ".$result['outputString']);
+            "Command unexpectedly succeeded: {$command}\nOutput: ".$result['outputString']);
 
         return $result;
     }
@@ -243,12 +242,12 @@ abstract class E2ETestCase extends TestCase
         }
 
         if (! $jsonLine) {
-            $this->fail("No JSON found in output: $output");
+            $this->fail('No JSON found in output: '.$output);
         }
 
         $decoded = json_decode($jsonLine, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->fail("Invalid JSON in output: $jsonLine");
+            $this->fail('Invalid JSON in output: '.$jsonLine);
         }
 
         return $decoded;
@@ -264,6 +263,7 @@ abstract class E2ETestCase extends TestCase
             if (time() - $startTime > $timeoutSeconds) {
                 $this->fail($message);
             }
+
             usleep(100000); // 0.1 seconds
         }
     }
@@ -274,7 +274,7 @@ abstract class E2ETestCase extends TestCase
     protected function debugOutput(string $message): void
     {
         if (in_array('--verbose', $GLOBALS['argv'] ?? [])) {
-            echo "[E2E] $message\n";
+            echo sprintf('[E2E] %s%s', $message, PHP_EOL);
         }
     }
 }

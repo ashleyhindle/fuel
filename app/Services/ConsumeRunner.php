@@ -72,7 +72,7 @@ final class ConsumeRunner
         $this->completionHandler->setTaskReviewEnabled($taskReviewEnabled);
 
         // Start lifecycle manager (checks stale PID, writes PID file)
-        $port = $port ?? $this->configService->getConsumePort();
+        $port ??= $this->configService->getConsumePort();
         $this->lifecycleManager->start($port);
         $log->info('Lifecycle manager started', ['port' => $port]);
 

@@ -189,6 +189,7 @@ class ConsumeIpcClient
             if ($port !== null) {
                 $args[] = '--port='.$port;
             }
+
             pcntl_exec($fuelBinPath, $args);
             // If exec fails, exit child
             exit(1);

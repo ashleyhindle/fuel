@@ -121,6 +121,7 @@ class HumanCommand extends Command
             if (! empty($epic->description ?? null)) {
                 $this->line('  '.$epic->description);
             }
+
             $this->line(sprintf('  Review: <comment>fuel epic:review %s</comment>', $epic->short_id));
             $this->newLine();
         }
@@ -132,6 +133,7 @@ class HumanCommand extends Command
             if (! empty($task->description ?? null)) {
                 $this->line('  '.$task->description);
             }
+
             $this->newLine();
         }
 
@@ -301,7 +303,7 @@ class HumanCommand extends Command
             // Check for escape sequences FIRST (mouse events, etc.)
             if ($this->inputBuffer[0] === "\033") {
                 // Check for mouse events (ESC[<...)
-                if (strpos($this->inputBuffer, "\033[<") === 0) {
+                if (str_starts_with($this->inputBuffer, "\033[<")) {
                     $endPos = strpos($this->inputBuffer, 'M');
                     $releaseEndPos = strpos($this->inputBuffer, 'm');
 
@@ -402,36 +404,36 @@ class HumanCommand extends Command
 
         switch ($type) {
             case 'button-copy-review':
-                $command = "fuel epic:review {$id}";
+                $command = 'fuel epic:review '.$id;
                 $this->copyToClipboard($command);
-                $this->toast?->show("Copied: {$command}", 'success');
+                $this->toast?->show('Copied: '.$command, 'success');
                 break;
 
             case 'button-reviewed':
                 $this->callCommand('epic:reviewed', ['id' => $id]);
-                $this->toast?->show("Marked as reviewed: {$id}", 'success');
+                $this->toast?->show('Marked as reviewed: '.$id, 'success');
                 $this->refreshData($taskService, $epicService);
                 $this->forceRefresh = true;
                 break;
 
             case 'button-approved':
                 $this->callCommand('epic:approve', ['ids' => [$id]]);
-                $this->toast?->show("Approved: {$id}", 'success');
+                $this->toast?->show('Approved: '.$id, 'success');
                 $this->refreshData($taskService, $epicService);
                 $this->forceRefresh = true;
                 break;
 
             case 'button-delete':
                 $this->callCommand('epic:delete', ['id' => $id, '--force' => true]);
-                $this->toast?->show("Deleted: {$id}", 'warning');
+                $this->toast?->show('Deleted: '.$id, 'warning');
                 $this->refreshData($taskService, $epicService);
                 $this->forceRefresh = true;
                 break;
 
             case 'button-copy-cmd':
-                $command = "fuel show {$id}";
+                $command = 'fuel show '.$id;
                 $this->copyToClipboard($command);
-                $this->toast?->show("Copied: {$command}", 'success');
+                $this->toast?->show('Copied: '.$command, 'success');
                 break;
         }
     }
@@ -452,8 +454,8 @@ class HumanCommand extends Command
     {
         try {
             $this->call($command, $arguments);
-        } catch (\Exception $e) {
-            $this->toast?->show('Command failed: '.$e->getMessage(), 'error');
+        } catch (\Exception $exception) {
+            $this->toast?->show('Command failed: '.$exception->getMessage(), 'error');
         }
     }
 
@@ -462,7 +464,7 @@ class HumanCommand extends Command
      */
     private function render(): void
     {
-        if ($this->screenBuffer === null) {
+        if (! $this->screenBuffer instanceof ScreenBuffer) {
             return;
         }
 
@@ -479,7 +481,7 @@ class HumanCommand extends Command
         $currentRow = 4;
         $currentRow = $this->renderEpics($currentRow);
         $currentRow = $this->renderDivider($currentRow);
-        $currentRow = $this->renderTasks($currentRow);
+        $this->renderTasks($currentRow);
 
         // Render toast if visible
         if ($this->toast?->isVisible()) {
@@ -514,7 +516,7 @@ class HumanCommand extends Command
     {
         $row = $startRow;
 
-        if (count($this->epics) === 0 && count($this->tasks) === 0) {
+        if ($this->epics === [] && $this->tasks === []) {
             $this->screenBuffer->setLine($row++, '');
             $message = 'Nothing needs attention';
             $padding = ($this->terminalWidth - mb_strlen($message)) / 2;
@@ -523,7 +525,7 @@ class HumanCommand extends Command
             return $row;
         }
 
-        if (count($this->epics) > 0) {
+        if ($this->epics !== []) {
             $this->screenBuffer->setLine($row++, '');
             $this->screenBuffer->setLine($row++, "\033[1;36mEPICS PENDING REVIEW (".count($this->epics).")\033[0m");
             $this->screenBuffer->setLine($row++, '');
@@ -546,7 +548,7 @@ class HumanCommand extends Command
         $this->screenBuffer->setLine($row++, $title);
 
         if (! empty($epic->description)) {
-            $wrappedDesc = wordwrap($epic->description, $this->terminalWidth - 4, "\n", true);
+            $wrappedDesc = wordwrap((string) $epic->description, $this->terminalWidth - 4, "\n", true);
             foreach (explode("\n", $wrappedDesc) as $line) {
                 $this->screenBuffer->setLine($row++, '  '.$line);
             }
@@ -561,7 +563,7 @@ class HumanCommand extends Command
         $copyText = '[ Copy review ]';
         $buttons .= "\033[1;34m{$copyText}\033[0m ";
         $this->screenBuffer->registerRegion(
-            "copy-review-{$epic->short_id}",
+            'copy-review-'.$epic->short_id,
             $buttonRow,
             $buttonRow,
             $buttonStart,
@@ -575,7 +577,7 @@ class HumanCommand extends Command
         $reviewedText = '[ Reviewed ]';
         $buttons .= "\033[1;32m{$reviewedText}\033[0m ";
         $this->screenBuffer->registerRegion(
-            "reviewed-{$epic->short_id}",
+            'reviewed-'.$epic->short_id,
             $buttonRow,
             $buttonRow,
             $buttonStart,
@@ -589,7 +591,7 @@ class HumanCommand extends Command
         $approvedText = '[ Approved ]';
         $buttons .= "\033[1;32m{$approvedText}\033[0m ";
         $this->screenBuffer->registerRegion(
-            "approved-{$epic->short_id}",
+            'approved-'.$epic->short_id,
             $buttonRow,
             $buttonRow,
             $buttonStart,
@@ -605,7 +607,7 @@ class HumanCommand extends Command
         $padding = $deleteStart - $buttonStart;
         $buttons .= str_repeat(' ', max(0, $padding))."\033[1;31m{$deleteText}\033[0m";
         $this->screenBuffer->registerRegion(
-            "delete-{$epic->short_id}",
+            'delete-'.$epic->short_id,
             $buttonRow,
             $buttonRow,
             $deleteStart,
@@ -625,7 +627,7 @@ class HumanCommand extends Command
      */
     private function renderDivider(int $row): int
     {
-        if (count($this->epics) > 0 && count($this->tasks) > 0) {
+        if ($this->epics !== [] && $this->tasks !== []) {
             $this->screenBuffer->setLine($row++, str_repeat('─', $this->terminalWidth));
         }
 
@@ -639,7 +641,7 @@ class HumanCommand extends Command
     {
         $row = $startRow;
 
-        if (count($this->tasks) > 0) {
+        if ($this->tasks !== []) {
             $this->screenBuffer->setLine($row++, '');
             $this->screenBuffer->setLine($row++, "\033[1;36mTASKS NEEDING HUMAN (".count($this->tasks).")\033[0m");
             $this->screenBuffer->setLine($row++, '');
@@ -662,7 +664,7 @@ class HumanCommand extends Command
         $this->screenBuffer->setLine($row++, $title);
 
         if (! empty($task->description)) {
-            $wrappedDesc = wordwrap($task->description, $this->terminalWidth - 4, "\n", true);
+            $wrappedDesc = wordwrap((string) $task->description, $this->terminalWidth - 4, "\n", true);
             foreach (explode("\n", $wrappedDesc) as $line) {
                 $this->screenBuffer->setLine($row++, '  '.$line);
             }
@@ -673,7 +675,7 @@ class HumanCommand extends Command
         $copyText = '[ Copy command ]';
         $buttons = "  \033[1;34m{$copyText}\033[0m";
         $this->screenBuffer->registerRegion(
-            "copy-cmd-{$task->short_id}",
+            'copy-cmd-'.$task->short_id,
             $buttonRow,
             $buttonRow,
             3,
@@ -693,7 +695,7 @@ class HumanCommand extends Command
      */
     private function performDifferentialRender(): void
     {
-        if ($this->screenBuffer === null || $this->previousBuffer === null) {
+        if (! $this->screenBuffer instanceof ScreenBuffer || ! $this->previousBuffer instanceof ScreenBuffer) {
             return;
         }
 
