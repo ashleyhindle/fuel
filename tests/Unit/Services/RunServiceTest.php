@@ -739,3 +739,76 @@ it('returns null for epic cost when epic tasks have no runs', function (): void 
 
     expect($totalCost)->toBeNull();
 });
+
+it('returns latest commit hash from runs', function (): void {
+    // Create runs with different commit hashes
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]);
+
+    // Update first run with commit hash
+    $this->runService->updateLatestRun($this->taskId, [
+        'commit_hash' => 'abc123',
+    ]);
+
+    // Create second run with different commit hash
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]);
+
+    $this->runService->updateLatestRun($this->taskId, [
+        'commit_hash' => 'def456',
+    ]);
+
+    // Should return the latest commit hash
+    $commitHash = $this->runService->getLatestCommitHash($this->taskId);
+
+    expect($commitHash)->toBe('def456');
+});
+
+it('returns null when no commits exist for task', function (): void {
+    // Create runs without commit hashes
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]);
+
+    $commitHash = $this->runService->getLatestCommitHash($this->taskId);
+
+    expect($commitHash)->toBeNull();
+});
+
+it('returns null when task does not exist', function (): void {
+    $commitHash = $this->runService->getLatestCommitHash('f-nonexistent');
+
+    expect($commitHash)->toBeNull();
+});
+
+it('skips empty commit hashes', function (): void {
+    // Create run with commit hash
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]);
+
+    $this->runService->updateLatestRun($this->taskId, [
+        'commit_hash' => 'abc123',
+    ]);
+
+    // Create second run with empty commit hash
+    $this->runService->logRun($this->taskId, [
+        'agent' => 'test-agent',
+        'model' => 'test-model',
+    ]);
+
+    $this->runService->updateLatestRun($this->taskId, [
+        'commit_hash' => '',
+    ]);
+
+    // Should return the last non-empty commit hash
+    $commitHash = $this->runService->getLatestCommitHash($this->taskId);
+
+    expect($commitHash)->toBe('abc123');
+});

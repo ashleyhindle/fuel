@@ -49,5 +49,40 @@ public function getLatestCommitHash(string $taskId): ?string
 ## Implementation Notes
 <!-- Tasks: append discoveries, decisions, gotchas here -->
 
+### f-0188ea: RunService::getLatestCommitHash() method
+- ✅ Added `getLatestCommitHash(string $taskId): ?string` method to `app/Services/RunService.php` at line 497
+- ✅ Method added after `getTaskCost()` as specified in task description
+- ✅ Returns latest commit hash from runs, or null if no commits/invalid task
+- ✅ Uses `resolveTaskId()` to convert short_id to internal ID (consistent with other methods)
+- ✅ Filters out null and empty string commit hashes
+- ✅ Orders by `id` (using `latest('id')`) to get most recent run
+- ✅ Added comprehensive unit tests in `tests/Unit/Services/RunServiceTest.php`:
+  - Returns latest commit hash when multiple runs exist
+  - Returns null when no commits exist for task
+  - Returns null when task doesn't exist
+  - Skips empty commit hashes and returns last valid one
+- All 44 RunService tests passing
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
+
+### RunService::getLatestCommitHash()
+**File:** `app/Services/RunService.php:497`
+
+**Signature:**
+```php
+public function getLatestCommitHash(string $taskId): ?string
+```
+
+**Purpose:** Get the latest commit hash for a task from its runs table. This is the primary interface for reading commit hashes going forward (replacing direct reads of `task.commit_hash`).
+
+**Returns:** Latest non-empty commit hash, or null if task not found or no commits exist.
+
+**Usage example:**
+```php
+$runService = app(RunService::class);
+$commitHash = $runService->getLatestCommitHash('f-abc123');
+if ($commitHash !== null) {
+    // Use commit hash
+}
+```

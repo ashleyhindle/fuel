@@ -489,6 +489,26 @@ class RunService
     }
 
     /**
+     * Get the latest commit hash for a task from its runs.
+     *
+     * @param  string  $taskId  Task ID (e.g., 'f-xxxxxx')
+     * @return string|null Latest commit hash, or null if no commits found or task doesn't exist
+     */
+    public function getLatestCommitHash(string $taskId): ?string
+    {
+        $taskIntId = $this->resolveTaskId($taskId);
+        if ($taskIntId === null) {
+            return null;
+        }
+
+        return Run::where('task_id', $taskIntId)
+            ->whereNotNull('commit_hash')
+            ->where('commit_hash', '!=', '')
+            ->latest('id')
+            ->value('commit_hash');
+    }
+
+    /**
      * Get the total cost in USD for an epic by summing all its tasks' runs' costs.
      *
      * @param  int  $epicId  Epic integer ID
