@@ -63,7 +63,7 @@ final readonly class SnapshotBuilder
 
         // Get all epics referenced by tasks (for display)
         $epicIds = $allTasks->pluck('epic_id')->filter()->unique()->values()->toArray();
-        $epics = $epicIds !== [] ? Epic::whereIn('id', $epicIds)->get()->all() : [];
+        $epics = $epicIds !== [] ? Epic::whereIn('id', $epicIds)->with('tasks')->get()->all() : [];
 
         // Get runner state info from LifecycleManager if available
         $paused = $this->lifecycleManager?->isPaused() ?? true;
