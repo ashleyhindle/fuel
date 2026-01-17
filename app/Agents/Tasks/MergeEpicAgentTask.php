@@ -40,6 +40,10 @@ class MergeEpicAgentTask extends AbstractAgentTask
 
     /**
      * Create merge task from an epic.
+     *
+     * Task is created with status=pending and agent=merge so it goes through
+     * the normal queue. TaskSpawner recognizes agent=merge and creates a
+     * MergeEpicAgentTask for proper lifecycle hook handling.
      */
     public static function fromEpic(Epic $epic): self
     {
@@ -47,14 +51,39 @@ class MergeEpicAgentTask extends AbstractAgentTask
         $mergeTask = $taskService->create([
             'title' => 'Merge epic/'.$epic->short_id.' into main',
             'description' => 'Merge epic "'.$epic->title.'" from mirror branch into main project',
-            'type' => 'merge',
-            'status' => TaskStatus::InProgress->value,
+            'type' => 'chore',
+            'status' => TaskStatus::Open->value,
+            'agent' => 'merge',  // TaskSpawner recognizes this
             'epic_id' => $epic->id,
         ]);
 
         return new self(
             $mergeTask,
             $taskService,
+            $epic,
+            app(EpicService::class),
+            app(PromptService::class),
+        );
+    }
+
+    /**
+     * Create MergeEpicAgentTask from an existing task model.
+     * Used by TaskSpawner when it picks up a merge task from the queue.
+     */
+    public static function fromTaskModel(Task $task): self
+    {
+        if ($task->epic_id === null) {
+            throw new \RuntimeException('Merge task must have an epic_id');
+        }
+
+        $epic = Epic::find($task->epic_id);
+        if ($epic === null) {
+            throw new \RuntimeException('Epic not found for merge task');
+        }
+
+        return new self(
+            $task,
+            app(TaskService::class),
             $epic,
             app(EpicService::class),
             app(PromptService::class),

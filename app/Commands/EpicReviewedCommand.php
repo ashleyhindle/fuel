@@ -9,9 +9,6 @@ use App\Commands\Concerns\HandlesJsonOutput;
 use App\Enums\MirrorStatus;
 use App\Services\ConfigService;
 use App\Services\EpicService;
-use App\Services\FuelContext;
-use App\Services\ProcessManager;
-use App\Services\RunService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
@@ -28,10 +25,7 @@ class EpicReviewedCommand extends Command
 
     public function handle(
         EpicService $epicService,
-        ConfigService $configService,
-        ProcessManager $processManager,
-        RunService $runService,
-        FuelContext $fuelContext
+        ConfigService $configService
     ): int {
         try {
             $epic = $epicService->markAsReviewed($this->argument('id'));
@@ -41,37 +35,12 @@ class EpicReviewedCommand extends Command
                 // Update mirror status to Merging
                 $epicService->updateMirrorStatus($epic, MirrorStatus::Merging);
 
-                // Create and spawn merge task
+                // Create merge task - it goes into the queue with status=pending, agent=merge
+                // The daemon will pick it up and spawn it with proper lifecycle hooks
                 $agentTask = MergeEpicAgentTask::fromEpic($epic);
                 $mergeTaskId = $agentTask->getTaskId();
-                $agentName = $agentTask->getAgentName($configService);
 
-                if ($agentName !== null) {
-                    $model = null;
-                    try {
-                        $agentDef = $configService->getAgentDefinition($agentName);
-                        $model = $agentDef['model'] ?? null;
-                    } catch (\RuntimeException) {
-                        $model = null;
-                    }
-
-                    $runId = $runService->createRun($mergeTaskId, [
-                        'agent' => $agentName,
-                        'model' => $model,
-                        'started_at' => date('c'),
-                    ]);
-
-                    // Spawn the merge task
-                    $cwd = $fuelContext->getProjectPath();
-                    $result = $processManager->spawnAgentTask($agentTask, $cwd, $runId);
-
-                    if ($result->success && $result->process) {
-                        $pid = $result->process->getPid();
-                        if ($pid !== null) {
-                            $runService->updateRun($runId, ['pid' => $pid]);
-                        }
-                    }
-                }
+                $this->info(sprintf('Merge task %s created for epic %s', $mergeTaskId, $epic->short_id));
             }
 
             if ($this->option('json')) {

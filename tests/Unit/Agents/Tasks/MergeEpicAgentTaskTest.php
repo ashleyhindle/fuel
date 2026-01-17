@@ -52,8 +52,9 @@ test('fromEpic creates merge task correctly', function (): void {
     $createdTask->id = 2;
     $createdTask->short_id = 'f-789abc';
     $createdTask->title = 'Merge epic/e-def456 into main';
-    $createdTask->type = 'merge';
-    $createdTask->status = TaskStatus::InProgress;
+    $createdTask->type = 'chore';
+    $createdTask->agent = 'merge';
+    $createdTask->status = TaskStatus::Open;
 
     $mockTaskService = Mockery::mock(TaskService::class);
     $mockTaskService->shouldReceive('create')
@@ -61,8 +62,9 @@ test('fromEpic creates merge task correctly', function (): void {
         ->with([
             'title' => 'Merge epic/e-def456 into main',
             'description' => 'Merge epic "Feature Implementation" from mirror branch into main project',
-            'type' => 'merge',
-            'status' => TaskStatus::InProgress->value,
+            'type' => 'chore',
+            'status' => TaskStatus::Open->value,
+            'agent' => 'merge',
             'epic_id' => 1,
         ])
         ->andReturn($createdTask);
@@ -76,6 +78,44 @@ test('fromEpic creates merge task correctly', function (): void {
     expect($mergeTask)->toBeInstanceOf(MergeEpicAgentTask::class);
     expect($mergeTask->getTaskId())->toBe('f-789abc');
 });
+
+test('fromTaskModel creates MergeEpicAgentTask from existing task', function (): void {
+    // Create a mock epic
+    $epic = new Epic;
+    $epic->id = 1;
+    $epic->title = 'Test Epic';
+    $epic->short_id = 'e-abc123';
+    $epic->mirror_path = '/path/to/mirror';
+    $epic->mirror_branch = 'epic/e-abc123';
+    $epic->mirror_base_commit = 'abc123';
+
+    // Mock Epic::find to return our epic
+    Epic::unguard();
+    $epic->save();
+
+    $task = new Task;
+    $task->id = 99;
+    $task->short_id = 'f-merge1';
+    $task->title = 'Merge epic/e-abc123 into main';
+    $task->type = 'chore';
+    $task->agent = 'merge';
+    $task->status = TaskStatus::Open;
+    $task->epic_id = $epic->id;
+
+    $mergeTask = MergeEpicAgentTask::fromTaskModel($task);
+
+    expect($mergeTask)->toBeInstanceOf(MergeEpicAgentTask::class);
+    expect($mergeTask->getTaskId())->toBe('f-merge1');
+});
+
+test('fromTaskModel throws when task has no epic_id', function (): void {
+    $task = new Task;
+    $task->id = 99;
+    $task->short_id = 'f-merge1';
+    $task->epic_id = null;
+
+    MergeEpicAgentTask::fromTaskModel($task);
+})->throws(RuntimeException::class, 'Merge task must have an epic_id');
 
 test('getAgentName returns primary agent', function (): void {
     $this->configService->shouldReceive('getPrimaryAgent')

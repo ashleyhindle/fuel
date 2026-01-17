@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Agents\Tasks\MergeEpicAgentTask;
 use App\Agents\Tasks\SelfGuidedAgentTask;
 use App\Agents\Tasks\UpdateRealityAgentTask;
 use App\Agents\Tasks\WorkAgentTask;
@@ -151,6 +152,8 @@ final class TaskSpawner
         // Create appropriate AgentTask based on task type/agent field
         if ($task->type === 'reality') {
             $agentTask = UpdateRealityAgentTask::fromTaskModel($task);
+        } elseif ($task->agent === 'merge') {
+            $agentTask = MergeEpicAgentTask::fromTaskModel($task);
         } elseif ($task->agent === 'selfguided') {
             $agentTask = app(SelfGuidedAgentTask::class, ['task' => $task]);
         } else {
