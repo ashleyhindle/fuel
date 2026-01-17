@@ -3,6 +3,7 @@
 use App\Repositories\ReviewRepository;
 use App\Services\DatabaseService;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
@@ -68,9 +69,9 @@ function makeTaskService(): TaskService
     return new TaskService;
 }
 
-function makeEpicService(TaskService $taskService): EpicService
+function makeEpicService(TaskService $taskService, ?FuelContext $fuelContext = null): EpicService
 {
-    return new EpicService($taskService);
+    return new EpicService($taskService, $fuelContext ?? new FuelContext);
 }
 
 function makeRunService(): RunService

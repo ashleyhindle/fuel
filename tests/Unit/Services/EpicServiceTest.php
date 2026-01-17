@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\EpicStatus;
+use App\Enums\MirrorStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
@@ -31,7 +32,7 @@ beforeEach(function (): void {
     app()->instance(UpdateRealityService::class, $mockUpdateReality);
 
     $this->taskService = makeTaskService();
-    $this->service = makeEpicService($this->taskService);
+    $this->service = makeEpicService($this->taskService, $this->context);
 });
 
 afterEach(function (): void {
@@ -544,4 +545,182 @@ it('persists reviewed status to database', function (): void {
 
     expect($result)->toHaveCount(1);
     expect($result[0]['status'])->toBe('reviewed');
+});
+
+it('delegates getProjectPath to FuelContext', function (): void {
+    $projectPath = $this->service->getProjectPath();
+
+    expect($projectPath)->toBe($this->tempDir);
+});
+
+it('updates mirror status of an epic', function (): void {
+    $epic = $this->service->createEpic('Epic with mirror');
+
+    $this->service->updateMirrorStatus($epic, MirrorStatus::Creating);
+
+    $updatedEpic = $this->service->getEpic($epic->short_id);
+    expect($updatedEpic->mirror_status)->toBe(MirrorStatus::Creating);
+});
+
+it('sets mirror as ready with all required fields', function (): void {
+    $epic = $this->service->createEpic('Epic with mirror');
+    $mirrorPath = '/home/user/.fuel/mirrors/project/e-123456';
+    $branch = 'epic/e-123456';
+    $baseCommit = 'abc123def456';
+
+    $this->service->setMirrorReady($epic, $mirrorPath, $branch, $baseCommit);
+
+    $updatedEpic = $this->service->getEpic($epic->short_id);
+    expect($updatedEpic->mirror_path)->toBe($mirrorPath);
+    expect($updatedEpic->mirror_branch)->toBe($branch);
+    expect($updatedEpic->mirror_base_commit)->toBe($baseCommit);
+    expect($updatedEpic->mirror_status)->toBe(MirrorStatus::Ready);
+    expect($updatedEpic->mirror_created_at)->not->toBeNull();
+});
+
+it('cleans up mirror directory and updates status', function (): void {
+    // Create a temporary mirror directory
+    $mirrorDir = $this->tempDir.'/test-mirror';
+    mkdir($mirrorDir, 0755, true);
+    file_put_contents($mirrorDir.'/test.txt', 'test content');
+
+    // Create epic and set it up with a mirror
+    $epic = $this->service->createEpic('Epic with mirror to clean');
+    $this->service->setMirrorReady($epic, $mirrorDir, 'epic/test', 'commit123');
+
+    // Verify directory exists
+    expect(is_dir($mirrorDir))->toBeTrue();
+
+    // Clean up the mirror
+    $epicWithMirror = $this->service->getEpic($epic->short_id);
+    $this->service->cleanupMirror($epicWithMirror);
+
+    // Verify directory was removed
+    expect(is_dir($mirrorDir))->toBeFalse();
+
+    // Verify status was updated
+    $updatedEpic = $this->service->getEpic($epic->short_id);
+    expect($updatedEpic->mirror_status)->toBe(MirrorStatus::Cleaned);
+});
+
+it('handles cleanupMirror when mirror_path is empty', function (): void {
+    $epic = $this->service->createEpic('Epic without mirror path');
+
+    // Should not throw error even when mirror_path is empty
+    $this->service->cleanupMirror($epic);
+
+    $updatedEpic = $this->service->getEpic($epic->short_id);
+    expect($updatedEpic->mirror_status)->toBe(MirrorStatus::Cleaned);
+});
+
+it('handles cleanupMirror when mirror directory does not exist', function (): void {
+    $epic = $this->service->createEpic('Epic with non-existent mirror');
+    $nonExistentPath = '/path/that/does/not/exist';
+
+    // Set mirror path but don't create the directory
+    $this->db->query(
+        'UPDATE epics SET mirror_path = ? WHERE short_id = ?',
+        [$nonExistentPath, $epic->short_id]
+    );
+
+    $epicWithPath = $this->service->getEpic($epic->short_id);
+
+    // Should not throw error even when directory doesn't exist
+    $this->service->cleanupMirror($epicWithPath);
+
+    $updatedEpic = $this->service->getEpic($epic->short_id);
+    expect($updatedEpic->mirror_status)->toBe(MirrorStatus::Cleaned);
+});
+
+it('gets epics with merge failed status', function (): void {
+    // Create epics with various mirror statuses
+    $epic1 = $this->service->createEpic('Epic with merge failed');
+    $this->service->updateMirrorStatus($epic1, MirrorStatus::MergeFailed);
+
+    $epic2 = $this->service->createEpic('Another merge failed');
+    $this->service->updateMirrorStatus($epic2, MirrorStatus::MergeFailed);
+
+    $epic3 = $this->service->createEpic('Epic with ready status');
+    $this->service->updateMirrorStatus($epic3, MirrorStatus::Ready);
+
+    // Get epics with merge failed status
+    $mergeFailedEpics = $this->service->getEpicsWithMergeFailed();
+
+    expect($mergeFailedEpics)->toHaveCount(2);
+    // Verify both epics are in the result (order may vary)
+    $ids = array_map(fn ($e) => $e->short_id, $mergeFailedEpics);
+    expect($ids)->toContain($epic1->short_id);
+    expect($ids)->toContain($epic2->short_id);
+});
+
+it('gets epics with stale mirrors', function (): void {
+    // Create epic with old mirror
+    $epic1 = $this->service->createEpic('Stale epic');
+    $this->service->setMirrorReady($epic1, '/path/to/mirror1', 'epic/old', 'commit1');
+
+    // Set updated_at to 8 days ago
+    $eightDaysAgo = Carbon::now('UTC')->subDays(8)->toIso8601String();
+    $this->db->query(
+        'UPDATE epics SET updated_at = ? WHERE short_id = ?',
+        [$eightDaysAgo, $epic1->short_id]
+    );
+
+    // Create epic with recent mirror
+    $epic2 = $this->service->createEpic('Recent epic');
+    $this->service->setMirrorReady($epic2, '/path/to/mirror2', 'epic/new', 'commit2');
+
+    // Create epic with old mirror but approved
+    $epic3 = $this->service->createEpic('Approved epic');
+    $this->service->setMirrorReady($epic3, '/path/to/mirror3', 'epic/approved', 'commit3');
+    $this->db->query(
+        'UPDATE epics SET updated_at = ?, approved_at = ? WHERE short_id = ?',
+        [$eightDaysAgo, Carbon::now('UTC')->toIso8601String(), $epic3->short_id]
+    );
+
+    // Get stale mirrors
+    $staleEpics = $this->service->getEpicsWithStaleMirrors();
+
+    expect($staleEpics)->toHaveCount(1);
+    expect($staleEpics[0]->short_id)->toBe($epic1->short_id);
+});
+
+it('finds orphaned mirrors', function (): void {
+    // Create mirrors directory structure
+    $projectSlug = basename($this->tempDir);
+    $mirrorsBasePath = $_SERVER['HOME'].'/.fuel/mirrors/'.$projectSlug;
+    mkdir($mirrorsBasePath, 0755, true);
+
+    // Create orphaned mirror (epic doesn't exist)
+    $orphanedId = 'e-abc123';
+    mkdir($mirrorsBasePath.'/'.$orphanedId, 0755, true);
+
+    // Create mirror for approved epic
+    $approvedEpic = $this->service->createEpic('Approved epic');
+    mkdir($mirrorsBasePath.'/'.$approvedEpic->short_id, 0755, true);
+    $this->db->query(
+        'UPDATE epics SET approved_at = ? WHERE short_id = ?',
+        [Carbon::now('UTC')->toIso8601String(), $approvedEpic->short_id]
+    );
+
+    // Create mirror with invalid ID format
+    $invalidId = 'invalid-format';
+    mkdir($mirrorsBasePath.'/'.$invalidId, 0755, true);
+
+    // Create valid mirror (should not be in orphaned list)
+    $validEpic = $this->service->createEpic('Valid epic');
+    mkdir($mirrorsBasePath.'/'.$validEpic->short_id, 0755, true);
+
+    // Get orphaned mirrors
+    $orphaned = $this->service->findOrphanedMirrors();
+
+    expect($orphaned)->toHaveCount(3);
+
+    // Clean up test directories
+    exec('rm -rf '.escapeshellarg($mirrorsBasePath));
+});
+
+it('returns empty array when mirrors directory does not exist', function (): void {
+    $orphaned = $this->service->findOrphanedMirrors();
+
+    expect($orphaned)->toBe([]);
 });

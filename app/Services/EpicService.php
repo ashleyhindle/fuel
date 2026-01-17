@@ -460,4 +460,119 @@ class EpicService
             'updated_at' => $now,
         ]);
     }
+
+    /**
+     * Get epics with merge failed status.
+     *
+     * @return array<int, Epic>
+     */
+    public function getEpicsWithMergeFailed(): array
+    {
+        $epics = Epic::where('mirror_status', MirrorStatus::MergeFailed->value)
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
+        // Set computed status on each epic
+        foreach ($epics as $epic) {
+            $epic->status = $this->getEpicStatus($epic->short_id);
+        }
+
+        return $epics->all();
+    }
+
+    /**
+     * Get epics with stale mirrors (updated_at > 7 days ago, not approved).
+     *
+     * @return array<int, Epic>
+     */
+    public function getEpicsWithStaleMirrors(): array
+    {
+        $sevenDaysAgo = Carbon::now('UTC')->subDays(7);
+
+        $epics = Epic::whereNotNull('mirror_path')
+            ->where('mirror_status', '!=', MirrorStatus::None->value)
+            ->where('mirror_status', '!=', MirrorStatus::Cleaned->value)
+            ->where('updated_at', '<', $sevenDaysAgo)
+            ->whereNull('approved_at')
+            ->orderBy('updated_at', 'asc')
+            ->get();
+
+        // Set computed status on each epic
+        foreach ($epics as $epic) {
+            $epic->status = $this->getEpicStatus($epic->short_id);
+        }
+
+        return $epics->all();
+    }
+
+    /**
+     * Find orphaned mirror directories.
+     * Returns array of paths to mirrors whose epic doesn't exist or is Approved/deleted.
+     *
+     * @return array<int, array{path: string, epic_id: string, reason: string}>
+     */
+    public function findOrphanedMirrors(): array
+    {
+        $projectSlug = $this->fuelContext->getProjectName();
+        $mirrorsBasePath = $_SERVER['HOME'].'/.fuel/mirrors/'.$projectSlug;
+
+        if (! is_dir($mirrorsBasePath)) {
+            return [];
+        }
+
+        $orphaned = [];
+        $directories = scandir($mirrorsBasePath);
+
+        if ($directories === false) {
+            return [];
+        }
+
+        foreach ($directories as $dir) {
+            if ($dir === '.' || $dir === '..') {
+                continue;
+            }
+
+            $fullPath = $mirrorsBasePath.'/'.$dir;
+            if (! is_dir($fullPath)) {
+                continue;
+            }
+
+            // Expect directory name to be epic-id format (e-xxxxxx)
+            if (! preg_match('/^e-[a-f0-9]{6}$/', $dir)) {
+                $orphaned[] = [
+                    'path' => $fullPath,
+                    'epic_id' => $dir,
+                    'reason' => 'Invalid epic ID format',
+                ];
+
+                continue;
+            }
+
+            // Check if epic exists
+            $epic = Epic::where('short_id', $dir)->first();
+
+            if ($epic === null) {
+                $orphaned[] = [
+                    'path' => $fullPath,
+                    'epic_id' => $dir,
+                    'reason' => 'Epic does not exist',
+                ];
+
+                continue;
+            }
+
+            // Check if epic is approved (mirror should have been cleaned)
+            if ($epic->approved_at !== null) {
+                $orphaned[] = [
+                    'path' => $fullPath,
+                    'epic_id' => $dir,
+                    'reason' => 'Epic is approved but mirror not cleaned',
+                ];
+
+                continue;
+            }
+        }
+
+        return $orphaned;
+    }
 }
