@@ -1861,7 +1861,12 @@ class ConsumeCommand extends Command
         // Icons
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
-        $selfGuidedIcon = $task->type === 'selfguided' ? '∞' : '';
+        // For selfguided tasks, show iteration number instead of just infinity symbol
+        $selfGuidedIcon = '';
+        if ($task->type === 'selfguided') {
+            $iteration = $task->selfguided_iteration ?? 0;
+            $selfGuidedIcon = '∞'.$iteration;
+        }
         $autoClosedIcon = '';
         if ($style === 'done') {
             $labels = $task->labels ?? [];
@@ -1870,7 +1875,21 @@ class ConsumeCommand extends Command
 
         $icons = array_filter([$consumeIcon, $failedIcon, $selfGuidedIcon, $autoClosedIcon]);
         $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
-        $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
+        // Calculate icon width: emojis are 2 chars wide, selfguided icon may have digits after ∞
+        $iconWidth = 0;
+        if ($icons !== []) {
+            foreach ($icons as $icon) {
+                if ($icon === $selfGuidedIcon && $task->type === 'selfguided') {
+                    // ∞ is 1 char wide + number of digits
+                    $iconWidth += mb_strlen($selfGuidedIcon);
+                } else {
+                    // Regular emojis are 2 chars wide
+                    $iconWidth += 2;
+                }
+            }
+            $iconWidth += count($icons) - 1; // spaces between icons
+            $iconWidth += 1; // space before first icon
+        }
 
         // For multiline titles, only show the first line in board cards
         $titleLines = explode("\n", $taskTitle);
@@ -1956,10 +1975,29 @@ class ConsumeCommand extends Command
         // Icons
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
-        $selfGuidedIcon = $task->type === 'selfguided' ? '∞' : '';
+        // For selfguided tasks, show iteration number instead of just infinity symbol
+        $selfGuidedIcon = '';
+        if ($task->type === 'selfguided') {
+            $iteration = $task->selfguided_iteration ?? 0;
+            $selfGuidedIcon = '∞'.$iteration;
+        }
         $icons = array_filter([$consumeIcon, $failedIcon, $selfGuidedIcon]);
         $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
-        $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;
+        // Calculate icon width: emojis are 2 chars wide, selfguided icon may have digits after ∞
+        $iconWidth = 0;
+        if ($icons !== []) {
+            foreach ($icons as $icon) {
+                if ($icon === $selfGuidedIcon && $task->type === 'selfguided') {
+                    // ∞ is 1 char wide + number of digits
+                    $iconWidth += mb_strlen($selfGuidedIcon);
+                } else {
+                    // Regular emojis are 2 chars wide
+                    $iconWidth += 2;
+                }
+            }
+            $iconWidth += count($icons) - 1; // spaces between icons
+            $iconWidth += 1; // space before first icon
+        }
 
         // For multiline titles, only show the first line in board cards
         $titleLines = explode("\n", $taskTitle);
@@ -2034,6 +2072,31 @@ class ConsumeCommand extends Command
     private function padLineWithBorderColor(string $line, int $width, string $borderColor): string
     {
         $visibleLen = $this->visibleLength($line);
+        // Ensure we don't exceed the column width
+        // If content is too long, truncate it to fit
+        if ($visibleLen >= $width - 1) {
+            // Content is too long, need to truncate
+            // Strip tags first to get raw text
+            $stripped = preg_replace('/<[^>]+>/', '', $line);
+            $text = $stripped ?? $line;
+
+            // Truncate to fit (accounting for border)
+            $maxLen = $width - 2; // -2 for left and right borders
+            if (mb_strlen($text) > $maxLen) {
+                // Find position to cut, preserving tags
+                $truncated = mb_substr($text, 0, $maxLen);
+                // Rebuild with tags (simplified approach - just preserve opening tag)
+                if (str_contains($line, '<')) {
+                    $tagMatch = [];
+                    preg_match('/<[^>]+>/', $line, $tagMatch);
+                    $line = ($tagMatch[0] ?? '').$truncated.'</>';
+                } else {
+                    $line = $truncated;
+                }
+            }
+            $visibleLen = $this->visibleLength($line);
+        }
+
         $padding = max(0, $width - $visibleLen - 1); // -1 for │ at end
 
         return $line.str_repeat(' ', $padding).sprintf('<%s>│</>', $borderColor);
