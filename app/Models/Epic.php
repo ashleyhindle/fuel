@@ -193,6 +193,22 @@ class Epic extends Model
     }
 
     /**
+     * Check if the epic has a mirror directory.
+     */
+    public function hasMirror(): bool
+    {
+        return $this->mirror_path !== null;
+    }
+
+    /**
+     * Check if the epic's mirror is ready for work.
+     */
+    public function isMirrorReady(): bool
+    {
+        return $this->mirror_status === \App\Enums\MirrorStatus::Ready;
+    }
+
+    /**
      * Find an epic by partial ID matching.
      * Supports integer primary key ID, full short_id (e-xxxxxx), or partial short_id.
      *

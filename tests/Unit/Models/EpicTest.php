@@ -130,3 +130,29 @@ test('getPlanPath returns correct path format', function (): void {
 
     expect($epic->getPlanPath())->toBe('.fuel/plans/test-epic-e-abc123.md');
 });
+
+test('hasMirror returns true when mirror_path is set', function (): void {
+    $epic = new Epic(['mirror_path' => '/path/to/mirror']);
+    expect($epic->hasMirror())->toBeTrue();
+});
+
+test('hasMirror returns false when mirror_path is null', function (): void {
+    $epic = new Epic(['mirror_path' => null]);
+    expect($epic->hasMirror())->toBeFalse();
+});
+
+test('isMirrorReady returns true when mirror_status is Ready', function (): void {
+    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::Ready]);
+    expect($epic->isMirrorReady())->toBeTrue();
+});
+
+test('isMirrorReady returns false when mirror_status is not Ready', function (): void {
+    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::Pending]);
+    expect($epic->isMirrorReady())->toBeFalse();
+
+    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::Creating]);
+    expect($epic->isMirrorReady())->toBeFalse();
+
+    $epic = new Epic(['mirror_status' => \App\Enums\MirrorStatus::None]);
+    expect($epic->isMirrorReady())->toBeFalse();
+});
