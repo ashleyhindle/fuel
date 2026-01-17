@@ -253,8 +253,39 @@ Created `app/Enums/MirrorStatus.php` following EpicStatus pattern:
 - Fully tested in `tests/Unit/MirrorStatusTest.php`
 - Pattern: Use `match` expressions for status-based logic, exhaustive coverage
 
+### ✅ ProcessSpawner Service (f-a58578)
+Created `app/Services/ProcessSpawner.php` for fire-and-forget background process spawning:
+- Single method: `spawnBackground(string $command, array $args = []): void`
+- Uses `nohup` with shell backgrounding for cross-platform compatibility
+- All output redirected to `/dev/null 2>&1 &`
+- Registered as singleton in `AppServiceProvider`
+- Fully tested in `tests/Unit/ProcessSpawnerTest.php` using mock subclass pattern
+- **Mockability**: Tests extend ProcessSpawner and override the method to avoid actual exec calls
+- **Usage**: `app(ProcessSpawner::class)->spawnBackground('mirror:create', ['e-abc123'])`
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
+
+### ProcessSpawner Service
+**File:** `app/Services/ProcessSpawner.php`
+
+**Purpose:** Centralized, mockable service for spawning background processes
+
+**Method:**
+- `spawnBackground(string $command, array $args = []): void`
+  - Spawns a detached background process using nohup
+  - Command: The fuel command to execute (e.g., 'mirror:create')
+  - Args: Command arguments (automatically escaped for shell)
+  - Fire-and-forget: Process runs independently, no tracking
+
+**Registration:** Singleton in `AppServiceProvider.php`
+
+**Testing Pattern:** Extend class and override method to capture exec calls without running them
+
+**Example:**
+```php
+app(ProcessSpawner::class)->spawnBackground('mirror:create', ['e-abc123']);
+```
 
 ### MirrorStatus Enum
 **File:** `app/Enums/MirrorStatus.php`

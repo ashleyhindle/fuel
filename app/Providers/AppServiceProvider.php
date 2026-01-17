@@ -14,6 +14,7 @@ use App\Daemon\LifecycleManager;
 use App\Daemon\ReviewManager;
 use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
+use App\Preprocessors\RelevantFilesPreprocessor;
 use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
 use App\Services\BrowserDaemonManager;
@@ -25,9 +26,9 @@ use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\NotificationService;
 use App\Services\ProcessManager;
+use App\Services\ProcessSpawner;
 use App\Services\ReviewService;
 use App\Services\RunService;
-use App\Preprocessors\RelevantFilesPreprocessor;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use App\Services\UpdateRealityService;
@@ -175,6 +176,8 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(NotificationService::class);
+
+        $this->app->singleton(ProcessSpawner::class);
 
         $this->app->singleton(BrowserDaemonManager::class, fn (): BrowserDaemonManager => BrowserDaemonManager::getInstance());
 
