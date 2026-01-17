@@ -1,0 +1,122 @@
+[0;36m═══════════════════════════════════════════════════════════════[0m
+[0;36m  Fuel Preprocessor Benchmark[0m
+[0;36m═══════════════════════════════════════════════════════════════[0m
+
+  Agent:      claude-sonnet
+  Iterations: 1 (across all task types)
+  Task types: 5 (bug-fix, feature-add, refactor)
+  Bench app:  nextjs-app
+
+[1;33mSetup[0m
+  Work directory: /var/folders/j1/f__ygn_15jx_fbn_vl9ghbmr0000gn/T/tmp.hTs5gPchs0
+  Results file:   /Users/ashleyhindle/Code/fuel/bench-results/benchmark-20260117-163832.txt
+
+[1;33mRunning benchmarks[0m
+  1 iterations × 5 task types × 2 (control/treatment) = 10 agent runs
+
+  [0;31mNote: This will spawn real agents and cost real money![0m
+
+  [0;36m══ Iteration 1/1 ══[0m
+    [1;33mbug-fix[0m
+      Setting up instances... done
+      Running control & treatment in parallel...
+      Control: 65s, $0.2995912
+      Treatment: 53s, $0.2507435
+
+    [1;33mfeature-add-1[0m
+      Setting up instances... done
+      Running control & treatment in parallel...
+      Control: 102s, $0.49933455
+      Treatment: 123s, $0.63715715
+
+    [1;33mfeature-add-2[0m
+      Setting up instances... done
+      Running control & treatment in parallel...
+      Control: 126s, $0.6311004
+      Treatment: 149s, $0.81174195
+
+    [1;33mfeature-add-3[0m
+      Setting up instances... done
+      Running control & treatment in parallel...
+      Control: 180s, $1.01987095
+      Treatment: 164s, $0.85534745
+
+    [1;33mrefactor[0m
+      Setting up instances... done
+      Running control & treatment in parallel...
+      Control: 136s, $0.69313695
+      Treatment: 191s, $1.0651955
+
+[0;36m═══════════════════════════════════════════════════════════════[0m
+[0;36m  Overall Results (n=1)[0m
+[0;36m═══════════════════════════════════════════════════════════════[0m
+
+                                    Control            Treatment
+                               (no preproc)       (with preproc)
+  ─────────────────────────────────────────────────────────────
+  Duration                         121.8s ±42.5             136.0s ±52.5
+  Cost (USD)                        $.62 ±0.26              $.72 ±0.30
+
+  Time: [0;31m10.0% slower[0m with preprocessors
+  Cost: [0;31m10.0% more expensive[0m with preprocessors
+
+[0;36m═══════════════════════════════════════════════════════════════[0m
+[0;36m  Results by Task Type[0m
+[0;36m═══════════════════════════════════════════════════════════════[0m
+
+[1;33m  bug-fix (n=1)[0m
+    Duration: Control 65.0s ±0.0 | Treatment 53.0s ±0.0
+    Cost:     Control $0.29 | Treatment $0.25
+
+[1;33m  feature-add (n=3)[0m
+    Duration: Control 136.0s ±39.9 | Treatment 145.3s ±20.7
+    Cost:     Control $0.71 | Treatment $0.76
+
+[1;33m  refactor (n=1)[0m
+    Duration: Control 136.0s ±0.0 | Treatment 191.0s ±0.0
+    Cost:     Control $0.69 | Treatment $1.06
+
+[1;33mRaw data:[0m
+  Control durations:   65 102 126 180 136
+  Control costs:       0.2995912 0.49933455 0.6311004 1.01987095 0.69313695
+  Treatment durations: 53 123 149 164 191
+  Treatment costs:     0.2507435 0.63715715 0.81174195 0.85534745 1.0651955
+
+[0;36m═══════════════════════════════════════════════════════════════[0m
+[0;36m  Tool Call Analysis[0m
+[0;36m═══════════════════════════════════════════════════════════════[0m
+
+  [1;33mControl (no preprocessors)[0m
+    Runs: 5
+    Total tool calls: 178
+    Average per run: 35.6
+    Breakdown:
+        78 Bash
+        32 Edit
+        26 TodoWrite
+        26 Read
+         9 Glob
+         6 Write
+         1 Grep
+
+  [1;33mTreatment (with preprocessors)[0m
+    Runs: 5
+    Total tool calls: 199
+    Average per run: 39.8
+    Breakdown:
+        71 Bash
+        50 Edit
+        34 Read
+        20 TodoWrite
+        18 Glob
+         6 Write
+
+  [1;33mComparison[0m
+    Control avg:   35.6 tools/run
+    Treatment avg: 39.8 tools/run
+    Difference:    [0;31m10.0% more tools[0m with preprocessors
+
+[1;33mWork directory:[0m /var/folders/j1/f__ygn_15jx_fbn_vl9ghbmr0000gn/T/tmp.hTs5gPchs0
+[1;33mResults saved:[0m /Users/ashleyhindle/Code/fuel/bench-results/benchmark-20260117-163832.txt
+
+[0;32mBenchmark complete![0m

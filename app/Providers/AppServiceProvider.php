@@ -163,8 +163,9 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(\App\Services\PromptService::class)
             );
 
-            // Register default preprocessors
-            $builder->addPreprocessor(new SiblingFilePreprocessor);
+            // Preprocessors disabled by default - benchmarks showed they hurt more than helped
+            // without proper infrastructure (AST, semantic search, embeddings, etc.)
+            // To enable: $builder->addPreprocessor(new SiblingFilePreprocessor);
 
             return $builder;
         });
