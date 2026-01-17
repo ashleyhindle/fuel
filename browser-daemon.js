@@ -231,12 +231,27 @@ async function handle(method, params) {
 
       touchContext(entry.contextId);
 
+      // Determine format: explicit param > infer from path > default jpeg
+      let format = params?.format || 'jpeg';
+      if (!params?.format && params?.path) {
+        format = params.path.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+      }
+      const quality = format === 'jpeg' ? (params?.quality || 80) : undefined;
+      const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+
+      const screenshotOpts = {
+        fullPage: !!params?.fullPage,
+        type: format,
+        ...(quality !== undefined && { quality })
+      };
+
       if (params?.path) {
-        await entry.page.screenshot({ path: params.path, fullPage: !!params?.fullPage });
-        return { ok: true, result: { path: params.path } };
+        await entry.page.screenshot({ ...screenshotOpts, path: params.path });
+        return { ok: true, result: { path: params.path, format } };
       } else {
-        const buffer = await entry.page.screenshot({ fullPage: !!params?.fullPage });
-        return { ok: true, result: { base64: buffer.toString('base64') } };
+        const buffer = await entry.page.screenshot(screenshotOpts);
+        const base64 = `data:${mimeType};base64,${buffer.toString('base64')}`;
+        return { ok: true, result: { base64, format } };
       }
     }
 

@@ -19,10 +19,12 @@ fuel browser:close ctx                           # Cleanup
 
 ## Quick Screenshot
 
-Take a screenshot of any URL in one command - no setup needed:
+Take a screenshot of any URL in one command - no setup needed. Saves to `/tmp` by default:
 
 ```bash
-fuel browser:screenshot --url="http://localhost:3000" [--path=/tmp/shot.png] [--width=375] [--height=812] [--dark] [--full-page]
+fuel browser:screenshot --url="http://localhost:3000"                    # Auto-saves to /tmp/screenshot-xxxx.png
+fuel browser:screenshot --url="http://localhost:3000" /tmp/shot.png      # Custom path
+fuel browser:screenshot --url="http://localhost:3000" --base64           # Get base64 data URI
 ```
 
 ## Core Workflow
@@ -148,22 +150,31 @@ fuel browser:html page1 "div.content"
 
 ### Take Screenshot
 ```bash
-# Quick screenshot (recommended) - no setup needed
+# Quick screenshot (recommended) - saves to /tmp with random filename
+fuel browser:screenshot --url=<url>
+
+# Specify output path
 fuel browser:screenshot --url=<url> /path/to/file.png
 
 # Screenshot existing page
+fuel browser:screenshot <page_id>
 fuel browser:screenshot <page_id> /path/to/file.png
 
-# Get base64 output (omit path)
-fuel browser:screenshot <page_id>
-fuel browser:screenshot --url=<url>
+# Get base64 data URI (use --base64 flag)
+fuel browser:screenshot --url=<url> --base64
+
+# JPEG for smaller file size
+fuel browser:screenshot --url=<url> --format=jpeg /path/to/file.jpg
 ```
 
 Options:
+- `--format=png` - Image format: png (default, lossless) or jpeg (smaller)
+- `--quality=80` - JPEG quality 1-100 (default 80, ignored for PNG)
 - `--full-page` - Capture entire scrollable page
 - `--width=1280` - Viewport width (only with --url)
 - `--height=720` - Viewport height (only with --url)
 - `--dark` - Use dark color scheme (only with --url)
+- `--base64` - Return base64 data URI instead of saving to file
 - `--path=` - Alternative to positional path argument
 
 ### Wait for Condition
@@ -261,9 +272,9 @@ fuel browser:close test
 ## Example: Visual Testing
 
 ```bash
-fuel browser:screenshot --url="http://localhost:3000" --path=/tmp/desktop.png --width=1920 --height=1080
-fuel browser:screenshot --url="http://localhost:3000" --path=/tmp/mobile.png --width=375 --height=812
-fuel browser:screenshot --url="http://localhost:3000" --path=/tmp/dark.png --dark
+fuel browser:screenshot --url="http://localhost:3000" /tmp/desktop.png --width=1920 --height=1080
+fuel browser:screenshot --url="http://localhost:3000" /tmp/mobile.png --width=375 --height=812
+fuel browser:screenshot --url="http://localhost:3000" /tmp/dark.png --dark
 ```
 
 ## Example: SPA Testing

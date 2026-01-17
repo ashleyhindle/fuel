@@ -20,7 +20,9 @@ final class BrowserScreenshotCommand implements IpcMessage, JsonSerializable
         public ?bool $fullPage,
         DateTimeImmutable $timestamp,
         string $instanceId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        public ?string $format = null,
+        public ?int $quality = null
     ) {
         $this->setTimestamp($timestamp);
         $this->setInstanceId($instanceId);
@@ -35,7 +37,9 @@ final class BrowserScreenshotCommand implements IpcMessage, JsonSerializable
             fullPage: $data['fullPage'] ?? null,
             timestamp: new DateTimeImmutable($data['timestamp'] ?? 'now'),
             instanceId: $data['instance_id'] ?? '',
-            requestId: $data['request_id'] ?? null
+            requestId: $data['request_id'] ?? null,
+            format: $data['format'] ?? null,
+            quality: $data['quality'] ?? null
         );
     }
 
@@ -59,6 +63,8 @@ final class BrowserScreenshotCommand implements IpcMessage, JsonSerializable
             'pageId' => $this->pageId,
             'path' => $this->path,
             'fullPage' => $this->fullPage,
+            'format' => $this->format,
+            'quality' => $this->quality,
         ];
     }
 }

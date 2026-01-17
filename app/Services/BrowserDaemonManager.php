@@ -463,7 +463,7 @@ class BrowserDaemonManager
     /**
      * Take a screenshot of a page
      */
-    public function screenshot(string $pageId, ?string $path = null, bool $fullPage = false): array
+    public function screenshot(string $pageId, ?string $path = null, bool $fullPage = false, ?string $format = null, ?int $quality = null): array
     {
         $params = [
             'pageId' => $pageId,
@@ -472,6 +472,14 @@ class BrowserDaemonManager
 
         if ($path !== null) {
             $params['path'] = $path;
+        }
+
+        if ($format !== null) {
+            $params['format'] = $format;
+        }
+
+        if ($quality !== null) {
+            $params['quality'] = $quality;
         }
 
         return $this->sendRequest('screenshot', $params);

@@ -244,7 +244,9 @@ final readonly class BrowserCommandHandler
                 $result = $this->browserManager->screenshot(
                     $message->pageId,
                     $message->path,
-                    $message->fullPage ?? false
+                    $message->fullPage ?? false,
+                    $message->format,
+                    $message->quality
                 );
 
                 // Send success response

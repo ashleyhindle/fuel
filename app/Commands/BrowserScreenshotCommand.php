@@ -22,13 +22,16 @@ class BrowserScreenshotCommand extends Command
 
     protected $signature = 'browser:screenshot
         {page_id? : Page ID to screenshot (optional if --url provided)}
-        {path? : Path to save screenshot (omit to return base64)}
+        {path? : Path to save screenshot (omit for auto-generated temp file)}
         {--url= : URL to screenshot (creates temporary context, takes screenshot, closes)}
         {--path= : Path to save screenshot (alternative to positional argument)}
+        {--format=png : Image format: png (default, lossless) or jpeg (smaller)}
+        {--quality=80 : JPEG quality 1-100 (default 80, ignored for PNG)}
         {--full-page : Capture full scrollable page}
         {--width=1280 : Viewport width (only with --url)}
         {--height=720 : Viewport height (only with --url)}
         {--dark : Use dark color scheme (only with --url)}
+        {--base64 : Return base64 data URI instead of saving to file}
         {--json : Output as JSON}';
 
     protected $description = 'Take a screenshot of a browser page via the consume daemon';
@@ -47,6 +50,12 @@ class BrowserScreenshotCommand extends Command
 
     private ?string $colorScheme = null;
 
+    private string $format = 'png';
+
+    private int $quality = 80;
+
+    private bool $base64 = false;
+
     /**
      * Handle the command - either quick screenshot with URL or existing page screenshot.
      */
@@ -54,6 +63,9 @@ class BrowserScreenshotCommand extends Command
     {
         $this->url = $this->option('url');
         $this->fullPage = (bool) $this->option('full-page');
+        $this->format = $this->option('format') ?? 'png';
+        $this->quality = (int) ($this->option('quality') ?? 80);
+        $this->base64 = (bool) $this->option('base64');
 
         // When --url is provided, first positional is path (no page_id needed)
         // Otherwise, first positional is page_id and second is path
@@ -64,6 +76,12 @@ class BrowserScreenshotCommand extends Command
             $this->pageId = $this->argument('page_id');
             $this->path = $this->argument('path') ?? $this->option('path');
         }
+
+        // If no path and not requesting base64, generate a temp file path
+        if ($this->path === null && ! $this->base64) {
+            $this->path = '/tmp/screenshot-'.substr(md5(uniqid()), 0, 8).'.'.$this->format;
+        }
+
         $this->width = (int) $this->option('width');
         $this->height = (int) $this->option('height');
         $this->colorScheme = $this->option('dark') ? 'dark' : 'light';
@@ -159,7 +177,9 @@ class BrowserScreenshotCommand extends Command
                 fullPage: $this->fullPage,
                 timestamp: new DateTimeImmutable,
                 instanceId: $client->getInstanceId(),
-                requestId: $requestId
+                requestId: $requestId,
+                format: $this->format,
+                quality: $this->quality
             ));
 
             $response = $this->waitForResponse($client, $requestId, 30);
@@ -216,7 +236,9 @@ class BrowserScreenshotCommand extends Command
                 fullPage: $this->fullPage,
                 timestamp: new DateTimeImmutable,
                 instanceId: $client->getInstanceId(),
-                requestId: $requestId
+                requestId: $requestId,
+                format: $this->format,
+                quality: $this->quality
             ));
 
             $response = $this->waitForResponse($client, $requestId, 30);
@@ -302,11 +324,13 @@ class BrowserScreenshotCommand extends Command
                 'full_page' => $this->fullPage,
                 'result' => $response->result,
             ]);
+        } elseif ($this->base64 && isset($response->result['base64'])) {
+            // --base64 flag: output raw base64 data URI
+            $this->line($response->result['base64']);
         } elseif ($this->path !== null) {
+            // Default: save to file and output path
             $savedPath = $response->result['path'] ?? $this->path;
             $this->info(sprintf('Screenshot saved to %s', $savedPath));
-        } elseif (isset($response->result['base64'])) {
-            $this->line($response->result['base64']);
         } else {
             $this->info('Screenshot captured successfully');
             if ($response->result !== null) {
