@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\TaskStatus;
+use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 
@@ -8,6 +9,7 @@ use Illuminate\Support\Facades\Artisan;
 describe('close command', function (): void {
     beforeEach(function (): void {
         $this->taskService = app(TaskService::class);
+        $this->runService = app(RunService::class);
     });
 
     it('marks a task as done with reason "closed"', function (): void {
@@ -74,6 +76,9 @@ describe('close command', function (): void {
         $task = $this->taskService->create(['title' => 'Task with commit']);
         $commitHash = 'abc123def456';
 
+        // Create a run before calling close (which calls done)
+        $this->runService->logRun($task->short_id, ['agent' => 'test-agent']);
+
         $this->artisan('close', [
             'ids' => [$task->short_id],
             '--commit' => $commitHash,
@@ -92,6 +97,9 @@ describe('close command', function (): void {
     it('outputs commit hash in JSON when --commit flag is used with --json', function (): void {
         $task = $this->taskService->create(['title' => 'JSON task with commit']);
         $commitHash = 'xyz789abc123';
+
+        // Create a run before calling close (which calls done)
+        $this->runService->logRun($task->short_id, ['agent' => 'test-agent']);
 
         Artisan::call('close', [
             'ids' => [$task->short_id],
