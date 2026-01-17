@@ -18,7 +18,6 @@ class EpicUpdateCommand extends Command
 
     protected $signature = 'epic:update
         {id : The epic ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--title= : Update epic title}
         {--description= : Update epic description}

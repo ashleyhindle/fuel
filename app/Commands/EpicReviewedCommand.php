@@ -15,7 +15,6 @@ class EpicReviewedCommand extends Command
 
     protected $signature = 'epic:reviewed
         {id : The epic ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Mark an epic as reviewed';

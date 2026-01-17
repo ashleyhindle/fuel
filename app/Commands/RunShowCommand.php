@@ -22,7 +22,6 @@ class RunShowCommand extends Command
 
     protected $signature = 'run:show
         {id : The run ID (e.g., run-abc123)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--raw : Show raw output instead of formatted}';
 

@@ -18,7 +18,6 @@ class TasksCommand extends Command
     use RendersBoardColumns;
 
     protected $signature = 'tasks
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--status= : Filter by status (open|done)}
         {--type= : Filter by type (bug|fix|feature|task|epic|chore|docs|test|refactor)}

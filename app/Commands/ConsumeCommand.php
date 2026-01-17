@@ -41,9 +41,6 @@ class ConsumeCommand extends Command
     use RendersBoardColumns;
 
     protected $signature = 'consume
-        {--cwd= : Working directory (defaults to current directory)}
-        {--interval=5 : Check interval in seconds when idle}
-        {--agent= : Agent name to use (overrides config-based routing)}
         {--prompt=Consume one task from fuel, then land the plane : Prompt to send to agent}
         {--health : Show agent health status and exit}
         {--review : Enable automatic review of completed work}
@@ -267,9 +264,6 @@ class ConsumeCommand extends Command
                 }
             }
         }
-
-        max(1, (int) $this->option('interval'));
-        $this->option('agent');
 
         // Register ProcessManager signal handlers first
         try {

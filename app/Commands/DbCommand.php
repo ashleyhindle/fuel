@@ -13,7 +13,6 @@ class DbCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'db
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Open SQLite database in TablePlus';

@@ -16,7 +16,6 @@ class ReviewsCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'reviews
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--all : Show all reviews}
         {--pending : Show only pending reviews}

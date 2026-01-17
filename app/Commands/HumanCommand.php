@@ -21,7 +21,6 @@ class HumanCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'human
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--once : Show list once and exit (non-interactive mode)}';
 

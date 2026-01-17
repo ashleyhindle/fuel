@@ -15,7 +15,6 @@ class StartCommand extends Command
 
     protected $signature = 'start
         {id : The task ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Claim a task (set status to in_progress)';

@@ -19,8 +19,7 @@ class EpicAddCommand extends Command
         {title : The epic title}
         {--description= : Epic description}
         {--selfguided : Create self-guided epic with single iterating task}
-        {--json : Output as JSON}
-        {--cwd= : Working directory (defaults to current directory)}';
+        {--json : Output as JSON}';
 
     protected $description = 'Add a new epic';
 

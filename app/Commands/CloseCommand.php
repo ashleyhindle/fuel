@@ -10,7 +10,6 @@ class CloseCommand extends Command
 {
     protected $signature = 'close
         {ids* : The task ID(s) (supports partial matching, accepts multiple IDs)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--commit= : Git commit hash to associate with this completion}';
 

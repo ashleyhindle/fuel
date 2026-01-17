@@ -15,7 +15,6 @@ class EpicRejectCommand extends Command
 
     protected $signature = 'epic:reject
         {id : The epic ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--reason= : Reason for rejection}
         {--json : Output as JSON}';
 

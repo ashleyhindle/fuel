@@ -16,8 +16,7 @@ use LaravelZero\Framework\Commands\Command;
 class TriggerReviewCommand extends Command
 {
     protected $signature = 'trigger:review
-        {taskId : The task ID to review}
-        {--cwd= : Working directory (defaults to current directory)}';
+        {taskId : The task ID to review}';
 
     protected $description = 'Trigger a review of a completed task';
 

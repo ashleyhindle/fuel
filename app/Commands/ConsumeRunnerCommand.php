@@ -15,7 +15,6 @@ class ConsumeRunnerCommand extends Command
      * @var string
      */
     protected $signature = 'consume:runner
-        {--interval=5 : Check interval in seconds when idle}
         {--review : Enable automatic review of completed work}
         {--port= : Port number to bind to (overrides config)}';
 

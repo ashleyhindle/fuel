@@ -10,8 +10,7 @@ use LaravelZero\Framework\Commands\Command;
 class GuidelinesCommand extends Command
 {
     protected $signature = 'guidelines
-        {--add : Inject guidelines into AGENTS.md and CLAUDE.md}
-        {--cwd= : Working directory (defaults to current directory)}';
+        {--add : Inject guidelines into AGENTS.md and CLAUDE.md}';
 
     protected $description = 'Output task management guidelines for agent instruction files';
 

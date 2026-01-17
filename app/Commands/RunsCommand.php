@@ -25,7 +25,6 @@ class RunsCommand extends Command
 
     protected $signature = 'runs
         {id : The task ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--raw : Show raw output instead of formatted}
         {--last : Show only the latest run with full output}';

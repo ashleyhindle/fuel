@@ -16,7 +16,6 @@ class ReopenCommand extends Command
 
     protected $signature = 'reopen
         {ids* : The task ID(s) (supports partial matching, accepts multiple IDs)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Reopen one or more done or in_progress tasks (set status back to open)';

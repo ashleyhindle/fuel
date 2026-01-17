@@ -18,7 +18,6 @@ use Throwable;
 class InitCommand extends Command
 {
     protected $signature = 'init
-        {--cwd= : Working directory (defaults to current directory)}
         {--agent= : Agent to use (cursor-agent|claude|opencode)}
         {--model= : Model to use (for agents that support models)}';
 

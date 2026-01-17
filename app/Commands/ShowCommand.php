@@ -26,7 +26,6 @@ class ShowCommand extends Command
 
     protected $signature = 'show
         {id : The task ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--raw : Show raw JSON output instead of formatted}
         {--tail : Continuously tail the live output (like tail -f)}';

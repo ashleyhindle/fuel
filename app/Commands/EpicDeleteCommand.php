@@ -18,7 +18,6 @@ class EpicDeleteCommand extends Command
 
     protected $signature = 'epic:delete
         {id : The epic ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Delete an epic and unlink its tasks';

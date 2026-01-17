@@ -26,7 +26,6 @@ class RunCommand extends Command
 
     protected $signature = 'run
         {id : Task ID to run (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--agent= : Agent name to use (overrides config-based routing)}
         {--prompt= : Custom prompt (defaults to standard consume prompt)}
         {--no-start : Don\'t mark task as in_progress before running}

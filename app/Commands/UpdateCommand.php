@@ -17,7 +17,6 @@ class UpdateCommand extends Command
 
     protected $signature = 'update
         {id : The task ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--title= : Update task title}
         {--description= : Update task description}

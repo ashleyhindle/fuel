@@ -19,7 +19,6 @@ class ReviewCommand extends Command
     protected $signature = 'review
         {id : The task/epic/review ID (supports partial matching)}
         {--diff : Show full diff instead of just stats}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--raw : Show raw stdout output instead of truncated (for review IDs)}
         {--no-prompt : Skip the reviewed prompt (for epic IDs)}';

@@ -20,7 +20,6 @@ class ResumeSessionCommand extends Command
 
     protected $signature = 'resume
         {id : The task ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--run= : Specific run ID to resume (defaults to latest run)}
         {--p|prompt= : Resume with a prompt (headless mode)}';

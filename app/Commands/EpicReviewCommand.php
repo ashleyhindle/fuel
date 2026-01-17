@@ -24,7 +24,6 @@ class EpicReviewCommand extends Command
         {epicId : The epic ID (supports partial matching)}
         {--diff : Show full diff instead of just stats}
         {--no-prompt : Skip the reviewed prompt}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Show epic with commits and diffs';

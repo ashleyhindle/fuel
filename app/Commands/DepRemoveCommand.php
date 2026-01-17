@@ -16,7 +16,6 @@ class DepRemoveCommand extends Command
     protected $signature = 'dep:remove
         {from : Task ID that is blocked (supports partial matching)}
         {to : Task ID it is blocked by (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Remove dependency between tasks';

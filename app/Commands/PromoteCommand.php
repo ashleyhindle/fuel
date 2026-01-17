@@ -16,7 +16,6 @@ class PromoteCommand extends Command
 
     protected $signature = 'promote
         {ids* : The task ID(s) (f-xxx format, supports partial matching, accepts multiple IDs)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--priority= : Task priority (0-4)}
         {--type= : Task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}

@@ -23,7 +23,6 @@ class StatusCommand extends Command
     use RendersBoardColumns;
 
     protected $signature = 'status
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Show task statistics overview';

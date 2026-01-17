@@ -19,7 +19,6 @@ class CompletedCommand extends Command
     use RendersBoardColumns;
 
     protected $signature = 'completed
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--selfguided : Filter tasks that went through selfguided loop}
         {--limit=15 : Number of completed tasks to show}';

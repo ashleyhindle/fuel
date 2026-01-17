@@ -23,7 +23,6 @@ class EpicShowCommand extends Command
 
     protected $signature = 'epic:show
         {id : The epic ID (supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Show epic details including linked tasks';

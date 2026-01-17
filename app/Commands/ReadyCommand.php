@@ -15,7 +15,6 @@ class ReadyCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'ready
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'Show all open (non-done) tasks';

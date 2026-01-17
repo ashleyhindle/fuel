@@ -20,7 +20,6 @@ class ReviewShowCommand extends Command
 
     protected $signature = 'review:show
         {id : The review ID (r-xxxxx, supports partial matching)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--raw : Show raw stdout output instead of truncated}';
 

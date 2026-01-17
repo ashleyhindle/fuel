@@ -19,7 +19,6 @@ class EpicsCommand extends Command
     use RendersBoardColumns;
 
     protected $signature = 'epics
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}';
 
     protected $description = 'List all epics';

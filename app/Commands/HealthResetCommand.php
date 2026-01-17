@@ -11,8 +11,7 @@ class HealthResetCommand extends Command
 {
     protected $signature = 'health:reset
         {agent? : Agent name to reset, or all if omitted}
-        {--all : Reset all agents}
-        {--cwd= : Working directory (defaults to current directory)}';
+        {--all : Reset all agents}';
 
     protected $description = 'Reset agent health status';
 

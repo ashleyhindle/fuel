@@ -102,7 +102,13 @@ final class DaemonLoop
                 usleep(60000);
             } catch (\Throwable $e) {
                 $this->logException($e);
-                throw $e; // Re-throw to crash visibly rather than silently loop
+
+                // Dev: crash visibly so issues are noticed. Packaged: log and continue
+                if (\Phar::running(false) === '') {
+                    throw $e;
+                }
+
+                // Packaged binary: continue loop, daemon stays alive
             }
         }
     }

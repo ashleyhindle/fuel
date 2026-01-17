@@ -17,7 +17,6 @@ class TreeCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'tree
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--epic= : Filter tasks by epic ID}';
 

@@ -18,7 +18,6 @@ class DoneCommand extends Command
 
     protected $signature = 'done
         {ids* : The task ID(s) (supports partial matching, accepts multiple IDs)}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--reason= : Reason for completion}
         {--commit= : Git commit hash to associate with this completion}';

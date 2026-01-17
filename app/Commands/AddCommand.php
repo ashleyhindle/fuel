@@ -18,7 +18,6 @@ class AddCommand extends Command
 
     protected $signature = 'add
         {title? : The task title}
-        {--cwd= : Working directory (defaults to current directory)}
         {--json : Output as JSON}
         {--d|description= : Task description}
         {--type= : Task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
