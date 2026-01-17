@@ -35,6 +35,7 @@ use App\Ipc\Commands\ResumeCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\Commands\TaskCreateCommand;
+use App\Ipc\Commands\TaskDoneCommand;
 use App\Ipc\Commands\TaskReopenCommand;
 use App\Ipc\Commands\TaskStartCommand;
 use App\Ipc\Events\BlockedTasksEvent;
@@ -145,6 +146,7 @@ final class ConsumeIpcProtocol
                 ConsumeCommandType::HealthReset => HealthResetCommand::fromArray($data),
                 ConsumeCommandType::TaskStart => TaskStartCommand::fromArray($data),
                 ConsumeCommandType::TaskReopen => TaskReopenCommand::fromArray($data),
+                ConsumeCommandType::TaskDone => TaskDoneCommand::fromArray($data),
                 ConsumeCommandType::TaskCreate => TaskCreateCommand::fromArray($data),
                 ConsumeCommandType::DependencyAdd => DependencyAddCommand::fromArray($data),
                 ConsumeCommandType::BrowserCreate => BrowserCreateCommand::fromArray($data),
