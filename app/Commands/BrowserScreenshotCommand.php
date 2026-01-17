@@ -22,8 +22,9 @@ class BrowserScreenshotCommand extends Command
 
     protected $signature = 'browser:screenshot
         {page_id? : Page ID to screenshot (optional if --url provided)}
+        {path? : Path to save the screenshot (optional, returns base64 if omitted)}
         {--url= : URL to screenshot (creates temporary context, takes screenshot, closes)}
-        {--path= : Path to save the screenshot (optional, returns base64 if omitted)}
+        {--path= : Path to save the screenshot (alternative to positional argument)}
         {--full-page : Capture full scrollable page}
         {--width=1280 : Viewport width (only with --url)}
         {--height=720 : Viewport height (only with --url)}
@@ -51,10 +52,18 @@ class BrowserScreenshotCommand extends Command
      */
     public function handle(): int
     {
-        $this->pageId = $this->argument('page_id');
-        $this->path = $this->option('path');
-        $this->fullPage = (bool) $this->option('full-page');
         $this->url = $this->option('url');
+        $this->fullPage = (bool) $this->option('full-page');
+
+        // When --url is provided, first positional is path (no page_id needed)
+        // Otherwise, first positional is page_id and second is path
+        if ($this->url !== null) {
+            $this->pageId = null;
+            $this->path = $this->argument('page_id') ?? $this->argument('path') ?? $this->option('path');
+        } else {
+            $this->pageId = $this->argument('page_id');
+            $this->path = $this->argument('path') ?? $this->option('path');
+        }
         $this->width = (int) $this->option('width');
         $this->height = (int) $this->option('height');
         $this->colorScheme = $this->option('dark') ? 'dark' : 'light';
