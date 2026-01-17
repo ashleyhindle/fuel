@@ -161,7 +161,7 @@ class ProcessSpawner
 - ✅ Injected FuelContext via constructor
 - ✅ All methods fully tested in `tests/Unit/Services/EpicServiceTest.php`
 
-### ✅ Modified: TaskSpawner (f-066a3e)
+### ✅ Modified: TaskSpawner (f-066a3e, f-b9b9a6)
 
 `app/Daemon/TaskSpawner.php`:
 - ✅ When spawning task with epic:
@@ -173,6 +173,20 @@ class ProcessSpawner
 - ✅ Standalone tasks (no epic): if hasActiveMerge(), skip task
 - ✅ Added EpicService dependency injection
 - ✅ Updated AppServiceProvider registration to include EpicService
+
+**Testing (f-b9b9a6):**
+- ✅ Created comprehensive test suite in `tests/Feature/Daemon/TaskSpawnerTest.php`
+- ✅ All 10 test scenarios passing:
+  1. Tasks with Ready mirrors use mirror_path
+  2. Tasks with Pending mirrors are skipped
+  3. Tasks with Creating mirrors are skipped
+  4. Tasks with MergeFailed mirrors are skipped
+  5. Standalone tasks during merge are skipped
+  6. Standalone tasks without merge use project path
+  7. Config disabled forces project path for all
+  8. Tasks with None status use project path
+  9. Tasks with Merging status use project path
+  10. Tasks with null/default status use project path
 
 ### ✅ Modified: Epic Model (f-375c87 & auto-added)
 
@@ -262,6 +276,7 @@ public function hasActiveMerge(): bool
 | `tests/Unit/MirrorStatusTest.php` | New |
 | `tests/Unit/ProcessSpawnerTest.php` | New |
 | `tests/Feature/Commands/MirrorCreateCommandTest.php` | New |
+| `tests/Feature/Daemon/TaskSpawnerTest.php` | New |
 | `tests/Unit/MergeEpicAgentTaskTest.php` | New |
 
 ### Edge Cases
