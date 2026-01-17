@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Commands\Concerns\DetectsElementTarget;
 use App\Ipc\Commands\BrowserWaitCommand as IpcBrowserWaitCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Ipc\IpcMessage;
@@ -11,8 +12,11 @@ use DateTimeImmutable;
 
 class BrowserWaitCommand extends BrowserCommand
 {
+    use DetectsElementTarget;
+
     protected $signature = 'browser:wait
         {page_id : The ID of the page to wait on}
+        {target? : Element ref (@e1), CSS selector, or milliseconds to wait}
         {--selector= : Wait for a CSS selector to appear}
         {--url= : Wait for navigation to a URL (partial match or regex)}
         {--text= : Wait for text to appear on the page}
@@ -22,16 +26,40 @@ class BrowserWaitCommand extends BrowserCommand
 
     protected $description = 'Wait for a condition on a browser page';
 
+    protected ?string $selector = null;
+
+    protected ?string $ref = null;
+
+    protected ?int $delay = null;
+
     public function handle(): int
     {
-        // Validate that exactly one wait condition is provided
-        $selector = $this->option('selector');
+        $target = $this->argument('target');
+        $selectorOption = $this->option('selector');
         $url = $this->option('url');
         $text = $this->option('text');
-        $conditions = array_filter([$selector, $url, $text]);
+
+        // Parse the target argument if provided
+        if ($target !== null) {
+            // Check if target is numeric (milliseconds)
+            if (is_numeric($target)) {
+                $this->delay = (int) $target;
+            } else {
+                // Parse as ref or selector
+                ['selector' => $parsedSelector, 'ref' => $parsedRef] = $this->parseTarget($target);
+                $this->selector = $parsedSelector;
+                $this->ref = $parsedRef;
+            }
+        } elseif ($selectorOption !== null) {
+            // Use --selector option if no target
+            $this->selector = $selectorOption;
+        }
+
+        // Validate that exactly one wait condition is provided
+        $conditions = array_filter([$this->selector, $this->ref, $this->delay, $url, $text]);
 
         if (count($conditions) !== 1) {
-            return $this->outputError('Must provide exactly one of: --selector, --url, or --text');
+            return $this->outputError('Must provide exactly one of: target (ref/selector/milliseconds), --selector, --url, or --text');
         }
 
         return parent::handle();
@@ -43,7 +71,6 @@ class BrowserWaitCommand extends BrowserCommand
         DateTimeImmutable $timestamp
     ): IpcMessage {
         $pageId = $this->argument('page_id');
-        $selector = $this->option('selector');
         $url = $this->option('url');
         $text = $this->option('text');
         $state = $this->option('state');
@@ -51,7 +78,9 @@ class BrowserWaitCommand extends BrowserCommand
 
         return new IpcBrowserWaitCommand(
             pageId: $pageId,
-            selector: $selector,
+            selector: $this->selector,
+            ref: $this->ref,
+            delay: $this->delay,
             url: $url,
             text: $text,
             state: $state,
@@ -88,6 +117,12 @@ class BrowserWaitCommand extends BrowserCommand
                 switch ($result['type']) {
                     case 'selector':
                         $this->info('Found selector: '.($result['selector'] ?? 'N/A'));
+                        break;
+                    case 'ref':
+                        $this->info('Found ref: '.($result['ref'] ?? 'N/A'));
+                        break;
+                    case 'delay':
+                        $this->info('Waited for: '.($result['delay'] ?? 'N/A').'ms');
                         break;
                     case 'url':
                         $this->info('Navigated to: '.($result['url'] ?? 'N/A'));

@@ -17,6 +17,8 @@ final class BrowserWaitCommand implements IpcMessage, JsonSerializable
     public function __construct(
         public readonly string $pageId,
         public readonly ?string $selector = null,
+        public readonly ?string $ref = null,
+        public readonly ?int $delay = null,
         public readonly ?string $url = null,
         public readonly ?string $text = null,
         public readonly string $state = 'visible',
@@ -35,6 +37,8 @@ final class BrowserWaitCommand implements IpcMessage, JsonSerializable
         return new self(
             pageId: $data['page_id'] ?? '',
             selector: $data['selector'] ?? null,
+            ref: $data['ref'] ?? null,
+            delay: isset($data['delay']) ? (int) $data['delay'] : null,
             url: $data['url'] ?? null,
             text: $data['text'] ?? null,
             state: $data['state'] ?? 'visible',
@@ -64,6 +68,8 @@ final class BrowserWaitCommand implements IpcMessage, JsonSerializable
             'request_id' => $this->requestId,
             'page_id' => $this->pageId,
             'selector' => $this->selector,
+            'ref' => $this->ref,
+            'delay' => $this->delay,
             'url' => $this->url,
             'text' => $this->text,
             'state' => $this->state,

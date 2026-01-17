@@ -5,18 +5,21 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
+use App\Commands\Concerns\RendersBoardColumns;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Services\EpicService;
 use App\Services\RunService;
 use App\Services\TaskService;
+use App\TUI\Table;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
 
 class EpicShowCommand extends Command
 {
     use HandlesJsonOutput;
+    use RendersBoardColumns;
 
     protected $signature = 'epic:show
         {id : The epic ID (supports partial matching)}
@@ -112,30 +115,57 @@ class EpicShowCommand extends Command
 
             $this->line('  Created: '.($epic->created_at ?? ''));
 
-            // Display linked tasks in compact format (like tree command)
+            // Display linked tasks in table format
             $this->newLine();
             if (empty($sortedTasks)) {
                 $this->line('  <fg=yellow>No tasks linked to this epic.</>');
             } else {
-                $this->line(sprintf('  Linked Tasks (%d):', count($sortedTasks)));
+                $this->info(sprintf('Linked Tasks (%d):', count($sortedTasks)));
                 $this->newLine();
-                foreach ($sortedTasks as $task) {
-                    $isBlocked = in_array($task->short_id, $blockedIds, true);
-                    $priority = $task->priority ?? 2;
-                    $complexity = $this->getComplexityChar($task);
-                    $displayStatus = $this->getDisplayStatus($task, $isBlocked);
-                    $statusColor = $this->hasNeedsHumanLabel($task) ? 'magenta' : 'gray';
 
-                    $this->line(sprintf(
-                        '  <fg=cyan>[P%d·%s]</> %s %s <fg=%s>(%s)</>',
-                        $priority,
-                        $complexity,
+                $headers = ['ID', 'Title', 'Status', 'Type', 'Priority', 'Complexity', 'Agent', 'Created'];
+
+                // Column priorities: lower = more important, higher gets dropped first
+                $columnPriorities = [
+                    1,  // ID - keep
+                    1,  // Title - keep
+                    2,  // Status - keep
+                    5,  // Type - drop if needed
+                    4,  // Priority - drop if needed
+                    6,  // Complexity - drop if needed
+                    3,  // Agent - drop if needed
+                    7,  // Created - drop first
+                ];
+
+                $rows = array_map(function (Task $task) use ($blockedIds, $runService): array {
+                    $isBlocked = in_array($task->short_id, $blockedIds, true);
+                    $displayStatus = $this->getDisplayStatus($task, $isBlocked);
+
+                    // Get latest run for agent info
+                    $latestRun = $runService->getLatestRun($task->short_id);
+                    $agent = $latestRun?->agent ?? '';
+
+                    // Get first line of title, then truncate if needed
+                    $title = strtok($task->title, "\r\n") ?: $task->title;
+                    if (mb_strlen($title) > 60) {
+                        $title = mb_substr($title, 0, 57).'...';
+                    }
+
+                    return [
                         $task->short_id,
-                        $task->title,
-                        $statusColor,
-                        $displayStatus
-                    ));
-                }
+                        $title,
+                        $displayStatus,
+                        $task->type ?? 'task',
+                        'P'.($task->priority ?? 2),
+                        $task->complexity ?? 'simple',
+                        $agent,
+                        $this->formatDate($task->created_at),
+                    ];
+                }, $sortedTasks);
+
+                $table = new Table;
+                $terminalWidth = $this->getTerminalWidth();
+                $table->render($headers, $rows, $this->output, $columnPriorities, $terminalWidth);
             }
 
             return self::SUCCESS;
@@ -143,6 +173,54 @@ class EpicShowCommand extends Command
             return $this->outputError($e->getMessage());
         } catch (\Exception $e) {
             return $this->outputError('Failed to fetch epic: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Format a date string into a human-readable format.
+     */
+    private function formatDate(\DateTimeInterface $date): string
+    {
+        try {
+            $now = new \DateTime;
+            $diff = $now->diff($date);
+
+            // If less than 1 minute ago
+            if ($diff->days === 0 && $diff->h === 0 && $diff->i === 0) {
+                return 'just now';
+            }
+
+            // If less than 1 hour ago
+            if ($diff->days === 0 && $diff->h === 0) {
+                $minutes = $diff->i;
+
+                return $minutes.'m ago';
+            }
+
+            // If less than 24 hours ago
+            if ($diff->days === 0) {
+                $hours = $diff->h;
+
+                return $hours.'h ago';
+            }
+
+            // If less than 7 days ago
+            if ($diff->days < 7) {
+                $days = $diff->days;
+
+                return $days.'d ago';
+            }
+
+            // If same year, show "Mon Day" (e.g., "Jan 7")
+            if ($date->format('Y') === $now->format('Y')) {
+                return $date->format('M j');
+            }
+
+            // Different year, show "Mon Day, Year" (e.g., "Jan 7, 2025")
+            return $date->format('M j, Y');
+        } catch (\Exception) {
+            // Fallback to original if parsing fails
+            return $date->format('Y-m-d H:i:s');
         }
     }
 

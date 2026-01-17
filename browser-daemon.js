@@ -238,6 +238,7 @@ async function handle(method, params) {
     case "snapshot": {
       const pageId = params?.pageId;
       const interactiveOnly = params?.interactiveOnly || false;
+      const scope = params?.scope;
       const entry = pages.get(pageId);
       if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
@@ -251,7 +252,7 @@ async function handle(method, params) {
       ]);
 
       // Get accessibility tree using new ariaSnapshot API (page.accessibility was removed in Playwright 1.57)
-      const locator = entry.page.locator(':root');
+      const locator = scope ? entry.page.locator(scope) : entry.page.locator(':root');
       const ariaYaml = await locator.ariaSnapshot();
 
       // Parse YAML-like output and assign refs
@@ -569,6 +570,8 @@ async function handle(method, params) {
     case "wait": {
       const pageId = params?.pageId;
       const selector = params?.selector;
+      const ref = params?.ref;
+      const delay = params?.delay;
       const url = params?.url;
       const text = params?.text;
       const state = params?.state || "visible"; // visible|hidden|attached|detached
@@ -580,15 +583,45 @@ async function handle(method, params) {
       touchContext(entry.contextId);
 
       // Validate that exactly one wait condition is provided
-      const conditions = [selector, url, text].filter(Boolean).length;
+      const conditions = [selector, ref, delay, url, text].filter(Boolean).length;
       if (conditions !== 1) {
-        throw Object.assign(new Error(`Must provide exactly one of: selector, url, or text`), { code: "BAD_PARAMS" });
+        throw Object.assign(new Error(`Must provide exactly one of: selector, ref, delay, url, or text`), { code: "BAD_PARAMS" });
       }
 
       let result = { waited: true };
 
       try {
-        if (selector) {
+        if (delay) {
+          // Simple delay wait in milliseconds
+          await new Promise(resolve => setTimeout(resolve, delay));
+          result.type = "delay";
+          result.delay = delay;
+        } else if (ref) {
+          // Wait for element by ref from snapshot
+          const snapshotData = pageSnapshots.get(pageId);
+          if (!snapshotData) {
+            throw Object.assign(new Error(`No snapshot found for page ${pageId}. Run browser:snapshot first.`), { code: "NO_SNAPSHOT" });
+          }
+
+          const node = snapshotData.refMap.get(ref);
+          if (!node) {
+            throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
+          }
+
+          // Use role and name to locate the element, with nth() for duplicates
+          if (node.role) {
+            let locator = node.name
+              ? entry.page.getByRole(node.role, { name: node.name, exact: true })
+              : entry.page.getByRole(node.role);
+            // Use nth() to avoid strict mode violations with duplicates
+            locator = locator.nth(node.index);
+            await locator.waitFor({ state, timeout });
+            result.type = "ref";
+            result.ref = ref;
+          } else {
+            throw Object.assign(new Error(`Cannot wait for ref ${ref}: node lacks role for location`), { code: "UNWATCHABLE_REF" });
+          }
+        } else if (selector) {
           // Wait for selector with specified state
           await entry.page.waitForSelector(selector, { state, timeout });
           result.type = "selector";
@@ -630,6 +663,71 @@ async function handle(method, params) {
           pages: Array.from(pages.keys()),
         },
       };
+    }
+
+    case "scroll": {
+      const pageId = params?.pageId;
+      const direction = params?.direction; // up|down|left|right
+      const amount = params?.amount || 100;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      let deltaX = 0, deltaY = 0;
+      switch (direction) {
+        case 'up': deltaY = -amount; break;
+        case 'down': deltaY = amount; break;
+        case 'left': deltaX = -amount; break;
+        case 'right': deltaX = amount; break;
+        default: throw Object.assign(new Error(`Invalid direction: ${direction}`), { code: "BAD_PARAMS" });
+      }
+
+      await entry.page.mouse.wheel(deltaX, deltaY);
+      return { ok: true, result: { scrolled: true, direction, amount } };
+    }
+
+    case "scrollIntoView": {
+      const pageId = params?.pageId;
+      const selector = params?.selector;
+      const ref = params?.ref;
+
+      const entry = pages.get(pageId);
+      if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
+
+      touchContext(entry.contextId);
+
+      if (ref) {
+        // Same ref resolution as click case
+        const snapshotData = pageSnapshots.get(pageId);
+        if (!snapshotData) {
+          throw Object.assign(new Error(`No snapshot found for page ${pageId}. Run browser:snapshot first.`), { code: "NO_SNAPSHOT" });
+        }
+
+        const node = snapshotData.refMap.get(ref);
+        if (!node) {
+          throw Object.assign(new Error(`Unknown ref ${ref}. Available refs from last snapshot: ${Array.from(snapshotData.refMap.keys()).join(', ')}`), { code: "BAD_REF" });
+        }
+
+        // Use role and name to locate the element, with nth() for duplicates
+        if (node.role) {
+          let locator = node.name
+            ? entry.page.getByRole(node.role, { name: node.name, exact: true })
+            : entry.page.getByRole(node.role);
+          // Always use nth() to avoid strict mode violations with duplicates
+          locator = locator.nth(node.index);
+          await locator.scrollIntoViewIfNeeded();
+        } else {
+          throw Object.assign(new Error(`Cannot scroll ref ${ref}: node lacks role for location`), { code: "UNSCROLLABLE_REF" });
+        }
+      } else if (selector) {
+        await entry.page.locator(selector).scrollIntoViewIfNeeded();
+      } else {
+        throw Object.assign(new Error(`Must provide either selector or ref`), { code: "BAD_PARAMS" });
+      }
+
+      return { ok: true, result: { scrolledIntoView: true } };
     }
 
     default:

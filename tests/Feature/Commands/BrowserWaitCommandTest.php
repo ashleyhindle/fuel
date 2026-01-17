@@ -2,17 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Ipc\Commands\BrowserWaitCommand;
 use App\Ipc\Events\BrowserResponseEvent;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
 
-it('sends wait command with selector to daemon', function () {
+it('sends wait command with selector to daemon', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
     if (! is_dir($pidDir)) {
         mkdir($pidDir, 0755, true);
     }
+
     file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
     // Create mock IPC client
@@ -23,17 +25,18 @@ it('sends wait command with selector to daemon', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
-        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
+        expect($command)->toBeInstanceOf(BrowserWaitCommand::class);
         expect($command->pageId)->toBe('test-page');
         expect($command->selector)->toBe('.submit-button');
         expect($command->url)->toBeNull();
         expect($command->text)->toBeNull();
         expect($command->state)->toBe('visible');
         expect($command->timeout)->toBe(30000);
+
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -71,13 +74,14 @@ it('sends wait command with selector to daemon', function () {
         ->assertExitCode(0);
 });
 
-it('sends wait command with URL to daemon', function () {
+it('sends wait command with URL to daemon', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
     if (! is_dir($pidDir)) {
         mkdir($pidDir, 0755, true);
     }
+
     file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
     // Create mock IPC client
@@ -88,15 +92,16 @@ it('sends wait command with URL to daemon', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
-        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
+        expect($command)->toBeInstanceOf(BrowserWaitCommand::class);
         expect($command->pageId)->toBe('test-page');
         expect($command->selector)->toBeNull();
         expect($command->url)->toBe('https://example.com/success');
         expect($command->text)->toBeNull();
+
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -134,13 +139,14 @@ it('sends wait command with URL to daemon', function () {
         ->assertExitCode(0);
 });
 
-it('sends wait command with text to daemon', function () {
+it('sends wait command with text to daemon', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
     if (! is_dir($pidDir)) {
         mkdir($pidDir, 0755, true);
     }
+
     file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
     // Create mock IPC client
@@ -151,17 +157,18 @@ it('sends wait command with text to daemon', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
-        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
+        expect($command)->toBeInstanceOf(BrowserWaitCommand::class);
         expect($command->pageId)->toBe('test-page');
         expect($command->selector)->toBeNull();
         expect($command->url)->toBeNull();
         expect($command->text)->toBe('Welcome to the site');
         expect($command->state)->toBe('visible');
         expect($command->timeout)->toBe(5000);
+
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -200,31 +207,32 @@ it('sends wait command with text to daemon', function () {
         ->assertExitCode(0);
 });
 
-it('fails when no wait condition is provided', function () {
+it('fails when no wait condition is provided', function (): void {
     $this->artisan('browser:wait', [
         'page_id' => 'test-page',
     ])
-        ->expectsOutputToContain('Must provide exactly one of: --selector, --url, or --text')
+        ->expectsOutputToContain('Must provide exactly one of: target (ref/selector/milliseconds), --selector, --url, or --text')
         ->assertExitCode(1);
 });
 
-it('fails when multiple wait conditions are provided', function () {
+it('fails when multiple wait conditions are provided', function (): void {
     $this->artisan('browser:wait', [
         'page_id' => 'test-page',
         '--selector' => '.button',
         '--url' => 'https://example.com',
     ])
-        ->expectsOutputToContain('Must provide exactly one of: --selector, --url, or --text')
+        ->expectsOutputToContain('Must provide exactly one of: target (ref/selector/milliseconds), --selector, --url, or --text')
         ->assertExitCode(1);
 });
 
-it('outputs JSON when --json flag is provided', function () {
+it('outputs JSON when --json flag is provided', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
     if (! is_dir($pidDir)) {
         mkdir($pidDir, 0755, true);
     }
+
     file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
     // Create mock IPC client
@@ -235,10 +243,10 @@ it('outputs JSON when --json flag is provided', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -283,13 +291,14 @@ it('outputs JSON when --json flag is provided', function () {
         ->assertExitCode(0);
 });
 
-it('handles timeout errors gracefully', function () {
+it('handles timeout errors gracefully', function (): void {
     // Create PID file for the test
     $pidFile = app(FuelContext::class)->getPidFilePath();
     $pidDir = dirname($pidFile);
     if (! is_dir($pidDir)) {
         mkdir($pidDir, 0755, true);
     }
+
     file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
 
     // Create mock IPC client
@@ -300,10 +309,10 @@ it('handles timeout errors gracefully', function () {
     $ipcClient->shouldReceive('connect')->once();
     $ipcClient->shouldReceive('attach')->once();
     $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
-    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch): void {
         $requestIdToMatch = $command->requestId();
     });
-    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount): array {
         $callCount++;
         if ($callCount === 1) {
             return [
@@ -336,7 +345,7 @@ it('handles timeout errors gracefully', function () {
         ->assertExitCode(1);
 });
 
-it('shows error when daemon is not running', function () {
+it('shows error when daemon is not running', function (): void {
     // Get the PID file path from test context
     $pidFile = app(FuelContext::class)->getPidFilePath();
 
@@ -351,5 +360,210 @@ it('shows error when daemon is not running', function () {
 
     $this->artisan('browser:wait', ['page_id' => 'test-page', '--selector' => '.button'])
         ->expectsOutputToContain('Consume daemon is not running')
+        ->assertExitCode(1);
+});
+
+it('waits for element ref from snapshot', function () {
+    // Create PID file for the test
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $pidDir = dirname($pidFile);
+    if (! is_dir($pidDir)) {
+        mkdir($pidDir, 0755, true);
+    }
+
+    file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
+
+    // Create mock IPC client
+    $requestIdToMatch = null;
+    $callCount = 0;
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class);
+    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $ipcClient->shouldReceive('connect')->once();
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
+        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+        expect($command->pageId)->toBe('test-page');
+        expect($command->ref)->toBe('@e1');
+        expect($command->selector)->toBeNull();
+        expect($command->delay)->toBeNull();
+
+        $requestIdToMatch = $command->requestId();
+    });
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: [
+                        'waited' => true,
+                        'type' => 'ref',
+                        'ref' => '@e1',
+                    ],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
+    $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('disconnect')->once();
+
+    app()->instance(ConsumeIpcClient::class, $ipcClient);
+
+    // Execute command
+    $this->artisan('browser:wait', [
+        'page_id' => 'test-page',
+        'target' => '@e1',
+    ])
+        ->expectsOutputToContain('Wait completed successfully')
+        ->expectsOutputToContain('Type: ref')
+        ->expectsOutputToContain('Found ref: @e1')
+        ->assertExitCode(0);
+});
+
+it('waits for milliseconds when target is numeric', function () {
+    // Create PID file for the test
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $pidDir = dirname($pidFile);
+    if (! is_dir($pidDir)) {
+        mkdir($pidDir, 0755, true);
+    }
+
+    file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
+
+    // Create mock IPC client
+    $requestIdToMatch = null;
+    $callCount = 0;
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class);
+    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $ipcClient->shouldReceive('connect')->once();
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
+        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+        expect($command->pageId)->toBe('test-page');
+        expect($command->delay)->toBe(2000);
+        expect($command->selector)->toBeNull();
+        expect($command->ref)->toBeNull();
+
+        $requestIdToMatch = $command->requestId();
+    });
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: [
+                        'waited' => true,
+                        'type' => 'delay',
+                        'delay' => 2000,
+                    ],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
+    $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('disconnect')->once();
+
+    app()->instance(ConsumeIpcClient::class, $ipcClient);
+
+    // Execute command
+    $this->artisan('browser:wait', [
+        'page_id' => 'test-page',
+        'target' => '2000',
+    ])
+        ->expectsOutputToContain('Wait completed successfully')
+        ->expectsOutputToContain('Type: delay')
+        ->expectsOutputToContain('Waited for: 2000ms')
+        ->assertExitCode(0);
+});
+
+it('waits for CSS selector when target is string', function () {
+    // Create PID file for the test
+    $pidFile = app(FuelContext::class)->getPidFilePath();
+    $pidDir = dirname($pidFile);
+    if (! is_dir($pidDir)) {
+        mkdir($pidDir, 0755, true);
+    }
+
+    file_put_contents($pidFile, json_encode(['pid' => getmypid(), 'port' => 9999]));
+
+    // Create mock IPC client
+    $requestIdToMatch = null;
+    $callCount = 0;
+    $ipcClient = Mockery::mock(ConsumeIpcClient::class);
+    $ipcClient->shouldReceive('isRunnerAlive')->andReturn(true);
+    $ipcClient->shouldReceive('connect')->once();
+    $ipcClient->shouldReceive('attach')->once();
+    $ipcClient->shouldReceive('getInstanceId')->andReturn('test-instance-id');
+    $ipcClient->shouldReceive('sendCommand')->once()->andReturnUsing(function ($command) use (&$requestIdToMatch) {
+        expect($command)->toBeInstanceOf(App\Ipc\Commands\BrowserWaitCommand::class);
+        expect($command->pageId)->toBe('test-page');
+        expect($command->selector)->toBe('div.loading');
+        expect($command->ref)->toBeNull();
+        expect($command->delay)->toBeNull();
+
+        $requestIdToMatch = $command->requestId();
+    });
+    $ipcClient->shouldReceive('pollEvents')->andReturnUsing(function () use (&$requestIdToMatch, &$callCount) {
+        $callCount++;
+        if ($callCount === 1) {
+            return [
+                new BrowserResponseEvent(
+                    success: true,
+                    result: [
+                        'waited' => true,
+                        'type' => 'selector',
+                        'selector' => 'div.loading',
+                    ],
+                    error: null,
+                    errorCode: null,
+                    timestamp: new \DateTimeImmutable,
+                    instanceId: 'test-instance',
+                    requestId: $requestIdToMatch
+                ),
+            ];
+        }
+
+        return [];
+    });
+    $ipcClient->shouldReceive('detach')->once();
+    $ipcClient->shouldReceive('disconnect')->once();
+
+    app()->instance(ConsumeIpcClient::class, $ipcClient);
+
+    // Execute command
+    $this->artisan('browser:wait', [
+        'page_id' => 'test-page',
+        'target' => 'div.loading',
+    ])
+        ->expectsOutputToContain('Wait completed successfully')
+        ->expectsOutputToContain('Type: selector')
+        ->expectsOutputToContain('Found selector: div.loading')
+        ->assertExitCode(0);
+});
+
+it('fails when target and options are mixed', function () {
+    $this->artisan('browser:wait', [
+        'page_id' => 'test-page',
+        'target' => '@e1',
+        '--text' => 'Success',
+    ])
+        ->expectsOutputToContain('Must provide exactly one of')
         ->assertExitCode(1);
 });

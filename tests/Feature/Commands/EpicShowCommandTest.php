@@ -169,8 +169,13 @@ describe('epic:show command', function (): void {
         expect($output)->toContain($task2->short_id);
         expect($output)->toContain('Task 2');
 
-        // Verify compact format with priority and complexity indicators
-        expect($output)->toMatch('/\[P\d·[tsmc]\]/'); // [P1·s] format
+        // Verify table format headers
+        expect($output)->toContain('│ ID');
+        expect($output)->toContain('│ Title');
+        expect($output)->toContain('│ Status');
+        // Verify priority values in table
+        expect($output)->toContain('P1');
+        expect($output)->toContain('P2');
 
         // Verify both task statuses are in the output (checking for status values)
         expect($output)->toContain('open');

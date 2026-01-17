@@ -42,6 +42,8 @@ enum ConsumeCommandType: string
     case BrowserWait = 'browser_wait';
     case BrowserClose = 'browser_close';
     case BrowserStatus = 'browser_status';
+    case BrowserScrollIntoView = 'browser_scroll_into_view';
+    case BrowserScroll = 'browser_scroll';
 
     public static function fromString(string $value): self
     {
