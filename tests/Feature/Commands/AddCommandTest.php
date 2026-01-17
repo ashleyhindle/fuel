@@ -601,4 +601,128 @@ describe('add command', function (): void {
         expect($task['labels'])->toBe(['test', 'piped']);
         expect($task['complexity'])->toBe('moderate');
     });
+
+    it('creates task with --status=paused', function (): void {
+        Artisan::call('add', [
+            'title' => 'Paused task',
+            '--status' => 'paused',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Paused task');
+        expect($task['status'])->toBe('paused');
+    });
+
+    it('creates task with --status=in_progress', function (): void {
+        Artisan::call('add', [
+            'title' => 'In progress task',
+            '--status' => 'in_progress',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('In progress task');
+        expect($task['status'])->toBe('in_progress');
+    });
+
+    it('creates task with --status=review', function (): void {
+        Artisan::call('add', [
+            'title' => 'Review task',
+            '--status' => 'review',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Review task');
+        expect($task['status'])->toBe('review');
+    });
+
+    it('creates task with --status=done', function (): void {
+        Artisan::call('add', [
+            'title' => 'Done task',
+            '--status' => 'done',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Done task');
+        expect($task['status'])->toBe('done');
+    });
+
+    it('creates task with --status=cancelled', function (): void {
+        Artisan::call('add', [
+            'title' => 'Cancelled task',
+            '--status' => 'cancelled',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Cancelled task');
+        expect($task['status'])->toBe('cancelled');
+    });
+
+    it('creates task with --status=someday', function (): void {
+        Artisan::call('add', [
+            'title' => 'Someday task',
+            '--status' => 'someday',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Someday task');
+        expect($task['status'])->toBe('someday');
+    });
+
+    it('validates --status enum values', function (): void {
+        $this->artisan('add', [
+            'title' => 'Invalid status task',
+            '--status' => 'invalid-status',
+        ])
+            ->expectsOutputToContain('Invalid status')
+            ->assertExitCode(1);
+    });
+
+    it('--status takes precedence over --someday', function (): void {
+        Artisan::call('add', [
+            'title' => 'Status precedence task',
+            '--status' => 'paused',
+            '--someday' => true,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Status precedence task');
+        expect($task['status'])->toBe('paused');
+    });
+
+    it('creates task with --status and other flags', function (): void {
+        Artisan::call('add', [
+            'title' => 'Complete paused task',
+            '--description' => 'Paused feature',
+            '--type' => 'feature',
+            '--priority' => '2',
+            '--labels' => 'backend',
+            '--complexity' => 'complex',
+            '--status' => 'paused',
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+        $task = json_decode($output, true);
+
+        expect($task['title'])->toBe('Complete paused task');
+        expect($task['description'])->toBe('Paused feature');
+        expect($task['type'])->toBe('feature');
+        expect($task['priority'])->toBe(2);
+        expect($task['labels'])->toBe(['backend']);
+        expect($task['complexity'])->toBe('complex');
+        expect($task['status'])->toBe('paused');
+    });
 });

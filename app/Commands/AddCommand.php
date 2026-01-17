@@ -26,6 +26,7 @@ class AddCommand extends Command
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--blocked-by= : Comma-separated task IDs this is blocked by}
         {--e|epic= : Epic ID to associate this task with}
+        {--status= : Task status (open|in_progress|review|done|cancelled|someday|paused)}
         {--someday : Add to backlog instead of tasks}
         {--backlog : Add to backlog (alias for --someday)}
         {--cwd= : Working directory (defaults to current directory)}';
@@ -147,8 +148,20 @@ class AddCommand extends Command
             $data['complexity'] = $complexity;
         }
 
-        // Set status to someday if --someday or --backlog flag is present
-        if ($this->option('backlog') || $this->option('someday')) {
+        // Handle status: --status takes precedence over --someday/--backlog
+        if ($status = $this->option('status')) {
+            // Validate status is a valid TaskStatus enum value
+            $validStatuses = array_column(TaskStatus::cases(), 'value');
+            if (! in_array($status, $validStatuses, true)) {
+                return $this->outputError(sprintf(
+                    "Invalid status '%s'. Must be one of: %s",
+                    $status,
+                    implode(', ', $validStatuses)
+                ));
+            }
+            $data['status'] = $status;
+        } elseif ($this->option('backlog') || $this->option('someday')) {
+            // Set status to someday if --someday or --backlog flag is present
             $data['status'] = TaskStatus::Someday->value;
         }
 
