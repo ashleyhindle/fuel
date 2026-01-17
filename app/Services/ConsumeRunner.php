@@ -107,6 +107,24 @@ final class ConsumeRunner
             $this->snapshotManager->handleOutputChunk($taskId, $stream, $chunk);
         });
 
+        // Wire health reset callback
+        $this->ipcCommandDispatcher->setOnHealthReset(function (string $agent): void {
+            $healthTracker = app(\App\Contracts\AgentHealthTrackerInterface::class);
+
+            if ($agent === 'all') {
+                foreach (array_keys($healthTracker->getAllHealthStatus()) as $agentName) {
+                    $healthTracker->clearHealth($agentName);
+                    // After clearing, get the new status and broadcast
+                    $health = $healthTracker->getHealthStatus($agentName);
+                    $this->snapshotManager->checkHealthChanges();
+                }
+            } else {
+                $healthTracker->clearHealth($agent);
+                // After clearing, trigger health change detection
+                $this->snapshotManager->checkHealthChanges();
+            }
+        });
+
         // Create BrowserCommandHandler for DaemonLoop
         $browserCommandHandler = new BrowserCommandHandler(
             browserManager: $this->browserDaemonManager,

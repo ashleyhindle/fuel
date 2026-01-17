@@ -237,5 +237,28 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - ConsumeCommand can check `$this->ipcClient->getHealthSummary()` for full health data including consecutive_failures, is_dead, etc. for autocomplete suggestions
 - **Key decision:** Placed sendHealthReset() method near sendReloadConfig() since both are control/management commands
 
+### f-be582e: Wire health reset callback in ConsumeRunner
+- **File modified:** `app/Services/ConsumeRunner.php:110-126`
+- **Changes made:**
+  1. Added health reset callback via `$this->ipcCommandDispatcher->setOnHealthReset()` in `start()` method
+  2. Callback implementation handles both 'all' and specific agent cases:
+     - For 'all': loops through all agents from `getAllHealthStatus()` and clears each
+     - For specific agent: clears that agent's health
+  3. After clearing health, calls `$this->snapshotManager->checkHealthChanges()` to detect and broadcast the health change
+  4. Uses `app(\App\Contracts\AgentHealthTrackerInterface::class)` to resolve health tracker within callback
+- **Pattern followed:**
+  - Placed callback setup in `start()` method alongside other callback registrations (output callback, epic completion callback)
+  - Follows same dependency resolution pattern as other parts of the codebase using `app()`
+- **Key decisions:**
+  - Used `checkHealthChanges()` instead of directly calling broadcast methods - this is cleaner as it detects the change and broadcasts automatically
+  - Resolved AgentHealthTracker via `app()` rather than adding it to ConsumeRunner's constructor (keeps constructor dependencies focused)
+- **Integration flow:**
+  1. Client sends HealthResetCommand via IPC (using ConsumeIpcClient::sendHealthReset())
+  2. IpcCommandDispatcher receives command and invokes this callback with agent name
+  3. Callback clears health data via AgentHealthTracker::clearHealth()
+  4. SnapshotManager::checkHealthChanges() detects the change and broadcasts HealthChangeEvent
+  5. All connected clients receive the health change event and update their local cache
+- **Testing:** Code passes PHP syntax check and Pint formatting
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
