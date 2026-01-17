@@ -308,6 +308,47 @@ JSONL;
     });
 });
 
+describe('Claude tool_use format', function (): void {
+    it('parses tool_use from Claude assistant message', function (): void {
+        $json = '{"type":"assistant","message":{"model":"claude-opus-4-1-20250805","id":"msg_01EK4qu1q7V7izDaqyRmvyGW","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01HW7uFqPMVxDaRgKt3rK8KB","name":"Bash","input":{"command":"php artisan test --compact tests/Feature/TeamControllerTest.php","description":"Run TeamController tests"}}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":4,"cache_creation_input_tokens":1010,"cache_read_input_tokens":42002,"cache_creation":{"ephemeral_5m_input_tokens":1010,"ephemeral_1h_input_tokens":0},"output_tokens":8,"service_tier":"standard"}},"parent_tool_use_id":null,"session_id":"ec39ec5d-4dac-447b-8cf2-4670082d7ee6","uuid":"070a9134-633d-4bf1-b538-6aa8aee3c737"}';
+
+        $event = $this->parser->parseLine($json);
+
+        expect($event)->toBeInstanceOf(ParsedEvent::class);
+        expect($event->type)->toBe('assistant');
+        expect($event->toolUses)->toHaveCount(1);
+        expect($event->toolUses[0]['name'])->toBe('Bash');
+        expect($event->toolUses[0]['input']['command'])->toBe('php artisan test --compact tests/Feature/TeamControllerTest.php');
+    });
+
+    it('formats Claude tool_use with decorator', function (): void {
+        $json = '{"type":"assistant","message":{"model":"claude-opus-4-1-20250805","id":"msg_01EK4qu1q7V7izDaqyRmvyGW","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01HW7uFqPMVxDaRgKt3rK8KB","name":"Bash","input":{"command":"php artisan test --compact tests/Feature/TeamControllerTest.php","description":"Run TeamController tests"}}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":4,"cache_creation_input_tokens":1010,"cache_read_input_tokens":42002,"cache_creation":{"ephemeral_5m_input_tokens":1010,"ephemeral_1h_input_tokens":0},"output_tokens":8,"service_tier":"standard"}},"parent_tool_use_id":null,"session_id":"ec39ec5d-4dac-447b-8cf2-4670082d7ee6","uuid":"070a9134-633d-4bf1-b538-6aa8aee3c737"}';
+
+        $event = $this->parser->parseLine($json);
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Bash php artisan test --compact tests/Feature...');
+    });
+
+    it('parses Claude Edit tool_use with file_path', function (): void {
+        $json = '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_01Q3GVJR8Hi3kayvNiDSVwmT","name":"Edit","input":{"file_path":"/Users/ashleyhindle/Code/vask-web/routes/web.php"}}]}}';
+
+        $event = $this->parser->parseLine($json);
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe('🔧 Edit routes/web.php');
+    });
+
+    it('parses assistant with both text and tool_use', function (): void {
+        $json = '{"type":"assistant","message":{"content":[{"type":"text","text":"Running tests"},{"type":"tool_use","name":"Bash","input":{"command":"pest"}}]}}';
+
+        $event = $this->parser->parseLine($json);
+        $formatted = $this->parser->format($event);
+
+        expect($formatted)->toBe("Running tests\n🔧 Bash pest");
+    });
+});
+
 describe('tool name extraction', function (): void {
     it('extracts Read from readToolCall', function (): void {
         $json = '{"type":"tool_call","subtype":"started","tool_call":{"readToolCall":{}}}';

@@ -98,7 +98,7 @@ Key decisions made during design:
 
 6. **Considered hooks**: pre-commit (main one), commit-msg (validate message format), pre-push (expensive tests), post-index-change (no pre-stage hook exists). pre-commit is the right choice for quality gates.
 
-7. **Git commands checked**: `git diff --cached --name-only` gets staged files. `git commit --no-verify` or `-n` bypasses hooks. No way to prevent bypass without wrapping git.
+7. **Git commands checked**: `git diff --cached --name-only -z --diff-filter=ACMR` gets staged files. `git rev-parse --git-path hooks` resolves hooks path. `git commit --no-verify` or `-n` bypasses hooks. No way to prevent bypass without wrapping git.
 
 ## Plan
 
@@ -107,11 +107,11 @@ Key decisions made during design:
 ```
 git commit
     ↓
-.git/hooks/pre-commit
+$(git rev-parse --git-path hooks)/pre-commit
     ↓
-fuel qc
+"$root/fuel" qc
     ↓
-├─ Capture staged files: git diff --cached --name-only
+├─ Capture staged files: git diff --cached --name-only -z --diff-filter=ACMR
 ├─ Run .fuel/quality-gate script
 ├─ If passed: re-add staged files (catches formatter changes)
 └─ Exit with quality-gate status
@@ -128,34 +128,41 @@ protected $signature = 'qc {--check : Check only, no auto re-add}';
 ```
 
 Behavior:
-- Get staged files: `git diff --cached --name-only`
+- Ensure inside git repo (`git rev-parse --is-inside-work-tree`); if not, error + exit 1
+- Get staged files: `git diff --cached --name-only -z --diff-filter=ACMR`
 - If no staged files, exit 0
 - Check `.fuel/quality-gate` exists and is executable
   - If missing: warn "No .fuel/quality-gate configured" and exit 0 (don't block)
 - Run `.fuel/quality-gate` script, capture exit code
-- If exit 0 AND not `--check`: re-add originally staged files
+- If exit 0 AND not `--check`: re-add originally staged files via `git add -- <files>` using null-delimited list
 - Exit with quality-gate script's exit code
 
 #### 2. InitCommand Hook Installation
 
-Modify `app/Commands/InitCommand.php` to install pre-commit hook:
+Modify `app/Commands/InitCommand.php` to install pre-commit hook (respect `core.hooksPath` and avoid `exit 0` short-circuit):
 
 ```php
 private function installPreCommitHook(string $cwd): void
 {
-    $hookPath = $cwd . '/.git/hooks/pre-commit';
-    $fuelLine = 'fuel qc';
+    $hooksPath = trim(Process::run('git rev-parse --git-path hooks')->output());
+    $hookPath = $hooksPath . '/pre-commit';
+    $fuelBlock = "root=$(git rev-parse --show-toplevel)\n\"$root/fuel\" qc || exit $?\n";
 
     if (file_exists($hookPath)) {
         $content = file_get_contents($hookPath);
-        if (str_contains($content, $fuelLine)) {
+        if (str_contains($content, 'fuel" qc')) {
             return; // Already installed
         }
-        // Append to existing hook
-        file_put_contents($hookPath, $content . "\n" . $fuelLine . "\n");
+        // Insert before trailing exit 0 if present, else append
+        if (preg_match('/\nexit 0\s*$/', $content)) {
+            $content = preg_replace('/\nexit 0\s*$/', "\n" . $fuelBlock . "exit 0\n", $content);
+            file_put_contents($hookPath, $content);
+        } else {
+            file_put_contents($hookPath, rtrim($content) . "\n" . $fuelBlock);
+        }
     } else {
         // Create new hook
-        file_put_contents($hookPath, "#!/bin/bash\n" . $fuelLine . "\n");
+        file_put_contents($hookPath, "#!/bin/bash\n" . $fuelBlock);
         chmod($hookPath, 0755);
     }
 }
@@ -219,13 +226,17 @@ Add to GuidelinesCommand output:
 
 3. **Formatters modify files**: Re-add staged files after successful run catches changes.
 
-4. **Existing pre-commit hook**: Append `fuel qc` to existing hook, preserving user's setup.
+4. **Existing pre-commit hook**: Insert `fuel qc` block before trailing `exit 0`, else append. Preserve user's setup.
 
 5. **Hook already has fuel qc**: Skip installation (idempotent).
 
-6. **Agent uses --no-verify**: Can't fully prevent, but explicit FORBIDDEN in prompts + AGENTS.md makes intent clear.
+6. **Hooks path**: Use `git rev-parse --git-path hooks` (supports `core.hooksPath`/husky).
 
-7. **CI environment**: `fuel qc --check` mode for CI pipelines that just want to verify without re-staging.
+7. **Agent uses --no-verify**: Can't fully prevent, but explicit FORBIDDEN in prompts + AGENTS.md makes intent clear.
+
+8. **Not a git repo**: `fuel qc` errors and exits 1.
+
+9. **CI environment**: `fuel qc --check` mode for CI pipelines that just want to verify without re-staging.
 
 ### File Changes Summary
 
@@ -249,11 +260,13 @@ Add to GuidelinesCommand output:
    - quality-gate passes → exit 0, files re-added
    - quality-gate fails → exit non-zero
    - --check flag → no re-add behavior
+   - Not a git repo → exit 1
 
 2. **InitCommand tests**:
    - Creates pre-commit hook if missing
    - Appends to existing hook
    - Skips if already installed
+   - Uses `git rev-parse --git-path hooks` (custom hooks path)
    - Creates quality-gate starter task
 
 3. **Integration test**:
@@ -271,6 +284,7 @@ Add to GuidelinesCommand output:
 
 - [ ] QcCommand exists at `app/Commands/QcCommand.php` with signature `qc {--check}`
 - [ ] `fuel qc` with no staged files exits 0 silently
+- [ ] `fuel qc` outside a git repo errors and exits 1
 - [ ] `fuel qc` with missing `.fuel/quality-gate` warns and exits 0 (doesn't block)
 - [ ] `fuel qc` runs `.fuel/quality-gate` script and exits with its status code
 - [ ] `fuel qc` re-adds originally staged files after successful quality-gate run (not with `--check`)

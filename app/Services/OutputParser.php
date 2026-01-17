@@ -84,16 +84,22 @@ class OutputParser
     private function parseAssistant(array $data): ParsedEvent
     {
         $text = null;
+        $toolUses = [];
         $content = $data['message']['content'] ?? [];
 
         foreach ($content as $item) {
-            if (($item['type'] ?? '') === 'text' && isset($item['text'])) {
+            $itemType = $item['type'] ?? '';
+            if ($itemType === 'text' && isset($item['text'])) {
                 $text = $item['text'];
-                break;
+            } elseif ($itemType === 'tool_use' && isset($item['name'])) {
+                $toolUses[] = [
+                    'name' => $item['name'],
+                    'input' => $item['input'] ?? [],
+                ];
             }
         }
 
-        return new ParsedEvent('assistant', text: $text, raw: $data);
+        return new ParsedEvent('assistant', text: $text, toolUses: $toolUses, raw: $data);
     }
 
     private function parseToolCall(array $data): ParsedEvent
@@ -137,11 +143,27 @@ class OutputParser
 
     private function formatAssistant(ParsedEvent $event): ?string
     {
-        if ($event->text === null || trim($event->text) === '') {
-            return null;
+        $output = [];
+
+        if ($event->text !== null && trim($event->text) !== '') {
+            $output[] = trim($event->text);
         }
 
-        return trim($event->text);
+        if ($event->toolUses !== null && $event->toolUses !== []) {
+            foreach ($event->toolUses as $toolUse) {
+                $toolName = $toolUse['name'] ?? 'Unknown';
+                $args = $toolUse['input'] ?? [];
+                $details = $this->extractToolDetails($toolName, $args);
+
+                if ($details !== null) {
+                    $output[] = sprintf('🔧 %s %s', $toolName, $details);
+                } else {
+                    $output[] = sprintf('🔧 %s', $toolName);
+                }
+            }
+        }
+
+        return $output !== [] ? implode("\n", $output) : null;
     }
 
     private function formatToolCall(ParsedEvent $event): ?string
@@ -196,9 +218,9 @@ class OutputParser
     private function extractToolDetails(string $toolName, array $args): ?string
     {
         return match ($toolName) {
-            'Edit', 'Write' => $this->formatPath($args['path'] ?? null),
-            'Read' => $this->formatPath($args['path'] ?? null),
-            'Bash' => $this->formatCommand($args['command'] ?? null),
+            'Edit', 'Write', 'edit_file', 'create_file' => $this->formatPath($args['path'] ?? $args['file_path'] ?? null),
+            'Read' => $this->formatPath($args['path'] ?? $args['file_path'] ?? null),
+            'Bash' => $this->formatCommand($args['command'] ?? $args['cmd'] ?? null),
             'Grep' => $this->formatPattern($args['pattern'] ?? null),
             default => null,
         };

@@ -11,6 +11,7 @@ readonly class ParsedEvent
         public ?string $subtype = null,
         public ?string $text = null,
         public ?string $toolName = null,
+        public ?array $toolUses = null,
         public ?array $raw = null,
     ) {}
 }
