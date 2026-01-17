@@ -2,13 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Enums\MirrorStatus;
+use App\Models\Task;
 use App\Services\EpicService;
+use App\Services\FuelContext;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
+use Symfony\Component\Yaml\Yaml;
 
 describe('epic:reviewed command', function (): void {
     beforeEach(function (): void {
         $this->taskService = $this->app->make(TaskService::class);
+        $this->context = $this->app->make(FuelContext::class);
+        $this->configPath = $this->context->getConfigPath();
     });
 
     it('marks an epic as reviewed', function (): void {
@@ -79,5 +85,95 @@ describe('epic:reviewed command', function (): void {
         $updatedEpic = $epicService->getEpic($epic->short_id);
         expect($updatedEpic->reviewed_at)->not->toBeNull();
         expect($updatedEpic->reviewed_at)->toBeInstanceOf(\DateTimeInterface::class);
+    });
+
+    it('does not create merge task when mirrors disabled', function (): void {
+        // Ensure mirrors are disabled
+        $config = [
+            'agents' => ['claude' => ['driver' => 'claude']],
+            'complexity' => ['simple' => 'claude'],
+            'primary' => 'claude',
+            'epic_mirrors' => false,
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic('No Mirror Epic');
+
+        // Simulate epic with mirror path (but mirrors disabled)
+        $epicService->updateMirrorStatus($epic, MirrorStatus::Ready);
+        $epic->mirror_path = '/tmp/test-mirror';
+        $epic->save();
+
+        Artisan::call('epic:reviewed', ['id' => $epic->short_id]);
+
+        // Verify epic was reviewed
+        $updatedEpic = $epicService->getEpic($epic->short_id);
+        expect($updatedEpic->reviewed_at)->not->toBeNull();
+
+        // Verify no merge task was created (mirror_status should still be Ready, not Merging)
+        expect($updatedEpic->mirror_status)->toBe(MirrorStatus::Ready);
+
+        // Verify no merge tasks exist
+        $mergeTasks = Task::where('title', 'LIKE', 'Merge epic/%')->get();
+        expect($mergeTasks)->toBeEmpty();
+    });
+
+    it('does not create merge task when epic has no mirror', function (): void {
+        // Enable mirrors in config
+        $config = [
+            'agents' => ['claude' => ['driver' => 'claude']],
+            'complexity' => ['simple' => 'claude'],
+            'primary' => 'claude',
+            'epic_mirrors' => true,
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic('No Mirror Path Epic');
+
+        // Epic has no mirror_path (mirror_status is None by default)
+        expect($epic->mirror_path)->toBeNull();
+
+        Artisan::call('epic:reviewed', ['id' => $epic->short_id]);
+
+        // Verify epic was reviewed
+        $updatedEpic = $epicService->getEpic($epic->short_id);
+        expect($updatedEpic->reviewed_at)->not->toBeNull();
+
+        // Verify no merge task was created
+        $mergeTasks = Task::where('title', 'LIKE', 'Merge epic/%')->get();
+        expect($mergeTasks)->toBeEmpty();
+    });
+
+    it('updates mirror status to Merging when mirrors enabled and epic has mirror', function (): void {
+        // Enable mirrors in config
+        $config = [
+            'agents' => ['claude' => ['driver' => 'claude']],
+            'complexity' => ['simple' => 'claude'],
+            'primary' => 'claude',
+            'epic_mirrors' => true,
+        ];
+        file_put_contents($this->configPath, Yaml::dump($config));
+
+        $epicService = $this->app->make(EpicService::class);
+        $epic = $epicService->createEpic('Mirror Epic');
+
+        // Set up epic with mirror
+        $epicService->updateMirrorStatus($epic, MirrorStatus::Ready);
+        $epic->mirror_path = '/tmp/test-mirror';
+        $epic->mirror_branch = 'epic/'.$epic->short_id;
+        $epic->mirror_base_commit = 'abc123';
+        $epic->save();
+
+        Artisan::call('epic:reviewed', ['id' => $epic->short_id]);
+
+        // Verify epic was reviewed
+        $updatedEpic = $epicService->getEpic($epic->short_id);
+        expect($updatedEpic->reviewed_at)->not->toBeNull();
+
+        // Verify mirror status was updated to Merging
+        // This is the key behavior - the command should update the status to trigger merge
+        expect($updatedEpic->mirror_status)->toBe(MirrorStatus::Merging);
     });
 });
