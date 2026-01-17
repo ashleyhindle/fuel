@@ -14,6 +14,7 @@ enum ConsumeCommandType: string
     case ReloadConfig = 'reload_config';
     case RequestSnapshot = 'request_snapshot';
     case SetTaskReviewEnabled = 'set_task_review_enabled';
+    case HealthReset = 'health_reset';
 
     // Task mutation commands
     case TaskStart = 'task_start';
