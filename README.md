@@ -15,9 +15,8 @@ curl -fsSL https://addfuel.dev/install | sh
 # Initialize in your project
 cd your-project
 fuel init
+fuel consume
 ```
-
-Run your favourite agent and ask it to "Consume the fuel and land the plane".
 
 That's it. `fuel init` creates a `.fuel/` directory, adds workflow instructions to both `AGENTS.md` and `CLAUDE.md`, installs agent skills, and creates your first task.
 
