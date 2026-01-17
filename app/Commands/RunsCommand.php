@@ -95,11 +95,13 @@ class RunsCommand extends Command
                     $this->info(sprintf('Runs for task %s (', $taskId).count($runs).'):');
                     $this->newLine();
 
-                    $headers = ['Run ID', 'Agent', 'Model', 'Started At', 'Duration', 'Exit', 'Cost', 'Session'];
+                    $headers = ['Run ID', 'Agent', 'Model', 'Started At', 'Duration', 'Exit', 'Cost', 'Commit', 'Session'];
                     $rows = array_map(function (Run $run): array {
                         $duration = $this->calculateDuration($run->started_at, $run->ended_at);
                         $sessionId = $run->session_id ?? '';
                         $shortSession = $sessionId ? substr($sessionId, 0, 8).'...' : '';
+                        $commitHash = $run->commit_hash ?? '';
+                        $shortCommit = $commitHash ? substr($commitHash, 0, 7) : '';
 
                         return [
                             $run->run_id ?? '',
@@ -109,6 +111,7 @@ class RunsCommand extends Command
                             $duration,
                             $run->exit_code !== null ? (string) $run->exit_code : '',
                             $run->cost_usd !== null ? '$'.number_format($run->cost_usd, 2) : '',
+                            $shortCommit,
                             $shortSession,
                         ];
                     }, $runs);
@@ -166,6 +169,10 @@ class RunsCommand extends Command
 
         if ($run->cost_usd !== null) {
             $this->line('  Cost: $'.number_format($run->cost_usd, 4));
+        }
+
+        if ($run->commit_hash !== null) {
+            $this->line('  Commit: '.$run->commit_hash);
         }
 
         if ($run->session_id !== null) {
