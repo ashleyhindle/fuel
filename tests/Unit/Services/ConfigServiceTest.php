@@ -264,10 +264,8 @@ it('creates default config file', function (): void {
     expect($config['complexity'])->toHaveKeys(['trivial', 'simple', 'moderate', 'complex']);
     expect($config['agents'])->toHaveKeys([
         'cursor-composer',
-        'cursor-opus',
         'claude-sonnet',
         'claude-opus',
-        'opencode-glm',
         'opencode-minimax',
         'amp-smart',
     ]);

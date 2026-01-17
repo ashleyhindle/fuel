@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Support\Str;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -59,6 +60,14 @@ class FuelContext
     public function getProjectPath(): string
     {
         return dirname($this->basePath);
+    }
+
+    /**
+     * Get a slugified project name from the project directory.
+     */
+    public function getProjectName(): string
+    {
+        return Str::slug(basename($this->getProjectPath()));
     }
 
     /**

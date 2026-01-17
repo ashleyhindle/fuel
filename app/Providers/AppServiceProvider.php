@@ -66,7 +66,7 @@ class AppServiceProvider extends ServiceProvider
 
         for ($i = 0; $i < $maxLevels; $i++) {
             $fuelDir = $currentDir.'/.fuel';
-            if (is_dir($fuelDir) && file_exists($fuelDir.'/config.yaml')) {
+            if (is_dir($fuelDir)) {
                 return $fuelDir;
             }
 
