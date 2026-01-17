@@ -10,7 +10,6 @@ use App\Services\EpicService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
-use Symfony\Component\Console\Input\InputOption;
 
 class EpicDeleteCommand extends Command
 {
@@ -22,12 +21,6 @@ class EpicDeleteCommand extends Command
         {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Delete an epic and unlink its tasks';
-
-    protected function configure(): void
-    {
-        parent::configure();
-        $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip confirmation prompt');
-    }
 
     public function handle(TaskService $taskService, EpicService $epicService): int
     {
@@ -42,24 +35,6 @@ class EpicDeleteCommand extends Command
             $title = $epic->title ?? '';
 
             $linkedTasks = $epicService->getTasksForEpic($epicId);
-
-            if (! $this->option('force') && ! $this->option('json') && $this->input->isInteractive()) {
-                $taskCount = count($linkedTasks);
-                $confirmMessage = sprintf(
-                    "Are you sure you want to delete epic '%s' (%s)?",
-                    $epicId,
-                    $title
-                );
-                if ($taskCount > 0) {
-                    $confirmMessage .= sprintf(' This will unlink %d task(s).', $taskCount);
-                }
-
-                if (! $this->confirm($confirmMessage)) {
-                    $this->line('Deletion cancelled.');
-
-                    return self::SUCCESS;
-                }
-            }
 
             $unlinkedTaskIds = [];
             foreach ($linkedTasks as $task) {

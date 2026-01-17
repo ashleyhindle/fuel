@@ -11,11 +11,11 @@ describe('epic:delete command', function (): void {
         $this->taskService = $this->app->make(TaskService::class);
     });
 
-    it('deletes an epic with --force flag', function (): void {
+    it('deletes an epic', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $epic = $epicService->createEpic('Test Epic', 'Test Description');
 
-        Artisan::call('epic:delete', ['id' => $epic->short_id, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted epic: '.$epic->short_id);
@@ -25,7 +25,7 @@ describe('epic:delete command', function (): void {
     });
 
     it('shows error when epic not found', function (): void {
-        Artisan::call('epic:delete', ['id' => 'e-nonexistent', '--force' => true]);
+        Artisan::call('epic:delete', ['id' => 'e-nonexistent']);
         $output = Artisan::output();
 
         expect($output)->toContain("Epic 'e-nonexistent' not found");
@@ -53,7 +53,7 @@ describe('epic:delete command', function (): void {
 
         $partialId = substr((string) $epic->short_id, 2);
 
-        Artisan::call('epic:delete', ['id' => $partialId, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $partialId]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted epic: '.$epic->short_id);
@@ -76,7 +76,7 @@ describe('epic:delete command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        Artisan::call('epic:delete', ['id' => $epic->short_id, '--force' => true]);
+        Artisan::call('epic:delete', ['id' => $epic->short_id]);
         $output = Artisan::output();
 
         expect($output)->toContain('Deleted epic: '.$epic->short_id);
