@@ -16,6 +16,7 @@ handoff.md
 !.fuel/plans/*.md
 !.fuel/prompts/*.md
 !.fuel/reality.md
+!.fuel/config.yaml
 /database/database.sqlite
 
 # Fuel data (but not plans/prompts)
@@ -24,7 +25,6 @@ handoff.md
 .fuel/*.pid
 .fuel/agent.db
 .fuel/agent.db*
-.fuel/config.yaml
 .fuel/processes/
 .fuel/runs/
 .fuel/prompts/*.new
