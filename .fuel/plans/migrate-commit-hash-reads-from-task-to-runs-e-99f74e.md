@@ -77,6 +77,19 @@ public function getLatestCommitHash(string $taskId): ?string
   - Pattern: `$runService->createRun($task->short_id, ['agent' => 'test-agent'])` followed by `$runService->updateLatestRun($task->short_id, ['commit_hash' => $commitHash])`
 - All 9 ReviewCommand tests passing
 
+### f-33e33c: ShowCommand migration
+- ✅ Updated `app/Commands/ShowCommand.php`:
+  - Added early retrieval of commit hash: `$commitHash = $runService->getLatestCommitHash($task->short_id)` at line 92
+  - Replaced JSON output commit_hash (line 112): now uses `$commitHash` instead of `$task->commit_hash`
+  - Updated hasCompletionInfo check (line 182): now uses `$commitHash` instead of `$task->commit_hash`
+  - Updated Completion Info display (line 189): now uses `$commitHash` instead of `$task->commit_hash`
+- ✅ Updated `tests/Feature/Commands/ShowCommandTest.php`:
+  - Modified "shows commit hash when present" test to create run with commit hash
+  - Modified "includes commit hash in JSON output when present" test to create run with commit hash
+  - Both tests now use `RunService::logRun()` and `updateLatestRun()` to set commit on run
+- Pattern: Get commit hash once early, reuse the variable throughout to avoid multiple queries
+- All commit hash related ShowCommand tests passing
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
 

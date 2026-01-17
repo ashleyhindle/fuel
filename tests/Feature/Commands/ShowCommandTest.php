@@ -81,6 +81,15 @@ describe('show command', function (): void {
 
     it('shows commit hash when present', function (): void {
         $task = $this->taskService->create(['title' => 'Task with commit']);
+
+        // Create a run with commit hash
+        $runService = app(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'model' => 'test-model',
+        ]);
+        $runService->updateLatestRun($task->short_id, ['commit_hash' => 'abc123456']);
+
         $this->taskService->done($task->short_id, 'Completed', 'abc123456');
 
         $this->artisan('show', ['id' => $task->short_id])
@@ -111,6 +120,15 @@ describe('show command', function (): void {
 
     it('includes commit hash in JSON output when present', function (): void {
         $task = $this->taskService->create(['title' => 'Task with commit']);
+
+        // Create a run with commit hash
+        $runService = app(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'model' => 'test-model',
+        ]);
+        $runService->updateLatestRun($task->short_id, ['commit_hash' => 'abc123456']);
+
         $this->taskService->done($task->short_id, 'Completed', 'abc123456');
 
         Artisan::call('show', ['id' => $task->short_id, '--json' => true]);

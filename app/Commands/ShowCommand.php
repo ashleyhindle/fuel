@@ -88,6 +88,9 @@ class ShowCommand extends Command
                 $epicStatus = $epicService->getEpicStatus($epic->short_id)->value;
             }
 
+            // Get commit hash from runs once and reuse it
+            $commitHash = $runService->getLatestCommitHash($task->short_id);
+
             if ($this->option('json')) {
                 $taskData = $task->toArray();
                 // Include epic info in JSON output
@@ -105,10 +108,8 @@ class ShowCommand extends Command
                     $taskData['cost_usd'] = $taskCost;
                 }
 
-                // commit_hash is already in toArray(), but ensure it's present
-                if (! isset($taskData['commit_hash'])) {
-                    $taskData['commit_hash'] = $task->commit_hash ?? null;
-                }
+                // Include commit hash from runs
+                $taskData['commit_hash'] = $commitHash;
 
                 $this->outputJson($taskData);
             } else {
@@ -178,14 +179,14 @@ class ShowCommand extends Command
 
                 // Completion Info Section (only if relevant)
                 $hasCompletionInfo = (isset($task->reason) && $task->reason !== null && $task->reason !== '') ||
-                                     (isset($task->commit_hash) && $task->commit_hash !== null && $task->commit_hash !== '');
+                                     ($commitHash !== null && $commitHash !== '');
 
                 if ($hasCompletionInfo) {
                     $this->newLine();
                     $this->line('<fg=cyan>── Completion Info ──</>');
 
-                    if (isset($task->commit_hash) && $task->commit_hash !== null && $task->commit_hash !== '') {
-                        $this->line('  Commit: '.$task->commit_hash);
+                    if ($commitHash !== null && $commitHash !== '') {
+                        $this->line('  Commit: '.$commitHash);
                     }
 
                     if (isset($task->reason) && $task->reason !== null && $task->reason !== '') {
