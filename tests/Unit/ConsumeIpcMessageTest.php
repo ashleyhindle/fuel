@@ -6,6 +6,7 @@ use App\Enums\ConsumeCommandType;
 use App\Enums\ConsumeEventType;
 use App\Ipc\Commands\AttachCommand;
 use App\Ipc\Commands\DetachCommand;
+use App\Ipc\Commands\HealthResetCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestSnapshotCommand;
@@ -142,6 +143,25 @@ describe('Command DTOs serialize to expected JSON shape', function (): void {
             ->toHaveKey('instance_id', $this->instanceId)
             ->toHaveKey('request_id', null);
     });
+
+    test('HealthResetCommand toArray includes all properties', function (): void {
+        $command = new HealthResetCommand(
+            agent: 'claude',
+            timestamp: $this->timestamp,
+            instanceId: $this->instanceId,
+            requestId: 'req-999'
+        );
+
+        $array = $command->toArray();
+
+        expect($array)
+            ->toBeArray()
+            ->toHaveKey('type', ConsumeCommandType::HealthReset->value)
+            ->toHaveKey('timestamp')
+            ->toHaveKey('instance_id', $this->instanceId)
+            ->toHaveKey('request_id', 'req-999')
+            ->toHaveKey('agent', 'claude');
+    });
 });
 
 describe('Event DTOs serialize to expected JSON shape', function (): void {
@@ -234,6 +254,10 @@ describe('Event DTOs serialize to expected JSON shape', function (): void {
         $event = new HealthChangeEvent(
             agent: 'claude',
             status: 'healthy',
+            consecutiveFailures: 2,
+            inBackoff: true,
+            isDead: false,
+            backoffSeconds: 120,
             instanceId: $this->instanceId,
             timestamp: $this->timestamp
         );
@@ -247,7 +271,11 @@ describe('Event DTOs serialize to expected JSON shape', function (): void {
             ->toHaveKey('instance_id', $this->instanceId)
             ->toHaveKey('request_id', null)
             ->toHaveKey('agent', 'claude')
-            ->toHaveKey('status', 'healthy');
+            ->toHaveKey('status', 'healthy')
+            ->toHaveKey('consecutive_failures', 2)
+            ->toHaveKey('in_backoff', true)
+            ->toHaveKey('is_dead', false)
+            ->toHaveKey('backoff_seconds', 120);
     });
 
     test('OutputChunkEvent toArray includes all properties', function (): void {
@@ -386,6 +414,23 @@ describe('fromArray factory methods', function (): void {
         expect($command)->toBeInstanceOf(RequestSnapshotCommand::class);
         expect($command->instanceId())->toBe($this->instanceId);
     });
+
+    test('HealthResetCommand fromArray creates instance', function (): void {
+        $data = [
+            'agent' => 'claude',
+            'timestamp' => '2024-01-01T00:00:00+00:00',
+            'instance_id' => $this->instanceId,
+            'request_id' => 'req-999',
+        ];
+
+        $command = HealthResetCommand::fromArray($data);
+
+        expect($command)
+            ->toBeInstanceOf(HealthResetCommand::class)
+            ->agent->toBe('claude');
+        expect($command->instanceId())->toBe($this->instanceId);
+        expect($command->requestId())->toBe('req-999');
+    });
 });
 
 describe('timestamp is ISO 8601 format', function (): void {
@@ -406,6 +451,8 @@ describe('timestamp is ISO 8601 format', function (): void {
                 $args[$name] = 'test-value';
             } elseif ($param->hasType() && $param->getType()->getName() === 'int') {
                 $args[$name] = 123;
+            } elseif ($param->hasType() && $param->getType()->getName() === 'bool') {
+                $args[$name] = false;
             } else {
                 $args[$name] = null;
             }
@@ -425,6 +472,7 @@ describe('timestamp is ISO 8601 format', function (): void {
         StopCommand::class,
         ReloadConfigCommand::class,
         RequestSnapshotCommand::class,
+        HealthResetCommand::class,
     ]);
 
     it('formats timestamp in ISO 8601 format for events', function (string $eventClass): void {
@@ -444,6 +492,8 @@ describe('timestamp is ISO 8601 format', function (): void {
                 $args[$name] = 'test-value';
             } elseif ($param->hasType() && $param->getType()->getName() === 'int') {
                 $args[$name] = 123;
+            } elseif ($param->hasType() && $param->getType()->getName() === 'bool') {
+                $args[$name] = false;
             } else {
                 $args[$name] = null;
             }
@@ -484,6 +534,8 @@ describe('type field matches enum value', function (): void {
                 $args[$name] = 'test-value';
             } elseif ($param->hasType() && $param->getType()->getName() === 'int') {
                 $args[$name] = 123;
+            } elseif ($param->hasType() && $param->getType()->getName() === 'bool') {
+                $args[$name] = false;
             } else {
                 $args[$name] = null;
             }
@@ -500,6 +552,7 @@ describe('type field matches enum value', function (): void {
         [StopCommand::class, ConsumeCommandType::Stop],
         [ReloadConfigCommand::class, ConsumeCommandType::ReloadConfig],
         [RequestSnapshotCommand::class, ConsumeCommandType::RequestSnapshot],
+        [HealthResetCommand::class, ConsumeCommandType::HealthReset],
     ]);
 
     it('event type matches enum value', function (string $eventClass, ConsumeEventType $expectedType): void {
@@ -519,6 +572,8 @@ describe('type field matches enum value', function (): void {
                 $args[$name] = 'test-value';
             } elseif ($param->hasType() && $param->getType()->getName() === 'int') {
                 $args[$name] = 123;
+            } elseif ($param->hasType() && $param->getType()->getName() === 'bool') {
+                $args[$name] = false;
             } else {
                 $args[$name] = null;
             }

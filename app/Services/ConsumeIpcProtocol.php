@@ -24,6 +24,7 @@ use App\Ipc\Commands\BrowserTypeCommand;
 use App\Ipc\Commands\BrowserWaitCommand;
 use App\Ipc\Commands\DependencyAddCommand;
 use App\Ipc\Commands\DetachCommand;
+use App\Ipc\Commands\HealthResetCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestBlockedTasksCommand;
@@ -141,6 +142,7 @@ final class ConsumeIpcProtocol
                 ConsumeCommandType::ReloadConfig => ReloadConfigCommand::fromArray($data),
                 ConsumeCommandType::RequestSnapshot => RequestSnapshotCommand::fromArray($data),
                 ConsumeCommandType::SetTaskReviewEnabled => SetTaskReviewCommand::fromArray($data),
+                ConsumeCommandType::HealthReset => HealthResetCommand::fromArray($data),
                 ConsumeCommandType::TaskStart => TaskStartCommand::fromArray($data),
                 ConsumeCommandType::TaskReopen => TaskReopenCommand::fromArray($data),
                 ConsumeCommandType::TaskCreate => TaskCreateCommand::fromArray($data),
@@ -281,6 +283,10 @@ final class ConsumeIpcProtocol
         return new HealthChangeEvent(
             agent: $data['agent'] ?? '',
             status: $data['status'] ?? 'healthy',
+            consecutiveFailures: (int) ($data['consecutive_failures'] ?? 0),
+            inBackoff: (bool) ($data['in_backoff'] ?? false),
+            isDead: (bool) ($data['is_dead'] ?? false),
+            backoffSeconds: (int) ($data['backoff_seconds'] ?? 0),
             instanceId: $data['instance_id'] ?? '',
             timestamp: isset($data['timestamp']) ? new DateTimeImmutable($data['timestamp']) : null,
             requestId: $data['request_id'] ?? null

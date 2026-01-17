@@ -163,5 +163,23 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
 - **Location:** Placed in the general control commands section, after SetTaskReviewEnabled
 - **Tests:** Existing enum tests pass (ConsumeIpcMessageTest)
 
+### f-bdfd92: Create HealthResetCommand IPC command
+- **Files created:**
+  - `app/Ipc/Commands/HealthResetCommand.php` - IPC command implementation
+- **Files modified:**
+  - `app/Services/ConsumeIpcProtocol.php:27` - Added import for HealthResetCommand
+  - `app/Services/ConsumeIpcProtocol.php:145` - Added match case for HealthReset command type
+  - `tests/Unit/ConsumeIpcMessageTest.php` - Added comprehensive tests for HealthResetCommand
+- **Pattern followed:** SetTaskReviewCommand (has single property + standard IpcMessage implementation)
+- **Properties:**
+  - `public string $agent` - Can be specific agent name (e.g., 'claude', 'cursor') or 'all'
+  - Implements IpcMessage via HasIpcMetadata trait
+- **Tests added:**
+  - toArray serialization test
+  - fromArray deserialization test
+  - ISO 8601 timestamp format test
+  - Type field matches enum value test
+- **All tests pass:** ConsumeIpcMessageTest (53 passed), ConsumeIpcProtocolTest (28 passed)
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
