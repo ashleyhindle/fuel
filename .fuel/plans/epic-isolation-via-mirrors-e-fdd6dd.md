@@ -150,23 +150,23 @@ $cmd = PHP_OS_FAMILY === 'Darwin'
 - ✅ Add helper: `hasMirror(): bool`
 - ✅ Add helper: `isMirrorReady(): bool`
 
-### Modified: HumanCommand
+### ✅ Modified: HumanCommand
 
 `app/Commands/HumanCommand.php`:
 - ✅ Show orphaned/stale mirrors section
 - ✅ Show epics with `mirror_status='merge_failed'`
 - ✅ List mirrors for deleted/approved epics that weren't cleaned up
 
-**Implementation (f-885a7e):**
-- Added `EpicService::getEpicsWithMergeFailed()` - queries epics with MergeFailed status
-- Added `EpicService::getEpicsWithStaleMirrors()` - finds mirrors inactive >7 days, not approved
-- Added `EpicService::findOrphanedMirrors()` - scans ~/.fuel/mirrors/{project-slug}/ for directories whose epic doesn't exist or is approved
-- Updated HumanCommand to display mirror issues in 3 categories:
+**Implementation (f-885a7e & f-dd84e5):**
+- ✅ Added `EpicService::getEpicsWithMergeFailed()` - queries epics with MergeFailed status
+- ✅ Added `EpicService::getEpicsWithStaleMirrors()` - finds mirrors inactive >7 days, not approved
+- ✅ Added `EpicService::findOrphanedMirrors()` - scans ~/.fuel/mirrors/{project-slug}/ for directories whose epic doesn't exist or is approved
+- ✅ Updated HumanCommand to display mirror issues in 3 categories:
   1. Merge failed epics (red, shows mirror path, suggests checking logs)
   2. Stale mirrors (yellow, shows last activity, status, cleanup command)
   3. Orphaned mirrors (yellow, shows reason, cleanup command)
-- Works in all modes: --once, --json, and interactive TUI
-- Tests: app/Services/EpicService.php:469-577, tests/Unit/Services/EpicServiceTest.php:635-724
+- ✅ Works in all modes: --once, --json, and interactive TUI
+- ✅ All methods fully implemented with tests: app/Services/EpicService.php:469-577, tests/Unit/Services/EpicServiceTest.php:635-724
 
 ### Modified: EpicReviewedCommand
 
