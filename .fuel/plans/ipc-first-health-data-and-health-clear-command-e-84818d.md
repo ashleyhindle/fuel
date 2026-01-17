@@ -192,8 +192,8 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - Added getter methods for all new properties following existing pattern
   - Boolean fields use camelCase (inBackoff, isDead) for consistency with PHP conventions
 - **Gotchas for next tasks:**
-  - EventBroadcaster::broadcastHealthChange() still uses old signature (agent, status) - needs updating to pass full health data
-  - SnapshotManager has access to full AgentHealth object when calling broadcaster
+  - ~~EventBroadcaster::broadcastHealthChange() still uses old signature (agent, status) - needs updating to pass full health data~~ ✅ FIXED by f-90b7b4
+  - ~~SnapshotManager has access to full AgentHealth object when calling broadcaster~~ ✅ FIXED by f-90b7b4
   - Use AgentHealth::getBackoffSeconds() and check backoffUntil/isDead for the boolean fields
   - ConsumeIpcClient::handleHealthChangeEvent() needs updating to store all new fields in healthSummary
 - **All tests pass:** ConsumeIpcMessageTest (81 passed), ConsumeIpcProtocolTest (28 passed)
@@ -348,6 +348,28 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - Toast property in ConsumeCommand is `\App\TUI\Toast` not `\App\Services\ToastService`
   - Health status lines show "DEAD" not "unhealthy" when is_dead = true
 - **All tests pass:** 11 tests, 37 assertions
+
+### f-90b7b4: Fix EventBroadcaster to pass full health data to HealthChangeEvent
+- **Files modified:**
+  - `app/Daemon/Helpers/EventBroadcaster.php:106-119` - Updated broadcastHealthChange() signature and implementation
+  - `app/Daemon/SnapshotManager.php:187` - Updated to pass full AgentHealth object
+- **Changes made:**
+  1. Changed `broadcastHealthChange(string $agent, string $status)` to `broadcastHealthChange(AgentHealth $health)`
+  2. Extract all required fields from AgentHealth object:
+     - `agent` from `$health->agent`
+     - `status` from `$health->getStatus()`
+     - `consecutiveFailures` from `$health->consecutiveFailures`
+     - `inBackoff` from `!$health->isAvailable()`
+     - `isDead` using threshold `$health->consecutiveFailures >= 5` (matches ConsumeSnapshot.php:91)
+     - `backoffSeconds` from `$health->getBackoffSeconds()`
+  3. Added import for `App\Process\AgentHealth`
+  4. Updated SnapshotManager::checkHealthChanges() to pass `$health` object instead of `$agent, $currentStatus`
+- **Key decision:**
+  - Used threshold `consecutiveFailures >= 5` for isDead to match existing pattern in ConsumeSnapshot.php:91
+  - This avoids adding ConfigService/AgentHealthTracker dependencies to EventBroadcaster
+  - EventBroadcaster remains a simple data broadcaster, not business logic handler
+- **All tests pass:** ConsumeCommandHealthTest (11 passed), ConsumeIpcMessageTest (55 passed), ConsumeIpcProtocolTest (28 passed)
+- **Commit:** 3aa8712
 
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
