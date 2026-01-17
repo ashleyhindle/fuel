@@ -162,6 +162,24 @@ describe('Command DTOs serialize to expected JSON shape', function (): void {
             ->toHaveKey('request_id', 'req-999')
             ->toHaveKey('agent', 'claude');
     });
+
+    test('HealthResetCommand toArray handles all agents', function (): void {
+        $command = new HealthResetCommand(
+            agent: 'all',
+            timestamp: $this->timestamp,
+            instanceId: $this->instanceId
+        );
+
+        $array = $command->toArray();
+
+        expect($array)
+            ->toBeArray()
+            ->toHaveKey('type', ConsumeCommandType::HealthReset->value)
+            ->toHaveKey('timestamp')
+            ->toHaveKey('instance_id', $this->instanceId)
+            ->toHaveKey('request_id', null)
+            ->toHaveKey('agent', 'all');
+    });
 });
 
 describe('Event DTOs serialize to expected JSON shape', function (): void {
@@ -430,6 +448,23 @@ describe('fromArray factory methods', function (): void {
             ->agent->toBe('claude');
         expect($command->instanceId())->toBe($this->instanceId);
         expect($command->requestId())->toBe('req-999');
+    });
+
+    test('HealthResetCommand fromArray handles all agents', function (): void {
+        $data = [
+            'agent' => 'all',
+            'timestamp' => '2024-01-01T00:00:00+00:00',
+            'instance_id' => $this->instanceId,
+            'request_id' => 'req-all',
+        ];
+
+        $command = HealthResetCommand::fromArray($data);
+
+        expect($command)
+            ->toBeInstanceOf(HealthResetCommand::class)
+            ->agent->toBe('all');
+        expect($command->instanceId())->toBe($this->instanceId);
+        expect($command->requestId())->toBe('req-all');
     });
 });
 

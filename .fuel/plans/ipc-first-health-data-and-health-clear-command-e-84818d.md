@@ -260,5 +260,26 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   5. All connected clients receive the health change event and update their local cache
 - **Testing:** Code passes PHP syntax check and Pint formatting
 
+### f-e7f483: Add unit tests for HealthChangeEvent and HealthResetCommand
+- **Files modified:** `tests/Unit/ConsumeIpcMessageTest.php`
+- **Tests added:**
+  1. Added `HealthResetCommand toArray handles all agents` test - verifies serialization with agent='all'
+  2. Added `HealthResetCommand fromArray handles all agents` test - verifies deserialization with agent='all'
+- **Existing tests verified:**
+  - `HealthChangeEvent toArray includes all properties` - covers all new fields (consecutiveFailures, inBackoff, isDead, backoffSeconds)
+  - `HealthChangeEvent` round-trip test in ConsumeIpcProtocolTest.php - verifies fromArray via protocol decode
+  - `HealthResetCommand toArray includes all properties` - covers specific agent serialization
+  - `HealthResetCommand fromArray creates instance` - covers specific agent deserialization
+- **Key decision:**
+  - Tests are consolidated in `ConsumeIpcMessageTest.php` and `ConsumeIpcProtocolTest.php` following existing codebase pattern
+  - Did NOT create separate `tests/Unit/Ipc/Events/HealthChangeEventTest.php` or `tests/Unit/Ipc/Commands/HealthResetCommandTest.php` files - all IPC message tests are consolidated
+  - HealthChangeEvent doesn't have a `fromArray()` method - deserialization happens via `ConsumeIpcProtocol::decodeHealthChangeEvent()` which is tested via round-trip test
+- **Test coverage:**
+  - All serialization fields tested (toArray)
+  - All deserialization tested (fromArray or protocol decode)
+  - Both specific agent ('claude') and 'all' agents tested for HealthResetCommand
+  - All new HealthChangeEvent fields tested (consecutiveFailures, inBackoff, isDead, backoffSeconds)
+- **All tests pass:** 9 tests in ConsumeIpcMessageTest.php, 1 test in ConsumeIpcProtocolTest.php
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
