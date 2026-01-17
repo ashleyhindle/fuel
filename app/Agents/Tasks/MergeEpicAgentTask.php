@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Agents\Tasks;
 
+use App\Daemon\DaemonLogger;
 use App\Enums\MirrorStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
@@ -190,7 +191,7 @@ GATES;
             $this->taskService->done($this->task->short_id, 'Successfully merged epic');
         } catch (\RuntimeException $e) {
             // Log but don't fail - merge was successful
-            error_log('Failed to cleanup after merge: '.$e->getMessage());
+            DaemonLogger::getInstance()->warning('Failed to cleanup after merge', ['error' => $e->getMessage()]);
         }
     }
 
@@ -210,7 +211,7 @@ GATES;
             $this->taskService->delete($this->task->short_id);
         } catch (\RuntimeException $e) {
             // Log but don't fail catastrophically
-            error_log('Failed to handle merge failure: '.$e->getMessage());
+            DaemonLogger::getInstance()->error('Failed to handle merge failure', ['error' => $e->getMessage()]);
         }
     }
 }
