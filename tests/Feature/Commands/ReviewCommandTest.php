@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Services\RunService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Process\Process;
 
 beforeEach(function (): void {
     $this->taskService = app(TaskService::class);
+    $this->runService = app(RunService::class);
 });
 
 test('routes to epic:review for epic IDs', function (): void {
@@ -66,6 +68,10 @@ test('shows git diff when task has commit', function (): void {
         $commitHash = trim($gitProcess->getOutput());
         $this->taskService->update($task->short_id, ['commit_hash' => $commitHash]);
 
+        // Create a run and update it with the commit hash
+        $this->runService->createRun($task->short_id, ['agent' => 'test-agent']);
+        $this->runService->updateLatestRun($task->short_id, ['commit_hash' => $commitHash]);
+
         // Review the task
         $exitCode = Artisan::call('review', ['id' => $task->short_id]);
         $output = Artisan::output();
@@ -97,6 +103,10 @@ test('shows full diff with --diff option', function (): void {
     if ($gitProcess->isSuccessful()) {
         $commitHash = trim($gitProcess->getOutput());
         $this->taskService->update($task->short_id, ['commit_hash' => $commitHash]);
+
+        // Create a run and update it with the commit hash
+        $this->runService->createRun($task->short_id, ['agent' => 'test-agent']);
+        $this->runService->updateLatestRun($task->short_id, ['commit_hash' => $commitHash]);
 
         // Review the task with --diff option
         $exitCode = Artisan::call('review', ['id' => $task->short_id, '--diff' => true]);

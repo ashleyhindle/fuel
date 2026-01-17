@@ -63,6 +63,20 @@ public function getLatestCommitHash(string $taskId): ?string
   - Skips empty commit hashes and returns last valid one
 - All 44 RunService tests passing
 
+### f-e15535: ReviewCommand migration
+- ✅ Updated `app/Commands/ReviewCommand.php`:
+  - Added `RunService` import at line 9
+  - Added `RunService $runService` to `handle()` signature at line 30
+  - Replaced `$task->commit_hash` with `$runService->getLatestCommitHash($task->short_id)` at line 70
+  - Stored result in `$commitHash` variable, used throughout lines 70-91
+  - Updated `displayTaskReview()` method signature to accept `?string $commitHash` parameter at line 122
+  - Replaced references to `$task->commit_hash` with `$commitHash` in displayTaskReview at lines 158 and 166
+- ✅ Updated `tests/Feature/Commands/ReviewCommandTest.php`:
+  - Added `RunService` import
+  - Updated tests to create runs with commit hashes via `createRun()` and `updateLatestRun()`
+  - Pattern: `$runService->createRun($task->short_id, ['agent' => 'test-agent'])` followed by `$runService->updateLatestRun($task->short_id, ['commit_hash' => $commitHash])`
+- All 9 ReviewCommand tests passing
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
 

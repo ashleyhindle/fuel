@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Commands\Concerns\HandlesJsonOutput;
 use App\Models\Task;
+use App\Services\RunService;
 use App\Services\TaskService;
 use LaravelZero\Framework\Commands\Command;
 use RuntimeException;
@@ -26,7 +27,7 @@ class ReviewCommand extends Command
 
     protected $description = 'Show review information for a task, epic, or review (routes based on ID)';
 
-    public function handle(TaskService $taskService): int
+    public function handle(TaskService $taskService, RunService $runService): int
     {
         $id = $this->argument('id');
 
@@ -66,19 +67,20 @@ class ReviewCommand extends Command
             $commitMessage = null;
             $commitSubject = null;
 
-            if (isset($task->commit_hash) && is_string($task->commit_hash) && $task->commit_hash !== '') {
+            $commitHash = $runService->getLatestCommitHash($task->short_id);
+            if ($commitHash !== null && $commitHash !== '') {
                 // Get commit subject (first line)
-                $commitSubject = $this->getCommitSubject($task->commit_hash);
+                $commitSubject = $this->getCommitSubject($commitHash);
 
                 // Get full commit message
-                $commitMessage = $this->getCommitMessage($task->commit_hash);
+                $commitMessage = $this->getCommitMessage($commitHash);
 
                 // Get diff stats
-                $gitStats = $this->getGitStats($task->commit_hash);
+                $gitStats = $this->getGitStats($commitHash);
 
                 // Get full diff if requested
                 if ($this->option('diff')) {
-                    $gitDiff = $this->getGitDiff($task->commit_hash);
+                    $gitDiff = $this->getGitDiff($commitHash);
                 }
             }
 
@@ -86,7 +88,7 @@ class ReviewCommand extends Command
             if ($this->option('json')) {
                 $output = [
                     'task' => $task->toArray(),
-                    'commit_hash' => $task->commit_hash ?? null,
+                    'commit_hash' => $commitHash,
                     'commit_subject' => $commitSubject,
                     'commit_message' => $commitMessage,
                     'git_stats' => $gitStats,
@@ -102,7 +104,7 @@ class ReviewCommand extends Command
             }
 
             // Text output
-            $this->displayTaskReview($task, $commitSubject, $commitMessage, $gitStats, $gitDiff);
+            $this->displayTaskReview($task, $commitHash, $commitSubject, $commitMessage, $gitStats, $gitDiff);
 
             return self::SUCCESS;
         } catch (RuntimeException $e) {
@@ -117,6 +119,7 @@ class ReviewCommand extends Command
      */
     private function displayTaskReview(
         Task $task,
+        ?string $commitHash,
         ?string $commitSubject,
         ?string $commitMessage,
         ?string $gitStats,
@@ -152,7 +155,7 @@ class ReviewCommand extends Command
         }
 
         // Git information
-        if ($task->commit_hash !== null) {
+        if ($commitHash !== null) {
             $this->newLine();
             $this->line('<fg=cyan>Commit Information</>');
             $this->newLine();
@@ -160,7 +163,7 @@ class ReviewCommand extends Command
             if ($commitSubject !== null) {
                 $this->line(sprintf('  <fg=green>%s</>', $commitSubject));
             } else {
-                $this->line(sprintf('  <fg=green>%s</>', $task->commit_hash));
+                $this->line(sprintf('  <fg=green>%s</>', $commitHash));
             }
 
             if ($commitMessage !== null && $commitMessage !== $commitSubject) {
