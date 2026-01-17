@@ -2672,6 +2672,12 @@ class ConsumeCommand extends Command
      */
     private function getHealthStatusLines(): array
     {
+        // Use IPC health data when connected, fall back to local healthTracker otherwise
+        if ($this->ipcClient?->isConnected() === true) {
+            return $this->getHealthStatusLinesFromIpc();
+        }
+
+        // Fallback to local healthTracker (--once mode or not connected)
         if (! $this->healthTracker instanceof AgentHealthTrackerInterface) {
             return [];
         }
@@ -2726,6 +2732,74 @@ class ConsumeCommand extends Command
                             $agentName,
                             $status,
                             $health->consecutiveFailures
+                        ),
+                        $color
+                    );
+                }
+
+                // Healthy agents are not shown to avoid clutter
+            }
+        }
+
+        return $unhealthyAgents;
+    }
+
+    /**
+     * Get health status lines using IPC health summary data.
+     *
+     * @return array<string>
+     */
+    private function getHealthStatusLinesFromIpc(): array
+    {
+        $healthSummary = $this->ipcClient->getHealthSummary();
+        $unhealthyAgents = [];
+
+        foreach ($healthSummary as $agentName => $health) {
+            $maxRetries = $this->configService->getAgentMaxRetries($agentName);
+            $isDead = $health['is_dead'] ?? false;
+            $status = $health['status'] ?? 'unknown';
+            $consecutiveFailures = $health['consecutive_failures'] ?? 0;
+            $inBackoff = $health['in_backoff'] ?? false;
+            $backoffSeconds = $health['backoff_seconds'] ?? 0;
+
+            // Show dead agents first (red)
+            if ($isDead) {
+                $unhealthyAgents[] = $this->formatStatus(
+                    '💀',
+                    sprintf(
+                        'Agent %s is DEAD (%d consecutive failures, max: %d)',
+                        $agentName,
+                        $consecutiveFailures,
+                        $maxRetries
+                    ),
+                    'red'
+                );
+            } else {
+                // Show agents in backoff (yellow)
+                if ($inBackoff) {
+                    $formatted = $this->backoffStrategy->formatBackoffTime($backoffSeconds);
+                    $unhealthyAgents[] = $this->formatStatus(
+                        '⏳',
+                        sprintf(
+                            'Agent %s in backoff (%s remaining, %d consecutive failures)',
+                            $agentName,
+                            $formatted,
+                            $consecutiveFailures
+                        ),
+                        'yellow'
+                    );
+                } elseif ($status === 'unhealthy' || $status === 'degraded') {
+                    // Show unhealthy/degraded agents (red/yellow)
+                    $color = $status === 'unhealthy' ? 'red' : 'yellow';
+                    $icon = $status === 'unhealthy' ? '✗' : '⚠';
+
+                    $unhealthyAgents[] = $this->formatStatus(
+                        $icon,
+                        sprintf(
+                            'Agent %s is %s (%d consecutive failures)',
+                            $agentName,
+                            $status,
+                            $consecutiveFailures
                         ),
                         $color
                     );
@@ -3171,6 +3245,7 @@ class ConsumeCommand extends Command
         'add' => 'Create a new task',
         'close' => 'Mark a task as done (with reason: closed)',
         'done' => 'Mark a task as done',
+        'health-clear' => 'Reset health status for an agent',
         'pause' => 'Pause task consumption',
         'reload' => 'Reload configuration',
         'reopen' => 'Reopen a closed or failed task',
@@ -3194,6 +3269,15 @@ class ConsumeCommand extends Command
             $this->commandPaletteInput = $selected['command'].' ';
             $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
             $this->commandPaletteSuggestionIndex = -1;
+            $this->updateCommandPaletteSuggestions();
+
+            return;
+        }
+
+        // Health-clear suggestion - has agent key
+        if (is_array($selected) && isset($selected['agent'])) {
+            $this->commandPaletteInput = 'health-clear '.$selected['agent'];
+            $this->commandPaletteCursor = mb_strlen($this->commandPaletteInput);
             $this->updateCommandPaletteSuggestions();
 
             return;
@@ -3238,6 +3322,13 @@ class ConsumeCommand extends Command
         // Check if input matches reopen command with arguments
         if (str_starts_with($input, 'reopen ')) {
             $this->updateReopenTaskSuggestions(mb_substr($input, 7));
+
+            return;
+        }
+
+        // Check if input matches health-clear command with arguments
+        if (str_starts_with($input, 'health-clear ')) {
+            $this->updateHealthClearSuggestions(mb_substr($input, 13));
 
             return;
         }
@@ -3341,6 +3432,64 @@ class ConsumeCommand extends Command
             ->values()
             ->toArray();
 
+        $this->clampSuggestionIndex();
+    }
+
+    /**
+     * Update suggestions with unhealthy agents for health-clear command.
+     */
+    private function updateHealthClearSuggestions(string $searchTerm): void
+    {
+        $suggestions = [];
+
+        // Get health summary from IPC client
+        $healthSummary = $this->ipcClient?->getHealthSummary() ?? [];
+
+        // Find unhealthy agents
+        foreach ($healthSummary as $agent => $health) {
+            $consecutive_failures = $health['consecutive_failures'] ?? 0;
+            $is_dead = $health['is_dead'] ?? false;
+            $in_backoff = $health['in_backoff'] ?? false;
+            $status = $health['status'] ?? 'unknown';
+
+            // Include agents that need health clearing
+            if ($consecutive_failures > 0 || $is_dead || $in_backoff) {
+                $description = sprintf(
+                    '%s (%s, %d failures)',
+                    $agent,
+                    $status,
+                    $consecutive_failures
+                );
+
+                $suggestions[] = [
+                    'agent' => $agent,
+                    'description' => $description,
+                ];
+            }
+        }
+
+        // Add 'all' option if there are unhealthy agents
+        if (!empty($suggestions)) {
+            array_unshift($suggestions, [
+                'agent' => 'all',
+                'description' => 'Clear health for all agents',
+            ]);
+        }
+
+        // Filter by search term if provided
+        if ($searchTerm !== '') {
+            $searchTermLower = mb_strtolower($searchTerm);
+            $suggestions = array_filter($suggestions, function ($suggestion) use ($searchTermLower) {
+                $agentLower = mb_strtolower($suggestion['agent']);
+                $descriptionLower = mb_strtolower($suggestion['description']);
+
+                return str_contains($agentLower, $searchTermLower) ||
+                       str_contains($descriptionLower, $searchTermLower);
+            });
+            $suggestions = array_values($suggestions); // Re-index array
+        }
+
+        $this->commandPaletteSuggestions = $suggestions;
         $this->clampSuggestionIndex();
     }
 

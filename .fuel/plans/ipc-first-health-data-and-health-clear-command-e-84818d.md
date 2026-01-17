@@ -237,6 +237,23 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - ConsumeCommand can check `$this->ipcClient->getHealthSummary()` for full health data including consecutive_failures, is_dead, etc. for autocomplete suggestions
 - **Key decision:** Placed sendHealthReset() method near sendReloadConfig() since both are control/management commands
 
+### f-990e37: Update ConsumeCommand to use IPC health data
+- **File modified:** `app/Commands/ConsumeCommand.php:2673-2813`
+- **Changes made:**
+  1. Modified `getHealthStatusLines()` to check `$this->ipcClient?->isConnected()`
+  2. If connected, delegates to new method `getHealthStatusLinesFromIpc()`
+  3. If not connected (--once mode or disconnected), falls back to existing local `$this->healthTracker` logic
+  4. Created new private method `getHealthStatusLinesFromIpc()` that:
+     - Gets health summary from `$this->ipcClient->getHealthSummary()`
+     - Reads health data from the IPC data structure (status, consecutive_failures, in_backoff, is_dead, backoff_seconds)
+     - Formats output identically to the original method using the same formatStatus() calls
+- **Key decisions:**
+  - Used exact same formatting logic to ensure consistent output regardless of data source
+  - Preserved all existing icons (💀, ⏳, ✗, ⚠) and color coding
+  - Added null-safe defaults when reading from health summary array to handle any missing fields
+- **Tests:** All existing ConsumeCommand tests pass (31 tests, 97 assertions)
+- **Note:** The helper method `getUnhealthyAgentsFromIpc()` mentioned in plan is for the /health-clear palette command (different task)
+
 ### f-be582e: Wire health reset callback in ConsumeRunner
 - **File modified:** `app/Services/ConsumeRunner.php:110-126`
 - **Changes made:**
