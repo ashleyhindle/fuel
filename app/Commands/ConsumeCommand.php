@@ -1147,7 +1147,7 @@ class ConsumeCommand extends Command
             $visibleEpics = array_slice($epics, $scrollOffset, $visibleSlots, true);
 
             foreach ($visibleEpics as $epic) {
-                $displayId = substr($epic['short_id'], 2, 6);
+                $displayId = $epic['short_id'];
                 $titleTrunc = $this->truncate($epic['title'], $modalWidth - 22);
                 $status = $epic['status'] ?? 'unknown';
 
@@ -2161,7 +2161,7 @@ class ConsumeCommand extends Command
             $visibleEpics = array_slice($epics, $scrollOffset, $visibleSlots, true);
 
             foreach ($visibleEpics as $epic) {
-                $displayId = substr($epic['short_id'], 2, 6);
+                $displayId = $epic['short_id'];
                 $titleTrunc = $this->truncate($epic['title'], $modalWidth - 22);
                 $status = $epic['status'] ?? 'unknown';
 
