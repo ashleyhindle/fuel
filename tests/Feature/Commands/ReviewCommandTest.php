@@ -66,7 +66,6 @@ test('shows git diff when task has commit', function (): void {
 
     if ($gitProcess->isSuccessful()) {
         $commitHash = trim($gitProcess->getOutput());
-        $this->taskService->update($task->short_id, ['commit_hash' => $commitHash]);
 
         // Create a run and update it with the commit hash
         $this->runService->createRun($task->short_id, ['agent' => 'test-agent']);
@@ -102,7 +101,6 @@ test('shows full diff with --diff option', function (): void {
 
     if ($gitProcess->isSuccessful()) {
         $commitHash = trim($gitProcess->getOutput());
-        $this->taskService->update($task->short_id, ['commit_hash' => $commitHash]);
 
         // Create a run and update it with the commit hash
         $this->runService->createRun($task->short_id, ['agent' => 'test-agent']);

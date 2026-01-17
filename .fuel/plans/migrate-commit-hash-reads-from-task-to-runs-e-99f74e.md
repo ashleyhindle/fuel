@@ -75,6 +75,7 @@ public function getLatestCommitHash(string $taskId): ?string
   - Added `RunService` import
   - Updated tests to create runs with commit hashes via `createRun()` and `updateLatestRun()`
   - Pattern: `$runService->createRun($task->short_id, ['agent' => 'test-agent'])` followed by `$runService->updateLatestRun($task->short_id, ['commit_hash' => $commitHash])`
+  - ✅ (f-b6e0ea) Removed redundant `taskService->update()` calls on lines 69 and 105 - tests now only set commit on runs
 - All 9 ReviewCommand tests passing
 
 ### f-33e33c: ShowCommand migration
