@@ -122,13 +122,15 @@ $cmd = PHP_OS_FAMILY === 'Darwin'
 - After creating epic, spawn mirror creation via ProcessSpawner
 - Set mirror_status='pending' on new epic
 
-### Modified: EpicService
+### ✅ Modified: EpicService (f-375c87)
 
 `app/Services/EpicService.php`:
-- Add `getProjectPath(): string` method (delegates to FuelContext)
-- Add `setMirrorReady(Epic, path, branch, baseCommit)` method
-- Add `updateMirrorStatus(Epic, MirrorStatus)` method
-- Add `cleanupMirror(Epic)` method - rm -rf mirror path
+- ✅ Add `getProjectPath(): string` method (delegates to FuelContext)
+- ✅ Add `setMirrorReady(Epic, path, branch, baseCommit)` method
+- ✅ Add `updateMirrorStatus(Epic, MirrorStatus)` method
+- ✅ Add `cleanupMirror(Epic)` method - rm -rf mirror path
+- ✅ Injected FuelContext via constructor
+- ✅ All methods fully tested in `tests/Unit/Services/EpicServiceTest.php`
 
 ### Modified: TaskSpawner
 
@@ -140,13 +142,13 @@ $cmd = PHP_OS_FAMILY === 'Darwin'
   - If `MergeFailed` → skip task (epic blocked)
 - Standalone tasks (no epic): cwd = project directory (unchanged)
 
-### Modified: Epic Model
+### ✅ Modified: Epic Model (f-375c87 & auto-added)
 
 `app/Models/Epic.php`:
-- Add fillable: `mirror_path`, `mirror_status`, `mirror_branch`, `mirror_base_commit`, `mirror_created_at`
-- Add cast: `mirror_status` => `MirrorStatus::class`
-- Add helper: `hasMirror(): bool`
-- Add helper: `isMirrorReady(): bool`
+- ✅ Add fillable: `mirror_path`, `mirror_status`, `mirror_branch`, `mirror_base_commit`, `mirror_created_at`
+- ✅ Add cast: `mirror_status` => `MirrorStatus::class`
+- ✅ Add helper: `hasMirror(): bool`
+- ✅ Add helper: `isMirrorReady(): bool`
 
 ### Modified: HumanCommand
 
@@ -250,7 +252,11 @@ if ($this->hasActiveMerge() && $task->epic_id === null) {
 Created `app/Enums/MirrorStatus.php` following EpicStatus pattern:
 - String-backed enum with 8 cases: None, Pending, Creating, Ready, Merging, MergeFailed, Merged, Cleaned
 - Helper methods: `isWorkable()`, `needsAttention()`, `label()`
-- Fully tested in `tests/Unit/MirrorStatusTest.php`
+- ✅ Fully tested in `tests/Unit/Enums/MirrorStatusTest.php` (f-51287f)
+  - All 8 cases verify correct string values
+  - isWorkable() returns true only for Ready
+  - needsAttention() returns true only for MergeFailed
+  - label() returns human-readable labels for all cases
 - Pattern: Use `match` expressions for status-based logic, exhaustive coverage
 
 ### ✅ ProcessSpawner Service (f-a58578)
