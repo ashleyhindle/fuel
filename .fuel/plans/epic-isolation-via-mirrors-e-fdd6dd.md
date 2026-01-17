@@ -420,8 +420,10 @@ app(ProcessSpawner::class)->spawnBackground('mirror:create', ['e-abc123']);
 - Ensures merge completion isn't blocked by cleanup failures
 - Logs errors to PHP error log for debugging
 
-**Testing:** `tests/Unit/Agents/Tasks/MergeEpicAgentTaskTest.php`
+**Testing:** `tests/Unit/Agents/Tasks/MergeEpicAgentTaskTest.php` (f-905ef7, f-8e104f)
 - 10 comprehensive tests covering all paths
 - Validates quality gate extraction from reality.md
 - Tests exception handling in lifecycle methods
 - Mocks all service dependencies for isolation
+- All tests passing (fromEpic factory, buildPrompt variables, onSuccess/onFailure lifecycle)
+- Note: getCwd test not needed - routing handled by TaskSpawner, not AgentTask override
