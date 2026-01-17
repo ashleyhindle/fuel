@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Daemon;
 
+use App\Ipc\Commands\HealthResetCommand;
 use App\Ipc\Commands\SetTaskReviewCommand;
 use App\Ipc\Commands\StopCommand;
 use App\Ipc\IpcMessage;
@@ -21,14 +22,26 @@ use App\Services\ConsumeIpcServer;
  * - Handle stop command
  * - Handle config reload command
  */
-final readonly class IpcCommandDispatcher
+final class IpcCommandDispatcher
 {
+    private $onHealthReset = null;
+
     public function __construct(
-        private ConsumeIpcServer $ipcServer,
-        private LifecycleManager $lifecycleManager,
-        private CompletionHandler $completionHandler,
-        private ConfigService $configService,
+        private readonly ConsumeIpcServer $ipcServer,
+        private readonly LifecycleManager $lifecycleManager,
+        private readonly CompletionHandler $completionHandler,
+        private readonly ConfigService $configService,
     ) {}
+
+    /**
+     * Set the callback to invoke when health reset command is received.
+     *
+     * @param  callable  $callback  Callback(string $agent): void
+     */
+    public function setOnHealthReset(callable $callback): void
+    {
+        $this->onHealthReset = $callback;
+    }
 
     /**
      * Poll IPC commands from connected clients and handle them.
@@ -196,6 +209,7 @@ final readonly class IpcCommandDispatcher
             'stop' => $this->handleStopCommand($message, $onStop),
             'request_snapshot' => $onSnapshot($clientId),
             'set_task_review_enabled' => $this->handleSetTaskReviewCommand($message),
+            'health_reset' => $this->handleHealthResetCommand($message),
             'reload_config' => $this->handleReloadConfigCommand($onReloadConfig),
             // Task mutation commands
             'task_start' => $onTaskStart($message),
@@ -289,5 +303,18 @@ final readonly class IpcCommandDispatcher
     {
         $this->configService->reload();
         $onReloadConfig();
+    }
+
+    /**
+     * Handle health reset command.
+     *
+     * @param  IpcMessage  $message  The HealthResetCommand message
+     */
+    private function handleHealthResetCommand(IpcMessage $message): void
+    {
+        // Cast to HealthResetCommand to access agent property
+        if ($message instanceof HealthResetCommand && $this->onHealthReset !== null) {
+            ($this->onHealthReset)($message->agent);
+        }
     }
 }

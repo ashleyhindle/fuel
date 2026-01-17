@@ -198,5 +198,25 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - ConsumeIpcClient::handleHealthChangeEvent() needs updating to store all new fields in healthSummary
 - **All tests pass:** ConsumeIpcMessageTest (81 passed), ConsumeIpcProtocolTest (28 passed)
 
+### f-d35292: Add HealthReset handler to IpcCommandDispatcher
+- **File modified:** `app/Daemon/IpcCommandDispatcher.php`
+- **Changes made:**
+  1. Removed `readonly` from class declaration to allow mutable property
+  2. Added `private $onHealthReset = null;` property to store callback
+  3. Added `setOnHealthReset(callable $callback): void` method to set the callback
+  4. Added import for `HealthResetCommand`
+  5. Added `'health_reset' => $this->handleHealthResetCommand($message)` case in match statement
+  6. Added `handleHealthResetCommand(IpcMessage $message): void` private method
+- **Pattern followed:** Similar to `SetTaskReviewCommand` - instance check, extract property, invoke callback
+- **Callback signature:** `callable(string $agent): void` - receives agent name from command
+- **Implementation details:**
+  - Constructor parameters now have explicit `readonly` keywords (class is no longer readonly)
+  - Handler checks both instanceof and null-safety before invoking callback
+  - Placed health_reset case in logical order with other control commands
+- **Next task should:**
+  - Wire callback in `ConsumeRunner` via `$dispatcher->setOnHealthReset(fn($agent) => ...)`
+  - Callback implementation should call `$healthTracker->clearHealth($agent)` and broadcast event
+- **All tests pass:** ConsumeIpcMessageTest (53 passed), ConsumeIpcProtocolTest (28 passed)
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
