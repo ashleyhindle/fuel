@@ -42,17 +42,8 @@ class EpicReviewCommand extends Command
             // Load all linked tasks
             $tasks = $epicService->getTasksForEpic($epic->short_id);
 
-            // Collect commit hashes from tasks
-            $commits = [];
-            foreach ($tasks as $task) {
-                if (isset($task->commit_hash) && is_string($task->commit_hash) && $task->commit_hash !== '') {
-                    $commits[] = [
-                        'hash' => $task->commit_hash,
-                        'task_id' => $task->short_id,
-                        'task_title' => $task->title,
-                    ];
-                }
-            }
+            // Collect commit hashes from runs for these tasks
+            $commits = $this->getCommitsFromRuns($dbService, $tasks);
 
             // Get git information if we have commits
             $gitStats = null;
@@ -424,5 +415,49 @@ class EpicReviewCommand extends Command
         usort($commits, fn (array $a, array $b): int => $a['timestamp'] <=> $b['timestamp']);
 
         return $commits;
+    }
+
+    /**
+     * Get commit hashes from runs associated with tasks.
+     *
+     * @param  array<Task>  $tasks
+     * @return array<array<string, mixed>>
+     */
+    private function getCommitsFromRuns(DatabaseService $dbService, array $tasks): array
+    {
+        if ($tasks === []) {
+            return [];
+        }
+
+        // Get task IDs to query runs
+        $taskIds = array_map(fn (Task $task): int => $task->id, $tasks);
+        $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+
+        // Query runs table for all commits associated with these tasks
+        $sql = "SELECT DISTINCT r.commit_hash, r.task_id, t.short_id as task_short_id, t.title as task_title
+                FROM runs r
+                JOIN tasks t ON r.task_id = t.id
+                WHERE r.task_id IN ({$placeholders})
+                  AND r.commit_hash IS NOT NULL
+                  AND r.commit_hash != ''
+                ORDER BY r.started_at ASC";
+
+        try {
+            $results = $dbService->fetchAll($sql, $taskIds);
+
+            $commits = [];
+            foreach ($results as $row) {
+                $commits[] = [
+                    'hash' => $row['commit_hash'],
+                    'task_id' => $row['task_short_id'],
+                    'task_title' => $row['task_title'],
+                ];
+            }
+
+            return $commits;
+        } catch (\Throwable $e) {
+            // If query fails, return empty array
+            return [];
+        }
     }
 }

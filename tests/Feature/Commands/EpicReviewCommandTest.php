@@ -84,6 +84,7 @@ describe('epic:review command', function (): void {
     it('shows commit information when tasks have commit hashes', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(\App\Services\RunService::class);
 
         $epic = $epicService->createEpic('Commit Epic', 'Epic with commits');
 
@@ -94,8 +95,12 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        // Mark task as done with a commit hash
-        $taskService->done($task->short_id, null, 'abc1234567890123456789012345678901234567');
+        // Create a run with a commit hash
+        $run = $runService->createRun($task->short_id, ['agent' => 'claude-sonnet']);
+        $runService->updateLatestRun($task->short_id, [
+            'commit_hash' => 'abc1234567890123456789012345678901234567',
+            'status' => 'completed',
+        ]);
 
         Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true]);
         $output = Artisan::output();
@@ -154,6 +159,7 @@ describe('epic:review command', function (): void {
     it('includes diff stats in JSON output', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(\App\Services\RunService::class);
 
         $epic = $epicService->createEpic('Stats Epic');
 
@@ -164,7 +170,12 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        $taskService->done($task->short_id, null, 'testcommit123');
+        // Create a run with a commit hash
+        $run = $runService->createRun($task->short_id, ['agent' => 'claude-sonnet']);
+        $runService->updateLatestRun($task->short_id, [
+            'commit_hash' => 'testcommit123',
+            'status' => 'completed',
+        ]);
 
         Artisan::call('epic:review', ['epicId' => $epic->short_id, '--json' => true]);
         $output = Artisan::output();
@@ -177,6 +188,7 @@ describe('epic:review command', function (): void {
     it('includes full diff when --diff flag is used', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(\App\Services\RunService::class);
 
         $epic = $epicService->createEpic('Diff Epic');
 
@@ -187,7 +199,12 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        $taskService->done($task->short_id, null, 'testcommit456');
+        // Create a run with a commit hash
+        $run = $runService->createRun($task->short_id, ['agent' => 'claude-sonnet']);
+        $runService->updateLatestRun($task->short_id, [
+            'commit_hash' => 'testcommit456',
+            'status' => 'completed',
+        ]);
 
         Artisan::call('epic:review', ['epicId' => $epic->short_id, '--json' => true, '--diff' => true]);
         $output = Artisan::output();
@@ -199,6 +216,7 @@ describe('epic:review command', function (): void {
     it('shows diff stats in text output when tasks have commits', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(\App\Services\RunService::class);
 
         $epic = $epicService->createEpic('Stats Text Epic');
 
@@ -209,7 +227,12 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        $taskService->done($task->short_id, null, 'abc1234567890123456789012345678901234567');
+        // Create a run with a commit hash
+        $run = $runService->createRun($task->short_id, ['agent' => 'claude-sonnet']);
+        $runService->updateLatestRun($task->short_id, [
+            'commit_hash' => 'abc1234567890123456789012345678901234567',
+            'status' => 'completed',
+        ]);
 
         Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true]);
         $output = Artisan::output();
@@ -220,6 +243,7 @@ describe('epic:review command', function (): void {
     it('shows full diff in text output when --diff flag is used', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
+        $runService = $this->app->make(\App\Services\RunService::class);
 
         $epic = $epicService->createEpic('Diff Text Epic');
 
@@ -230,7 +254,12 @@ describe('epic:review command', function (): void {
             'epic_id' => $epic->short_id,
         ]);
 
-        $taskService->done($task->short_id, null, 'def1234567890123456789012345678901234567');
+        // Create a run with a commit hash
+        $run = $runService->createRun($task->short_id, ['agent' => 'claude-sonnet']);
+        $runService->updateLatestRun($task->short_id, [
+            'commit_hash' => 'def1234567890123456789012345678901234567',
+            'status' => 'completed',
+        ]);
 
         Artisan::call('epic:review', ['epicId' => $epic->short_id, '--no-prompt' => true, '--diff' => true]);
         $output = Artisan::output();

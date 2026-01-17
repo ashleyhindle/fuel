@@ -206,4 +206,26 @@ describe('human command', function (): void {
         expect($output)->toContain('Test epic');
         expect($output)->toContain($epic->short_id);
     });
+
+    it('shows plan path for epics pending review', function (): void {
+        $epicService = $this->app->make(EpicService::class);
+
+        // Create an epic
+        $epic = $epicService->createEpic('Test epic with plan', 'Test description');
+
+        // Create and close tasks to make epic review_pending
+        $task1 = $this->taskService->create([
+            'title' => 'Task 1',
+            'epic_id' => $epic->short_id,
+        ]);
+        $this->taskService->done($task1->short_id);
+
+        // Check that human command shows the plan path
+        Artisan::call('human', []);
+        $output = Artisan::output();
+
+        expect($output)->toContain('Test epic with plan');
+        expect($output)->toContain('.fuel/plans/');
+        expect($output)->toContain($epic->short_id.'.md');
+    });
 });

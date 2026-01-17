@@ -122,6 +122,7 @@ class HumanCommand extends Command
                 $this->line('  '.$epic->description);
             }
 
+            $this->line(sprintf('  Plan: <comment>%s</comment>', $epic->getPlanPath()));
             $this->line(sprintf('  Review: <comment>fuel epic:review %s</comment>', $epic->short_id));
             $this->newLine();
         }
@@ -553,6 +554,10 @@ class HumanCommand extends Command
                 $this->screenBuffer->setLine($row++, '  '.$line);
             }
         }
+
+        // Show plan path
+        $planPath = $epic->getPlanPath();
+        $this->screenBuffer->setLine($row++, "  \033[90mPlan: {$planPath}\033[0m");
 
         // Render buttons
         $buttonRow = $row;
