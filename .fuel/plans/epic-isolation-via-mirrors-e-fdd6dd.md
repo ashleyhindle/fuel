@@ -190,11 +190,17 @@ class ProcessSpawner
 - ✅ Works in all modes: --once, --json, and interactive TUI
 - ✅ All methods fully implemented with tests: app/Services/EpicService.php:469-577, tests/Unit/Services/EpicServiceTest.php:635-724
 
-### Modified: EpicReviewedCommand
+### ✅ Modified: EpicReviewedCommand (f-cd8a1a)
 
-`app/Commands/EpicReviewedCommand.php` (or wherever epic:reviewed is):
-- After verifying all tasks complete, create MergeEpicAgentTask
-- Set epic mirror_status='merging'
+`app/Commands/EpicReviewedCommand.php`:
+- ✅ After marking epic as reviewed, check ConfigService::getEpicMirrorsEnabled() AND epic->hasMirror()
+- ✅ If both true: call EpicService::updateMirrorStatus(epic, MirrorStatus::Merging)
+- ✅ Create and spawn MergeEpicAgentTask::fromEpic(epic) with full lifecycle (run tracking, PID capture)
+- ✅ If mirrors not enabled or no mirror, keep existing behavior (just mark as reviewed)
+- ✅ All tests passing: tests/Feature/Commands/EpicReviewedCommandTest.php
+  - Tests cover: mirrors disabled, no mirror path, and successful merge task creation
+  - Verified mirror status transitions correctly
+  - No merge task created when conditions not met
 
 ### Modified: InitCommand
 
