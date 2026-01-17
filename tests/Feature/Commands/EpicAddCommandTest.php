@@ -21,7 +21,7 @@ describe('epic:add command', function (): void {
         Artisan::call('epic:add', ['title' => 'JSON epic', '--json' => true]);
         $output = Artisan::output();
 
-        expect($output)->toContain('"status": "planning"');
+        expect($output)->toContain('"status": "paused"'); // Epics start paused
         expect($output)->toContain('"title": "JSON epic"');
         expect($output)->toContain('"short_id": "e-');
     });
@@ -37,7 +37,7 @@ describe('epic:add command', function (): void {
 
         expect($epic['description'])->toBe('This is a detailed description');
         expect($epic['title'])->toBe('Epic with description');
-        expect($epic['status'])->toBe('planning');
+        expect($epic['status'])->toBe('paused'); // Epics start paused
         expect($epic['short_id'])->toStartWith('e-');
     });
 
@@ -51,7 +51,7 @@ describe('epic:add command', function (): void {
 
         expect($epic['description'])->toBeNull();
         expect($epic['title'])->toBe('Epic without description');
-        expect($epic['status'])->toBe('planning');
+        expect($epic['status'])->toBe('paused'); // Epics start paused
     });
 
     it('outputs epic ID in non-JSON mode', function (): void {

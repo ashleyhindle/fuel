@@ -26,6 +26,7 @@ class EpicService
             'title' => $title,
             'description' => $description,
             'self_guided' => $selfGuided,
+            'paused_at' => $now, // Start paused so tasks aren't consumed before setup is complete
             'created_at' => $now,
             'updated_at' => $now,
         ]);

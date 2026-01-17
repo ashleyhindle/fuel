@@ -86,6 +86,12 @@ fuel add "Review: Feature name" \
   --description="Verify epic complete. Criteria: 1) Feature works end-to-end, 2) All tests pass, 3) No debug code, 4) Matches original intent"
 ```
 
+### 6. Unpause Epic
+Epics start paused to prevent tasks from being consumed before setup is complete. Once all tasks and dependencies are added, unpause to start execution:
+```bash
+fuel unpause e-xxxx
+```
+
 ## Writing Good Descriptions
 
 **Bad:** "Fix the bug"
@@ -118,4 +124,7 @@ fuel add "Add preferences API endpoints" --epic=e-xxxx --complexity=moderate --p
 fuel add "Add preferences UI component" --epic=e-xxxx --complexity=moderate --priority=1 --blocked-by=f-api
 fuel add "Add preferences tests" --epic=e-xxxx --complexity=simple --priority=1 --blocked-by=f-api,f-ui
 fuel add "Review: User preferences" --epic=e-xxxx --complexity=complex --blocked-by=f-model,f-api,f-ui,f-tests --description="Verify: 1) Preferences save and load correctly, 2) UI reflects saved state, 3) All tests pass, 4) No debug code"
+
+# Unpause to start execution
+fuel unpause e-xxxx
 ```

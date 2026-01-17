@@ -74,7 +74,7 @@ it('creates an epic with title and description', function (): void {
     expect(strlen((string) $epic->short_id))->toBe(8);
     expect($epic->title)->toBe('My Epic');
     expect($epic->description)->toBe('Epic description');
-    expect($epic->status)->toBe(EpicStatus::Planning);
+    expect($epic->status)->toBe(EpicStatus::Paused); // Epics start paused
     expect($epic->created_at)->not->toBeNull();
 });
 
@@ -154,6 +154,7 @@ it('clears epic description with null', function (): void {
 
 it('computes epic status as planning when no tasks', function (): void {
     $created = $this->service->createEpic('Title');
+    $this->service->unpause($created->short_id); // Epics start paused
 
     $epic = $this->service->getEpic($created->short_id);
 
@@ -162,6 +163,7 @@ it('computes epic status as planning when no tasks', function (): void {
 
 it('computes epic status as in_progress when task is open', function (): void {
     $epic = $this->service->createEpic('Title');
+    $this->service->unpause($epic->short_id); // Epics start paused
     $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
 
     $epic = $this->service->getEpic($epic->short_id);
@@ -171,6 +173,7 @@ it('computes epic status as in_progress when task is open', function (): void {
 
 it('computes epic status as in_progress when task is in_progress', function (): void {
     $epic = $this->service->createEpic('Title');
+    $this->service->unpause($epic->short_id); // Epics start paused
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $this->taskService->start($task->short_id);
 
@@ -181,6 +184,7 @@ it('computes epic status as in_progress when task is in_progress', function (): 
 
 it('computes epic status as review_pending when all tasks are done', function (): void {
     $epic = $this->service->createEpic('Title');
+    $this->service->unpause($epic->short_id); // Epics start paused
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
@@ -191,6 +195,7 @@ it('computes epic status as review_pending when all tasks are done', function ()
 
 it('computes epic status as reviewed when reviewed_at is set', function (): void {
     $epic = $this->service->createEpic('Title');
+    $this->service->unpause($epic->short_id); // Epics start paused
     $task = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
@@ -211,6 +216,7 @@ it('computes epic status as reviewed when reviewed_at is set', function (): void
 
 it('ignores status updates since status is computed', function (): void {
     $created = $this->service->createEpic('Title');
+    $this->service->unpause($created->short_id); // Epics start paused
 
     // Status updates are ignored - status is purely computed
     $updated = $this->service->updateEpic($created->short_id, ['status' => 'invalid']);
@@ -341,6 +347,7 @@ it('returns not completed when epic has in_progress tasks', function (): void {
 
 it('triggers completion when all tasks are done', function (): void {
     $epic = $this->service->createEpic('Epic with all done tasks', 'Test epic description');
+    $this->service->unpause($epic->short_id); // Epics start paused
 
     $task1 = $this->taskService->create([
         'title' => 'Task 1',
@@ -444,6 +451,7 @@ it('approves an epic with default approved_by', function (): void {
 
 it('rejects an epic and reopens tasks', function (): void {
     $epic = $this->service->createEpic('Epic to reject');
+    $this->service->unpause($epic->short_id); // Epics start paused
     $task1 = $this->taskService->create(['title' => 'Task 1', 'epic_id' => $epic->short_id]);
     $task2 = $this->taskService->create(['title' => 'Task 2', 'epic_id' => $epic->short_id]);
 
@@ -469,6 +477,7 @@ it('rejects an epic and reopens tasks', function (): void {
 
 it('shows changes_requested status when epic rejected but tasks not yet reopened', function (): void {
     $epic = $this->service->createEpic('Epic to reject');
+    $this->service->unpause($epic->short_id); // Epics start paused
     $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 
@@ -521,6 +530,7 @@ it('persists paused status to database', function (): void {
 
 it('persists reviewed status to database', function (): void {
     $epic = $this->service->createEpic('Epic to review');
+    $this->service->unpause($epic->short_id); // Epics start paused
     $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->short_id]);
     $this->taskService->done($task->short_id);
 

@@ -31,7 +31,7 @@ describe('epic:add command', function (): void {
         expect($epic['title'])->toBe('Title Only Epic');
         expect($epic['description'])->toBeNull();
         expect($epic['short_id'])->toStartWith('e-');
-        expect($epic['status'])->toBe(EpicStatus::Planning->value);
+        expect($epic['status'])->toBe(EpicStatus::Paused->value); // Epics start paused
     });
 
     it('creates epic with description', function (): void {
@@ -54,7 +54,7 @@ describe('epic:add command', function (): void {
         ]);
         $output = Artisan::output();
 
-        expect($output)->toContain('"status": "'.EpicStatus::Planning->value.'"');
+        expect($output)->toContain('"status": "'.EpicStatus::Paused->value.'"'); // Epics start paused
         expect($output)->toContain('"title": "JSON epic"');
         expect($output)->toContain('"short_id": "e-');
     });
@@ -372,16 +372,17 @@ MARKDOWN);
 });
 
 describe('epic status derivation via commands', function (): void {
-    it('epic status is planning when no tasks', function (): void {
+    it('epic status is paused when newly created', function (): void {
         $epic = $this->epicService->createEpic('Empty Epic');
 
         $fetchedEpic = $this->epicService->getEpic($epic->short_id);
 
-        expect($fetchedEpic->status)->toBe(EpicStatus::Planning);
+        expect($fetchedEpic->status)->toBe(EpicStatus::Paused); // Epics start paused
     });
 
     it('epic status is in_progress when task is open', function (): void {
         $epic = $this->epicService->createEpic('Epic with task');
+        $this->epicService->unpause($epic->short_id); // Epics start paused
 
         Artisan::call('add', [
             'title' => 'Open task',
@@ -396,6 +397,7 @@ describe('epic status derivation via commands', function (): void {
 
     it('epic status is in_progress when task is in_progress', function (): void {
         $epic = $this->epicService->createEpic('Epic with active task');
+        $this->epicService->unpause($epic->short_id); // Epics start paused
 
         Artisan::call('add', [
             'title' => 'Active task',
@@ -415,6 +417,7 @@ describe('epic status derivation via commands', function (): void {
 
     it('epic status is review_pending when all tasks are done', function (): void {
         $epic = $this->epicService->createEpic('Completed Epic');
+        $this->epicService->unpause($epic->short_id); // Epics start paused
 
         Artisan::call('add', [
             'title' => 'Task to complete',
@@ -435,6 +438,11 @@ describe('epic status derivation via commands', function (): void {
     it('epic status transitions correctly through task lifecycle', function (): void {
         $epic = $this->epicService->createEpic('Lifecycle Epic');
 
+        // Epics start paused
+        expect($this->epicService->getEpic($epic->short_id)->status)->toBe(EpicStatus::Paused);
+
+        // Unpause to test computed status
+        $this->epicService->unpause($epic->short_id);
         expect($this->epicService->getEpic($epic->short_id)->status)->toBe(EpicStatus::Planning);
 
         Artisan::call('add', [

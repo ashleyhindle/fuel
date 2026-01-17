@@ -49,6 +49,7 @@ class EpicAddCommand extends Command
             }
 
             $this->line('  Plan: .fuel/plans/'.$planFilename.' (add your plan here)');
+            $this->line('  Status: paused (run `fuel unpause '.$epic->short_id.'` when ready)');
             if ($selfGuided && isset($epic->selfGuidedTaskId)) {
                 $this->line('  Created self-guided task: '.$epic->selfGuidedTaskId);
             }

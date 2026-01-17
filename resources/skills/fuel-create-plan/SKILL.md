@@ -81,6 +81,8 @@ fuel epic:add "Feature name" --description="What and why" [--selfguided]
 
 Note the epic ID (e.g., `e-abc123`). A plan file is auto-created at `.fuel/plans/{title-kebab}-{epic-id}.md`.
 
+**Epics start paused** - tasks won't be consumed until you run `fuel unpause e-abc123`. This gives you time to add all tasks and dependencies before execution begins.
+
 ### 5. Execution Mode Choice
 
 After creating the epic, ask the user how they want it executed:
@@ -200,8 +202,9 @@ Once your plan is approved, use the **fuel-make-plan-actionable** skill to:
 - Break the plan into individual tasks with `fuel add --epic=e-xxxx`
 - Set proper complexity and dependencies
 - Create a mandatory review task
-- Start execution with `fuel-consume-the-fuel`
+- **Unpause the epic** with `fuel unpause e-xxxx` to start execution
 
 The two skills form a complete workflow:
 1. **fuel-create-plan** → Design with context
 2. **fuel-make-plan-actionable** → Convert to executable tasks
+3. **fuel unpause** → Start execution once all tasks are ready
