@@ -96,12 +96,22 @@ class ProcessSpawner
 - Cross-platform copy command properly escapes shell arguments
 - Symlink ensures shared database/config access
 
-**Tested:** `tests/Feature/Commands/MirrorCreateCommandTest.php`
-- Command validation (requires epic argument)
-- Non-existent epic handling
-- Status update flow (Creating → Ready/None)
-- Platform-specific copy command generation
-- Proper shell argument escaping
+**✅ Tested (f-a9074a):** `tests/Feature/Commands/MirrorCreateCommandTest.php`
+- ✅ Command validation (requires epic argument)
+- ✅ Non-existent epic handling
+- ✅ Status update flow (Creating → Ready/None)
+- ✅ Platform-specific copy command generation
+- ✅ Proper shell argument escaping
+- ✅ Creates mirror directory in correct location
+- ✅ Symlinks .fuel/ directory correctly (uses realpath for macOS /var vs /private/var)
+- ✅ Creates git branch with correct name (epic/{epic-id})
+- ✅ Updates epic with mirror_path, mirror_branch, mirror_status=Ready
+- ✅ Handles failure gracefully (sets status to None since Failed doesn't exist)
+- ✅ Uses temp directories and cleanup in tearDown
+- ✅ Supports partial epic ID matching
+- ✅ Prevents duplicate mirror creation
+- ✅ Captures and stores base commit correctly
+- ✅ Sets status to Creating during operation
 
 ### New Prompt: merge.md
 
