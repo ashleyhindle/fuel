@@ -486,3 +486,52 @@ it('throws exception when approving non-existent epic', function (): void {
 it('throws exception when rejecting non-existent epic', function (): void {
     $this->service->rejectEpic('e-000000');
 })->throws(RuntimeException::class, "Epic 'e-000000' not found");
+
+it('persists approved status to database', function (): void {
+    $epic = $this->service->createEpic('Epic to approve');
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->short_id]);
+    $this->taskService->done($task->short_id);
+
+    $this->service->approveEpic($epic->short_id);
+
+    // Query the database directly to verify status was persisted
+    $result = $this->db->fetchAll(
+        'SELECT status FROM epics WHERE short_id = ?',
+        [$epic->short_id]
+    );
+
+    expect($result)->toHaveCount(1);
+    expect($result[0]['status'])->toBe('approved');
+});
+
+it('persists paused status to database', function (): void {
+    $epic = $this->service->createEpic('Epic to pause');
+
+    $this->service->pause($epic->short_id);
+
+    // Query the database directly to verify status was persisted
+    $result = $this->db->fetchAll(
+        'SELECT status FROM epics WHERE short_id = ?',
+        [$epic->short_id]
+    );
+
+    expect($result)->toHaveCount(1);
+    expect($result[0]['status'])->toBe('paused');
+});
+
+it('persists reviewed status to database', function (): void {
+    $epic = $this->service->createEpic('Epic to review');
+    $task = $this->taskService->create(['title' => 'Task', 'epic_id' => $epic->short_id]);
+    $this->taskService->done($task->short_id);
+
+    $this->service->markAsReviewed($epic->short_id);
+
+    // Query the database directly to verify status was persisted
+    $result = $this->db->fetchAll(
+        'SELECT status FROM epics WHERE short_id = ?',
+        [$epic->short_id]
+    );
+
+    expect($result)->toHaveCount(1);
+    expect($result[0]['status'])->toBe('reviewed');
+});

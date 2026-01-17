@@ -137,10 +137,10 @@ class EpicService
         // Set paused_at to indicate paused status
         $epic->update([
             'paused_at' => $now,
+            'status' => EpicStatus::Paused->value,
             'updated_at' => $now,
         ]);
         $epic->refresh();
-        $epic->status = EpicStatus::Paused;
 
         return $epic;
     }
@@ -163,7 +163,11 @@ class EpicService
             'updated_at' => $now,
         ]);
         $epic->refresh();
-        $epic->status = $this->getEpicStatus($epic->short_id);
+
+        // Compute and persist the new status
+        $status = $this->getEpicStatus($epic->short_id);
+        $epic->update(['status' => $status->value]);
+        $epic->refresh();
 
         return $epic;
     }
@@ -181,7 +185,11 @@ class EpicService
             'updated_at' => $now,
         ]);
         $epic->refresh();
-        $epic->status = $this->getEpicStatus($epic->short_id);
+
+        // Compute and persist the new status
+        $status = $this->getEpicStatus($epic->short_id);
+        $epic->update(['status' => $status->value]);
+        $epic->refresh();
 
         return $epic;
     }
@@ -207,10 +215,10 @@ class EpicService
             'approved_at' => $now,
             'approved_by' => $approvedByValue,
             'changes_requested_at' => null,
+            'status' => EpicStatus::Approved->value,
             'updated_at' => $now,
         ]);
         $epic->refresh();
-        $epic->status = $this->getEpicStatus($epic->short_id);
 
         // Trigger reality.md update after epic approval
         app(UpdateRealityService::class)->triggerUpdate(null, $epic);
@@ -238,6 +246,7 @@ class EpicService
             'changes_requested_at' => $now,
             'approved_at' => null,
             'approved_by' => null,
+            'status' => EpicStatus::ChangesRequested->value,
             'updated_at' => $now,
         ]);
         $epic->refresh();
@@ -250,7 +259,10 @@ class EpicService
             }
         }
 
-        $epic->status = $this->getEpicStatus($epic->short_id);
+        // Recompute status after reopening tasks
+        $status = $this->getEpicStatus($epic->short_id);
+        $epic->update(['status' => $status->value]);
+        $epic->refresh();
 
         return $epic;
     }
