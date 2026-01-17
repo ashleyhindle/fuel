@@ -1,0 +1,39 @@
+primary: claude-opus
+review: claude-opus
+reality: claude-sonnet
+
+max_concurrent: 60
+port: 9999
+epic_mirrors: true
+
+complexity:
+    trivial: claude-sonnet
+    simple: claude-sonnet
+    moderate: claude-opus
+    complex: claude-opus
+agents:
+    claude-sonnet:
+        driver: claude
+        model: sonnet
+        max_concurrent: 2
+        max_attempts: 3
+    claude-opus:
+        driver: claude
+        model: opus
+        max_concurrent: 30
+        max_attempts: 5
+    opencode-minimax:
+        driver: opencode
+        model: opencode/minimax-m2.1-free
+        max_concurrent: 2
+        max_attempts: 3
+    amp-smart:
+        driver: amp
+        model: smart
+        max_concurrent: 3
+        max_attempts: 3
+    codex-complex:
+        driver: codex
+        model: gpt-5.2-codex
+        max_concurrent: 2
+        max_attempts: 3
