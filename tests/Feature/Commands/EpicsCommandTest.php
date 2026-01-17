@@ -27,7 +27,7 @@ describe('epics command', function (): void {
         expect($output)->toContain('Second Epic');
         expect($output)->toContain($epic1->short_id);
         expect($output)->toContain($epic2->short_id);
-        expect($output)->toContain('planning');
+        expect($output)->toContain('paused');
         expect($output)->toContain('Progress');
     });
 
@@ -43,7 +43,7 @@ describe('epics command', function (): void {
         expect($epics)->toHaveCount(1);
         expect($epics[0]['short_id'])->toBe($epic->short_id);
         expect($epics[0]['title'])->toBe('JSON Epic');
-        expect($epics[0]['status'])->toBe('planning');
+        expect($epics[0]['status'])->toBe('paused');
         expect($epics[0])->toHaveKey('task_count');
         expect($epics[0]['task_count'])->toBe(0);
         expect($epics[0])->toHaveKey('completed_count');
@@ -75,24 +75,26 @@ describe('epics command', function (): void {
         $epicService = $this->app->make(EpicService::class);
         $taskService = $this->app->make(TaskService::class);
 
-        // Epic with no tasks - should be planning
-        $epic1 = $epicService->createEpic('Planning Epic');
+        // Epic with no tasks - should be paused (epics start paused)
+        $epic1 = $epicService->createEpic('Paused Epic');
 
-        // Epic with open task - should be in_progress
+        // Epic with open task - should be in_progress (after unpausing)
         $epic2 = $epicService->createEpic('In Progress Epic');
         $taskService->create([
             'title' => 'Open Task',
             'epic_id' => $epic2->short_id,
             'status' => 'open',
         ]);
+        $epicService->unpause($epic2->short_id);
 
-        // Epic with all done tasks - should be review_pending
+        // Epic with all done tasks - should be review_pending (after unpausing)
         $epic3 = $epicService->createEpic('Review Pending Epic');
         $task3 = $taskService->create([
             'title' => 'Closed Task',
             'epic_id' => $epic3->short_id,
         ]);
         $taskService->update($task3->short_id, ['status' => 'done']);
+        $epicService->unpause($epic3->short_id);
 
         // Check JSON output for reliable status checking
         Artisan::call('epics', ['--json' => true]);
@@ -100,11 +102,11 @@ describe('epics command', function (): void {
         $epics = json_decode($output, true);
 
         // Find epics by title
-        $planningEpic = collect($epics)->firstWhere('title', 'Planning Epic');
+        $pausedEpic = collect($epics)->firstWhere('title', 'Paused Epic');
         $inProgressEpic = collect($epics)->firstWhere('title', 'In Progress Epic');
         $reviewPendingEpic = collect($epics)->firstWhere('title', 'Review Pending Epic');
 
-        expect($planningEpic['status'])->toBe('planning');
+        expect($pausedEpic['status'])->toBe('paused');
         expect($inProgressEpic['status'])->toBe('in_progress');
         expect($reviewPendingEpic['status'])->toBe('review_pending');
     });
