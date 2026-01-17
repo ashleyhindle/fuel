@@ -74,7 +74,7 @@ class EpicShowCommand extends Command
                     $latestRun = $runService->getLatestRun($task->short_id);
                     $data['type'] = $task->type ?? 'task';
                     $data['agent'] = $latestRun?->agent;
-                    $data['commit_hash'] = $task->commit_hash ?? null;
+                    $data['commit_hash'] = $runService->getLatestCommitHash($task->short_id);
 
                     return $data;
                 }, $sortedTasks);

@@ -170,10 +170,19 @@ class EpicReviewCommand extends Command
             $commitMaxWidth = max(20, $termWidth - 87);
 
             $headers = ['ID', 'Title', 'Status', 'Commit'];
-            $rows = array_map(function (Task $task) use ($commitSubjects, $commitMaxWidth): array {
+            $rows = array_map(function (Task $task) use ($commits, $commitSubjects, $commitMaxWidth): array {
                 $commit = '-';
-                if (isset($task->commit_hash) && $task->commit_hash !== '') {
-                    $commit = $commitSubjects[$task->commit_hash] ?? $task->commit_hash;
+                // Find commit hash from runs for this task
+                $taskCommitHash = null;
+                foreach ($commits as $c) {
+                    if ($c['task_id'] === $task->short_id) {
+                        $taskCommitHash = $c['hash'];
+                        break;
+                    }
+                }
+
+                if ($taskCommitHash !== null) {
+                    $commit = $commitSubjects[$taskCommitHash] ?? $taskCommitHash;
                     if (strlen($commit) > $commitMaxWidth) {
                         $commit = substr($commit, 0, $commitMaxWidth - 3).'...';
                     }

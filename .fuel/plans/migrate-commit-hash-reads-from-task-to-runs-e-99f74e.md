@@ -90,6 +90,22 @@ public function getLatestCommitHash(string $taskId): ?string
 - Pattern: Get commit hash once early, reuse the variable throughout to avoid multiple queries
 - All commit hash related ShowCommand tests passing
 
+### f-7ad374: EpicShowCommand migration
+- ✅ Updated `app/Commands/EpicShowCommand.php`:
+  - `RunService` already imported and injected in handle() signature (line 31)
+  - Replaced `$task->commit_hash ?? null` with `$runService->getLatestCommitHash($task->short_id)` at line 77
+  - Change made in JSON output section within array_map closure
+- ✅ No test updates required - no existing tests check commit_hash in EpicShowCommandTest.php
+- ✅ Smoketest confirmed: `fuel epic:show e-99f74e --json` works correctly
+
+### f-10b29c: EpicReviewCommand migration
+- ✅ Updated `app/Commands/EpicReviewCommand.php`:
+  - Removed fallback to `$task->commit_hash` at lines 175-176
+  - Changed logic at lines 173-189 to only use commits from runs (via `$commits` array)
+  - Now finds commit hash for each task by searching through `$commits` array (populated by `getCommitsFromRuns()` at line 437)
+  - No longer reads `task.commit_hash` - only uses data from runs table
+- Pattern: The commit display in the tasks table now exclusively uses commits retrieved from runs, maintaining consistency with the epic's migration goal
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
 
