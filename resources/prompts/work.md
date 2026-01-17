@@ -9,6 +9,10 @@ You must ONLY work on this task. Nothing else.
 == TASK DETAILS ==
 {{context.task_details}}
 
+{{#if context.preprocessor_context}}
+{{context.preprocessor_context}}
+
+{{/if}}
 == TEAMWORK - YOU ARE NOT ALONE ==
 You are ONE agent in a team working in parallel on this codebase.
 Other teammates are working on other tasks RIGHT NOW. They're counting on you to:

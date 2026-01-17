@@ -33,6 +33,7 @@ class WorkAgentTask extends AbstractAgentTask
         private readonly ?ReviewServiceInterface $reviewService = null,
         private readonly bool $reviewEnabled = false,
         private readonly ?string $agentOverride = null,
+        private readonly bool $usePreprocessors = true,
     ) {
         parent::__construct($task, $taskService);
     }
@@ -57,7 +58,9 @@ class WorkAgentTask extends AbstractAgentTask
      */
     public function buildPrompt(string $cwd): string
     {
-        return $this->promptBuilder->build($this->task, $cwd);
+        return $this->promptBuilder->build($this->task, $cwd, [
+            'preprocessors' => $this->usePreprocessors,
+        ]);
     }
 
     public function getProcessType(): ProcessType

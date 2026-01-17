@@ -117,7 +117,7 @@ describe('WorkAgentTask', function (): void {
         $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'open']);
 
         $this->promptBuilder->shouldReceive('build')
-            ->with($task, '/test/cwd')
+            ->with($task, '/test/cwd', ['preprocessors' => true])
             ->once()
             ->andReturn('Generated prompt content');
 

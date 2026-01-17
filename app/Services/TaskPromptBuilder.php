@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Contracts\PreprocessorInterface;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Run;
@@ -11,14 +12,54 @@ use App\Models\Task;
 
 class TaskPromptBuilder
 {
+    /**
+     * @var array<PreprocessorInterface>
+     */
+    private array $preprocessors = [];
+
     public function __construct(
         private readonly RunService $runService,
         private readonly PromptService $promptService
     ) {}
 
-    public function build(Task $task, string $cwd): string
+    /**
+     * Register a preprocessor to run before prompt building.
+     */
+    public function addPreprocessor(PreprocessorInterface $preprocessor): self
     {
+        $this->preprocessors[] = $preprocessor;
+
+        return $this;
+    }
+
+    /**
+     * Get registered preprocessors.
+     *
+     * @return array<PreprocessorInterface>
+     */
+    public function getPreprocessors(): array
+    {
+        return $this->preprocessors;
+    }
+
+    /**
+     * Build the prompt for a task.
+     *
+     * @param  Task  $task  The task to build prompt for
+     * @param  string  $cwd  Working directory
+     * @param  array{preprocessors?: bool}  $options  Build options
+     */
+    public function build(Task $task, string $cwd, array $options = []): string
+    {
+        $usePreprocessors = $options['preprocessors'] ?? true;
+
         $template = $this->promptService->loadTemplate('work');
+
+        // Run preprocessors if enabled
+        $preprocessorContext = '';
+        if ($usePreprocessors && $this->preprocessors !== []) {
+            $preprocessorContext = $this->runPreprocessors($task, $cwd);
+        }
 
         $variables = [
             'task' => [
@@ -26,12 +67,34 @@ class TaskPromptBuilder
             ],
             'context' => [
                 'task_details' => $this->formatTaskForPrompt($task),
+                'preprocessor_context' => $preprocessorContext,
                 'closing_protocol' => $this->buildClosingProtocol($task->short_id),
             ],
             'cwd' => $cwd,
         ];
 
         return $this->promptService->render($template, $variables);
+    }
+
+    /**
+     * Run all registered preprocessors and collect their output.
+     */
+    private function runPreprocessors(Task $task, string $cwd): string
+    {
+        $outputs = [];
+
+        foreach ($this->preprocessors as $preprocessor) {
+            try {
+                $result = $preprocessor->process($task, $cwd);
+                if ($result !== null && $result !== '') {
+                    $outputs[] = $result;
+                }
+            } catch (\Throwable) {
+                // Silently skip failed preprocessors - they shouldn't block task execution
+            }
+        }
+
+        return $outputs !== [] ? implode("\n\n", $outputs) : '';
     }
 
     /**

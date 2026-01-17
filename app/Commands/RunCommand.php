@@ -30,6 +30,7 @@ class RunCommand extends Command
         {--prompt= : Custom prompt (defaults to standard consume prompt)}
         {--no-start : Don\'t mark task as in_progress before running}
         {--no-done : Don\'t auto-complete task on success}
+        {--no-preprocessors : Disable preprocessors (relevant files injection, etc.)}
         {--raw : Show raw JSON output instead of formatted}
         {--json : Output as JSON}
         {--cwd= : Working directory (defaults to current directory)}';
@@ -119,7 +120,10 @@ class RunCommand extends Command
                 }
 
                 if ($fullPrompt === null) {
-                    $fullPrompt = $this->promptBuilder->build($task, $cwd);
+                    $usePreprocessors = ! $this->option('no-preprocessors');
+                    $fullPrompt = $this->promptBuilder->build($task, $cwd, [
+                        'preprocessors' => $usePreprocessors,
+                    ]);
                 }
             }
         }

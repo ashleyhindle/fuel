@@ -27,6 +27,7 @@ use App\Services\NotificationService;
 use App\Services\ProcessManager;
 use App\Services\ReviewService;
 use App\Services\RunService;
+use App\Preprocessors\RelevantFilesPreprocessor;
 use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use App\Services\UpdateRealityService;
@@ -154,7 +155,17 @@ class AppServiceProvider extends ServiceProvider
             fuelContext: $app->make(FuelContext::class),
         ));
 
-        $this->app->singleton(TaskPromptBuilder::class);
+        $this->app->singleton(TaskPromptBuilder::class, function (Application $app): TaskPromptBuilder {
+            $builder = new TaskPromptBuilder(
+                $app->make(RunService::class),
+                $app->make(\App\Services\PromptService::class)
+            );
+
+            // Register default preprocessors
+            $builder->addPreprocessor(new RelevantFilesPreprocessor);
+
+            return $builder;
+        });
 
         $this->app->singleton(UpdateRealityService::class, fn (Application $app): UpdateRealityService => new UpdateRealityService(
             configService: $app->make(ConfigService::class),
