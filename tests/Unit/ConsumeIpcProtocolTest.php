@@ -312,6 +312,10 @@ describe('round-trip event types', function (): void {
         $original = new HealthChangeEvent(
             agent: 'claude',
             status: 'healthy',
+            consecutiveFailures: 3,
+            inBackoff: true,
+            isDead: false,
+            backoffSeconds: 240,
             instanceId: $this->instanceId
         );
 
@@ -322,6 +326,10 @@ describe('round-trip event types', function (): void {
         expect($decoded->type())->toBe(ConsumeEventType::HealthChange->value);
         expect($decoded->agent())->toBe('claude');
         expect($decoded->status())->toBe('healthy');
+        expect($decoded->consecutiveFailures())->toBe(3);
+        expect($decoded->inBackoff())->toBe(true);
+        expect($decoded->isDead())->toBe(false);
+        expect($decoded->backoffSeconds())->toBe(240);
     });
 
     test('OutputChunkEvent', function (): void {

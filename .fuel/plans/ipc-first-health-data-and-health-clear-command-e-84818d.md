@@ -181,5 +181,22 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - Type field matches enum value test
 - **All tests pass:** ConsumeIpcMessageTest (53 passed), ConsumeIpcProtocolTest (28 passed)
 
+### f-d4c566: Enhance HealthChangeEvent with full health data
+- **Files modified:**
+  - `app/Ipc/Events/HealthChangeEvent.php` - Added properties: consecutiveFailures (int), inBackoff (bool), isDead (bool), backoffSeconds (int)
+  - `app/Services/ConsumeIpcProtocol.php:279-292` - Updated decodeHealthChangeEvent() to parse new fields with defaults
+  - `tests/Unit/ConsumeIpcMessageTest.php` - Updated test to verify new fields, added bool type handling to generic test helpers
+  - `tests/Unit/ConsumeIpcProtocolTest.php` - Updated round-trip test with new properties
+- **Key decisions:**
+  - All new fields have sensible defaults in decoder (0 for ints, false for bools) for backward compatibility
+  - Added getter methods for all new properties following existing pattern
+  - Boolean fields use camelCase (inBackoff, isDead) for consistency with PHP conventions
+- **Gotchas for next tasks:**
+  - EventBroadcaster::broadcastHealthChange() still uses old signature (agent, status) - needs updating to pass full health data
+  - SnapshotManager has access to full AgentHealth object when calling broadcaster
+  - Use AgentHealth::getBackoffSeconds() and check backoffUntil/isDead for the boolean fields
+  - ConsumeIpcClient::handleHealthChangeEvent() needs updating to store all new fields in healthSummary
+- **All tests pass:** ConsumeIpcMessageTest (81 passed), ConsumeIpcProtocolTest (28 passed)
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->

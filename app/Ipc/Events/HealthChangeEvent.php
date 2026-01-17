@@ -17,6 +17,10 @@ final class HealthChangeEvent implements IpcMessage, JsonSerializable
     public function __construct(
         private readonly string $agent,
         private readonly string $status,
+        private readonly int $consecutiveFailures,
+        private readonly bool $inBackoff,
+        private readonly bool $isDead,
+        private readonly int $backoffSeconds,
         string $instanceId,
         ?DateTimeImmutable $timestamp = null,
         ?string $requestId = null
@@ -41,6 +45,26 @@ final class HealthChangeEvent implements IpcMessage, JsonSerializable
         return $this->status;
     }
 
+    public function consecutiveFailures(): int
+    {
+        return $this->consecutiveFailures;
+    }
+
+    public function inBackoff(): bool
+    {
+        return $this->inBackoff;
+    }
+
+    public function isDead(): bool
+    {
+        return $this->isDead;
+    }
+
+    public function backoffSeconds(): int
+    {
+        return $this->backoffSeconds;
+    }
+
     public function toArray(): array
     {
         return [
@@ -50,6 +74,10 @@ final class HealthChangeEvent implements IpcMessage, JsonSerializable
             'request_id' => $this->requestId,
             'agent' => $this->agent,
             'status' => $this->status,
+            'consecutive_failures' => $this->consecutiveFailures,
+            'in_backoff' => $this->inBackoff,
+            'is_dead' => $this->isDead,
+            'backoff_seconds' => $this->backoffSeconds,
         ];
     }
 
