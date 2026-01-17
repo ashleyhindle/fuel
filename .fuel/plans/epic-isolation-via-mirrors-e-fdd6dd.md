@@ -271,6 +271,25 @@ Added configuration flag to control epic mirrors feature in `app/Services/Config
 - **Purpose**: Safe rollout flag for enabling/disabling mirror creation
 - **Usage**: `app(ConfigService::class)->getEpicMirrorsEnabled()` in EpicAddCommand and TaskSpawner
 
+### ✅ Merge Prompt Template (f-9ac4f8)
+Created `resources/prompts/merge.md` prompt template for merge agent:
+- Version header: `<fuel-prompt version="1" />`
+- Template variables: `{{epic.id}}`, `{{epic.title}}`, `{{mirror.path}}`, `{{mirror.branch}}`, `{{mirror.base_commit}}`, `{{project.path}}`, `{{epic.plan_file}}`, `{{quality_gates}}`
+- **6-step merge workflow:**
+  1. Understand epic (read plan file)
+  2. Fetch branch from mirror (`git fetch {mirror_path} {branch}:{branch}`)
+  3. Merge with no-ff (`git merge {branch} --no-ff`)
+  4. Resolve conflicts based on epic intent
+  5. Run quality gates (variable substitution)
+  6. Verify completeness
+- **Key instructions:**
+  - Work in MAIN project directory, not mirror
+  - FORBIDDEN to run fuel commands (merge agent doesn't manage tasks)
+  - Focus on git operations and quality verification only
+  - Intelligent conflict resolution using epic plan context
+- **Conflict resolution guidance:** Preserve epic's changes unless they break main, merge both when possible
+- **Success criteria:** Branch merged, conflicts resolved, quality gates pass, code committed
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
 
