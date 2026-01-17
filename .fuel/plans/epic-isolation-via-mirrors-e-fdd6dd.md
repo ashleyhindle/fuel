@@ -389,3 +389,32 @@ app(ProcessSpawner::class)->spawnBackground('mirror:create', ['e-abc123']);
 - `None`/`Merging`/`Merged`/`Cleaned`: Use default behavior
 
 **Testing:** Added unit test for `hasActiveMerge()` in EpicServiceTest.php
+
+### MergeEpicAgentTask Implementation (f-8e104f)
+**File:** `app/Agents/Tasks/MergeEpicAgentTask.php`
+
+**Purpose:** Agent task for merging epic branches from mirror back to main project
+
+**Key Design Decisions:**
+1. **Uses Primary Agent**: Merge operations need reliable execution, not complexity-based routing
+2. **Fire-and-Forget Pattern**: Like UpdateRealityAgentTask, handles failures gracefully without crashing
+3. **Quality Gate Extraction**: Parses reality.md for actual project quality gates, falls back to defaults
+4. **No getCwd() Override**: Receives correct CWD from ProcessManager (main project path for merges)
+
+**Implementation:**
+- Static factory `fromEpic(Epic $epic)` creates merge task with standardized title format
+- `buildPrompt()` renders merge.md template with epic details, mirror paths, quality gates
+- `getQualityGatesFromReality()` extracts quality checks from reality.md table format
+- `onSuccess()`: Cleans up mirror directory via EpicService, marks task done
+- `onFailure()`: Pauses epic, sets mirror_status to MergeFailed, deletes failed task
+
+**Error Handling:**
+- Both success and failure handlers catch and log exceptions without throwing
+- Ensures merge completion isn't blocked by cleanup failures
+- Logs errors to PHP error log for debugging
+
+**Testing:** `tests/Unit/Agents/Tasks/MergeEpicAgentTaskTest.php`
+- 10 comprehensive tests covering all paths
+- Validates quality gate extraction from reality.md
+- Tests exception handling in lifecycle methods
+- Mocks all service dependencies for isolation
