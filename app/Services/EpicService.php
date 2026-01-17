@@ -575,4 +575,13 @@ class EpicService
 
         return $orphaned;
     }
+
+    /**
+     * Check if any epic has an active merge in progress (mirror_status=Merging).
+     * Used by TaskSpawner to pause standalone tasks during merge operations.
+     */
+    public function hasActiveMerge(): bool
+    {
+        return Epic::where('mirror_status', MirrorStatus::Merging->value)->exists();
+    }
 }

@@ -724,3 +724,37 @@ it('returns empty array when mirrors directory does not exist', function (): voi
 
     expect($orphaned)->toBe([]);
 });
+
+it('checks if any epic has active merge', function (): void {
+    // Initially no merges
+    expect($this->service->hasActiveMerge())->toBeFalse();
+
+    // Create epic with Merging status
+    $epic1 = $this->service->createEpic('Epic 1');
+    $this->db->query(
+        'UPDATE epics SET mirror_status = ? WHERE short_id = ?',
+        [\App\Enums\MirrorStatus::Merging->value, $epic1->short_id]
+    );
+
+    // Now should detect active merge
+    expect($this->service->hasActiveMerge())->toBeTrue();
+
+    // Create another epic with Ready status
+    $epic2 = $this->service->createEpic('Epic 2');
+    $this->db->query(
+        'UPDATE epics SET mirror_status = ? WHERE short_id = ?',
+        [\App\Enums\MirrorStatus::Ready->value, $epic2->short_id]
+    );
+
+    // Should still detect active merge (epic1 is still merging)
+    expect($this->service->hasActiveMerge())->toBeTrue();
+
+    // Update epic1 to Merged status
+    $this->db->query(
+        'UPDATE epics SET mirror_status = ? WHERE short_id = ?',
+        [\App\Enums\MirrorStatus::Merged->value, $epic1->short_id]
+    );
+
+    // No longer has active merge
+    expect($this->service->hasActiveMerge())->toBeFalse();
+});

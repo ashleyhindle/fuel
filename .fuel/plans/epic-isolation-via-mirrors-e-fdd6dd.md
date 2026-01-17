@@ -132,15 +132,18 @@ $cmd = PHP_OS_FAMILY === 'Darwin'
 - ✅ Injected FuelContext via constructor
 - ✅ All methods fully tested in `tests/Unit/Services/EpicServiceTest.php`
 
-### Modified: TaskSpawner
+### ✅ Modified: TaskSpawner (f-066a3e)
 
 `app/Daemon/TaskSpawner.php`:
-- When spawning task with epic:
-  - Check epic.mirror_status
-  - If `Ready` → cwd = epic.mirror_path
-  - If `Pending`/`Creating` → skip task, try next (mirror not ready)
-  - If `MergeFailed` → skip task (epic blocked)
-- Standalone tasks (no epic): cwd = project directory (unchanged)
+- ✅ When spawning task with epic:
+  - ✅ Check ConfigService::getEpicMirrorsEnabled() first
+  - ✅ Check epic.mirror_status
+  - ✅ If `Ready` → cwd = epic.mirror_path
+  - ✅ If `Pending`/`Creating` → skip task, try next (mirror not ready)
+  - ✅ If `MergeFailed` → skip task (epic blocked)
+- ✅ Standalone tasks (no epic): if hasActiveMerge(), skip task
+- ✅ Added EpicService dependency injection
+- ✅ Updated AppServiceProvider registration to include EpicService
 
 ### ✅ Modified: Epic Model (f-375c87 & auto-added)
 
@@ -180,18 +183,26 @@ $cmd = PHP_OS_FAMILY === 'Darwin'
 - Add 'merge' to prompt names to copy
 - Update PromptService::PROMPT_NAMES to include 'merge'
 
-### Standalone Tasks During Merge
+### ✅ Standalone Tasks During Merge (f-066a3e)
 
 When any epic has `mirror_status='merging'`:
-- Standalone tasks (no epic) are PAUSED
-- Prevents git state conflicts during merge
-- Other epic tasks continue in their own mirrors (isolated)
+- ✅ Standalone tasks (no epic) are PAUSED
+- ✅ Prevents git state conflicts during merge
+- ✅ Other epic tasks continue in their own mirrors (isolated)
 
-Check in TaskSpawner:
+✅ Check in TaskSpawner implemented:
 ```php
-if ($this->hasActiveMerge() && $task->epic_id === null) {
+if ($this->epicService->hasActiveMerge() && $task->epic_id === null) {
     // Skip standalone tasks during merge
-    continue;
+    return false;
+}
+```
+
+✅ Added `hasActiveMerge()` method to EpicService:
+```php
+public function hasActiveMerge(): bool
+{
+    return Epic::where('mirror_status', MirrorStatus::Merging->value)->exists();
 }
 ```
 
@@ -348,3 +359,21 @@ app(ProcessSpawner::class)->spawnBackground('mirror:create', ['e-abc123']);
 - `isWorkable(): bool` - Returns true only for Ready status
 - `needsAttention(): bool` - Returns true only for MergeFailed status
 - `label(): string` - Human-readable label for display
+
+### TaskSpawner Mirror Routing (f-066a3e)
+**File:** `app/Daemon/TaskSpawner.php`
+
+**Key Implementation Decisions:**
+1. **Feature Flag Protection**: Check `ConfigService::getEpicMirrorsEnabled()` first to allow safe rollout
+2. **Early Return Pattern**: Skip tasks with unavailable mirrors immediately (return false)
+3. **Graceful Degradation**: When mirrors disabled or unavailable, use default project directory
+4. **Standalone Task Protection**: Block standalone tasks during any merge to prevent git conflicts
+5. **Dependency Injection**: Added EpicService via constructor for testability
+
+**Mirror Status Routing Logic:**
+- `Ready`: Route to mirror_path
+- `Pending`/`Creating`: Skip task (mirror not ready)
+- `MergeFailed`: Skip task (epic blocked)
+- `None`/`Merging`/`Merged`/`Cleaned`: Use default behavior
+
+**Testing:** Added unit test for `hasActiveMerge()` in EpicServiceTest.php

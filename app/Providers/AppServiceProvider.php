@@ -195,6 +195,7 @@ class AppServiceProvider extends ServiceProvider
             runService: $app->make(RunService::class),
             processManager: $app->make(ProcessManagerInterface::class),
             fuelContext: $app->make(FuelContext::class),
+            epicService: $app->make(EpicService::class),
             healthTracker: $app->make(AgentHealthTrackerInterface::class),
         ));
 

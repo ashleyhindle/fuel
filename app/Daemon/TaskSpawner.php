@@ -7,8 +7,11 @@ namespace App\Daemon;
 use App\Agents\Tasks\SelfGuidedAgentTask;
 use App\Agents\Tasks\WorkAgentTask;
 use App\Contracts\AgentHealthTrackerInterface;
+use App\Enums\MirrorStatus;
+use App\Models\Epic;
 use App\Models\Task;
 use App\Services\ConfigService;
+use App\Services\EpicService;
 use App\Services\FuelContext;
 use App\Services\ProcessManager;
 use App\Services\RunService;
@@ -47,7 +50,7 @@ final class TaskSpawner
     /** @var callable|null Callback for epic completion */
     private $epicCompletionCallback;
 
-    public function __construct(private readonly TaskService $taskService, private readonly ConfigService $configService, private readonly RunService $runService, private readonly ProcessManager $processManager, private readonly FuelContext $fuelContext, private readonly ?AgentHealthTrackerInterface $healthTracker = null) {}
+    public function __construct(private readonly TaskService $taskService, private readonly ConfigService $configService, private readonly RunService $runService, private readonly ProcessManager $processManager, private readonly FuelContext $fuelContext, private readonly EpicService $epicService, private readonly ?AgentHealthTrackerInterface $healthTracker = null) {}
 
     /**
      * Set the instance ID (for cases where it needs to be synchronized with ConsumeRunner).
@@ -102,6 +105,39 @@ final class TaskSpawner
 
         $taskId = $task->short_id;
         $cwd = $this->fuelContext->getProjectPath();
+
+        // Check if epic mirrors are enabled and handle mirror routing
+        if ($this->configService->getEpicMirrorsEnabled()) {
+            // If task has an epic, check mirror status
+            if ($task->epic_id !== null) {
+                $epic = Epic::find($task->epic_id);
+                if ($epic !== null && $epic->mirror_status !== null) {
+                    // Check mirror status to determine if we can work on this task
+                    switch ($epic->mirror_status) {
+                        case MirrorStatus::Ready:
+                            // Use the mirror path as the working directory
+                            $cwd = $epic->mirror_path;
+                            break;
+                        case MirrorStatus::Pending:
+                        case MirrorStatus::Creating:
+                            // Mirror not ready yet, skip this task
+                            return false;
+                        case MirrorStatus::MergeFailed:
+                            // Epic blocked due to merge failure, skip task
+                            return false;
+                        default:
+                            // For other statuses (None, Merging, Merged, Cleaned), use default behavior
+                            break;
+                    }
+                }
+            } else {
+                // For standalone tasks (no epic_id), check if any epic is merging
+                if ($this->epicService->hasActiveMerge()) {
+                    // Skip standalone tasks during merge to prevent git conflicts
+                    return false;
+                }
+            }
+        }
 
         // Debug logging to catch task/prompt mismatch issues
         DaemonLogger::getInstance()->debug('TaskSpawner.trySpawnTask', [
