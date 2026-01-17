@@ -10,6 +10,7 @@ use App\Daemon\Helpers\SnapshotBuilder;
 use App\DTO\ConsumeSnapshot;
 use App\Process\AgentHealth;
 use App\Process\CompletionType;
+use App\Services\BrowserDaemonManager;
 use App\Services\ConsumeIpcServer;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
@@ -51,12 +52,14 @@ final class SnapshotManager
         private readonly ProcessManager $processManager,
         private readonly ?AgentHealthTrackerInterface $healthTracker = null,
         ?LifecycleManager $lifecycleManager = null,
+        ?BrowserDaemonManager $browserDaemonManager = null,
     ) {
         $this->builder = new SnapshotBuilder(
             $taskService,
             $processManager,
             $healthTracker,
-            $lifecycleManager
+            $lifecycleManager,
+            $browserDaemonManager,
         );
         $this->broadcaster = new EventBroadcaster(
             $ipcServer,

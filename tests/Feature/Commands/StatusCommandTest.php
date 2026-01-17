@@ -175,19 +175,47 @@ describe('status command', function (): void {
             ->assertExitCode(0);
     });
 
-    it('detects orphaned browser daemon processes', function (): void {
-        // Create a mock StatusCommand to test the private method
+    it('derives browser status from runner IPC response', function (): void {
+        // Create StatusCommand to test the private deriveBrowserStatus method
         $command = new StatusCommand;
         $reflection = new ReflectionClass($command);
-        $method = $reflection->getMethod('getBrowserDaemonStatus');
+        $method = $reflection->getMethod('deriveBrowserStatus');
 
-        // Test with runner not running (should check for orphaned daemons)
-        $result = $method->invoke($command, false);
+        // Test with null runner status (runner not running)
+        $result = $method->invoke($command, null);
         expect($result)->toBeArray();
         expect($result)->toHaveKeys(['state', 'healthy']);
+        expect($result['state'])->toBe('Not running');
+        expect($result['healthy'])->toBeFalse();
 
-        // State should be either 'Not running' or 'Orphaned (killed)' depending on if daemon is found
-        expect($result['state'])->toMatch('/Not running|Orphaned \(killed\)/');
+        // Test with runner running but browser not running
+        $result = $method->invoke($command, [
+            'state' => 'RUNNING',
+            'active_processes' => 0,
+            'pid' => 12345,
+            'browser_daemon' => ['running' => false, 'healthy' => false],
+        ]);
+        expect($result['state'])->toBe('Not running');
+        expect($result['healthy'])->toBeFalse();
+
+        // Test with browser running and healthy
+        $result = $method->invoke($command, [
+            'state' => 'RUNNING',
+            'active_processes' => 0,
+            'pid' => 12345,
+            'browser_daemon' => ['running' => true, 'healthy' => true],
+        ]);
+        expect($result['state'])->toBe('Running');
+        expect($result['healthy'])->toBeTrue();
+
+        // Test with browser running but unhealthy
+        $result = $method->invoke($command, [
+            'state' => 'RUNNING',
+            'active_processes' => 0,
+            'pid' => 12345,
+            'browser_daemon' => ['running' => true, 'healthy' => false],
+        ]);
+        expect($result['state'])->toBe('Running (unresponsive)');
         expect($result['healthy'])->toBeFalse();
     });
 });

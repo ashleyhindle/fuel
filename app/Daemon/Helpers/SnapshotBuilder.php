@@ -9,6 +9,7 @@ use App\Daemon\LifecycleManager;
 use App\DTO\ConsumeSnapshot;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
+use App\Services\BrowserDaemonManager;
 use App\Services\ConfigService;
 use App\Services\ProcessManager;
 use App\Services\TaskService;
@@ -24,6 +25,7 @@ final readonly class SnapshotBuilder
         private ProcessManager $processManager,
         private ?AgentHealthTrackerInterface $healthTracker,
         private ?LifecycleManager $lifecycleManager,
+        private ?BrowserDaemonManager $browserDaemonManager = null,
     ) {}
 
     public function buildSnapshot(): ConsumeSnapshot
@@ -70,6 +72,10 @@ final readonly class SnapshotBuilder
         $startedAt = $this->lifecycleManager?->getStartedAt()->getTimestamp() ?? null;
         $instanceId = $this->lifecycleManager?->getInstanceId() ?? 'unknown';
 
+        // Get browser daemon status
+        $browserRunning = $this->browserDaemonManager?->isRunning() ?? false;
+        $browserHealthy = $browserRunning && ($this->browserDaemonManager?->isHealthy() ?? false);
+
         return ConsumeSnapshot::fromBoardData(
             boardData: $boardData,
             activeProcesses: $activeProcesses,
@@ -81,7 +87,8 @@ final readonly class SnapshotBuilder
             agentLimits: $agentLimits,
             epics: $epics,
             doneCount: $doneCount,
-            blockedCount: $blockedCount
+            blockedCount: $blockedCount,
+            browserDaemon: ['running' => $browserRunning, 'healthy' => $browserHealthy],
         );
     }
 

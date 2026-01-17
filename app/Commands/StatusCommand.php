@@ -9,7 +9,6 @@ use App\Commands\Concerns\RendersBoardColumns;
 use App\Enums\TaskStatus;
 use App\Models\Run;
 use App\Models\Task;
-use App\Services\BrowserDaemonManager;
 use App\Services\ConsumeIpcClient;
 use App\Services\FuelContext;
 use App\Services\TaskService;
@@ -76,11 +75,11 @@ class StatusCommand extends Command
             'done' => $done->count(),
         ];
 
-        // Try to get runner status
+        // Try to get runner status (includes browser daemon status from IPC)
         $runnerStatus = $this->getRunnerStatus($fuelContext);
 
-        // Get browser daemon status
-        $browserStatus = $this->getBrowserDaemonStatus($runnerStatus !== null);
+        // Browser daemon status comes from runner IPC, or not running if runner isn't running
+        $browserStatus = $this->deriveBrowserStatus($runnerStatus);
 
         if ($this->option('json')) {
             $output = [
@@ -237,102 +236,43 @@ class StatusCommand extends Command
     }
 
     /**
-     * Get browser daemon status.
+     * Derive browser daemon status from runner status.
      *
-     * @param  bool  $runnerIsRunning  Whether the runner process is currently running
+     * Browser daemon is managed by the runner, so we get its status via IPC.
+     * If runner isn't running, browser daemon isn't running either.
+     *
+     * @param  array{state: string, active_processes: int, pid: int, browser_daemon: array{running: bool, healthy: bool}}|null  $runnerStatus
      * @return array{state: string, healthy: bool}
      */
-    private function getBrowserDaemonStatus(bool $runnerIsRunning): array
+    private function deriveBrowserStatus(?array $runnerStatus): array
     {
-        try {
-            // Always check if any browser-daemon.js process is running
-            // The runner manages its own instance, and browser commands may spawn their own
-            $command = PHP_OS_FAMILY === 'Windows'
-                ? 'tasklist /FI "IMAGENAME eq node.exe" 2>NUL | findstr "browser-daemon.js"'
-                : "ps aux | grep 'browser-daemon.js' | grep -v grep";
-
-            exec($command, $output, $returnCode);
-
-            // Check if browser daemon process exists
-            if ($returnCode === 0 && $output !== []) {
-                // If runner is NOT running but browser daemon IS running, it's orphaned
-                if (! $runnerIsRunning) {
-                    // Kill orphaned browser daemon
-                    $this->killOrphanedBrowserDaemon($output);
-
-                    return [
-                        'state' => 'Orphaned (killed)',
-                        'healthy' => false,
-                    ];
-                }
-
-                // Runner is running, check daemon health
-                try {
-                    $browserManager = BrowserDaemonManager::getInstance();
-                    // Start will check if already running and return quickly
-                    $browserManager->start();
-
-                    if ($browserManager->isHealthy()) {
-                        return [
-                            'state' => 'Running',
-                            'healthy' => true,
-                        ];
-                    }
-
-                    return [
-                        'state' => 'Running (unresponsive)',
-                        'healthy' => false,
-                    ];
-                } catch (\Throwable) {
-                    // Process exists but can't connect/ping
-                    return [
-                        'state' => 'Running (unknown health)',
-                        'healthy' => false,
-                    ];
-                }
-            }
-
-            // No browser daemon process found
+        if ($runnerStatus === null) {
             return [
                 'state' => 'Not running',
                 'healthy' => false,
             ];
-        } catch (\Throwable $throwable) {
+        }
+
+        $browserDaemon = $runnerStatus['browser_daemon'] ?? ['running' => false, 'healthy' => false];
+
+        if (! $browserDaemon['running']) {
             return [
-                'state' => 'Error: '.$throwable->getMessage(),
+                'state' => 'Not running',
                 'healthy' => false,
             ];
         }
-    }
 
-    /**
-     * Kill orphaned browser daemon processes.
-     *
-     * @param  array  $psOutput  Output from ps command containing browser daemon processes
-     */
-    private function killOrphanedBrowserDaemon(array $psOutput): void
-    {
-        foreach ($psOutput as $line) {
-            // Parse PID from ps output
-            // Format is typically: user PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-            $parts = preg_split('/\s+/', trim((string) $line));
-            if (count($parts) >= 2 && is_numeric($parts[1])) {
-                $pid = (int) $parts[1];
-                if ($pid > 0) {
-                    // Kill the orphaned browser daemon
-                    if (PHP_OS_FAMILY === 'Windows') {
-                        @exec(sprintf('taskkill /F /PID %d 2>NUL', $pid));
-                    } else {
-                        @posix_kill($pid, SIGTERM);
-                        usleep(100000); // Give it 100ms to terminate gracefully
-                        // Check if still running and force kill if needed
-                        if (@posix_kill($pid, 0)) {
-                            @posix_kill($pid, SIGKILL);
-                        }
-                    }
-                }
-            }
+        if ($browserDaemon['healthy']) {
+            return [
+                'state' => 'Running',
+                'healthy' => true,
+            ];
         }
+
+        return [
+            'state' => 'Running (unresponsive)',
+            'healthy' => false,
+        ];
     }
 
     /**

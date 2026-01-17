@@ -14,7 +14,7 @@ use App\Daemon\LifecycleManager;
 use App\Daemon\ReviewManager;
 use App\Daemon\SnapshotManager;
 use App\Daemon\TaskSpawner;
-use App\Preprocessors\RelevantFilesPreprocessor;
+use App\Preprocessors\SiblingFilePreprocessor;
 use App\Prompts\ReviewPrompt;
 use App\Services\AgentHealthTracker;
 use App\Services\BrowserDaemonManager;
@@ -164,7 +164,7 @@ class AppServiceProvider extends ServiceProvider
             );
 
             // Register default preprocessors
-            $builder->addPreprocessor(new RelevantFilesPreprocessor);
+            $builder->addPreprocessor(new SiblingFilePreprocessor);
 
             return $builder;
         });
@@ -226,6 +226,7 @@ class AppServiceProvider extends ServiceProvider
             processManager: $app->make(ProcessManager::class),
             healthTracker: $app->make(AgentHealthTrackerInterface::class),
             lifecycleManager: $app->make(LifecycleManager::class),
+            browserDaemonManager: $app->make(BrowserDaemonManager::class),
         ));
 
         $this->app->singleton(ConsumeRunner::class, fn (Application $app): ConsumeRunner => new ConsumeRunner(

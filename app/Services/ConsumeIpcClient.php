@@ -79,6 +79,9 @@ class ConsumeIpcClient
     /** Epics data keyed by short_id */
     private array $epics = [];
 
+    /** Browser daemon status */
+    private array $browserDaemon = ['running' => false, 'healthy' => false];
+
     /** Whether currently connected to runner */
     private bool $connected = false;
 
@@ -623,6 +626,16 @@ class ConsumeIpcClient
     }
 
     /**
+     * Get browser daemon status.
+     *
+     * @return array{running: bool, healthy: bool}
+     */
+    public function getBrowserDaemon(): array
+    {
+        return $this->browserDaemon;
+    }
+
+    /**
      * Check if runner is paused.
      */
     public function isPaused(): bool
@@ -636,7 +649,7 @@ class ConsumeIpcClient
      * Handles connect, attach, snapshot, and disconnect internally.
      * Returns null if daemon is not running or connection fails.
      *
-     * @return array{state: string, active_processes: int, pid: int}|null
+     * @return array{state: string, active_processes: int, pid: int, browser_daemon: array{running: bool, healthy: bool}}|null
      */
     public static function getStatus(string $pidFilePath): ?array
     {
@@ -659,6 +672,7 @@ class ConsumeIpcClient
                 'state' => $client->isPaused() ? 'PAUSED' : 'RUNNING',
                 'active_processes' => count($client->getActiveProcesses()),
                 'pid' => (int) ($pidData['pid'] ?? 0),
+                'browser_daemon' => $client->getBrowserDaemon(),
             ];
 
             $client->disconnect();
@@ -922,6 +936,7 @@ class ConsumeIpcClient
         $this->healthSummary = $snapshot->healthSummary ?? [];
         $this->runnerState = $snapshot->runnerState ?? [];
         $this->epics = $snapshot->epics ?? [];
+        $this->browserDaemon = $snapshot->browserDaemon ?? ['running' => false, 'healthy' => false];
 
         // Update counts from snapshot (for footer display)
         $this->doneCount = $snapshot->doneCount;

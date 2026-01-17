@@ -28,6 +28,7 @@ final readonly class ConsumeSnapshot implements JsonSerializable
      * @param  array<string, array{short_id: string, title: string, status: string}>  $epics  Epic data keyed by short_id
      * @param  int  $doneCount  Count of done tasks (for footer display, tasks lazy-loaded on demand)
      * @param  int  $blockedCount  Count of blocked tasks (for footer display, tasks lazy-loaded on demand)
+     * @param  array{running: bool, healthy: bool}  $browserDaemon  Browser daemon status
      */
     public function __construct(
         public array $boardState,
@@ -38,6 +39,7 @@ final readonly class ConsumeSnapshot implements JsonSerializable
         public array $epics = [],
         public int $doneCount = 0,
         public int $blockedCount = 0,
+        public array $browserDaemon = ['running' => false, 'healthy' => false],
     ) {}
 
     /**
@@ -54,6 +56,7 @@ final readonly class ConsumeSnapshot implements JsonSerializable
      * @param  array<Epic>  $epics  Epic models to include
      * @param  int  $doneCount  Count of done tasks for footer display
      * @param  int  $blockedCount  Count of blocked tasks for footer display
+     * @param  array{running: bool, healthy: bool}  $browserDaemon  Browser daemon status
      */
     public static function fromBoardData(
         array $boardData,
@@ -67,6 +70,7 @@ final readonly class ConsumeSnapshot implements JsonSerializable
         array $epics = [],
         int $doneCount = 0,
         int $blockedCount = 0,
+        array $browserDaemon = ['running' => false, 'healthy' => false],
     ): self {
         // Convert active processes to serializable format (keyed by task_id)
         $processesData = [];
@@ -131,6 +135,7 @@ final readonly class ConsumeSnapshot implements JsonSerializable
             epics: $epicsData,
             doneCount: $doneCount,
             blockedCount: $blockedCount,
+            browserDaemon: $browserDaemon,
         );
     }
 
@@ -157,6 +162,7 @@ final readonly class ConsumeSnapshot implements JsonSerializable
             'epics' => $this->epics,
             'done_count' => $this->doneCount,
             'blocked_count' => $this->blockedCount,
+            'browser_daemon' => $this->browserDaemon,
         ];
     }
 
