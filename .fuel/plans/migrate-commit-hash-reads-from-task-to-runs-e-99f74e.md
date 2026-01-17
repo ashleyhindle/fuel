@@ -107,6 +107,19 @@ public function getLatestCommitHash(string $taskId): ?string
   - No longer reads `task.commit_hash` - only uses data from runs table
 - Pattern: The commit display in the tasks table now exclusively uses commits retrieved from runs, maintaining consistency with the epic's migration goal
 
+### f-0bb7e7: DoneCommand migration
+- ✅ Updated `app/Commands/DoneCommand.php`:
+  - Added `RunService` resolution via `app(RunService::class)` at line 96 (inside non-JSON output block)
+  - Replaced `$task->commit_hash` with `$runService->getLatestCommitHash($task->short_id)` at line 104
+  - Changed from `isset($task->commit_hash)` check to `$commitHash !== null` check at line 105
+  - Display logic now uses commit from runs instead of task field
+- ✅ Updated `tests/Feature/Commands/DoneCommandTest.php`:
+  - Modified "marks task as done with --commit flag" test to create a run before calling done command
+  - Modified "can use both --reason and --commit flags together" test to create a run before calling done command
+  - Both tests now use `RunService::logRun()` to create run, allowing the commit hash to be stored on runs when --commit is provided
+- Pattern: Use `app(RunService::class)` to resolve service inline when needed in output section, maintain test pattern of creating run before testing commit display
+- All 20 DoneCommand tests passing
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
 

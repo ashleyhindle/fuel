@@ -102,6 +102,12 @@ describe('done command', function (): void {
         $task = $this->taskService->create(['title' => 'Task with commit']);
         $commitHash = 'abc123def456';
 
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'model' => 'test-model',
+        ]);
+
         $this->artisan('done', [
             'ids' => [$task->short_id],
             '--commit' => $commitHash,
@@ -183,6 +189,12 @@ describe('done command', function (): void {
     it('can use both --reason and --commit flags together', function (): void {
         $task = $this->taskService->create(['title' => 'Task with both flags']);
         $commitHash = 'def456ghi789';
+
+        $runService = $this->app->make(RunService::class);
+        $runService->logRun($task->short_id, [
+            'agent' => 'test-agent',
+            'model' => 'test-model',
+        ]);
 
         $this->artisan('done', [
             'ids' => [$task->short_id],

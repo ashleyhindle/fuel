@@ -93,6 +93,7 @@ class DoneCommand extends Command
                 $this->outputJson($output);
             }
         } else {
+            $runService = app(RunService::class);
             foreach ($tasks as $task) {
                 $this->info('Completed task: '.$task->short_id);
                 $this->line('  Title: '.$task->title);
@@ -100,8 +101,9 @@ class DoneCommand extends Command
                     $this->line('  Reason: '.$task->reason);
                 }
 
-                if (isset($task->commit_hash)) {
-                    $this->line('  Commit: '.$task->commit_hash);
+                $commitHash = $runService->getLatestCommitHash($task->short_id);
+                if ($commitHash !== null) {
+                    $this->line('  Commit: '.$commitHash);
                 }
             }
 
