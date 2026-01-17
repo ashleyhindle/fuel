@@ -149,10 +149,14 @@ fuel browser:html page1 "div.content"
 ### Take Screenshot
 ```bash
 # Quick screenshot (recommended) - no setup needed
-fuel browser:screenshot --url=<url> --path=<file.png>
+fuel browser:screenshot --url=<url> /path/to/file.png
 
 # Screenshot existing page
-fuel browser:screenshot <page_id> --path=<file.png>
+fuel browser:screenshot <page_id> /path/to/file.png
+
+# Get base64 output (omit path)
+fuel browser:screenshot <page_id>
+fuel browser:screenshot --url=<url>
 ```
 
 Options:
@@ -160,6 +164,7 @@ Options:
 - `--width=1280` - Viewport width (only with --url)
 - `--height=720` - Viewport height (only with --url)
 - `--dark` - Use dark color scheme (only with --url)
+- `--path=` - Alternative to positional path argument
 
 ### Wait for Condition
 ```bash

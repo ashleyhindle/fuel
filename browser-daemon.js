@@ -226,13 +226,18 @@ async function handle(method, params) {
 
     case "screenshot": {
       const pageId = params?.pageId;
-      const outPath = params?.path || path.join(os.tmpdir(), `fuel_${pageId}.png`);
       const entry = pages.get(pageId);
       if (!entry) throw Object.assign(new Error(`Unknown pageId ${pageId}. Page may have expired after 30 minutes of inactivity. Create a new context with browser:create.`), { code: "NO_PAGE" });
 
       touchContext(entry.contextId);
-      await entry.page.screenshot({ path: outPath, fullPage: !!params?.fullPage });
-      return { ok: true, result: { path: outPath } };
+
+      if (params?.path) {
+        await entry.page.screenshot({ path: params.path, fullPage: !!params?.fullPage });
+        return { ok: true, result: { path: params.path } };
+      } else {
+        const buffer = await entry.page.screenshot({ fullPage: !!params?.fullPage });
+        return { ok: true, result: { base64: buffer.toString('base64') } };
+      }
     }
 
     case "snapshot": {

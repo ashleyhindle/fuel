@@ -22,9 +22,9 @@ class BrowserScreenshotCommand extends Command
 
     protected $signature = 'browser:screenshot
         {page_id? : Page ID to screenshot (optional if --url provided)}
-        {path? : Path to save the screenshot (optional, returns base64 if omitted)}
+        {path? : Path to save screenshot (omit to return base64)}
         {--url= : URL to screenshot (creates temporary context, takes screenshot, closes)}
-        {--path= : Path to save the screenshot (alternative to positional argument)}
+        {--path= : Path to save screenshot (alternative to positional argument)}
         {--full-page : Capture full scrollable page}
         {--width=1280 : Viewport width (only with --url)}
         {--height=720 : Viewport height (only with --url)}
@@ -305,6 +305,8 @@ class BrowserScreenshotCommand extends Command
         } elseif ($this->path !== null) {
             $savedPath = $response->result['path'] ?? $this->path;
             $this->info(sprintf('Screenshot saved to %s', $savedPath));
+        } elseif (isset($response->result['base64'])) {
+            $this->line($response->result['base64']);
         } else {
             $this->info('Screenshot captured successfully');
             if ($response->result !== null) {
