@@ -71,25 +71,37 @@ class ProcessSpawner
 }
 ```
 
-### New Command: MirrorCreateCommand
+### ✅ New Command: MirrorCreateCommand (f-1da7fd)
 
 `app/Commands/MirrorCreateCommand.php`:
 - Signature: `mirror:create {epic}`
-- Called as background process by epic:add
+- Hidden command (not shown in help)
+- Called as background process by epic:add (when mirrors enabled)
 - Steps:
-  1. Update epic mirror_status to 'creating'
-  2. Create mirror directory: `~/.fuel/mirrors/{slug}/{epic-id}/`
-  3. Copy project: `cp -cR` (macOS) or `cp --reflink=auto -R` (Linux)
-  4. Remove `.fuel/` from mirror, symlink to original
-  5. Create git branch: `git checkout -b epic/{epic-id}`
-  6. Update epic: mirror_path, mirror_branch, mirror_status='ready', mirror_base_commit
+  1. ✅ Find epic by short_id (supports partial matching)
+  2. ✅ Update epic mirror_status to 'Creating'
+  3. ✅ Build mirror path: `~/.fuel/mirrors/{Str::slug(basename(realpath(projectPath)))}/{epic->short_id}/`
+  4. ✅ Create parent dirs with proper permissions (0755)
+  5. ✅ Copy project: `cp -cR` (macOS) or `cp --reflink=auto -R` (Linux)
+  6. ✅ Remove `.fuel/` from mirror, symlink to original (shared database)
+  7. ✅ Create git branch: `git checkout -b epic/{epic->short_id}`
+  8. ✅ Call epicService->setMirrorReady with path, branch, current HEAD commit
+  9. ✅ On failure: set mirror_status to None (Failed case doesn't exist in enum) and log error with stack trace
 
-Cross-platform copy:
-```php
-$cmd = PHP_OS_FAMILY === 'Darwin'
-    ? sprintf('cp -cR %s %s', escapeshellarg($src), escapeshellarg($dst))
-    : sprintf('cp --reflink=auto -R %s %s', escapeshellarg($src), escapeshellarg($dst));
-```
+**Implementation Details:**
+- Uses `realpath()` to resolve project path for consistency
+- Validates mirror doesn't already exist before creation
+- Captures git HEAD commit before creating branch for base tracking
+- Full error handling with stack traces for debugging
+- Cross-platform copy command properly escapes shell arguments
+- Symlink ensures shared database/config access
+
+**Tested:** `tests/Feature/Commands/MirrorCreateCommandTest.php`
+- Command validation (requires epic argument)
+- Non-existent epic handling
+- Status update flow (Creating → Ready/None)
+- Platform-specific copy command generation
+- Proper shell argument escaping
 
 ### New Prompt: merge.md
 
