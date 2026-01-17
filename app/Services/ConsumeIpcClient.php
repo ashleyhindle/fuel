@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Ipc\Commands\AttachCommand;
 use App\Ipc\Commands\DetachCommand;
+use App\Ipc\Commands\HealthResetCommand;
 use App\Ipc\Commands\PauseCommand;
 use App\Ipc\Commands\ReloadConfigCommand;
 use App\Ipc\Commands\RequestBlockedTasksCommand;
@@ -731,6 +732,19 @@ class ConsumeIpcClient
     }
 
     /**
+     * Send health reset command to runner.
+     */
+    public function sendHealthReset(string $agent): void
+    {
+        $cmd = new HealthResetCommand(
+            agent: $agent,
+            timestamp: new DateTimeImmutable,
+            instanceId: $this->instanceId
+        );
+        $this->sendMessage($cmd);
+    }
+
+    /**
      * Send task done command to runner.
      */
     public function sendTaskDone(string $taskId, ?string $reason = null, ?string $commitHash = null): void
@@ -979,6 +993,10 @@ class ConsumeIpcClient
 
         $this->healthSummary[$event->agent()] = [
             'status' => $event->status(),
+            'consecutive_failures' => $event->consecutiveFailures(),
+            'in_backoff' => $event->inBackoff(),
+            'is_dead' => $event->isDead(),
+            'backoff_seconds' => $event->backoffSeconds(),
         ];
     }
 

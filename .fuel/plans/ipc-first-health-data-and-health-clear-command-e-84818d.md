@@ -218,5 +218,24 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - Callback implementation should call `$healthTracker->clearHealth($agent)` and broadcast event
 - **All tests pass:** ConsumeIpcMessageTest (53 passed), ConsumeIpcProtocolTest (28 passed)
 
+### f-c9fa81: Update ConsumeIpcClient to handle full health data
+- **File modified:** `app/Services/ConsumeIpcClient.php`
+- **Changes made:**
+  1. Updated `handleHealthChangeEvent()` to store full health data structure:
+     - `consecutive_failures` => $event->consecutiveFailures()
+     - `in_backoff` => $event->inBackoff()
+     - `is_dead` => $event->isDead()
+     - `backoff_seconds` => $event->backoffSeconds()
+  2. Added `sendHealthReset(string $agent): void` method that sends HealthResetCommand via IPC
+  3. Added import for `HealthResetCommand`
+- **Pattern followed:**
+  - Health data structure matches plan specification (see "Health Summary Data Structure" section)
+  - sendHealthReset() follows same pattern as other send methods (sendPause, sendResume, etc.)
+- **Testing:** All IPC tests pass (99 passed, 1 skipped)
+- **Next task should:**
+  - ConsumeCommand can now call `$this->ipcClient->sendHealthReset($agent)` when executing /health-clear
+  - ConsumeCommand can check `$this->ipcClient->getHealthSummary()` for full health data including consecutive_failures, is_dead, etc. for autocomplete suggestions
+- **Key decision:** Placed sendHealthReset() method near sendReloadConfig() since both are control/management commands
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
