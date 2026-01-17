@@ -471,7 +471,6 @@ class TaskService
 
         return $tasks
             ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
-            ->filter(fn (Task $t): bool => $t->type !== 'reality')
             ->filter(fn (Task $t): bool => ! in_array($t->short_id, $blockedIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];
@@ -510,7 +509,6 @@ class TaskService
 
         return $tasks
             ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
-            ->filter(fn (Task $t): bool => $t->type !== 'reality')
             ->filter(fn (Task $t): bool => in_array($t->short_id, $blockedIds, true))
             ->sortBy([
                 ['priority', 'asc'],

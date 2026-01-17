@@ -114,14 +114,11 @@ final class ConsumeRunner
             if ($agent === 'all') {
                 foreach (array_keys($healthTracker->getAllHealthStatus()) as $agentName) {
                     $healthTracker->clearHealth($agentName);
-                    // After clearing, get the new status and broadcast
-                    $health = $healthTracker->getHealthStatus($agentName);
-                    $this->snapshotManager->checkHealthChanges();
+                    $this->snapshotManager->broadcastHealthCleared($agentName);
                 }
             } else {
                 $healthTracker->clearHealth($agent);
-                // After clearing, trigger health change detection
-                $this->snapshotManager->checkHealthChanges();
+                $this->snapshotManager->broadcastHealthCleared($agent);
             }
         });
 

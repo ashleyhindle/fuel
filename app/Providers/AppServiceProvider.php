@@ -171,9 +171,6 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(UpdateRealityService::class, fn (Application $app): UpdateRealityService => new UpdateRealityService(
             configService: $app->make(ConfigService::class),
-            fuelContext: $app->make(FuelContext::class),
-            processManager: $app->make(ProcessManagerInterface::class),
-            runService: $app->make(RunService::class),
         ));
 
         $this->app->singleton(NotificationService::class);

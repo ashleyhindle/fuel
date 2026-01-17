@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Daemon;
 
 use App\Agents\Tasks\SelfGuidedAgentTask;
+use App\Agents\Tasks\UpdateRealityAgentTask;
 use App\Agents\Tasks\WorkAgentTask;
 use App\Contracts\AgentHealthTrackerInterface;
 use App\Enums\MirrorStatus;
@@ -147,8 +148,10 @@ final class TaskSpawner
             'agent' => $task->agent,
         ]);
 
-        // Create appropriate AgentTask based on task agent field
-        if ($task->agent === 'selfguided') {
+        // Create appropriate AgentTask based on task type/agent field
+        if ($task->type === 'reality') {
+            $agentTask = UpdateRealityAgentTask::fromTaskModel($task);
+        } elseif ($task->agent === 'selfguided') {
             $agentTask = app(SelfGuidedAgentTask::class, ['task' => $task]);
         } else {
             $agentTask = app(WorkAgentTask::class, [

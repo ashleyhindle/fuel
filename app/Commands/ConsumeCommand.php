@@ -1214,13 +1214,18 @@ class ConsumeCommand extends Command
             // Top border
             $overlayLines[] = '╭'.str_repeat('─', $boxWidth - 2).'╮';
 
-            // Suggestion lines - handle both command and task suggestions
+            // Suggestion lines - handle command, agent, and task suggestions
             foreach ($visibleSuggestions as $index => $suggestion) {
                 if (isset($suggestion['command'])) {
                     // Command suggestion: show command name + description
                     $cmdName = $suggestion['command'];
                     $cmdDesc = $this->truncate((string) $suggestion['description'], $boxWidth - strlen($cmdName) - 6);
                     $content = sprintf('<fg=cyan>%s</> <fg=gray>%s</>', $cmdName, $cmdDesc);
+                } elseif (isset($suggestion['agent'])) {
+                    // Agent suggestion (e.g., health-clear): show agent + description
+                    $agentName = $suggestion['agent'];
+                    $agentDesc = $this->truncate((string) ($suggestion['description'] ?? ''), $boxWidth - strlen($agentName) - 6);
+                    $content = sprintf('<fg=yellow>%s</> <fg=gray>%s</>', $agentName, $agentDesc);
                 } else {
                     // Task suggestion: show ID + title
                     $displayId = substr((string) $suggestion['short_id'], 2, 6);

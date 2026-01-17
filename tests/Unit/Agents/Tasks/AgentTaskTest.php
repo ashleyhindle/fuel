@@ -434,13 +434,20 @@ describe('UpdateRealityAgentTask', function (): void {
         expect($agentTask->getAgentName($this->configService))->toBe('primary-agent');
     });
 
-    it('builds prompt for solo task', function (): void {
+    it('builds prompt for solo task (pre-rendered context)', function (): void {
+        // Reality tasks consumed from queue have pre-rendered context in description
+        $preRenderedContext = <<<CONTEXT
+Task: Add new feature (f-abc123)
+Type: feature
+Description: Implement feature X
+CONTEXT;
+
         $task = new Task([
-            'short_id' => 'f-abc123',
-            'title' => 'Add new feature',
-            'type' => 'feature',
-            'description' => 'Implement feature X',
-            'status' => 'done',
+            'short_id' => 'f-reality1',
+            'title' => 'Update reality: Add new feature',
+            'type' => 'reality',
+            'description' => $preRenderedContext,
+            'status' => 'in_progress',
         ]);
 
         $this->promptService->shouldReceive('loadTemplate')
@@ -484,24 +491,24 @@ describe('UpdateRealityAgentTask', function (): void {
         expect($agentTask->getProcessType())->toBe(ProcessType::Task);
     });
 
-    it('creates from task using static factory', function (): void {
+    it('creates task from solo task using static factory', function (): void {
         // Bind mocks to container
         app()->instance(TaskService::class, $this->taskService);
         app()->instance(PromptService::class, $this->promptService);
 
-        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'status' => 'done']);
+        $task = new Task(['short_id' => 'f-abc123', 'title' => 'Test Task', 'type' => 'feature', 'status' => 'done', 'description' => 'Add new feature']);
 
         $this->taskService->shouldReceive('create')
             ->once()
-            ->andReturn(new Task(['short_id' => 'f-def456', 'title' => 'Update reality: Test Task', 'type' => 'reality', 'status' => 'in_progress']));
+            ->andReturn(new Task(['short_id' => 'f-def456', 'title' => 'Update reality: Test Task', 'type' => 'reality', 'status' => 'open']));
 
-        $agentTask = UpdateRealityAgentTask::fromTask($task);
+        $realityTask = UpdateRealityAgentTask::createForTask($task);
 
-        expect($agentTask->getTaskId())->toBe('f-def456');
-        expect($agentTask->getTask()->type)->toBe('reality');
+        expect($realityTask->short_id)->toBe('f-def456');
+        expect($realityTask->type)->toBe('reality');
     });
 
-    it('creates from epic using static factory', function (): void {
+    it('creates task from epic using static factory', function (): void {
         // Bind mocks to container
         app()->instance(TaskService::class, $this->taskService);
         app()->instance(PromptService::class, $this->promptService);
@@ -510,11 +517,24 @@ describe('UpdateRealityAgentTask', function (): void {
 
         $this->taskService->shouldReceive('create')
             ->once()
-            ->andReturn(new Task(['short_id' => 'f-ghi789', 'title' => 'Update reality: Test Epic', 'type' => 'reality', 'status' => 'in_progress']));
+            ->andReturn(new Task(['short_id' => 'f-ghi789', 'title' => 'Update reality: Test Epic', 'type' => 'reality', 'status' => 'open', 'epic_id' => 'e-xyz789']));
 
-        $agentTask = UpdateRealityAgentTask::fromEpic($epic);
+        $realityTask = UpdateRealityAgentTask::createForEpic($epic);
 
-        expect($agentTask->getTaskId())->toBe('f-ghi789');
+        expect($realityTask->short_id)->toBe('f-ghi789');
+        expect($realityTask->type)->toBe('reality');
+    });
+
+    it('creates agent task from task model using fromTaskModel', function (): void {
+        // Bind mocks to container
+        app()->instance(TaskService::class, $this->taskService);
+        app()->instance(PromptService::class, $this->promptService);
+
+        $realityTask = new Task(['short_id' => 'f-def456', 'title' => 'Update reality: Test', 'type' => 'reality', 'status' => 'open', 'description' => 'Context here']);
+
+        $agentTask = UpdateRealityAgentTask::fromTaskModel($realityTask);
+
+        expect($agentTask->getTaskId())->toBe('f-def456');
         expect($agentTask->getTask()->type)->toBe('reality');
     });
 

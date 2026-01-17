@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Agents\Tasks;
 
-use App\Enums\TaskStatus;
 use App\Models\Epic;
 use App\Models\Task;
 use App\Process\CompletionResult;
@@ -34,44 +33,64 @@ class UpdateRealityAgentTask extends AbstractAgentTask
     }
 
     /**
-     * Create from a solo task completion (task with no epic).
+     * Create a reality task for a solo task completion (task with no epic).
+     * Returns the created Task model (not the AgentTask) for queue-based consumption.
      */
-    public static function fromTask(Task $task): self
+    public static function createForTask(Task $task): Task
     {
         $taskService = app(TaskService::class);
-        $realityTask = $taskService->create([
-            'title' => 'Update reality: '.$task->title,
-            'description' => $task->description,
-            'type' => 'reality',
-            'status' => TaskStatus::InProgress->value,
-        ]);
 
-        return new self(
-            $realityTask,
-            $taskService,
-            app(PromptService::class),
-            null,
-            $task,
-        );
+        // Pre-render context into description since we won't have the original task later
+        $description = $task->description ?: '(no description)';
+        $contextDescription = <<<CONTEXT
+Task: {$task->title} ({$task->short_id})
+Type: {$task->type}
+Description: {$description}
+CONTEXT;
+
+        return $taskService->create([
+            'title' => 'Update reality: '.$task->title,
+            'description' => $contextDescription,
+            'type' => 'reality',
+            'complexity' => 'simple',
+        ]);
     }
 
     /**
-     * Create from epic approval.
+     * Create a reality task for epic approval.
+     * Returns the created Task model (not the AgentTask) for queue-based consumption.
      */
-    public static function fromEpic(Epic $epic): self
+    public static function createForEpic(Epic $epic): Task
     {
         $taskService = app(TaskService::class);
-        $realityTask = $taskService->create([
+
+        return $taskService->create([
             'title' => 'Update reality: '.$epic->title,
             'description' => $epic->description,
             'type' => 'reality',
-            'status' => TaskStatus::InProgress->value,
+            'complexity' => 'simple',
+            'epic_id' => $epic->short_id,
         ]);
+    }
+
+    /**
+     * Create AgentTask from an existing reality Task model (used by TaskSpawner).
+     */
+    public static function fromTaskModel(Task $task): self
+    {
+        $taskService = app(TaskService::class);
+        $promptService = app(PromptService::class);
+
+        // Load epic if task has epic_id
+        $epic = null;
+        if ($task->epic_id !== null) {
+            $epic = Epic::where('short_id', $task->epic_id)->first();
+        }
 
         return new self(
-            $realityTask,
+            $task,
             $taskService,
-            app(PromptService::class),
+            $promptService,
             $epic,
         );
     }
@@ -120,14 +139,18 @@ Tasks completed:
 CONTEXT;
         }
 
-        $task = $this->contextTask ?? $this->task;
-        $description = $task->description ?: '(no description)';
+        if ($this->contextTask instanceof Task) {
+            $description = $this->contextTask->description ?: '(no description)';
 
-        return <<<CONTEXT
-Task: {$task->title} ({$task->short_id})
-Type: {$task->type}
+            return <<<CONTEXT
+Task: {$this->contextTask->title} ({$this->contextTask->short_id})
+Type: {$this->contextTask->type}
 Description: {$description}
 CONTEXT;
+        }
+
+        // For queue-consumed reality tasks, context is pre-rendered in description
+        return $this->task->description ?: '(no context)';
     }
 
     public function getProcessType(): ProcessType

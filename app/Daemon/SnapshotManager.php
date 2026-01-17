@@ -8,6 +8,7 @@ use App\Contracts\AgentHealthTrackerInterface;
 use App\Daemon\Helpers\EventBroadcaster;
 use App\Daemon\Helpers\SnapshotBuilder;
 use App\DTO\ConsumeSnapshot;
+use App\Process\AgentHealth;
 use App\Process\CompletionType;
 use App\Services\ConsumeIpcServer;
 use App\Services\ProcessManager;
@@ -188,6 +189,25 @@ final class SnapshotManager
                 $this->previousHealthStatus[$agent] = $currentStatus;
             }
         }
+    }
+
+    /**
+     * Broadcast that an agent's health has been cleared (reset to healthy).
+     * Used after clearHealth() since the agent row is deleted and won't appear in getAllHealthStatus().
+     */
+    public function broadcastHealthCleared(string $agent): void
+    {
+        $healthyStatus = new AgentHealth(
+            agent: $agent,
+            lastSuccessAt: null,
+            lastFailureAt: null,
+            consecutiveFailures: 0,
+            backoffUntil: null,
+            totalRuns: 0,
+            totalSuccesses: 0,
+        );
+        $this->broadcaster->broadcastHealthChange($healthyStatus);
+        unset($this->previousHealthStatus[$agent]);
     }
 
     public function cleanupTaskBuffer(string $taskId): void
