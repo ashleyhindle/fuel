@@ -298,5 +298,28 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
   - All new HealthChangeEvent fields tested (consecutiveFailures, inBackoff, isDead, backoffSeconds)
 - **All tests pass:** 9 tests in ConsumeIpcMessageTest.php, 1 test in ConsumeIpcProtocolTest.php
 
+### f-665c33: Add /health-clear palette command with autocomplete
+- **Files modified:**
+  - `app/Commands/ConsumeCommand.php` - Added complete health-clear palette command implementation
+- **Changes made:**
+  1. Added `'health-clear' => 'Reset health status for an agent'` to `PALETTE_COMMANDS` constant
+  2. Created `updateHealthClearSuggestions()` method:
+     - Fetches health data from `$this->ipcClient->getHealthSummary()`
+     - Shows agents with consecutive_failures > 0, is_dead, or in_backoff
+     - Formats as 'agent (status, N failures)'
+     - Includes 'all' option when unhealthy agents exist
+     - Supports search/filter functionality
+  3. Added health-clear case in `updateCommandPaletteSuggestions()`:
+     - Triggers updateHealthClearSuggestions() when input starts with 'health-clear '
+  4. Updated `acceptCurrentSuggestion()` to handle health-clear suggestions
+  5. Added health-clear handling in `executeCommandPalette()`:
+     - Parses health-clear command with agent argument
+     - Validates if any agents need clearing
+     - Shows 'No agents need clearing' if all healthy
+     - Calls `$this->ipcClient->sendHealthReset($agent)` to execute reset
+     - Shows success toast after clearing
+     - Handles 'all' option to clear all agents
+- **Integration complete:** Full health-clear command now works via command palette with autocomplete
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->

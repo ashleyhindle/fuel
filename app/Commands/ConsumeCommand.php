@@ -3469,7 +3469,7 @@ class ConsumeCommand extends Command
         }
 
         // Add 'all' option if there are unhealthy agents
-        if (!empty($suggestions)) {
+        if (! empty($suggestions)) {
             array_unshift($suggestions, [
                 'agent' => 'all',
                 'description' => 'Clear health for all agents',
@@ -3694,8 +3694,76 @@ class ConsumeCommand extends Command
             return;
         }
 
+        // Handle health-clear command
+        if (preg_match('/^health-clear\s+(\S+)/', $input, $matches)) {
+            $agent = trim($matches[1]);
+
+            // If suggestionIndex >= 0 and valid, use that agent's name instead
+            if ($this->commandPaletteSuggestionIndex >= 0 && $this->commandPaletteSuggestionIndex < count($this->commandPaletteSuggestions)) {
+                $selected = $this->commandPaletteSuggestions[$this->commandPaletteSuggestionIndex];
+                if (isset($selected['agent'])) {
+                    $agent = $selected['agent'];
+                }
+            }
+
+            // Check if there are any unhealthy agents
+            $healthSummary = $this->ipcClient?->getHealthSummary() ?? [];
+            $hasUnhealthy = false;
+            foreach ($healthSummary as $agentName => $health) {
+                $consecutive_failures = $health['consecutive_failures'] ?? 0;
+                $is_dead = $health['is_dead'] ?? false;
+                $in_backoff = $health['in_backoff'] ?? false;
+                if ($consecutive_failures > 0 || $is_dead || $in_backoff) {
+                    $hasUnhealthy = true;
+                    break;
+                }
+            }
+
+            if (! $hasUnhealthy && $agent !== 'all') {
+                $this->toast?->show('No agents need clearing', 'info');
+                $this->deactivateCommandPalette();
+                $this->forceRefresh = true;
+
+                return;
+            }
+
+            // Execute health reset
+            $this->ipcClient?->sendHealthReset($agent);
+            $message = $agent === 'all' ? 'Cleared health for all agents' : 'Cleared health for '.$agent;
+            $this->toast?->show($message, 'success');
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
+        // Handle health-clear without arguments (show message)
+        if ($input === 'health-clear') {
+            $healthSummary = $this->ipcClient?->getHealthSummary() ?? [];
+            $hasUnhealthy = false;
+            foreach ($healthSummary as $agentName => $health) {
+                $consecutive_failures = $health['consecutive_failures'] ?? 0;
+                $is_dead = $health['is_dead'] ?? false;
+                $in_backoff = $health['in_backoff'] ?? false;
+                if ($consecutive_failures > 0 || $is_dead || $in_backoff) {
+                    $hasUnhealthy = true;
+                    break;
+                }
+            }
+
+            if (! $hasUnhealthy) {
+                $this->toast?->show('No agents need clearing', 'info');
+            } else {
+                $this->toast?->show('Specify an agent or "all"', 'warning');
+            }
+            $this->deactivateCommandPalette();
+            $this->forceRefresh = true;
+
+            return;
+        }
+
         // Handle unknown command or empty input
-        if ($input !== '' && ! str_starts_with($input, 'close') && ! str_starts_with($input, 'add') && ! str_starts_with($input, 'done') && ! str_starts_with($input, 'reopen')) {
+        if ($input !== '' && ! str_starts_with($input, 'close') && ! str_starts_with($input, 'add') && ! str_starts_with($input, 'done') && ! str_starts_with($input, 'reopen') && ! str_starts_with($input, 'health-clear')) {
             $this->toast?->show('Unknown command: '.$input, 'error');
         }
 
