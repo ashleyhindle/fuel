@@ -29,7 +29,8 @@ class StatsCommand extends Command
 {
     use HandlesJsonOutput;
 
-    protected $signature = 'stats';
+    protected $signature = 'stats
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Display project statistics and metrics';
 

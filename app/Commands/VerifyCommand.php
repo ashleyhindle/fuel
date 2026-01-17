@@ -20,7 +20,8 @@ class VerifyCommand extends Command
     protected $signature = 'verify
         {id : Task ID to verify (supports partial matching)}
         {--agent= : Agent name to use (defaults to review agent)}
-        {--raw : Show raw output instead of formatted}';
+        {--raw : Show raw output instead of formatted}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Run behavioral verification on a completed task';
 

@@ -12,7 +12,8 @@ use Throwable;
 
 class SelfUpdateCommand extends Command
 {
-    protected $signature = 'self-update|upgrade';
+    protected $signature = 'self-update|upgrade
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Update Fuel to the latest version from GitHub releases';
 

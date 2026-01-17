@@ -19,7 +19,8 @@ class SelfGuidedContinueCommand extends Command
         {id : The task ID (supports partial matching)}
         {--notes= : Optional notes about progress or observations}
         {--commit= : Git commit hash from this iteration}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Continue a selfguided task by incrementing iteration and reopening';
 

@@ -24,7 +24,8 @@ class SummaryCommand extends Command
     protected $signature = 'summary
         {id : The task ID (supports partial matching)}
         {--all : Show all runs instead of just the latest}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'View task outcome summary with intelligent output parsing';
 

@@ -22,7 +22,8 @@ class HumanCommand extends Command
 
     protected $signature = 'human
         {--json : Output as JSON}
-        {--once : Show list once and exit (non-interactive mode)}';
+        {--once : Show list once and exit (non-interactive mode)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'List all items needing human attention';
 

@@ -27,7 +27,8 @@ class RunsCommand extends Command
         {id : The task ID (supports partial matching)}
         {--json : Output as JSON}
         {--raw : Show raw output instead of formatted}
-        {--last : Show only the latest run with full output}';
+        {--last : Show only the latest run with full output}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'View task execution history';
 

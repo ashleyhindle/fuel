@@ -21,7 +21,8 @@ class PromoteCommand extends Command
         {--type= : Task type (bug|fix|feature|task|epic|chore|docs|test|refactor)}
         {--complexity= : Task complexity (trivial|simple|moderate|complex)}
         {--labels= : Comma-separated list of labels}
-        {--blocked-by= : Comma-separated task IDs this is blocked by}';
+        {--blocked-by= : Comma-separated task IDs this is blocked by}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Promote one or more backlog items (status=someday) to active tasks';
 

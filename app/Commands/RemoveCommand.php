@@ -16,7 +16,8 @@ class RemoveCommand extends Command
 
     protected $signature = 'remove
         {ids* : The task ID(s) (f-xxx, supports partial matching, accepts multiple IDs)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $aliases = ['delete'];
 

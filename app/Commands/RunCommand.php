@@ -31,7 +31,8 @@ class RunCommand extends Command
         {--no-start : Don\'t mark task as in_progress before running}
         {--no-done : Don\'t auto-complete task on success}
         {--raw : Show raw JSON output instead of formatted}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Run a single task with an agent, streaming output to terminal';
 

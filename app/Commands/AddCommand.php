@@ -27,7 +27,8 @@ class AddCommand extends Command
         {--blocked-by= : Comma-separated task IDs this is blocked by}
         {--e|epic= : Epic ID to associate this task with}
         {--someday : Add to backlog instead of tasks}
-        {--backlog : Add to backlog (alias for --someday)}';
+        {--backlog : Add to backlog (alias for --someday)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Add a new task';
 

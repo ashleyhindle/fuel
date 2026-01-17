@@ -9,7 +9,8 @@ use LaravelZero\Framework\Commands\Command;
 
 class ListCommand extends Command
 {
-    protected $signature = 'list';
+    protected $signature = 'list
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'List all available commands';
 

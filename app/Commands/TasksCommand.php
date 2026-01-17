@@ -25,7 +25,8 @@ class TasksCommand extends Command
         {--labels= : Filter by labels (comma-separated)}
         {--agent= : Filter by agent}
         {--selfguided : Filter tasks that went through selfguided loop}
-        {--limit= : Limit number of results}';
+        {--limit= : Limit number of results}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'List tasks with optional filters';
 

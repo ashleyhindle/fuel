@@ -20,7 +20,8 @@ class RetryCommand extends Command
     protected $signature = 'retry
         {ids?* : The task ID(s) (supports partial matching). If none provided, retries all failed tasks}
         {--dryrun : Show failed tasks without retrying}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Retry failed tasks by moving them back to open status';
 

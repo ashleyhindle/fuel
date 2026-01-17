@@ -15,7 +15,8 @@ class BacklogCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'backlog
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'List all backlog items';
 

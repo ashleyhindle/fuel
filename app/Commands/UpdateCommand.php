@@ -25,7 +25,8 @@ class UpdateCommand extends Command
         {--status= : Update task status (open|done)}
         {--complexity= : Update task complexity (trivial|simple|moderate|complex)}
         {--add-labels= : Add labels (comma-separated)}
-        {--remove-labels= : Remove labels (comma-separated)}';
+        {--remove-labels= : Remove labels (comma-separated)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Update task fields';
 

@@ -22,7 +22,8 @@ class ResumeSessionCommand extends Command
         {id : The task ID (supports partial matching)}
         {--json : Output as JSON}
         {--run= : Specific run ID to resume (defaults to latest run)}
-        {--p|prompt= : Resume with a prompt (headless mode)}';
+        {--p|prompt= : Resume with a prompt (headless mode)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Resume a task session interactively or with a prompt';
 

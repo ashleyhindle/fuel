@@ -56,7 +56,8 @@ class ConsumeCommand extends Command
         {--restart : Restart the runner daemon (stop and start)}
         {--fresh : Kill existing runner and start fresh}
         {--ip=127.0.0.1 : IP address of the runner to connect to}
-        {--port= : Port number to connect to (overrides config)}';
+        {--port= : Port number to connect to (overrides config)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Auto-spawn agents to work through available tasks';
 

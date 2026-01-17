@@ -3,15 +3,38 @@
 declare(strict_types=1);
 
 use App\Commands\GuidelinesCommand;
+use App\Services\FuelContext;
 
 beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().'/fuel-test-'.uniqid();
     mkdir($this->tempDir);
+
+    // Create .fuel subdirectory to match expected structure
+    $fuelDir = $this->tempDir.'/.fuel';
+    mkdir($fuelDir);
+
+    // Bind FuelContext to use our .fuel directory
+    $this->app->bind(FuelContext::class, function () use ($fuelDir) {
+        return new FuelContext($fuelDir);
+    });
 });
 
 afterEach(function (): void {
     if (is_dir($this->tempDir)) {
-        array_map(unlink(...), glob($this->tempDir.'/*'));
+        // Clean up recursively
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->tempDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isDir()) {
+                rmdir($file->getRealPath());
+            } else {
+                unlink($file->getRealPath());
+            }
+        }
+
         rmdir($this->tempDir);
     }
 });
@@ -36,7 +59,6 @@ it('injects guidelines with browser testing section into CLAUDE.md', function ()
 
     $this->artisan('guidelines', [
         '--add' => true,
-        '--cwd' => $this->tempDir,
     ])->assertExitCode(0);
 
     $content = file_get_contents($claudePath);
@@ -54,7 +76,6 @@ it('replaces existing fuel section with updated content', function (): void {
 
     $this->artisan('guidelines', [
         '--add' => true,
-        '--cwd' => $this->tempDir,
     ])->assertExitCode(0);
 
     $content = file_get_contents($claudePath);
@@ -71,7 +92,6 @@ it('creates file with guidelines if it does not exist', function (): void {
 
     $this->artisan('guidelines', [
         '--add' => true,
-        '--cwd' => $this->tempDir,
     ])->assertExitCode(0);
 
     expect(file_exists($agentsPath))->toBeTrue();

@@ -16,7 +16,8 @@ class UnpauseCommand extends Command
 
     protected $signature = 'unpause
         {id : The task (f-xxx) or epic (e-xxx) ID (supports partial matching)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Unpause a task or epic (restore from paused status)';
 

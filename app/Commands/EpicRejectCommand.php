@@ -16,7 +16,8 @@ class EpicRejectCommand extends Command
     protected $signature = 'epic:reject
         {id : The epic ID (supports partial matching)}
         {--reason= : Reason for rejection}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Reject an epic and request changes (moves tasks back to open)';
 

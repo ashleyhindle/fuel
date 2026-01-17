@@ -17,7 +17,8 @@ class EpicApproveCommand extends Command
     protected $signature = 'epic:approve|approve
         {ids* : The epic ID(s) (supports partial matching, accepts multiple IDs)}
         {--by= : Who approved it (defaults to "human")}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Approve one or more epics (mark as approved)';
 

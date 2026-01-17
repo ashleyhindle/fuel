@@ -16,7 +16,8 @@ class InspireCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'inspire {name=Artisan}';
+    protected $signature = 'inspire {name=Artisan}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     /**
      * The description of the command.

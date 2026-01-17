@@ -19,7 +19,8 @@ class ReviewsCommand extends Command
         {--json : Output as JSON}
         {--all : Show all reviews}
         {--pending : Show only pending reviews}
-        {--failed : Show only failed reviews}';
+        {--failed : Show only failed reviews}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'List recent review history';
 

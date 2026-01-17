@@ -10,7 +10,8 @@ use LaravelZero\Framework\Commands\Command;
 class GuidelinesCommand extends Command
 {
     protected $signature = 'guidelines
-        {--add : Inject guidelines into AGENTS.md and CLAUDE.md}';
+        {--add : Inject guidelines into AGENTS.md and CLAUDE.md}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Output task management guidelines for agent instruction files';
 
@@ -31,7 +32,7 @@ class GuidelinesCommand extends Command
 
     protected function injectIntoFiles(string $content, FuelContext $context): int
     {
-        $cwd = $this->option('cwd') ?: $context->getProjectPath();
+        $cwd = $context->getProjectPath();
         $fuelSection = "<fuel>\n{$content}</fuel>\n";
 
         $updatedFiles = [];

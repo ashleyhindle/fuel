@@ -18,7 +18,8 @@ class TreeCommand extends Command
 
     protected $signature = 'tree
         {--json : Output as JSON}
-        {--epic= : Filter tasks by epic ID}';
+        {--epic= : Filter tasks by epic ID}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show pending tasks as a dependency tree';
 

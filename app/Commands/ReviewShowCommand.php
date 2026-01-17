@@ -21,7 +21,8 @@ class ReviewShowCommand extends Command
     protected $signature = 'review:show
         {id : The review ID (r-xxxxx, supports partial matching)}
         {--json : Output as JSON}
-        {--raw : Show raw stdout output instead of truncated}';
+        {--raw : Show raw stdout output instead of truncated}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show detailed review information including agent output';
 

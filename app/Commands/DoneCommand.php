@@ -20,7 +20,8 @@ class DoneCommand extends Command
         {ids* : The task ID(s) (supports partial matching, accepts multiple IDs)}
         {--json : Output as JSON}
         {--reason= : Reason for completion}
-        {--commit= : Git commit hash to associate with this completion}';
+        {--commit= : Git commit hash to associate with this completion}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Mark one or more tasks as done';
 

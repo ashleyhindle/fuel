@@ -13,7 +13,8 @@ class AvailableCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'available
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show count of ready tasks, exit 0 if any available, 1 if none';
 

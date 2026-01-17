@@ -19,7 +19,8 @@ class InitCommand extends Command
 {
     protected $signature = 'init
         {--agent= : Agent to use (cursor-agent|claude|opencode)}
-        {--model= : Model to use (for agents that support models)}';
+        {--model= : Model to use (for agents that support models)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Initialize Fuel in the current project';
 

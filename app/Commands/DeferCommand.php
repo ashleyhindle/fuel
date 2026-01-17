@@ -15,7 +15,8 @@ class DeferCommand extends Command
 
     protected $signature = 'defer
         {id : The task ID (supports partial matching)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Move a task to the backlog';
 

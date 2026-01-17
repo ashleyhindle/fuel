@@ -21,7 +21,8 @@ class CompletedCommand extends Command
     protected $signature = 'completed
         {--json : Output as JSON}
         {--selfguided : Filter tasks that went through selfguided loop}
-        {--limit=15 : Number of completed tasks to show}';
+        {--limit=15 : Number of completed tasks to show}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show a list of recently completed tasks';
 

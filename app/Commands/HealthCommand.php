@@ -15,7 +15,8 @@ class HealthCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'health
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Display agent health status';
 

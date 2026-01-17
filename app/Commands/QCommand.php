@@ -15,7 +15,8 @@ class QCommand extends Command
 
     protected $signature = 'q
         {title : The task title}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Quick capture - creates task and outputs only the ID';
 

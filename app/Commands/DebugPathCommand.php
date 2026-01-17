@@ -13,7 +13,8 @@ class DebugPathCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'debug:path
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show diagnostic information about fuel binary path detection';
 

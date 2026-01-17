@@ -28,7 +28,8 @@ class ShowCommand extends Command
         {id : The task ID (supports partial matching)}
         {--json : Output as JSON}
         {--raw : Show raw JSON output instead of formatted}
-        {--tail : Continuously tail the live output (like tail -f)}';
+        {--tail : Continuously tail the live output (like tail -f)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show task details including all fields';
 

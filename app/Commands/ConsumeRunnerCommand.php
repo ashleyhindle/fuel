@@ -16,7 +16,8 @@ class ConsumeRunnerCommand extends Command
      */
     protected $signature = 'consume:runner
         {--review : Enable automatic review of completed work}
-        {--port= : Port number to bind to (overrides config)}';
+        {--port= : Port number to bind to (overrides config)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     /**
      * The description of the command.

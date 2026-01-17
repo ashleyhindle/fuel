@@ -15,7 +15,8 @@ class BlockedCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'blocked
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show open tasks with unresolved dependencies';
 

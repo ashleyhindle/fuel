@@ -16,7 +16,8 @@ class SelfGuidedBlockedCommand extends Command
     protected $signature = 'selfguided:blocked
         {id : The self-guided task ID}
         {--reason= : Reason for blocking}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Block a self-guided task by creating a needs-human task';
 

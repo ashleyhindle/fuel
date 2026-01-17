@@ -22,7 +22,8 @@ class EpicUpdateCommand extends Command
         {--title= : Update epic title}
         {--description= : Update epic description}
         {--selfguided : Enable self-guided mode}
-        {--no-selfguided : Disable self-guided mode}';
+        {--no-selfguided : Disable self-guided mode}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Update epic fields';
 

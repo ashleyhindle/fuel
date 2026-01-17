@@ -21,7 +21,8 @@ class ReviewCommand extends Command
         {--diff : Show full diff instead of just stats}
         {--json : Output as JSON}
         {--raw : Show raw stdout output instead of truncated (for review IDs)}
-        {--no-prompt : Skip the reviewed prompt (for epic IDs)}';
+        {--no-prompt : Skip the reviewed prompt (for epic IDs)}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Show review information for a task, epic, or review (routes based on ID)';
 

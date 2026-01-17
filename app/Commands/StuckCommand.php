@@ -16,7 +16,8 @@ class StuckCommand extends Command
     use HandlesJsonOutput;
 
     protected $signature = 'stuck
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'List failed/stuck tasks (dead processes or non-zero exit codes)';
 

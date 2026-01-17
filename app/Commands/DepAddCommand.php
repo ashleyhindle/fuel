@@ -17,7 +17,8 @@ class DepAddCommand extends Command
     protected $signature = 'dep:add
         {from : Task ID that is blocked (supports partial matching)}
         {to : Task ID it is blocked by (supports partial matching)}
-        {--json : Output as JSON}';
+        {--json : Output as JSON}
+        {--cwd= : Working directory (defaults to current directory)}';
 
     protected $description = 'Add a dependency between tasks';
 
