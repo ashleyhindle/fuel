@@ -72,12 +72,8 @@ class PausedCommand extends Command
     {
         $headers = ['ID', 'Title', 'Unpause Command'];
 
-        // Column priorities: lower = more important, higher gets dropped first
-        $columnPriorities = [
-            1,  // ID - keep
-            1,  // Title - keep
-            2,  // Unpause Command - drop if needed
-        ];
+        // Don't drop columns - rely on smart truncation instead
+        $columnPriorities = [];
 
         $terminalWidth = $this->getTerminalWidth();
 
@@ -105,12 +101,8 @@ class PausedCommand extends Command
     {
         $headers = ['ID', 'Title', 'Unpause Command'];
 
-        // Column priorities: lower = more important, higher gets dropped first
-        $columnPriorities = [
-            1,  // ID - keep
-            1,  // Title - keep
-            2,  // Unpause Command - drop if needed
-        ];
+        // Don't drop columns - rely on smart truncation instead
+        $columnPriorities = [];
 
         $terminalWidth = $this->getTerminalWidth();
 
