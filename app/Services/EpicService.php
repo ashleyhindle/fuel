@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\EpicStatus;
+use App\Enums\MirrorStatus;
 use App\Enums\TaskStatus;
 use App\Models\Epic;
 use Carbon\Carbon;
@@ -13,7 +14,8 @@ use RuntimeException;
 class EpicService
 {
     public function __construct(
-        private readonly TaskService $taskService
+        private readonly TaskService $taskService,
+        private readonly FuelContext $fuelContext
     ) {}
 
     public function createEpic(string $title, ?string $description = null, bool $selfGuided = false): Epic
@@ -401,5 +403,61 @@ class EpicService
         }
 
         return ['completed' => true];
+    }
+
+    /**
+     * Get the project path (delegates to FuelContext).
+     */
+    public function getProjectPath(): string
+    {
+        return $this->fuelContext->getProjectPath();
+    }
+
+    /**
+     * Update the mirror status of an epic.
+     */
+    public function updateMirrorStatus(Epic $epic, MirrorStatus $status): void
+    {
+        $now = Carbon::now('UTC')->toIso8601String();
+        $epic->update([
+            'mirror_status' => $status->value,
+            'updated_at' => $now,
+        ]);
+    }
+
+    /**
+     * Set mirror as ready with path, branch, and base commit.
+     */
+    public function setMirrorReady(Epic $epic, string $path, string $branch, string $baseCommit): void
+    {
+        $now = Carbon::now('UTC')->toIso8601String();
+        $epic->update([
+            'mirror_path' => $path,
+            'mirror_branch' => $branch,
+            'mirror_base_commit' => $baseCommit,
+            'mirror_status' => MirrorStatus::Ready->value,
+            'mirror_created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    /**
+     * Cleanup mirror directory and mark as cleaned.
+     */
+    public function cleanupMirror(Epic $epic): void
+    {
+        // If mirror path exists, remove it
+        if (! empty($epic->mirror_path) && is_dir($epic->mirror_path)) {
+            // Use rm -rf to remove the directory recursively
+            $escapedPath = escapeshellarg($epic->mirror_path);
+            exec("rm -rf {$escapedPath}");
+        }
+
+        // Update status to cleaned
+        $now = Carbon::now('UTC')->toIso8601String();
+        $epic->update([
+            'mirror_status' => MirrorStatus::Cleaned->value,
+            'updated_at' => $now,
+        ]);
     }
 }

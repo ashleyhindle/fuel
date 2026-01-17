@@ -39,15 +39,22 @@ class Epic extends Model
         'approved_at',
         'approved_by',
         'changes_requested_at',
+        'mirror_path',
+        'mirror_status',
+        'mirror_branch',
+        'mirror_base_commit',
+        'mirror_created_at',
     ];
 
     protected $casts = [
         'status' => EpicStatus::class,
+        'mirror_status' => \App\Enums\MirrorStatus::class,
         'self_guided' => 'boolean',
         'paused_at' => 'datetime',
         'reviewed_at' => 'datetime',
         'approved_at' => 'datetime',
         'changes_requested_at' => 'datetime',
+        'mirror_created_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

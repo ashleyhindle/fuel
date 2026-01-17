@@ -125,7 +125,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(TaskService::class, fn (): TaskService => new TaskService);
 
         $this->app->singleton(EpicService::class, fn (Application $app): EpicService => new EpicService(
-            $app->make(TaskService::class)
+            $app->make(TaskService::class),
+            $app->make(FuelContext::class)
         ));
 
         $this->app->singleton(AgentDriverRegistry::class, fn (): AgentDriverRegistry => new AgentDriverRegistry);
