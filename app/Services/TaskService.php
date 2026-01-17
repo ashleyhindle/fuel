@@ -13,7 +13,7 @@ use RuntimeException;
 
 class TaskService
 {
-    private const VALID_TYPES = ['bug', 'fix', 'feature', 'task', 'epic', 'chore', 'docs', 'test', 'refactor', 'reality'];
+    private const VALID_TYPES = ['bug', 'fix', 'feature', 'task', 'epic', 'chore', 'docs', 'test', 'refactor', 'reality', 'selfguided', 'merge'];
 
     private const VALID_COMPLEXITIES = ['trivial', 'simple', 'moderate', 'complex'];
 
@@ -471,6 +471,7 @@ class TaskService
 
         return $tasks
             ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
+            ->filter(fn (Task $t): bool => $t->type !== 'reality') // Exclude reality tasks
             ->filter(fn (Task $t): bool => ! in_array($t->short_id, $blockedIds, true))
             ->filter(function (Task $t): bool {
                 $labels = $t->labels ?? [];

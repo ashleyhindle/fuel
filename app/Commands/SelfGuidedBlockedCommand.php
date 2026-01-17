@@ -32,9 +32,9 @@ class SelfGuidedBlockedCommand extends Command
             return $this->outputError(sprintf("Task '%s' not found", $taskId));
         }
 
-        // Validate it has agent='selfguided'
-        if ($task->agent !== 'selfguided') {
-            return $this->outputError(sprintf("Task '%s' is not a self-guided task (agent=%s)", $task->short_id, $task->agent ?? 'null'));
+        // Validate it has type='selfguided'
+        if ($task->type !== 'selfguided') {
+            return $this->outputError(sprintf("Task '%s' is not a self-guided task (type=%s)", $task->short_id, $task->type ?? 'null'));
         }
 
         // Determine needs-human task title

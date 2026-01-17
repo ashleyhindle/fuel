@@ -33,38 +33,20 @@ class StatusCommand extends Command
     ): int {
         $tasks = $taskService->all();
 
-        // Calculate board state matching consume --status format
-        $taskMap = $tasks->keyBy('short_id');
-
-        // Helper: check if task has needs-human label
-        $hasNeedsHuman = fn (Task $t): bool => in_array('needs-human', $t->labels ?? [], true);
-
-        // Helper: check if task is blocked
-        $isBlocked = function (Task $task) use ($taskMap): bool {
-            $blockedBy = $task->blocked_by ?? [];
-            foreach ($blockedBy as $blockerId) {
-                if (is_string($blockerId)) {
-                    $blocker = $taskMap->get($blockerId);
-                    if ($blocker !== null && $blocker->status !== TaskStatus::Done) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        };
-
-        // Group tasks by board columns (matching consume --status logic)
+        // Calculate board state using TaskService methods for consistency
         $inProgress = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::InProgress);
         $review = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Review);
         $done = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Done);
 
-        // Open tasks are split into: ready, blocked, or human
-        $open = $tasks->filter(fn (Task $t): bool => $t->status === TaskStatus::Open);
-        $human = $open->filter($hasNeedsHuman);
-        $openNonHuman = $open->reject($hasNeedsHuman);
-        $blocked = $openNonHuman->filter($isBlocked);
-        $ready = $openNonHuman->reject($isBlocked);
+        // Use TaskService methods for ready/blocked - these handle all edge cases
+        // (paused epics, needs-human labels, dependencies)
+        $ready = $taskService->readyFrom($tasks);
+        $blocked = $taskService->blockedFrom($tasks);
+
+        // Human tasks are open tasks with needs-human label (not in ready or blocked)
+        $human = $tasks
+            ->filter(fn (Task $t): bool => $t->status === TaskStatus::Open)
+            ->filter(fn (Task $t): bool => in_array('needs-human', $t->labels ?? [], true));
 
         $boardState = [
             'ready' => $ready->count(),
@@ -396,7 +378,7 @@ class StatusCommand extends Command
             $icons[] = '🪫';
         }
 
-        if ($task->agent === 'selfguided') {
+        if ($task->type === 'selfguided') {
             $icons[] = '◉';
         }
 
@@ -428,7 +410,7 @@ class StatusCommand extends Command
                 'epic_title' => $task->epic?->title,
                 'consumed' => ! empty($task->consumed),
                 'failed' => app(TaskService::class)->isFailed($task),
-                'selfguided' => $task->agent === 'selfguided',
+                'selfguided' => $task->type === 'selfguided',
             ];
         })->toArray();
     }

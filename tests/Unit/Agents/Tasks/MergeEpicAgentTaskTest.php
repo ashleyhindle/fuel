@@ -52,8 +52,7 @@ test('fromEpic creates merge task correctly', function (): void {
     $createdTask->id = 2;
     $createdTask->short_id = 'f-789abc';
     $createdTask->title = 'Merge epic/e-def456 into main';
-    $createdTask->type = 'chore';
-    $createdTask->agent = 'merge';
+    $createdTask->type = 'merge';
     $createdTask->status = TaskStatus::Open;
 
     $mockTaskService = Mockery::mock(TaskService::class);
@@ -62,9 +61,8 @@ test('fromEpic creates merge task correctly', function (): void {
         ->with([
             'title' => 'Merge epic/e-def456 into main',
             'description' => 'Merge epic "Feature Implementation" from mirror branch into main project',
-            'type' => 'chore',
+            'type' => 'merge',
             'status' => TaskStatus::Open->value,
-            'agent' => 'merge',
             'epic_id' => 1,
         ])
         ->andReturn($createdTask);

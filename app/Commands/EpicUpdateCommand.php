@@ -70,7 +70,7 @@ class EpicUpdateCommand extends Command
                 $existingTasks = $epicService->getTasksForEpic($epic->short_id);
                 $hasSelfguidedTask = false;
                 foreach ($existingTasks as $task) {
-                    if ($task->agent === 'selfguided') {
+                    if ($task->type === 'selfguided') {
                         $hasSelfguidedTask = true;
                         $selfGuidedTaskId = $task->short_id;
                         break;
@@ -83,9 +83,8 @@ class EpicUpdateCommand extends Command
                         'title' => 'Implement: '.$epic->title,
                         'description' => 'Self-guided implementation. See epic plan for acceptance criteria.',
                         'epic_id' => $epic->short_id,
-                        'agent' => 'selfguided',
+                        'type' => 'selfguided',
                         'complexity' => 'complex',
-                        'type' => 'feature',
                     ]);
                     $selfGuidedTaskId = $task->short_id;
                 }

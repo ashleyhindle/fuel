@@ -13,7 +13,7 @@ describe('selfguided:continue command', function (): void {
     it('signals continue for a selfguided task without reopening (onSuccess does that)', function (): void {
         $task = $this->taskService->create([
             'title' => 'Selfguided task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 5,
             'selfguided_stuck_count' => 3,
         ]);
@@ -34,7 +34,7 @@ describe('selfguided:continue command', function (): void {
     it('reports iteration 1 when selfguided_iteration is null', function (): void {
         $task = $this->taskService->create([
             'title' => 'New selfguided task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
         ]);
         $this->taskService->start($task->short_id);
 
@@ -51,7 +51,7 @@ describe('selfguided:continue command', function (): void {
     it('creates needs-human task when max iterations reached', function (): void {
         $task = $this->taskService->create([
             'title' => 'Task at max iterations',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 49,
         ]);
         $this->taskService->done($task->short_id);
@@ -76,7 +76,7 @@ describe('selfguided:continue command', function (): void {
         $task = $this->taskService->create([
             'title' => 'Task with notes',
             'description' => 'Original description',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 2,
         ]);
         $this->taskService->done($task->short_id);
@@ -96,14 +96,14 @@ describe('selfguided:continue command', function (): void {
     it('stores commit hash on latest run when --commit is provided', function (): void {
         $task = $this->taskService->create([
             'title' => 'Selfguided task with commit',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 1,
         ]);
         $this->taskService->done($task->short_id);
 
         $runService = $this->app->make(RunService::class);
         $runService->logRun($task->short_id, [
-            'agent' => 'selfguided',
+            'agent' => 'test-agent',
             'model' => 'test-model',
         ]);
 
@@ -122,14 +122,14 @@ describe('selfguided:continue command', function (): void {
     it('continues without --commit and leaves run commit_hash null', function (): void {
         $task = $this->taskService->create([
             'title' => 'Selfguided task without commit',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 2,
         ]);
         $this->taskService->done($task->short_id);
 
         $runService = $this->app->make(RunService::class);
         $runService->logRun($task->short_id, [
-            'agent' => 'selfguided',
+            'agent' => 'test-agent',
             'model' => 'test-model',
         ]);
 
@@ -162,7 +162,7 @@ describe('selfguided:continue command', function (): void {
     it('supports partial ID matching', function (): void {
         $task = $this->taskService->create([
             'title' => 'Partial ID task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 1,
         ]);
         $this->taskService->start($task->short_id);
@@ -180,7 +180,7 @@ describe('selfguided:continue command', function (): void {
     it('outputs JSON when --json flag is used', function (): void {
         $task = $this->taskService->create([
             'title' => 'JSON task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 3,
             'selfguided_stuck_count' => 2,
         ]);
@@ -204,7 +204,7 @@ describe('selfguided:continue command', function (): void {
     it('outputs JSON with max iterations info when limit reached', function (): void {
         $task = $this->taskService->create([
             'title' => 'Max iteration JSON task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 49,
         ]);
         $this->taskService->done($task->short_id);
@@ -226,7 +226,7 @@ describe('selfguided:continue command', function (): void {
     it('does not reset stuck count (onSuccess does that)', function (): void {
         $task = $this->taskService->create([
             'title' => 'Stuck task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
             'selfguided_iteration' => 10,
             'selfguided_stuck_count' => 5,
         ]);
@@ -240,14 +240,14 @@ describe('selfguided:continue command', function (): void {
         expect($updated->selfguided_stuck_count)->toBe(5);
     });
 
-    it('handles task with null agent field', function (): void {
+    it('handles task without selfguided type', function (): void {
         $task = $this->taskService->create([
-            'title' => 'Task without agent',
+            'title' => 'Task without selfguided type',
         ]);
         $this->taskService->done($task->short_id);
 
         $this->artisan('selfguided:continue', ['id' => $task->short_id])
-            ->expectsOutputToContain("agent='null'")
+            ->expectsOutputToContain("type='task'")
             ->assertExitCode(1);
     });
 });

@@ -36,9 +36,9 @@ class SelfGuidedContinueCommand extends Command
                 return $this->outputError(sprintf("Task '%s' not found", $id));
             }
 
-            // Validate task has agent='selfguided'
-            if ($task->agent !== 'selfguided') {
-                return $this->outputError(sprintf("Task '%s' is not a selfguided task (agent='%s')", $task->short_id, $task->agent ?? 'null'));
+            // Validate task has type='selfguided'
+            if ($task->type !== 'selfguided') {
+                return $this->outputError(sprintf("Task '%s' is not a selfguided task (type='%s')", $task->short_id, $task->type ?? 'null'));
             }
 
             // Calculate the iteration we just completed (for notes and max check)

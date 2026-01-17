@@ -245,7 +245,7 @@ class ConsumeCommand extends Command
                     }
                 } catch (\RuntimeException $e) {
                     // Failed to connect - will fall back to DB query
-                    $this->warn('Could not connect to daemon, using database directly: ' . $e->getMessage());
+                    $this->warn('Could not connect to daemon, using database directly: '.$e->getMessage());
                     $this->ipcClient = null;
                 }
             } else {
@@ -1860,7 +1860,7 @@ class ConsumeCommand extends Command
         // Icons
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
-        $selfGuidedIcon = $task->agent === 'selfguided' ? '∞' : '';
+        $selfGuidedIcon = $task->type === 'selfguided' ? '∞' : '';
         $autoClosedIcon = '';
         if ($style === 'done') {
             $labels = $task->labels ?? [];
@@ -1955,7 +1955,7 @@ class ConsumeCommand extends Command
         // Icons
         $consumeIcon = empty($task->consumed) ? '' : '⚡';
         $failedIcon = $this->taskService->isFailed($task) ? '🪫' : '';
-        $selfGuidedIcon = $task->agent === 'selfguided' ? '∞' : '';
+        $selfGuidedIcon = $task->type === 'selfguided' ? '∞' : '';
         $icons = array_filter([$consumeIcon, $failedIcon, $selfGuidedIcon]);
         $iconString = $icons !== [] ? ' '.implode(' ', $icons) : '';
         $iconWidth = $icons !== [] ? count($icons) * 2 + 1 : 0;

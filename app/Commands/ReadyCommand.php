@@ -61,7 +61,7 @@ class ReadyCommand extends Command
 
                     return [
                         $t->short_id,
-                        ($t->agent === 'selfguided' ? '∞ ' : '').$title,
+                        ($t->type === 'selfguided' ? '∞ ' : '').$title,
                         $t->complexity ?? '-',
                         $t->epic?->title ?? '-',
                         $this->formatDate((string) $t->created_at),

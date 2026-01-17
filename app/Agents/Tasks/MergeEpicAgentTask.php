@@ -51,9 +51,8 @@ class MergeEpicAgentTask extends AbstractAgentTask
         $mergeTask = $taskService->create([
             'title' => 'Merge epic/'.$epic->short_id.' into main',
             'description' => 'Merge epic "'.$epic->title.'" from mirror branch into main project',
-            'type' => 'chore',
+            'type' => 'merge',
             'status' => TaskStatus::Open->value,
-            'agent' => 'merge',  // TaskSpawner recognizes this
             'epic_id' => $epic->id,
         ]);
 

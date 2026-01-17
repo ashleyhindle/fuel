@@ -54,7 +54,7 @@ describe('ready command', function (): void {
 
     it('shows infinity symbol for selfguided tasks', function (): void {
         $this->taskService->create(['title' => 'Normal task']);
-        $this->taskService->create(['title' => 'Selfguided task', 'agent' => 'selfguided']);
+        $this->taskService->create(['title' => 'Selfguided task', 'type' => 'selfguided']);
 
         $this->artisan('ready', [])
             ->expectsOutputToContain('Normal task')
@@ -63,7 +63,7 @@ describe('ready command', function (): void {
     });
 
     it('does not show infinity symbol in JSON output', function (): void {
-        $this->taskService->create(['title' => 'Selfguided task', 'agent' => 'selfguided']);
+        $this->taskService->create(['title' => 'Selfguided task', 'type' => 'selfguided']);
 
         $this->artisan('ready', ['--json' => true])
             ->expectsOutputToContain('"title": "Selfguided task"')

@@ -149,12 +149,12 @@ final class TaskSpawner
             'agent' => $task->agent,
         ]);
 
-        // Create appropriate AgentTask based on task type/agent field
+        // Create appropriate AgentTask based on task type
         if ($task->type === 'reality') {
             $agentTask = UpdateRealityAgentTask::fromTaskModel($task);
-        } elseif ($task->agent === 'merge') {
+        } elseif ($task->type === 'merge') {
             $agentTask = MergeEpicAgentTask::fromTaskModel($task);
-        } elseif ($task->agent === 'selfguided') {
+        } elseif ($task->type === 'selfguided') {
             $agentTask = app(SelfGuidedAgentTask::class, ['task' => $task]);
         } else {
             $agentTask = app(WorkAgentTask::class, [

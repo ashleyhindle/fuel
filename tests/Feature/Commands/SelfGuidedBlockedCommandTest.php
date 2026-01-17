@@ -14,7 +14,7 @@ describe('selfguided:blocked command', function (): void {
     it('creates needs-human task and adds dependency', function (): void {
         $selfguidedTask = $this->taskService->create([
             'title' => 'Self-guided task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
         ]);
 
         Artisan::call('selfguided:blocked', [
@@ -42,7 +42,7 @@ describe('selfguided:blocked command', function (): void {
     it('uses task title when no reason provided', function (): void {
         $selfguidedTask = $this->taskService->create([
             'title' => 'My selfguided task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
         ]);
 
         $this->artisan('selfguided:blocked', [
@@ -61,7 +61,7 @@ describe('selfguided:blocked command', function (): void {
     it('outputs JSON when --json flag is used', function (): void {
         $selfguidedTask = $this->taskService->create([
             'title' => 'Self-guided task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
         ]);
 
         Artisan::call('selfguided:blocked', [
@@ -99,7 +99,7 @@ describe('selfguided:blocked command', function (): void {
     it('supports partial ID matching', function (): void {
         $selfguidedTask = $this->taskService->create([
             'title' => 'Self-guided task',
-            'agent' => 'selfguided',
+            'type' => 'selfguided',
         ]);
 
         $partialId = substr((string) $selfguidedTask->short_id, 2, 3);

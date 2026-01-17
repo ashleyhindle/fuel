@@ -39,9 +39,8 @@ class EpicService
                 'title' => 'Implement: '.$title,
                 'description' => 'Self-guided implementation. See epic plan for acceptance criteria.',
                 'epic_id' => $epic->short_id,
-                'agent' => 'selfguided',
+                'type' => 'selfguided',
                 'complexity' => 'complex',
-                'type' => 'feature',
             ]);
         }
 

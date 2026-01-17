@@ -219,7 +219,7 @@ describe('epic:update with selfguided transition', function (): void {
         // Verify task was created
         $tasks = $this->epicService->getTasksForEpic($epic->short_id);
         expect($tasks)->toHaveCount(1);
-        expect($tasks[0]->agent)->toBe('selfguided');
+        expect($tasks[0]->type)->toBe('selfguided');
         expect($tasks[0]->complexity)->toBe('complex');
         expect($tasks[0]->title)->toContain('Implement: Epic to transition');
     });
