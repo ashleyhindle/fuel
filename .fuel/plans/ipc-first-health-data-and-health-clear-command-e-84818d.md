@@ -321,5 +321,33 @@ ConsumeIpcClient ──IPC──► ConsumeRunner
      - Handles 'all' option to clear all agents
 - **Integration complete:** Full health-clear command now works via command palette with autocomplete
 
+### f-aaa4ac: Add feature tests for IPC health functionality
+- **File created:**
+  - `tests/Feature/Commands/ConsumeCommandHealthTest.php` - Comprehensive feature tests for health functionality
+- **Tests added:**
+  1. `getHealthStatusLines uses IPC data when connected` - Verifies health display uses IPC data
+  2. `falls back to local health tracker when not connected` - Verifies fallback behavior
+  3. `shows unhealthy agents in /health-clear autocomplete` - Tests autocomplete filtering
+  4. `filters autocomplete suggestions based on search term` - Tests search functionality
+  5. `sends health reset command through IPC` - Verifies sendHealthReset is called
+  6. `shows empty suggestions when no agents need clearing` - Tests empty state
+  7. `handles health-clear all command` - Tests clearing all agents
+  8. `shows error when health-clear is called without arguments and no unhealthy agents` - Tests error messaging
+  9. `sends HealthResetCommand via IPC client` - Tests command sending
+  10. `verifies HealthResetCommand exists and has correct structure` - Tests command structure
+  11. `verifies IpcCommandDispatcher has setOnHealthReset method` - Tests dispatcher methods
+- **Key testing decisions:**
+  - Since many classes are marked `final` (AgentHealth, ConsumeIpcServer, SnapshotManager), tests focus on behavior and integration rather than deep mocking
+  - Created real instances of final classes where needed
+  - Used reflection to test private methods and properties in ConsumeCommand
+  - Mocked all ConsumeCommand constructor dependencies to isolate tests
+- **Gotchas for future testing:**
+  - ConsumeCommand requires all constructor dependencies (10 parameters)
+  - AgentHealth is final - must create real instances with all 7 constructor parameters
+  - ConsumeIpcServer and SnapshotManager are final - can't be mocked for dispatcher tests
+  - Toast property in ConsumeCommand is `\App\TUI\Toast` not `\App\Services\ToastService`
+  - Health status lines show "DEAD" not "unhealthy" when is_dead = true
+- **All tests pass:** 11 tests, 37 assertions
+
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
