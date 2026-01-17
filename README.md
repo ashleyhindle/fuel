@@ -1,6 +1,6 @@
 > [!WARNING]
-> This is a work in progress (WIP) and has only been tested by 1.2 people. Use at your own risk.
-> Windows is not supported.
+> Don't use this. This is a work in progress (WIP) and has only been tested by 1.2 people. 
+> Windows is purposely not supported, life is complicated enough as it is.
 
 # Fuel
 
