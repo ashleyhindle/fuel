@@ -29,8 +29,8 @@ class ProcessSpawner
 
         $fullCommand = sprintf(
             'nohup %s %s %s > /dev/null 2>&1 &',
-            PHP_BINARY,
-            $fuelPath,
+            escapeshellarg(PHP_BINARY),
+            escapeshellarg($fuelPath),
             $allArgs
         );
 
