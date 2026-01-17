@@ -136,16 +136,27 @@ describe('paused command', function (): void {
     });
 
     it('truncates long titles', function (): void {
-        $longTitle = str_repeat('A', 50).' Long Title';
+        $longTitle = str_repeat('A', 80).' Very Long Title That Will Be Truncated';
         $task = $this->taskService->create(['title' => $longTitle]);
         $this->taskService->pause($task->short_id);
+
+        // Set narrow terminal width to force truncation
+        putenv('COLUMNS=80');
 
         Artisan::call('paused', []);
         $output = Artisan::output();
 
-        // Title should be truncated with ellipsis
+        // Title should be truncated with ellipsis when terminal is narrow
         expect($output)->toContain('...');
         expect($output)->not->toContain($longTitle);
+
+        // Test with wide terminal - title should not be truncated
+        putenv('COLUMNS=200');
+        Artisan::call('paused', []);
+        $output = Artisan::output();
+
+        // With wide terminal, full title should be shown (or at least more of it)
+        expect($output)->toContain(str_repeat('A', 80));
     });
 
     it('shows both tasks and epics when both are paused', function (): void {

@@ -76,15 +76,14 @@ class PausedCommand extends Command
         $columnPriorities = [
             1,  // ID - keep
             1,  // Title - keep
-            1,  // Unpause Command - keep
+            2,  // Unpause Command - drop if needed
         ];
 
+        $terminalWidth = $this->getTerminalWidth();
+
         $rows = $tasks->map(function (Task $t): array {
-            // Get first line of title, then truncate if needed
+            // Get first line of title (remove newlines but don't truncate yet)
             $title = strtok($t->title, "\r\n") ?: $t->title;
-            if (mb_strlen($title) > 40) {
-                $title = mb_substr($title, 0, 37).'...';
-            }
 
             return [
                 $t->short_id,
@@ -94,7 +93,7 @@ class PausedCommand extends Command
         })->toArray();
 
         $table = new Table;
-        $table->render($headers, $rows, $this->output, $columnPriorities);
+        $table->render($headers, $rows, $this->output, $columnPriorities, $terminalWidth);
     }
 
     /**
@@ -110,15 +109,14 @@ class PausedCommand extends Command
         $columnPriorities = [
             1,  // ID - keep
             1,  // Title - keep
-            1,  // Unpause Command - keep
+            2,  // Unpause Command - drop if needed
         ];
 
+        $terminalWidth = $this->getTerminalWidth();
+
         $rows = $epics->map(function (Epic $e): array {
-            // Get first line of title, then truncate if needed
+            // Get first line of title (remove newlines but don't truncate yet)
             $title = strtok($e->title, "\r\n") ?: $e->title;
-            if (mb_strlen($title) > 40) {
-                $title = mb_substr($title, 0, 37).'...';
-            }
 
             return [
                 $e->short_id,
@@ -128,6 +126,36 @@ class PausedCommand extends Command
         })->toArray();
 
         $table = new Table;
-        $table->render($headers, $rows, $this->output, $columnPriorities);
+        $table->render($headers, $rows, $this->output, $columnPriorities, $terminalWidth);
+    }
+
+    /**
+     * Get terminal width.
+     *
+     * @return int Terminal width in characters
+     */
+    private function getTerminalWidth(): int
+    {
+        // Check environment variables first (allows test override)
+        $envWidth = getenv('COLUMNS');
+        if ($envWidth !== false && (int) $envWidth > 0) {
+            return (int) $envWidth;
+        }
+
+        if (isset($_SERVER['COLUMNS']) && (int) $_SERVER['COLUMNS'] > 0) {
+            return (int) $_SERVER['COLUMNS'];
+        }
+
+        // Try to get from tput
+        $width = @shell_exec('tput cols');
+        if ($width !== null && $width !== false) {
+            $width = (int) trim($width);
+            if ($width > 0) {
+                return $width;
+            }
+        }
+
+        // Default fallback
+        return 120;
     }
 }

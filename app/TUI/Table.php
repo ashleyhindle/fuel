@@ -60,6 +60,9 @@ class Table
         $numColumns = count($headers);
         $columnWidths = $this->calculateColumnWidths($headers, $rows, $numColumns);
 
+        // Apply smart truncation if needed
+        [$columnWidths, $rows] = $this->applySmartTruncation($headers, $rows, $columnWidths, $maxWidth);
+
         $lines = [];
 
         // Top border
@@ -270,7 +273,7 @@ class Table
      */
     private function fitToWidth(array $headers, array $rows, array $columnPriorities, int $maxWidth): array
     {
-        if ($columnPriorities === []) {
+        if ($columnPriorities === [] || count($headers) === 0) {
             return [$headers, $rows];
         }
 
@@ -281,6 +284,11 @@ class Table
 
         // If it fits, return as-is
         if ($tableWidth <= $maxWidth) {
+            return [$headers, $rows];
+        }
+
+        // Never drop below one column
+        if ($numColumns === 1) {
             return [$headers, $rows];
         }
 
@@ -297,8 +305,19 @@ class Table
         $columnsToKeep = range(0, $numColumns - 1);
 
         foreach (array_keys($columnMap) as $colIndex) {
+            // Never drop all columns
+            if (count($columnsToKeep) <= 1) {
+                break;
+            }
+
             // Try removing this column
             $testKeep = array_values(array_diff($columnsToKeep, [$colIndex]));
+
+            // Never drop all columns
+            if (count($testKeep) === 0) {
+                continue;
+            }
+
             $testHeaders = array_values(array_intersect_key($headers, array_flip($testKeep)));
             $testRows = array_map(fn (array $row): array => array_values(array_intersect_key($row, array_flip($testKeep))), $rows);
 
@@ -313,7 +332,7 @@ class Table
             $columnsToKeep = $testKeep;
         }
 
-        // Return whatever we have left
+        // Return whatever we have left (at least one column)
         $keepHeaders = array_values(array_intersect_key($headers, array_flip($columnsToKeep)));
         $keepRows = array_map(fn (array $row): array => array_values(array_intersect_key($row, array_flip($columnsToKeep))), $rows);
 
@@ -364,5 +383,124 @@ class Table
 
         // Default fallback
         return 120;
+    }
+
+    /**
+     * Apply smart truncation to columns if table is too wide.
+     *
+     * @param  array<string>  $headers  Column headers
+     * @param  array<array<string>>  $rows  Table rows
+     * @param  array<int>  $columnWidths  Calculated column widths
+     * @param  int  $maxWidth  Maximum table width
+     * @return array{array<int>, array<array<string>>} [adjusted column widths, truncated rows]
+     */
+    private function applySmartTruncation(array $headers, array $rows, array $columnWidths, int $maxWidth): array
+    {
+        $numColumns = count($headers);
+        $tableWidth = array_sum($columnWidths) + ($numColumns * 2) + ($numColumns + 1);
+
+        // If table fits, no truncation needed
+        if ($tableWidth <= $maxWidth) {
+            return [$columnWidths, $rows];
+        }
+
+        // Calculate available space for columns (subtract borders and padding)
+        $availableWidth = $maxWidth - ($numColumns * 2) - ($numColumns + 1);
+        if ($availableWidth < $numColumns * 4) {
+            // Too narrow, just use minimum widths
+            return [$columnWidths, $rows];
+        }
+
+        // Find columns that can be truncated (prioritize wider columns)
+        $adjustedWidths = $columnWidths;
+        $totalNeeded = array_sum($columnWidths);
+        $reduction = $totalNeeded - $availableWidth;
+
+        // Sort columns by width (widest first) to truncate proportionally
+        $columnsByWidth = [];
+        foreach ($columnWidths as $idx => $width) {
+            $columnsByWidth[$idx] = $width;
+        }
+        arsort($columnsByWidth);
+
+        // Distribute reduction across widest columns
+        foreach (array_keys($columnsByWidth) as $idx) {
+            if ($reduction <= 0) {
+                break;
+            }
+
+            $currentWidth = $adjustedWidths[$idx];
+            // Keep minimum width of 10 for readability, or header width + 3
+            $minWidth = max(10, $this->visibleLength($headers[$idx]) + 3);
+
+            if ($currentWidth > $minWidth) {
+                $canReduce = min($currentWidth - $minWidth, $reduction);
+                $adjustedWidths[$idx] = $currentWidth - $canReduce;
+                $reduction -= $canReduce;
+            }
+        }
+
+        // Truncate row content to fit adjusted widths
+        $truncatedRows = [];
+        foreach ($rows as $row) {
+            $truncatedRow = [];
+            foreach ($row as $idx => $cell) {
+                $maxCellWidth = $adjustedWidths[$idx];
+                $cellLength = $this->visibleLength($cell);
+
+                if ($cellLength > $maxCellWidth) {
+                    // Truncate with ellipsis
+                    $truncatedRow[] = $this->truncateString($cell, $maxCellWidth);
+                } else {
+                    $truncatedRow[] = $cell;
+                }
+            }
+            $truncatedRows[] = $truncatedRow;
+        }
+
+        return [$adjustedWidths, $truncatedRows];
+    }
+
+    /**
+     * Truncate a string to fit within a given width.
+     *
+     * @param  string  $string  String to truncate
+     * @param  int  $maxWidth  Maximum width
+     * @return string Truncated string with ellipsis
+     */
+    private function truncateString(string $string, int $maxWidth): string
+    {
+        if ($maxWidth < 4) {
+            return str_repeat('.', min(3, $maxWidth));
+        }
+
+        // Strip ANSI codes for accurate measurement
+        $plain = $this->stripAnsi($string);
+
+        if (mb_strwidth($plain) <= $maxWidth) {
+            return $string;
+        }
+
+        // Reserve space for ellipsis
+        $targetWidth = $maxWidth - 3;
+
+        // Binary search to find the right truncation point
+        $left = 0;
+        $right = mb_strlen($plain);
+        $result = '';
+
+        while ($left <= $right) {
+            $mid = intval(($left + $right) / 2);
+            $substr = mb_substr($plain, 0, $mid);
+
+            if (mb_strwidth($substr) <= $targetWidth) {
+                $result = $substr;
+                $left = $mid + 1;
+            } else {
+                $right = $mid - 1;
+            }
+        }
+
+        return $result.'...';
     }
 }
