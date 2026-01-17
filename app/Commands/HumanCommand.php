@@ -60,6 +60,15 @@ class HumanCommand extends Command
     /** Cached tasks data */
     private array $tasks = [];
 
+    /** Cached epics with merge failed */
+    private array $epicsMergeFailed = [];
+
+    /** Cached stale mirrors */
+    private array $staleMirrors = [];
+
+    /** Cached orphaned mirrors */
+    private array $orphanedMirrors = [];
+
     /** Last refresh timestamp */
     private float $lastRefresh = 0;
 
@@ -93,6 +102,11 @@ class HumanCommand extends Command
         $this->outputJson([
             'tasks' => array_map(fn (Task $task): array => $task->toArray(), $this->tasks),
             'epics' => array_map(fn (Epic $epic): array => $epic->toArray(), $this->epics),
+            'mirror_issues' => [
+                'merge_failed' => array_map(fn (Epic $epic): array => $epic->toArray(), $this->epicsMergeFailed),
+                'stale_mirrors' => array_map(fn (Epic $epic): array => $epic->toArray(), $this->staleMirrors),
+                'orphaned_mirrors' => $this->orphanedMirrors,
+            ],
         ]);
 
         return self::SUCCESS;
@@ -103,7 +117,7 @@ class HumanCommand extends Command
      */
     private function handleOnceMode(): int
     {
-        $totalCount = count($this->tasks) + count($this->epics);
+        $totalCount = count($this->tasks) + count($this->epics) + count($this->epicsMergeFailed) + count($this->staleMirrors) + count($this->orphanedMirrors);
 
         if ($totalCount === 0) {
             $this->info('No items need human attention.');
@@ -136,6 +150,39 @@ class HumanCommand extends Command
             }
 
             $this->newLine();
+        }
+
+        // Show mirror issues section
+        if ($this->epicsMergeFailed !== [] || $this->staleMirrors !== [] || $this->orphanedMirrors !== []) {
+            $this->line('<fg=yellow>MIRROR ISSUES</>');
+            $this->newLine();
+
+            // Show merge failed epics
+            foreach ($this->epicsMergeFailed as $epic) {
+                $age = $this->formatAge($epic->updated_at ?? null);
+                $this->line(sprintf('<fg=red>MERGE FAILED:</> <info>%s</info> - %s <comment>(%s)</comment>', $epic->short_id, $epic->title, $age));
+                $this->line(sprintf('  Mirror: <comment>%s</comment>', $epic->mirror_path ?? 'unknown'));
+                $this->line(sprintf('  Action: <comment>Check mirror logs and resolve conflicts</comment>'));
+                $this->newLine();
+            }
+
+            // Show stale mirrors
+            foreach ($this->staleMirrors as $epic) {
+                $age = $this->formatAge($epic->updated_at ?? null);
+                $this->line(sprintf('<fg=yellow>STALE MIRROR:</> <info>%s</info> - %s <comment>(inactive for %s)</comment>', $epic->short_id, $epic->title, $age));
+                $this->line(sprintf('  Mirror: <comment>%s</comment>', $epic->mirror_path ?? 'unknown'));
+                $this->line(sprintf('  Status: <comment>%s</comment>', $epic->mirror_status?->label() ?? 'unknown'));
+                $this->line(sprintf('  Cleanup: <comment>rm -rf %s</comment>', escapeshellarg($epic->mirror_path ?? '')));
+                $this->newLine();
+            }
+
+            // Show orphaned mirrors
+            foreach ($this->orphanedMirrors as $orphan) {
+                $this->line(sprintf('<fg=yellow>ORPHANED MIRROR:</> <info>%s</info> - %s', $orphan['epic_id'], $orphan['reason']));
+                $this->line(sprintf('  Path: <comment>%s</comment>', $orphan['path']));
+                $this->line(sprintf('  Cleanup: <comment>rm -rf %s</comment>', escapeshellarg($orphan['path'])));
+                $this->newLine();
+            }
         }
 
         return self::SUCCESS;
@@ -482,7 +529,9 @@ class HumanCommand extends Command
         $currentRow = 4;
         $currentRow = $this->renderEpics($currentRow);
         $currentRow = $this->renderDivider($currentRow);
-        $this->renderTasks($currentRow);
+        $currentRow = $this->renderTasks($currentRow);
+        $currentRow = $this->renderDivider($currentRow);
+        $this->renderMirrorIssues($currentRow);
 
         // Render toast if visible
         if ($this->toast?->isVisible()) {
@@ -696,6 +745,55 @@ class HumanCommand extends Command
     }
 
     /**
+     * Render mirror issues section.
+     */
+    private function renderMirrorIssues(int $startRow): int
+    {
+        $row = $startRow;
+
+        if ($this->epicsMergeFailed === [] && $this->staleMirrors === [] && $this->orphanedMirrors === []) {
+            return $row;
+        }
+
+        $this->screenBuffer->setLine($row++, '');
+        $totalIssues = count($this->epicsMergeFailed) + count($this->staleMirrors) + count($this->orphanedMirrors);
+        $this->screenBuffer->setLine($row++, "\033[1;33mMIRROR ISSUES ({$totalIssues})\033[0m");
+        $this->screenBuffer->setLine($row++, '');
+
+        // Render merge failed epics
+        foreach ($this->epicsMergeFailed as $epic) {
+            $age = $this->formatAge($epic->updated_at ?? null);
+            $title = "\033[1;31m{$epic->short_id}\033[0m - {$epic->title} \033[90m(failed {$age})\033[0m";
+            $this->screenBuffer->setLine($row++, $title);
+            $this->screenBuffer->setLine($row++, "  \033[90mMirror: ".($epic->mirror_path ?? 'unknown')."\033[0m");
+            $this->screenBuffer->setLine($row++, "  \033[31mMerge failed - check logs and resolve conflicts\033[0m");
+            $this->screenBuffer->setLine($row++, '');
+        }
+
+        // Render stale mirrors
+        foreach ($this->staleMirrors as $epic) {
+            $age = $this->formatAge($epic->updated_at ?? null);
+            $title = "\033[1;33m{$epic->short_id}\033[0m - {$epic->title} \033[90m(inactive {$age})\033[0m";
+            $this->screenBuffer->setLine($row++, $title);
+            $this->screenBuffer->setLine($row++, "  \033[90mMirror: ".($epic->mirror_path ?? 'unknown')."\033[0m");
+            $this->screenBuffer->setLine($row++, "  \033[90mStatus: ".($epic->mirror_status?->label() ?? 'unknown')."\033[0m");
+            $this->screenBuffer->setLine($row++, "  \033[33mCleanup: rm -rf ".escapeshellarg($epic->mirror_path ?? '')."\033[0m");
+            $this->screenBuffer->setLine($row++, '');
+        }
+
+        // Render orphaned mirrors
+        foreach ($this->orphanedMirrors as $orphan) {
+            $title = "\033[1;33m{$orphan['epic_id']}\033[0m - \033[90m{$orphan['reason']}\033[0m";
+            $this->screenBuffer->setLine($row++, $title);
+            $this->screenBuffer->setLine($row++, "  \033[90mPath: {$orphan['path']}\033[0m");
+            $this->screenBuffer->setLine($row++, "  \033[33mCleanup: rm -rf ".escapeshellarg($orphan['path'])."\033[0m");
+            $this->screenBuffer->setLine($row++, '');
+        }
+
+        return $row;
+    }
+
+    /**
      * Perform differential rendering between buffers.
      */
     private function performDifferentialRender(): void
@@ -745,6 +843,11 @@ class HumanCommand extends Command
         // Get epics with status review_pending
         $allEpics = $epicService->getAllEpics();
         $this->epics = array_values(array_filter($allEpics, fn (Epic $epic): bool => $epic->status === EpicStatus::ReviewPending));
+
+        // Get mirror issues
+        $this->epicsMergeFailed = $epicService->getEpicsWithMergeFailed();
+        $this->staleMirrors = $epicService->getEpicsWithStaleMirrors();
+        $this->orphanedMirrors = $epicService->findOrphanedMirrors();
     }
 
     /**
