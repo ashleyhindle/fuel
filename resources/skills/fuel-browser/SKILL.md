@@ -164,8 +164,10 @@ Options:
 ### Wait for Condition
 ```bash
 fuel browser:wait <page_id> [--selector=] [--url=] [--text=] [--timeout=30000]
+fuel browser:wait <page_id> <ref>         # Wait for ref
+fuel browser:wait <page_id> <milliseconds> # Wait fixed time
 ```
-Wait for selector, URL pattern, or text.
+Wait for selector, URL pattern, text, ref, or fixed time.
 
 Options:
 - `--selector="..."` - Wait for CSS selector
@@ -180,6 +182,8 @@ fuel browser:wait page1 --selector=".modal"
 fuel browser:wait page1 --url="**/dashboard"
 fuel browser:wait page1 --text="Success"
 fuel browser:wait page1 --selector=".spinner" --state=hidden
+fuel browser:wait page1 @e1        # Wait for ref to be visible
+fuel browser:wait page1 2000       # Wait 2 seconds
 ```
 
 ### Scroll Page
