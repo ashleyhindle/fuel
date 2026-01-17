@@ -251,20 +251,4 @@ class EpicShowCommand extends Command
 
         return in_array('needs-human', $labels, true);
     }
-
-    /**
-     * Get a single character representing task complexity.
-     */
-    private function getComplexityChar(Task $task): string
-    {
-        $complexity = $task->complexity ?? 'simple';
-
-        return match ($complexity) {
-            'trivial' => 't',
-            'simple' => 's',
-            'moderate' => 'm',
-            'complex' => 'c',
-            default => 's',
-        };
-    }
 }

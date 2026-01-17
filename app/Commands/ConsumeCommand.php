@@ -25,7 +25,6 @@ use App\Services\FuelContext;
 use App\Services\NotificationService;
 use App\Services\ProcessManager;
 use App\Services\RunService;
-use App\Services\TaskPromptBuilder;
 use App\Services\TaskService;
 use App\TUI\GradientText;
 use App\TUI\ScreenBuffer;
@@ -179,7 +178,6 @@ class ConsumeCommand extends Command
         private ProcessManager $processManager,
         private FuelContext $fuelContext,
         private BackoffStrategy $backoffStrategy,
-        private TaskPromptBuilder $promptBuilder,
         private EpicService $epicService,
         private NotificationService $notificationService,
         private ?AgentHealthTrackerInterface $healthTracker = null,
@@ -1982,14 +1980,6 @@ class ConsumeCommand extends Command
     }
 
     /**
-     * Pad a line with border character at the end.
-     */
-    private function padLineWithBorder(string $line, int $width): string
-    {
-        return $this->padLineWithBorderColor($line, $width, 'fg=gray');
-    }
-
-    /**
      * Pad a line with colored border character at the end.
      */
     private function padLineWithBorderColor(string $line, int $width, string $borderColor): string
@@ -2924,42 +2914,6 @@ class ConsumeCommand extends Command
         }
 
         return preg_match('/^[a-zA-Z0-9_\-@]$/', $char) === 1;
-    }
-
-    /**
-     * Check if a position is within the current selection.
-     */
-    private function isInSelection(int $row, int $col): bool
-    {
-        if ($this->selectionStart === null || $this->selectionEnd === null) {
-            return false;
-        }
-
-        [$startRow, $startCol] = $this->selectionStart;
-        [$endRow, $endCol] = $this->selectionEnd;
-
-        // Normalize so start is before end
-        if ($startRow > $endRow || ($startRow === $endRow && $startCol > $endCol)) {
-            [$startRow, $startCol, $endRow, $endCol] = [$endRow, $endCol, $startRow, $startCol];
-        }
-
-        if ($row < $startRow || $row > $endRow) {
-            return false;
-        }
-
-        if ($row === $startRow && $row === $endRow) {
-            return $col >= $startCol && $col <= $endCol;
-        }
-
-        if ($row === $startRow) {
-            return $col >= $startCol;
-        }
-
-        if ($row === $endRow) {
-            return $col <= $endCol;
-        }
-
-        return true; // Middle rows are fully selected
     }
 
     /**

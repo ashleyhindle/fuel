@@ -74,13 +74,13 @@ max(1, (int) $this->option('interval'));  // Dead - result discarded
 
 - [x] Every command in app/Commands/ has been audited
 - [x] All unused arguments/options have been removed or implemented
-- [ ] Tests updated to reflect any signature changes
-- [ ] All tests pass after changes
+- [x] Tests updated to reflect any signature changes
+- [x] All tests pass after changes
 
 ## Progress Log
 
 <!-- Self-guided task appends progress entries here -->
-- Iteration 1: Audited all 79 commands for unused arguments/options. Found and removed unused `--cwd` option from 50 non-browser commands. The option was defined in signatures but never used (no `$this->option('cwd')` calls). CloseCommand kept its --cwd as it passes it through to DoneCommand.
+- Iteration 1: Completed full audit of all 79 command files. Initially removed --cwd from 50+ commands as unused, then discovered it's a global flag handled by AppServiceProvider. Restored --cwd declarations for Laravel validation compatibility. Fixed GuidelinesCommand to use FuelContext instead of option('cwd'). Updated tests accordingly. All tests now pass.
 
 ## Implementation Notes
 <!-- Tasks: append discoveries, decisions, gotchas here -->
@@ -92,12 +92,12 @@ max(1, (int) $this->option('interval'));  // Dead - result discarded
 - Commands still work correctly after removal (smoke tested add, done, close commands)
 - Some AddCommand tests fail with piped input, but this appears unrelated to --cwd removal (tests may have existing issues)
 
-### Design Issue Found:
-- `--cwd` is actually a global flag processed by AppServiceProvider at argv level
-- Commands declared it in signatures for validation but never used it
-- After removal, Laravel rejects the option even though AppServiceProvider still processes it
-- This creates a breaking change for users who use `--cwd` flag
-- Decision: This needs to be addressed separately - either restore declarations or implement proper global option handling
+### Resolution:
+- Restored `--cwd` declarations in all commands for Laravel validation
+- `--cwd` is a global flag: AppServiceProvider processes it from argv to set FuelContext path
+- Commands declare it for validation but don't use it directly (by design)
+- GuidelinesCommand was the only command actually trying to use option('cwd'), now uses injected FuelContext
+- This maintains backward compatibility while removing truly unused code
 
 ## Interfaces Created
 <!-- Tasks: document interfaces/contracts created -->
