@@ -8,6 +8,7 @@ use App\Services\ConfigService;
 use App\Services\DatabaseService;
 use App\Services\FuelContext;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use LaravelZero\Framework\Testing\TestCase as BaseTestCase;
 
@@ -37,6 +38,7 @@ abstract class TestCase extends BaseTestCase
         $this->testContext = $this->app->make(FuelContext::class);
         $this->testContext->basePath = $this->testDir.'/.fuel';
         $this->testContext->configureDatabase();
+        DB::purge('sqlite');
 
         // Ensure cached config is reloaded against the test context
         $this->app->make(ConfigService::class)->reload();
